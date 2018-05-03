@@ -1,5 +1,5 @@
 module Vespa
 
-# package code goes here
+include("parse.jl")
 
 end # module
