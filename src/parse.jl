@@ -109,16 +109,16 @@ function parse_dict(ts)
   xs = []
   while true
     peek(ts)[1] == '}' && (read(ts); break)
-    k = parse(ts)
+    k = String(parse(ts))
     nt, pos = read(ts)
     nt == ':' || error("Expected a `:` at $(curstring(pos))")
     v = parse(ts)
-    push!(xs, Expr(:call, :(=>), k, v))
+    push!(xs, :($k=>$v))
     nt, pos = read(ts)
     nt == '}' && break
     nt == ',' || error("Expected a delimiter at $(curstring(pos))")
   end
-  return Expr(:call, :Dict, xs...)
+  return Expr(:call, Dict, xs...)
 end
 
 function parse_block(ts, level)
@@ -176,8 +176,3 @@ function parse(ts::TokenStream, level = 0)
 end
 
 parse(s::String) = parse(TokenStream(LineNumberingReader(IOBuffer(s))))
-
-parse("""
-  def foo(a, b):
-    {a: b, c: d}
-  """)
