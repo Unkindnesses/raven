@@ -15,6 +15,17 @@ function consume_ws(io::IO)
   end
 end
 
+function num_token(io::IO)
+  sym = IOBuffer()
+  while !eof(io)
+    c = Char(read(io, UInt8))
+    c in '0':'9' || (seek(io, position(io)-1); break)
+    write(sym, c)
+  end
+  seek(sym, 0)
+  return Base.parse(Int, String(read(sym)))
+end
+
 function symbol_token(io::IO)
   sym = IOBuffer()
   while !eof(io)
@@ -50,7 +61,8 @@ function tokenise(io::IO)
   cur = cursor(io)
   eof(io) && return (:eof, cur)
   c = Char(peek(io))
-  tk = c ∈ 'a':'z' || c ∈ 'A':'Z' ? symbol_token(io) :
+  tk = c ∈ '0':'9' ? num_token(io) :
+       c ∈ 'a':'z' || c ∈ 'A':'Z' ? symbol_token(io) :
        c == '\n' ? stmt_token(io) :
        c in chartokens ? (read(io, UInt8); c) :
        error("Unrecognised character $(sprint(show, c)) at $(curstring(cur))")
