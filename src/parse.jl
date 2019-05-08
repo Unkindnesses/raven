@@ -162,7 +162,7 @@ function parse1(ts::TokenStream, level = 0)
   if tk == "loop"
     body = parse(ts, level)
     Expr(:while, true, body)
-  elseif tk == "def"
+  elseif tk == "fn"
     parse_def(ts, level)
   elseif tk isa String
     Symbol(tk)
