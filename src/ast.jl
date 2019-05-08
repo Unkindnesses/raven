@@ -1,0 +1,61 @@
+# AST Structure
+
+abstract type Expr end
+
+struct Call <: Expr
+  func
+  args::Vector{Any}
+end
+
+struct Block <: Expr
+  name::Symbol
+  args::Vector{Any}
+  block::Vector{Any}
+end
+
+# Printing
+
+struct ShowContext{IO}
+  io::IO
+  indent::Int
+end
+
+ShowContext(io::IO) = ShowContext(io, 0)
+
+indent(cx::ShowContext) = ShowContext(cx.io, cx.indent+2)
+
+@forward ShowContext.io Base.print, Base.println, Base.join
+
+Base.repr(cx::ShowContext, x) = sprint(io -> _show(ShowContext(io, cx.indent), x))
+
+const Ctx = ShowContext
+
+_show(io::Ctx, x::Union{Symbol,Number,String}) = print(io, x)
+
+function _show(io::Ctx, x::Call)
+  _show(io, x.func)
+  print(io, "(")
+  join(io, repr.((io,), x.args), ", ")
+  print(io, ")")
+end
+
+function _show(io::Ctx, x::Block)
+  io = indent(io)
+  _show(io, x.name)
+  for arg in x.args
+    print(io, " ")
+    _show(io, arg)
+  end
+  print(io, ":")
+  if length(x.block) == 1
+    print(io, " ")
+    _show(io, x.block[1])
+  else
+    for i = 1:length(x.block)
+      print(io, "\n", " "^io.indent)
+      _show(io, x.block[i])
+    end
+  end
+end
+
+Base.show(io::IO, x::Expr) = _show(ShowContext(io), x)
