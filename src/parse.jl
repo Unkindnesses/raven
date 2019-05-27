@@ -167,7 +167,7 @@ function parse1(ts::TokenStream, level = 0)
   elseif tk isa String
     Symbol(tk)
   elseif tk == '('
-    Expr(:tuple, parse_brackets(ts, level, ')')...)
+    Tuple(parse_brackets(ts, level, ')'))
   elseif tk == '{'
     parse_dict(ts)
   elseif tk == ':'
@@ -182,7 +182,7 @@ function parse(ts::TokenStream, level = 0)
   ex = parse1(ts)
   while (nt = peek(ts)[1]) == '('
     args = parse1(ts)
-    ex = Expr(:call, ex, args.args...)
+    return Call(ex, args.args)
   end
   return ex
 end

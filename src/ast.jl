@@ -2,6 +2,10 @@
 
 abstract type Expr end
 
+struct Tuple <: Expr
+  args::Vector{Any}
+end
+
 struct Call <: Expr
   func
   args::Vector{Any}
@@ -11,6 +15,12 @@ struct Block <: Expr
   name::Symbol
   args::Vector{Any}
   block::Vector{Any}
+end
+
+using MacroTools: @q
+
+for T in [Tuple, Call, Block]
+  @eval Base.:(==)(a::$T, b::$T) = $(Base.Expr(:&&, [:(a.$f == b.$f) for f in fieldnames(T)]...))
 end
 
 # Printing
