@@ -42,6 +42,12 @@ const Ctx = ShowContext
 
 _show(io::Ctx, x::Union{Symbol,Number,String}) = print(io, x)
 
+function _show(io::Ctx, x::Tuple)
+  print(io, "(")
+  join(io, repr.((io,), x.args), ", ")
+  print(io, ")")
+end
+
 function _show(io::Ctx, x::Call)
   _show(io, x.func)
   print(io, "(")

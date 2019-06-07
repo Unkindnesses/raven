@@ -59,7 +59,7 @@ chartokens = [':', ',', '(', ')', '{', '}']
 function tokenise(io::IO)
   consume_ws(io)
   cur = cursor(io)
-  eof(io) && return (:eof, cur)
+  eof(io) && return ('\0', cur)
   c = Char(peek(io))
   tk = c ∈ '0':'9' ? num_token(io) :
        c ∈ 'a':'z' || c ∈ 'A':'Z' ? symbol_token(io) :
@@ -75,6 +75,8 @@ struct TokenStream{I<:IO}
 end
 
 TokenStream(io::IO) = TokenStream{typeof(io)}(io, [])
+
+TokenStream(s::String) = TokenStream(LineNumberingReader(IOBuffer(s)))
 
 Base.read(ts::TokenStream) =
   isempty(ts.stack) ? tokenise(ts.io) : pop!(ts.stack)
@@ -108,7 +110,7 @@ function parse_brackets(ts, level, stop)
   xs = []
   while true
     peek(ts)[1] == stop && (read(ts); break)
-    x = parse(ts)
+    x = parse(ts, level)
     push!(xs, x)
     nt, pos = read(ts)
     nt == stop && break
@@ -117,74 +119,54 @@ function parse_brackets(ts, level, stop)
   return xs
 end
 
-function parse_dict(ts)
-  xs = []
-  while true
-    peek(ts)[1] == '}' && (read(ts); break)
-    k = String(parse(ts))
-    nt, pos = read(ts)
-    nt == ':' || error("Expected a `:` at $(curstring(pos))")
-    v = parse(ts)
-    push!(xs, :($k=>$v))
-    nt, pos = read(ts)
-    nt == '}' && break
-    nt == ',' || error("Expected a delimiter at $(curstring(pos))")
-  end
-  return Expr(:call, Dict, xs...)
-end
-
-function parse_block(ts, level)
-  _, pos = read(ts)
-  nt, _ = peek(ts)
-  nt isa Stmt || error("Block at $(curstring(pos)) requires a newline")
-  inner = nt.indent
-  inner <= level && return Expr(:block)
-  exs = []
-  while true
-    nt, pos = peek(ts)
-    nt == :eof && break
-    @assert nt isa Stmt
-    nt.indent == inner || break
-    push!(exs, parse(ts, inner))
-  end
-  return Expr(:block, exs...)
-end
-
-function parse_def(ts, level)
-  sig = parse(ts)
-  body = parse(ts)
-  Expr(:function, sig, body)
-end
-
-function parse1(ts::TokenStream, level = 0)
+function parse_atom(ts::TokenStream, level)
   consume_stmts!(ts)
   tk, cur = read(ts)
-  if tk == "loop"
-    body = parse(ts, level)
-    Expr(:while, true, body)
-  elseif tk == "fn"
-    parse_def(ts, level)
-  elseif tk isa String
-    Symbol(tk)
-  elseif tk == '('
-    Tuple(parse_brackets(ts, level, ')'))
-  elseif tk == '{'
-    parse_dict(ts)
-  elseif tk == ':'
-    push!(ts, (tk, cur))
-    parse_block(ts, level)
-  else
-    return tk
-  end
+  tk isa String ? Symbol(tk) :
+  tk == '(' ? Tuple(parse_brackets(ts, level, ')')) :
+  tk
 end
 
-function parse(ts::TokenStream, level = 0)
-  ex = parse1(ts)
+function parse_ex(ts::TokenStream, level)
+  ex = parse_atom(ts, level)
   while (nt = peek(ts)[1]) == '('
-    args = parse1(ts)
-    return Call(ex, args.args)
+    args = parse_atom(ts, level)
+    ex = Call(ex, args.args)
   end
   return ex
 end
 
-parse(s::String) = parse(TokenStream(LineNumberingReader(IOBuffer(s))))
+function parse_block(ts, name, level)
+  args = []
+  while true
+    next = peek(ts)[1]
+    !(next isa Stmt || next in (',', ':')) || break
+    push!(args, parse_ex(ts, level))
+  end
+  c, cur = read(ts)
+  c == ':' || error("Block requires a colon at $(curstring(cur))")
+  nt, _ = peek(ts)
+  nt isa Stmt || return Block(name, args, [parse_ex(ts, level)])
+  inner = nt.indent
+  inner <= level && return Block(name, args, [])
+  exs = []
+  while true
+    nt, pos = peek(ts)
+    nt == '\0' && break
+    @assert nt isa Stmt
+    nt.indent == inner || break
+    push!(exs, parse(ts, inner))
+  end
+  return Block(name, args, exs)
+end
+
+function parse(ts::TokenStream, level)
+  ex = parse_ex(ts, level)
+  next = peek(ts)[1]
+  if ex isa Symbol && !(next isa Stmt || next in (',', ')'))
+    return parse_block(ts, ex, 0)
+  end
+  return ex
+end
+
+parse(s::String) = parse(TokenStream(s), 0)
