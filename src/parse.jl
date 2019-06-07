@@ -38,7 +38,7 @@ function symbol_token(io::IO)
   return String(read(sym))
 end
 
-operators = [":", "=", ":=", "+", "-", "*", "/"]
+operators = [":", "=", ":=", "+", "-", "*", "/", ">", "<", ">=", "<="]
 opchars = unique(map(first, operators))
 
 function op_token(io::IO)
@@ -146,6 +146,7 @@ end
 
 function parse_ex(ts::TokenStream, level)
   ex = parse_atom(ts, level)
+  ex == :return && return Return(parse_ex(ts, level))
   while (nt = peek(ts)[1]) == '('
     args = parse_atom(ts, level)
     ex = Call(ex, args.args)

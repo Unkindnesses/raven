@@ -2,6 +2,10 @@
 
 abstract type Expr end
 
+struct Return <: Expr
+  val
+end
+
 struct Tuple <: Expr
   args::Vector{Any}
 end
@@ -24,7 +28,7 @@ end
 
 using MacroTools: @q
 
-for T in [Tuple, Call, Operator, Block]
+for T in [Return, Tuple, Call, Operator, Block]
   @eval Base.:(==)(a::$T, b::$T) = $(Base.Expr(:&&, [:(a.$f == b.$f) for f in fieldnames(T)]...))
 end
 
@@ -46,6 +50,11 @@ Base.repr(cx::ShowContext, x) = sprint(io -> _show(ShowContext(io, cx.indent), x
 const Ctx = ShowContext
 
 _show(io::Ctx, x::Union{Symbol,Number,String}) = print(io, x)
+
+function _show(io::Ctx, x::Return)
+  print(io, "return ")
+  _show(io, x.val)
+end
 
 function _show(io::Ctx, x::Tuple)
   print(io, "(")
