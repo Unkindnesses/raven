@@ -24,7 +24,10 @@ struct Block <: Expr
   name::Symbol
   args::Vector{Any}
   block::Vector{Any}
+  short::Bool
 end
+
+Block(name, args, block) = Block(name, args, block, false)
 
 using MacroTools: @q
 
@@ -76,17 +79,17 @@ function _show(io::Ctx, x::Operator)
 end
 
 function _show(io::Ctx, x::Block)
-  io = indent(io)
   _show(io, x.name)
   for arg in x.args
     print(io, " ")
     _show(io, arg)
   end
   print(io, ":")
-  if length(x.block) == 1
+  if x.short
     print(io, " ")
     _show(io, x.block[1])
   else
+    io = indent(io)
     for i = 1:length(x.block)
       print(io, "\n", " "^io.indent)
       _show(io, x.block[i])

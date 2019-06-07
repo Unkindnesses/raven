@@ -168,7 +168,7 @@ function parse_block(ts, name, level)
   c, cur = read(ts)
   c == :(:) || error("Block requires a colon at $(curstring(cur))")
   nt, _ = peek(ts)
-  nt isa Stmt || return Block(name, args, [parse_ex(ts, level)])
+  nt isa Stmt || return Block(name, args, [parse(ts, level)], true)
   inner = nt.indent
   inner <= level && return Block(name, args, [])
   exs = []

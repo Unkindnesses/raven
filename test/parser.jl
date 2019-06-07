@@ -10,12 +10,12 @@ end
 @test vs"foo(x, y)" == Call(:foo, [:x, :y])
 
 @test vs"fn f(x): add(x, 1)" ==
-  Block(:fn, [vs"f(x)"], [vs"add(x,1)"])
+  Block(:fn, [vs"f(x)"], [vs"add(x,1)"], true)
 
 @test vs"""
   fn f(x):
     add(x, 1)
-  """ == vs"fn f(x): add(x, 1)"
+  """ == Block(:fn, [vs"f(x)"], [vs"add(x,1)"])
 
 @test vs"""
   fn f(x):
