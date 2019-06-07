@@ -11,6 +11,11 @@ struct Call <: Expr
   args::Vector{Any}
 end
 
+struct Operator <: Expr
+  op::Symbol
+  args::Vector{Any}
+end
+
 struct Block <: Expr
   name::Symbol
   args::Vector{Any}
@@ -19,7 +24,7 @@ end
 
 using MacroTools: @q
 
-for T in [Tuple, Call, Block]
+for T in [Tuple, Call, Operator, Block]
   @eval Base.:(==)(a::$T, b::$T) = $(Base.Expr(:&&, [:(a.$f == b.$f) for f in fieldnames(T)]...))
 end
 
@@ -52,6 +57,12 @@ function _show(io::Ctx, x::Call)
   _show(io, x.func)
   print(io, "(")
   join(io, repr.((io,), x.args), ", ")
+  print(io, ")")
+end
+
+function _show(io::Ctx, x::Operator)
+  print(io, "(")
+  join(io, repr.((io,), x.args), " $(x.op) ")
   print(io, ")")
 end
 

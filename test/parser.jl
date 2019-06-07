@@ -1,10 +1,10 @@
 using Vespa, Test
-using Vespa: Call, Block
+using Vespa: Call, Block, Operator
 
 const vespa = Vespa.parse
 
 macro vs_str(x)
-  vespa(x)
+  QuoteNode(vespa(x))
 end
 
 @test vs"foo(x, y)" == Call(:foo, [:x, :y])
@@ -22,3 +22,7 @@ end
     add(x, 1)
     add(x, 2)
   """ == Block(:fn, [vs"f(x)"], [vs"add(x, 1)", vs"add(x, 2)"])
+
+@test vs"2 + 3" == Operator(:+, [2, 3])
+
+@test vs"x := 2+3" == Operator(:(:=), [:x, vs"2+3"])

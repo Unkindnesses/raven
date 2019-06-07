@@ -38,6 +38,22 @@ function symbol_token(io::IO)
   return String(read(sym))
 end
 
+operators = [":", "=", ":=", "+", "-", "*", "/"]
+opchars = unique(map(first, operators))
+
+function op_token(io::IO)
+  ops = operators
+  i = 1
+  while !eof(io)
+    c = Char(read(io, UInt8))
+    ops′ = filter(x -> get(x, i, nothing) == c, ops)
+    isempty(ops′) && (seek(io, position(io)-1); break)
+    ops = ops′
+    i += 1
+  end
+  return Symbol(ops[1])
+end
+
 struct Stmt
   indent::Int
 end
@@ -54,7 +70,7 @@ end
 
 curstring(cur::Cursor) = "$(cur.line):$(cur.column)"
 
-chartokens = [':', ',', '(', ')', '{', '}']
+chartokens = [',', '(', ')', '{', '}']
 
 function tokenise(io::IO)
   consume_ws(io)
@@ -64,6 +80,7 @@ function tokenise(io::IO)
   tk = c ∈ '0':'9' ? num_token(io) :
        c ∈ 'a':'z' || c ∈ 'A':'Z' ? symbol_token(io) :
        c == '\n' ? stmt_token(io) :
+       c in opchars ? op_token(io) :
        c in chartokens ? (read(io, UInt8); c) :
        error("Unrecognised character $(sprint(show, c)) at $(curstring(cur))")
   return (tk, cur)
@@ -133,6 +150,10 @@ function parse_ex(ts::TokenStream, level)
     args = parse_atom(ts, level)
     ex = Call(ex, args.args)
   end
+  if (nt = peek(ts)[1]) ∈ Symbol.(operators) && (nt != :(:))
+    read(ts)
+    ex = Operator(nt, [ex, parse_ex(ts, level)])
+  end
   return ex
 end
 
@@ -140,11 +161,11 @@ function parse_block(ts, name, level)
   args = []
   while true
     next = peek(ts)[1]
-    !(next isa Stmt || next in (',', ':')) || break
+    !(next isa Stmt || next in (',', :(:))) || break
     push!(args, parse_ex(ts, level))
   end
   c, cur = read(ts)
-  c == ':' || error("Block requires a colon at $(curstring(cur))")
+  c == :(:) || error("Block requires a colon at $(curstring(cur))")
   nt, _ = peek(ts)
   nt isa Stmt || return Block(name, args, [parse_ex(ts, level)])
   inner = nt.indent
@@ -163,7 +184,7 @@ end
 function parse(ts::TokenStream, level)
   ex = parse_ex(ts, level)
   next = peek(ts)[1]
-  if ex isa Symbol && !(next isa Stmt || next in (',', ')'))
+  if ex isa Symbol && !(next isa Stmt || next in (',', ')', '\0'))
     return parse_block(ts, ex, 0)
   end
   return ex
