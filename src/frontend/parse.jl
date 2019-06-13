@@ -166,7 +166,7 @@ function parse_block(ts, name, level)
     push!(args, parse_ex(ts, level))
   end
   c, cur = read(ts)
-  c == :(:) || error("Block requires a colon at $(curstring(cur))")
+  c == :(:) || error("$name block requires a colon at $(curstring(cur))")
   nt, _ = peek(ts)
   nt isa Stmt || return Block(name, args, [parse(ts, level)], true)
   inner = nt.indent
@@ -182,11 +182,26 @@ function parse_block(ts, name, level)
   return Block(name, args, exs)
 end
 
+function parse_if(ts, ex, level)
+  cond = Any[ex.args[1]]
+  body = Any[ex.block]
+  while true
+    consume_stmts!(ts)
+    peek(ts)[1] in ("else", "elseif") || break
+    ex = parse_block(ts, Symbol(read(ts)[1]), level)
+    push!(cond, ex.name == :elseif ? ex.args[1] : true)
+    push!(body, ex.block)
+  end
+  return If(cond, body)
+end
+
 function parse(ts::TokenStream, level)
   ex = parse_ex(ts, level)
   next = peek(ts)[1]
   if ex isa Symbol && !(next isa Stmt || next in (',', ')', '\0'))
-    return parse_block(ts, ex, 0)
+    ex = parse_block(ts, ex, 0)
+    ex.name == :if && (ex = parse_if(ts, ex, 0))
+    return ex
   end
   return ex
 end

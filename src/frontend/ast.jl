@@ -20,6 +20,11 @@ struct Operator <: Expr
   args::Vector{Any}
 end
 
+struct If <: Expr
+  cond::Vector{Any}
+  body::Vector{Any}
+end
+
 struct Block <: Expr
   name::Symbol
   args::Vector{Any}
@@ -31,7 +36,7 @@ Block(name, args, block) = Block(name, args, block, false)
 
 using MacroTools: @q
 
-for T in [Return, Tuple, Call, Operator, Block]
+for T in [Return, Tuple, Call, If, Operator, Block]
   @eval Base.:(==)(a::$T, b::$T) = $(Base.Expr(:&&, [:(a.$f == b.$f) for f in fieldnames(T)]...))
 end
 
@@ -76,6 +81,18 @@ function _show(io::Ctx, x::Operator)
   print(io, "(")
   join(io, repr.((io,), x.args), " $(x.op) ")
   print(io, ")")
+end
+
+function _show(io::Ctx, x::If)
+  _show(io, Block(:if, [x.cond[1]], x.body[1]))
+  for i = 2:length(x.cond)
+    print(io, "\n", " "^io.indent)
+    if x.cond[i] == true
+      _show(io, Block(:else, [], x.body[i]))
+    else
+      _show(io, Block(:elseif, [x.cond[i]], x.body[i]))
+    end
+  end
 end
 
 function _show(io::Ctx, x::Block)
