@@ -2,8 +2,8 @@ module Vespa
 
 using MacroTools: @forward
 
-include("ast.jl")
-include("parse.jl")
-include("lower.jl")
+include("frontend/ast.jl")
+include("frontend/parse.jl")
+include("frontend/lower.jl")
 
 end # module
