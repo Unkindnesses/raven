@@ -1,11 +1,5 @@
 using Vespa, Test
-using Vespa: Call, Block, Operator
-
-const vespa = Vespa.parse
-
-macro vs_str(x)
-  QuoteNode(vespa(x))
-end
+using Vespa: Call, Block, Operator, @vs_str
 
 @test vs"foo(x, y)" == Call(:foo, [:x, :y])
 

@@ -192,3 +192,7 @@ function parse(ts::TokenStream, level)
 end
 
 parse(s::String) = parse(TokenStream(s), 0)
+
+macro vs_str(x)
+  QuoteNode(parse(x))
+end
