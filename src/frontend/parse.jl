@@ -86,26 +86,26 @@ function tokenise(io::IO)
   return (tk, cur)
 end
 
+# LNR extension
+Base.mark(io::LineNumberingReader) = mark(io.io)
+Base.reset(io::LineNumberingReader) = reset(io.io)
+
 struct TokenStream{I<:IO}
   io::IO
-  stack::Vector{Any}
 end
 
-TokenStream(io::IO) = TokenStream{typeof(io)}(io, [])
+TokenStream(io::IO) = TokenStream{typeof(io)}(io)
 
 TokenStream(s::String) = TokenStream(LineNumberingReader(IOBuffer(s)))
 
-Base.read(ts::TokenStream) =
-  isempty(ts.stack) ? tokenise(ts.io) : pop!(ts.stack)
+@forward TokenStream.io Base.mark, Base.reset, Base.position, Base.seek
 
-function Base.push!(ts::TokenStream, x)
-  push!(ts.stack, x)
-  return ts
-end
+Base.read(ts::TokenStream) = tokenise(ts.io)
 
 function Base.peek(ts::TokenStream)
+  mark(ts)
   x = read(ts)
-  push!(ts, x)
+  reset(ts)
   return x
 end
 
@@ -186,8 +186,9 @@ function parse_if(ts, ex, level)
   cond = Any[ex.args[1]]
   body = Any[ex.block]
   while true
+    m = position(ts)
     consume_stmts!(ts)
-    peek(ts)[1] in ("else", "elseif") || break
+    peek(ts)[1] in ("else", "elseif") || (seek(ts, m); break)
     ex = parse_block(ts, Symbol(read(ts)[1]), level)
     push!(cond, ex.name == :elseif ? ex.args[1] : true)
     push!(body, ex.block)
