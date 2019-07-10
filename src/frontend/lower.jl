@@ -5,6 +5,7 @@ isfn(x) = x isa Block && x.name == :fn
 
 lower!(ir::IR, x::Integer) = x
 lower!(ir::IR, x::Symbol) = Slot(x)
+lower!(ir::IR, x::Vector) = foreach(x -> lower!(ir, x), x)
 
 function lower!(ir::IR, ex::Operator)
   if ex.op == :(:=)
@@ -18,15 +19,37 @@ function lower!(ir::IR, ex::Return)
   IRTools.return!(ir, lower!(ir, ex.val))
 end
 
+function lower!(ir::IR, ex::If)
+  b = IRTools.blocks(ir)[end]
+  ts = []
+  for (cond, body) in zip(ex.cond, ex.body)
+    if cond === true
+      lower!(ir, body)
+      b = IRTools.block!(ir)
+      break
+    end
+    cond = lower!(ir, cond)
+    t = IRTools.block!(ir)
+    push!(ts, t)
+    lower!(ir, body)
+    f = IRTools.block!(ir)
+    IRTools.branch!(b, f, unless = cond)
+    b = f
+  end
+  for t in ts
+    IRTools.canbranch(t) && IRTools.branch!(t, b)
+  end
+end
+
 function lower!(ir::IR, ex::Block)
   if ex.name == :while
     header = IRTools.block!(ir)
     cond = lower!(ir, ex.args[1])
     body = IRTools.block!(ir)
-    foreach(x -> lower!(ir, x), ex.block)
+    lower!(ir, ex.block)
     after = IRTools.block!(ir)
-    IRTools.branch!(header, after.id, unless = cond)
-    IRTools.branch!(body, header.id)
+    IRTools.branch!(header, after, unless = cond)
+    IRTools.branch!(body, header)
   else
     error("unrecognised block $(b.name)")
   end
@@ -50,4 +73,13 @@ end
 #       n := n - 1
 #       r := r * x
 #     return r
+#   """)
+
+# lowerfn(vs"""
+#   fn relu(x):
+#     if x > 0:
+#       x := x + 1
+#     else:
+#       x := x - 1
+#     return x
 #   """)
