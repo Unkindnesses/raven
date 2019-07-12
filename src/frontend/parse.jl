@@ -153,7 +153,7 @@ function parse_ex(ts::TokenStream, level)
   end
   if (nt = peek(ts)[1]) ∈ Symbol.(operators) && (nt != :(:))
     read(ts)
-    ex = Operator(nt, [ex, parse_ex(ts, level)])
+    ex = Operator(nt, [ex, parse(ts, level)])
   end
   return ex
 end
