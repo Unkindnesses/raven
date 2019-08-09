@@ -1,6 +1,3 @@
-using IRTools
-using IRTools: IR, Slot, argument!, blocks
-
 # don't continue lowering after return
 # e.g. `f(return 1)`
 _push!(ir::IR, x) = IRTools.canbranch(blocks(ir)[end]) && push!(ir, x)
@@ -96,11 +93,10 @@ end
 #     return r
 #   """)
 
-# lowerfn(vs"""
-#   fn relu(x):
-#     if x > 0:
-#       x := x + 1
-#     else:
-#       x := x - 1
-#     return x
-#   """)
+lowerfn(vs"""
+  fn relu(x):
+    if x > 0:
+      x
+    else:
+      0
+  """)
