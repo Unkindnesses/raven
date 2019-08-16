@@ -30,7 +30,7 @@ function symbol_token(io::IO)
   sym = IOBuffer()
   while !eof(io)
     c = Char(read(io, UInt8))
-    c in 'a':'z' || c in 'A':'Z' || c in ('?','!') ||
+    c in 'a':'z' || c in 'A':'Z' || c in ('?','!') || c in ('0':'9') ||
       (seek(io, position(io)-1); break)
     write(sym, c)
   end
