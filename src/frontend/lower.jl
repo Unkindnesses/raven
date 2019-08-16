@@ -1,39 +1,59 @@
+struct GlobalScope end
+
+Base.getindex(g::GlobalScope, x::Symbol) = x
+
+struct Scope
+  parent::Any
+  env::Dict{Symbol,Any}
+end
+
+Scope(parent) = Scope(parent, Dict{Symbol,Any}())
+Scope() = Scope(GlobalScope())
+
+@forward Scope.env Base.setindex!
+
+Base.getindex(sc::Scope, x::Symbol) = haskey(sc.env, x) ? sc.env[x] : sc.parent[x]
+
 # don't continue lowering after return
 # e.g. `f(return 1)`
 _push!(ir::IR, x) = IRTools.canbranch(blocks(ir)[end]) && push!(ir, x)
 
 # lower while ignoring return value (if applicable)
-_lower!(ir, x) = lower!(ir, x)
+_lower!(sc, ir, x) = lower!(sc, ir, x)
 
 isfn(x) = x isa Block && x.name == :fn
 
-lower!(ir::IR, x::Integer) = x
-lower!(ir::IR, x::Symbol) = Slot(x)
-lower!(ir::IR, x::Vector) = (foreach(x -> _lower!(ir, x), x[1:end-1]); lower!(ir, x[end]))
+lower!(sc, ir::IR, x::Integer) = x
+lower!(sc, ir::IR, x::Symbol) = sc[x]
+lower!(sc, ir::IR, x::Vector) = (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
 
-function lower!(ir::IR, ex::Operator)
+function lower!(sc, ir::IR, ex::Operator)
   if ex.op == :(:=)
     x = Slot(ex.args[1])
-    _push!(ir, :($(x) = $(lower!(ir, ex.args[2]))))
+    _push!(ir, :($(x) = $(lower!(sc, ir, ex.args[2]))))
     return x
   else
-    _push!(ir, Base.Expr(:call, ex.op, map(x -> lower!(ir, x), ex.args)...))
+    _push!(ir, Base.Expr(:call, ex.op, map(x -> lower!(sc, ir, x), ex.args)...))
   end
 end
 
-function lower!(ir::IR, ex::Return)
-  IRTools.return!(ir, lower!(ir, ex.val))
+function lower!(sc, ir::IR, ex::Call)
+  _push!(ir, Base.Expr(:call, lower!(sc, ir, ex.func), lower!.((sc,), (ir,), ex.args)...))
+end
+
+function lower!(sc, ir::IR, ex::Return)
+  IRTools.return!(ir, lower!(sc, ir, ex.val))
   return
 end
 
-function lower!(ir::IR, ex::If, value = true)
+function lower!(sc, ir::IR, ex::If, value = true)
   b = blocks(ir)[end]
   ts = []
   vs = []
   body!(ir, ex) =
     value ?
-      push!(vs, lower!(ir, ex)) :
-      _lower!(ir, ex)
+      push!(vs, lower!(sc, ir, ex)) :
+      _lower!(sc, ir, ex)
   for (cond, body) in zip(ex.cond, ex.body)
     if cond === true
       body!(ir, body)
@@ -41,7 +61,7 @@ function lower!(ir::IR, ex::If, value = true)
       b = IRTools.block!(ir)
       break
     end
-    cond = lower!(ir, cond)
+    cond = lower!(sc, ir, cond)
     t = IRTools.block!(ir)
     push!(ts, t)
     body!(ir, body)
@@ -58,14 +78,14 @@ function lower!(ir::IR, ex::If, value = true)
   value && IRTools.argument!(b, insert = false)
 end
 
-_lower!(ir::IR, ex::If) = lower!(ir, ex, false)
+_lower!(sc, ir::IR, ex::If) = lower!(sc, ir, ex, false)
 
-function lower!(ir::IR, ex::Block)
+function lower!(sc, ir::IR, ex::Block)
   if ex.name == :while
     header = IRTools.block!(ir)
-    cond = lower!(ir, ex.args[1])
+    cond = lower!(sc, ir, ex.args[1])
     body = IRTools.block!(ir)
-    lower!(ir, ex.block)
+    lower!(sc, ir, ex.block)
     after = IRTools.block!(ir)
     IRTools.branch!(header, after, unless = cond)
     IRTools.branch!(body, header)
@@ -75,28 +95,13 @@ function lower!(ir::IR, ex::Block)
 end
 
 function lowerfn(ex)
+  sc = Scope()
   ir = IR()
   for arg in ex.args[1].args
+    sc[arg] = Slot(arg)
     push!(ir, :($(Slot(arg)) = $(argument!(ir))))
   end
-  out = lower!(ir, ex.block)
+  out = lower!(sc, ir, ex.block)
   out == nothing || IRTools.return!(ir, out)
   return ir |> IRTools.ssa! |> IRTools.prune!
 end
-
-# lowerfn(vs"""
-#   fn pow(x, n):
-#     r := 1
-#     while n > 0:
-#       n := n - 1
-#       r := r * x
-#     return r
-#   """)
-
-lowerfn(vs"""
-  fn relu(x):
-    if x > 0:
-      x
-    else:
-      0
-  """)
