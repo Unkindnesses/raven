@@ -209,6 +209,6 @@ end
 
 parse(s::String) = parse(TokenStream(s), 0)
 
-macro vs_str(x)
+macro vsx_str(x)
   QuoteNode(parse(x))
 end

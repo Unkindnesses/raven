@@ -1,7 +1,7 @@
 using Vespa, Test
-using Vespa: @vs_str, lowerfn, interpret
+using Vespa: @vsx_str, lowerfn, interpret
 
-ir = lowerfn(vs"""
+ir = lowerfn(vsx"""
   fn relu(x):
     if x > 0:
       x

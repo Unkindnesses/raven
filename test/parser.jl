@@ -1,31 +1,31 @@
 using Vespa, Test
-using Vespa: Call, If, Block, Operator, @vs_str
+using Vespa: Call, If, Block, Operator, @vsx_str
 
-@test vs"foo(x, y)" == Call(:foo, [:x, :y])
+@test vsx"foo(x, y)" == Call(:foo, [:x, :y])
 
-@test vs"fn f(x): add(x, 1)" ==
-  Block(:fn, [vs"f(x)"], [vs"add(x,1)"], true)
+@test vsx"fn f(x): add(x, 1)" ==
+  Block(:fn, [vsx"f(x)"], [vsx"add(x,1)"], true)
 
-@test vs"""
+@test vsx"""
   fn f(x):
     add(x, 1)
-  """ == Block(:fn, [vs"f(x)"], [vs"add(x,1)"])
+  """ == Block(:fn, [vsx"f(x)"], [vsx"add(x,1)"])
 
-@test vs"""
+@test vsx"""
   fn f(x):
     add(x, 1)
     add(x, 2)
-  """ == Block(:fn, [vs"f(x)"], [vs"add(x, 1)", vs"add(x, 2)"])
+  """ == Block(:fn, [vsx"f(x)"], [vsx"add(x, 1)", vsx"add(x, 2)"])
 
-@test vs"2 + 3" == Operator(:+, [2, 3])
+@test vsx"2 + 3" == Operator(:+, [2, 3])
 
-@test vs"x := 2+3" == Operator(:(:=), [:x, vs"2+3"])
+@test vsx"x := 2+3" == Operator(:(:=), [:x, vsx"2+3"])
 
-@test vs"""
+@test vsx"""
   if x > 0:
     1
   elseif x < 0:
     2
   else:
     3
-  """ == If([vs"x>0", vs"x<0",true],[[vs"1"],[vs"2"],[vs"3"]])
+  """ == If([vsx"x>0", vsx"x<0",true],[[vsx"1"],[vsx"2"],[vsx"3"]])
