@@ -30,6 +30,7 @@ lower!(sc, ir::IR, x::Vector) = (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); l
 function lower!(sc, ir::IR, ex::Operator)
   if ex.op == :(:=)
     x = Slot(ex.args[1])
+    sc[ex.args[1]] = x
     _push!(ir, :($(x) = $(lower!(sc, ir, ex.args[2]))))
     return x
   else

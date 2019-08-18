@@ -36,3 +36,5 @@ end
 # Builtins
 
 main[:>] = >
+main[:*] = *
+main[:-] = -
