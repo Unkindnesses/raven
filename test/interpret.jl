@@ -9,14 +9,14 @@ vs"""
       0
   """
 
-@test interpret(Vespa.main[:relu], 5) == 5
-@test interpret(Vespa.main[:relu], -5) == 0
+@test vs"relu(5)" == 5
+@test vs"relu(0-5)" == 0
 
 vs"""
   fn relu2(x): relu(x)
   """
 
-@test interpret(Vespa.main[:relu2], 5) == 5
+@test vs"relu2(5)" == 5
 
 vs"""
   fn pow(x, n):
@@ -27,4 +27,4 @@ vs"""
     return r
   """
 
-@test interpret(Vespa.main[:pow], 2, 3) == 8
+@test vs"pow(2, 3)" == 8

@@ -6,12 +6,19 @@ VModule() = VModule(Dict{Symbol,Any}())
 
 @forward VModule.defs Base.getindex, Base.setindex!
 
+function eval_expr(m::VModule, x)
+  ir = lowerexpr(x)
+  interpret(ir)
+end
+
 function veval(m::VModule, x::Block)
-  x.name == :fn || error("Unrecognised expr $x")
+  x.name == :fn || eval_expr(m, x)
   f = x.args[1].func
   m[f] = lowerfn(x)
   return f
 end
+
+veval(m::VModule, x) = eval_expr(m, x)
 
 const main = VModule()
 
@@ -36,5 +43,7 @@ end
 # Builtins
 
 main[:>] = >
-main[:*] = *
+main[:+] = +
 main[:-] = -
+main[:*] = *
+main[:/] = /

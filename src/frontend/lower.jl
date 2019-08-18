@@ -106,3 +106,11 @@ function lowerfn(ex)
   out == nothing || IRTools.return!(ir, out)
   return ir |> IRTools.ssa! |> IRTools.prune!
 end
+
+function lowerexpr(ex)
+  sc = Scope()
+  ir = IR()
+  out = lower!(sc, ir, ex)
+  out == nothing || IRTools.return!(ir, out)
+  return ir |> IRTools.ssa! |> IRTools.prune!
+end
