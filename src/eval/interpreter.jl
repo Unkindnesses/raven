@@ -12,6 +12,7 @@ end
 
 lookup(it, v::Variable) = it.env[v]
 lookup(it, v::Number) = v
+lookup(it, v::Symbol) = main[v]
 
 function step!(it::Interpreter)
   b, st = it.ip
@@ -36,12 +37,11 @@ function step!(it::Interpreter)
   end
 end
 
-builtins = Dict(:> => >)
-
 function eval_stmt(it::Interpreter, ex)
   if isexpr(ex, :call)
-    args = map(x -> get(it.env, x, x), ex.args)
-    builtins[args[1]](args[2:end]...)
+    args = map(x -> lookup(it, x), ex.args)
+    f = args[1] isa IR ? (a...) -> interpret(args[1], a...) : args[1]
+    f(args[2:end]...)
   else
     error("Unrecognised expression $(ex.head)")
   end

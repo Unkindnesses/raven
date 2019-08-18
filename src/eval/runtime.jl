@@ -32,3 +32,7 @@ evalstring(f::String) = evalfile(IOBuffer(f))
 macro vs_str(x)
   :(evalstring($x))
 end
+
+# Builtins
+
+main[:>] = >
