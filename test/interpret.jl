@@ -28,3 +28,5 @@ vs"""
   """
 
 @test vs"pow(2, 3)" == 8
+
+@test vs"struct(1, 2)" isa Vespa.Struct

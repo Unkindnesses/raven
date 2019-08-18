@@ -47,3 +47,5 @@ main[:+] = +
 main[:-] = -
 main[:*] = *
 main[:/] = /
+
+main[:struct] = (a...) -> Struct([a...])
