@@ -75,8 +75,10 @@ end
 
 function repl_eval(repl, input)
   try
-    @show input
+    show(evalstring(input))
+    println()
   catch e
     Base.showerror(stdout, e, catch_backtrace())
+    println()
   end
 end
