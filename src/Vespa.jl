@@ -11,5 +11,6 @@ include("frontend/lower.jl")
 
 include("eval/interpreter.jl")
 include("eval/runtime.jl")
+include("repl.jl")
 
 end # module
