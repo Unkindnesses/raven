@@ -37,6 +37,7 @@ function create_mode(repl, main)
   pkg_mode = LineEdit.Prompt("vespa> ";
     prompt_prefix = repl.options.hascolor ? Base.text_colors[:magenta] : "",
     prompt_suffix = "",
+    on_enter = return_callback,
     sticky = true)
 
   pkg_mode.repl = repl
@@ -67,6 +68,15 @@ function create_mode(repl, main)
   return pkg_mode
 end
 
+function return_callback(s)
+  input = String(take!(copy(LineEdit.buffer(s))))
+  return true
+end
+
 function repl_eval(repl, input)
-  @show input
+  try
+    @show input
+  catch e
+    Base.showerror(stdout, e, catch_backtrace())
+  end
 end
