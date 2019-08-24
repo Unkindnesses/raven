@@ -18,7 +18,7 @@ function repl_init(repl)
   pkg_mode = create_mode(repl, main_mode)
   push!(repl.interface.modes, pkg_mode)
   keymap = Dict{Any,Any}(
-    '\\' => function (s,args...)
+    '=' => function (s,args...)
       if isempty(s) || position(LineEdit.buffer(s)) == 0
         buf = copy(LineEdit.buffer(s))
         LineEdit.transition(s, pkg_mode) do
