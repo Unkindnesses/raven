@@ -12,6 +12,11 @@ using Vespa: Call, If, Block, Operator, @vsx_str
   """ == Block(:fn, [vsx"f(x)"], [vsx"add(x,1)"])
 
 @test vsx"""
+  fn f(x): # comment
+    add(x, 1)
+  """ == Block(:fn, [vsx"f(x)"], [vsx"add(x,1)"])
+
+@test vsx"""
   fn f(x):
     add(x, 1)
     add(x, 2)

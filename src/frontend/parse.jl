@@ -7,10 +7,16 @@ using LNR
 
 const whitespace = (' ', '\t', '\r')
 
+function consume_line(io)
+  while (!eof(io) && Char(peek(io)) != '\n')
+    read(io, Char)
+  end
+end
+
 function consume_ws(io::IO)
   while !eof(io)
-    eof(io) && return
-    c = Char(read(io, UInt8))
+    c = read(io, Char)
+    c == '#' && (consume_line(io); break)
     c in whitespace || (seek(io, position(io)-1); break)
   end
 end
