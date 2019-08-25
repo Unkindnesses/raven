@@ -201,7 +201,7 @@ function parse_if(ts, ex, level)
   while true
     m = position(ts)
     consume_stmts!(ts)
-    peek(ts)[1] in ("else", "elseif") || (seek(ts, m); break)
+    peek(ts)[1] in (:else, :elseif) || (seek(ts, m); break)
     ex = parse_block(ts, Symbol(read(ts)[1]), level)
     push!(cond, ex.name == :elseif ? ex.args[1] : true)
     push!(body, ex.block)
