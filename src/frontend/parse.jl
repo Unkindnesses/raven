@@ -1,5 +1,3 @@
-macro sym_str(s) Expr(:quote, Symbol(s)) end
-
 # Tokenisation
 
 import Base: peek
