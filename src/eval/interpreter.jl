@@ -14,8 +14,8 @@ function Interpreter(ir, args...)
   Interpreter(ir, (1, 1), env, keys.(blocks(ir)))
 end
 
+lookup(it, v) = v
 lookup(it, v::Variable) = it.env[v]
-lookup(it, v::Number) = v
 lookup(it, v::Symbol) = main[v]
 
 function step!(it::Interpreter)

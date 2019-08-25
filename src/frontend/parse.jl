@@ -41,7 +41,7 @@ function symbol_token(io::IO)
     write(sym, c)
   end
   seek(sym, 0)
-  return String(read(sym))
+  return Symbol(read(sym))
 end
 
 operators = [":", "=", ":=", "+", "-", "*", "/", ">", "<", ">=", "<="]
@@ -58,6 +58,15 @@ function op_token(io::IO)
     i += 1
   end
   return Symbol(ops[1])
+end
+
+function string_token(io::IO)
+  read(io, Char)
+  s = IOBuffer()
+  while (c = read(io, Char)) != '"'
+    write(s, c)
+  end
+  return String(take!(s))
 end
 
 struct Stmt
@@ -83,7 +92,8 @@ function tokenise(io::IO)
   cur = cursor(io)
   eof(io) && return ('\0', cur)
   c = Char(peek(io))
-  tk = c ∈ '0':'9' ? num_token(io) :
+  tk = c == '"' ? string_token(io) :
+       c ∈ '0':'9' ? num_token(io) :
        c ∈ 'a':'z' || c ∈ 'A':'Z' ? symbol_token(io) :
        c == '\n' ? stmt_token(io) :
        c in opchars ? op_token(io) :
@@ -145,7 +155,6 @@ end
 function parse_atom(ts::TokenStream, level)
   consume_stmts!(ts)
   tk, cur = read(ts)
-  tk isa String ? Symbol(tk) :
   tk == '(' ? Tuple(parse_brackets(ts, level, ')')) :
   tk
 end
