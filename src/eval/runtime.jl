@@ -37,9 +37,10 @@ vprint(io::IO, x::Expr) = print(io, "`", x, "`")
 
 struct VModule
   defs::Dict{Symbol,Any}
+  methods::Dict{Symbol,Any}
 end
 
-VModule() = VModule(Dict{Symbol,Any}())
+VModule() = VModule(Dict{Symbol,Any}(), Dict{Symbol,IR}())
 
 @forward VModule.defs Base.getindex, Base.setindex!
 
@@ -49,10 +50,18 @@ function eval_expr(m::VModule, x)
 end
 
 function veval(m::VModule, x::Block)
-  x.name == :fn || eval_expr(m, x)
+  x.name == :fn || return eval_expr(m, x)
   f = x.args[1].func
-  m[f] = lowerfn(x)
+  m[f] = f
+  m.methods[f] = lowerfn(x)
   return f
+end
+
+function veval(m::VModule, x::Operator)
+  x.op == :(=) || return eval_expr(m, x)
+  name, ex = x.args
+  name isa Symbol || error("Invalid binding $name")
+  m[name] = eval_expr(m, ex)
 end
 
 veval(m::VModule, x) = eval_expr(m, x)
@@ -82,13 +91,9 @@ end
 
 # Builtins
 
-main[:>] = >
-main[:+] = +
-main[:-] = -
-main[:*] = *
-main[:/] = /
-
-main[:struct] = (t, a...) -> Struct([t, a...])
-main[:part] = part
-main[:tag] = tag
-main[:nparts] = nparts
+for (name, def) in [:> => >, :+ => +, :- => -, :* => *, :/ => /,
+             :struct => (t, a...) -> Struct([t, a...]),
+             :part => part, :nparts => nparts, :tag => tag]
+  main[name] = name
+  main.methods[name] = def
+end
