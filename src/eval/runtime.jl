@@ -6,18 +6,32 @@ end
 
 vstruct(x...) = Struct(Any[x...])
 
+nparts(x::Struct) = length(x.data)-1
 part(x::Struct, i) = x.data[i+1]
 
 tag(x) = part(x, 0)
 
 # Primitive Types
-for T in :[Int64, Symbol, String].args
+for T in :[Int64, Float64, Symbol, String].args
   @eval part(x::$T, i::Integer) =
           i == 0 ? $(QuoteNode(T)) :
           i == 1 ? x :
           error("Tried to access part $i of 2")
   @eval nparts(x::$T) = 2
 end
+
+# Printing
+
+function vprint(io::IO, s::Struct)
+  print(io, "struct(")
+  join(io, [sprint(vprint, x) for x in s.data], ", ")
+  print(io, ")")
+end
+
+vprint(io, x::Symbol) = print(io, "`", x, "`")
+vprint(io::IO, x::Union{Int64, Float64}) = print(io, x)
+
+vprint(io::IO, x::Expr) = print(io, "`", x, "`")
 
 # Eval
 
@@ -74,6 +88,7 @@ main[:-] = -
 main[:*] = *
 main[:/] = /
 
-main[:struct] = (a...) -> Struct([a...])
+main[:struct] = (t, a...) -> Struct([t, a...])
 main[:part] = part
 main[:tag] = tag
+main[:nparts] = nparts

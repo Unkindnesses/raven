@@ -75,7 +75,7 @@ end
 
 function repl_eval(repl, input)
   try
-    show(evalstring(input))
+    vprint(stdout, evalstring(input))
     println()
   catch e
     Base.showerror(stdout, e)
