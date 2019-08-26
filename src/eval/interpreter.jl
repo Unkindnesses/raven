@@ -1,7 +1,3 @@
-struct Struct
-  data::Vector{Any}
-end
-
 mutable struct Interpreter
   ir::IR
   ip::Base.Tuple{Int,Int}
