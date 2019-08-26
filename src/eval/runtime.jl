@@ -11,6 +11,8 @@ part(x::Struct, i) = x.data[i+1]
 
 tag(x) = part(x, 0)
 
+const vnothing = vstruct(:Nothing)
+
 # Primitive Types
 for T in :[Int64, Float64, Symbol, String].args
   @eval part(x::$T, i::Integer) =
@@ -72,7 +74,7 @@ veval(x) = veval(main, x)
 
 function evalfile(io::IO)
   io = LineNumberingReader(io)
-  out = nothing
+  out = vnothing
   stmts(io)
   while !eof(io)
     ex = parse(io, 0)
