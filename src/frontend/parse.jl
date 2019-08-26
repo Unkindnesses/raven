@@ -110,6 +110,13 @@ function string(io::IO)
   return String(take!(s))
 end
 
+function quotation(io::IO)
+  read(io) == '`' || return
+  x = parse(io, 0)
+  read(io) == '`' || error("Expecting a `")
+  return Quote(x)
+end
+
 struct Stmt
   indent::Int
 end
@@ -158,7 +165,7 @@ end
 
 function expr(io, level)
   consume_ws(io)
-  ex = parseone(io, symbol, string, number, op_token)
+  ex = parseone(io, symbol, string, number, op_token, quotation)
   ex == nothing && error("Unexpected character $(read(io))")
   ex == :return && return Return(expr(io, level))
   while (args = parse(brackets, io, level)) != nothing

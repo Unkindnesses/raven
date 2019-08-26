@@ -15,6 +15,7 @@ function Interpreter(ir, args...)
 end
 
 lookup(it, v) = v
+lookup(it, v::Quote) = v.expr
 lookup(it, v::Variable) = it.env[v]
 lookup(it, v::Symbol) = main[v]
 

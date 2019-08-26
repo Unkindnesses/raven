@@ -34,6 +34,10 @@ end
 
 Block(name, args, block) = Block(name, args, block, false)
 
+struct Quote
+  expr::Any
+end
+
 using MacroTools: @q
 
 for T in [Return, Tuple, Call, If, Operator, Block]
