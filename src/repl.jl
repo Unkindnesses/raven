@@ -25,7 +25,7 @@ function repl_init(repl)
           LineEdit.state(s, pkg_mode).input_buffer = buf
         end
       else
-        LineEdit.edit_insert(s, '\\')
+        LineEdit.edit_insert(s, '=')
       end
     end
   )
