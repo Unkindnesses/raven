@@ -24,7 +24,7 @@ using Vespa: Call, If, Block, Operator, @vsx_str
 
 @test vsx"2 + 3" == Operator(:+, [2, 3])
 
-@test vsx"x := 2+3" == Operator(:(:=), [:x, vsx"2+3"])
+@test vsx"x = 2+3" == Operator(:(=), [:x, vsx"2+3"])
 
 @test vsx"""
   if x > 0:

@@ -20,10 +20,10 @@ vs"""
 
 vs"""
   fn pow(x, n):
-    r := 1
+    r = 1
     while n > 0:
-      r := r * x
-      n := n - 1
+      r = r * x
+      n = n - 1
     return r
   """
 

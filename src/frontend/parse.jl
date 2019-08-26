@@ -86,7 +86,7 @@ function symbol(io)
   return Symbol(Base.read(sym))
 end
 
-operators = ["=", ":=", "+", "-", "*", "/", ">", "<", ">=", "<="]
+operators = ["=", "+", "-", "*", "/", ">", "<", ">=", "<="]
 opchars = unique(reduce(*, operators))
 
 function op_token(io::IO)
