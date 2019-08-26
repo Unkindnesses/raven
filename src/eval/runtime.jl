@@ -25,10 +25,13 @@ const main = VModule()
 veval(x) = veval(main, x)
 
 function evalfile(io::IO)
-  ts = TokenStream(LineNumberingReader(io))
+  io = LineNumberingReader(io)
   out = nothing
-  while (ex = parse(ts, 0)) != '\0'
+  stmts(io)
+  while !eof(io)
+    ex = parse(io, 0)
     out = veval(ex)
+    stmts(io)
   end
   return out
 end

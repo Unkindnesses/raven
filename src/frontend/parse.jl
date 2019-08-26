@@ -1,67 +1,110 @@
-# Tokenisation
-
-import Base: peek
 using LNR
+
+Base.mark(io::LineNumberingReader) = mark(io.io)
+Base.reset(io::LineNumberingReader) = reset(io.io)
+
+curstring(cur::Cursor) = "$(cur.line):$(cur.column)"
+curstring(io::LineNumberingReader) = curstring(cursor(io))
+
+read(io::IO) = Base.read(io, Char)
+
+function peek(f, io::IO)
+  p = position(io)
+  c = f(io)
+  seek(io, p)
+  return c
+end
+
+peek(io::IO) = peek(read, io)
+
+function parse(f, io, a...; kw...)
+  eof(io) && return
+  p = position(io)
+  result = f(io, a...; kw...)
+  result === nothing && (seek(io, p); return)
+  return result
+end
+
+function parseone(io, fs...)
+  for f in fs
+    (x = parse(f, io)) != nothing && return x
+  end
+end
+
+@eval macro $:try(x)
+  quote
+    local result = $(esc(x))
+    result === nothing && return
+    result
+  end
+end
+
+char(x) = io -> read(io) == x ? x : nothing
 
 const whitespace = (' ', '\t', '\r')
 
 function consume_line(io)
-  while (!eof(io) && Char(peek(io)) != '\n')
-    read(io, Char)
+  while (!eof(io) && peek(io) != '\n')
+    read(io)
   end
 end
 
 function consume_ws(io::IO)
   while !eof(io)
-    c = read(io, Char)
+    c = read(io)
     c == '#' && (consume_line(io); break)
     c in whitespace || (seek(io, position(io)-1); break)
   end
 end
 
-function num_token(io::IO)
+# Tokens
+
+function number(io::IO)
   sym = IOBuffer()
+  isnumeric(peek(io)) || return
   while !eof(io)
-    c = Char(read(io, UInt8))
-    c in '0':'9' || (seek(io, position(io)-1); break)
+    p = position(io)
+    c = read(io)
+    c in '0':'9' || (seek(io, p); break)
     write(sym, c)
   end
   seek(sym, 0)
-  return Base.parse(Int, String(read(sym)))
+  return Base.parse(Int, String(Base.read(sym)))
 end
 
-function symbol_token(io::IO)
+function symbol(io)
   sym = IOBuffer()
+  isletter(peek(io)) || return
   while !eof(io)
-    c = Char(read(io, UInt8))
-    c in 'a':'z' || c in 'A':'Z' || c in ('?','!') || c in ('0':'9') ||
-      (seek(io, position(io)-1); break)
+    p = position(io)
+    c = read(io)
+    isletter(c) || c in ('?','!') || c in ('0':'9') ||
+      (seek(io, p); break)
     write(sym, c)
   end
   seek(sym, 0)
-  return Symbol(read(sym))
+  return Symbol(Base.read(sym))
 end
 
-operators = [":", "=", ":=", "+", "-", "*", "/", ">", "<", ">=", "<="]
-opchars = unique(map(first, operators))
+operators = ["=", ":=", "+", "-", "*", "/", ">", "<", ">=", "<="]
+opchars = unique(reduce(*, operators))
 
 function op_token(io::IO)
-  ops = operators
-  i = 1
+  op = IOBuffer()
   while !eof(io)
-    c = Char(read(io, UInt8))
-    ops′ = filter(x -> get(x, i, nothing) == c, ops)
-    isempty(ops′) && (seek(io, position(io)-1); break)
-    ops = ops′
-    i += 1
+    peek(io) in opchars || break
+    write(op, read(io))
   end
-  return Symbol(ops[1])
+  seek(op, 0)
+  s = String(Base.read(op))
+  s in operators || return
+  return Symbol(s)
 end
 
-function string_token(io::IO)
-  read(io, Char)
+function string(io::IO)
+  read(io) == '"' || return
   s = IOBuffer()
-  while (c = read(io, Char)) != '"'
+  while (c = read(io)) != '"'
     write(s, c)
   end
   return String(take!(s))
@@ -71,156 +114,111 @@ struct Stmt
   indent::Int
 end
 
-function stmt_token(io::IO)
+function stmt(io::IO)
+  read(io) == '\n' || return
   i = 0
-  read(io, Char)
-  while !eof(io) && Char(peek(io)) ∈ whitespace
+  while !eof(io) && peek(io) ∈ whitespace
     i += 1
-    read(io, UInt8)
+    read(io)
   end
   return Stmt(i)
 end
 
-curstring(cur::Cursor) = "$(cur.line):$(cur.column)"
-
-chartokens = [',', '(', ')', '{', '}']
-
-function tokenise(io::IO)
-  consume_ws(io)
-  cur = cursor(io)
-  eof(io) && return ('\0', cur)
-  c = Char(peek(io))
-  tk = c == '"' ? string_token(io) :
-       c ∈ '0':'9' ? num_token(io) :
-       c ∈ 'a':'z' || c ∈ 'A':'Z' ? symbol_token(io) :
-       c == '\n' ? stmt_token(io) :
-       c in opchars ? op_token(io) :
-       c in chartokens ? (read(io, UInt8); c) :
-       error("Unrecognised character $(sprint(show, c)) at $(curstring(cur))")
-  return (tk, cur)
-end
-
-# LNR extension
-Base.mark(io::LineNumberingReader) = mark(io.io)
-Base.reset(io::LineNumberingReader) = reset(io.io)
-
-struct TokenStream{I<:IO}
-  io::IO
-end
-
-TokenStream(io::IO) = TokenStream{typeof(io)}(io)
-
-TokenStream(s::String) = TokenStream(LineNumberingReader(IOBuffer(s)))
-
-@forward TokenStream.io Base.mark, Base.reset, Base.position, Base.seek
-
-Base.read(ts::TokenStream) = tokenise(ts.io)
-
-function Base.peek(ts::TokenStream)
-  mark(ts)
-  x = read(ts)
-  reset(ts)
-  return x
+function stmts(io)
+  s = parse(stmt, io)
+  s == nothing && return
+  while true
+    consume_ws(io)
+    s′ = parse(stmt, io)
+    s′ == nothing && return s
+    s = s′
+  end
 end
 
 # Parsing
 
-function consume_stmts!(ts)
-  while (t = peek(ts)[1]) isa Stmt
-    read(ts)
-  end
-  return
-end
-
-brackets = Dict(
+bracketmap = Dict(
   '(' => ')',
   '[' => ']',
   '{' => '}')
 
-function parse_brackets(ts, level, stop)
+function brackets(io, level, start = '(', stop = bracketmap[start])
+  read(io) == start || return
   xs = []
   while true
-    peek(ts)[1] == stop && (read(ts); break)
-    x = parse(ts, level)
+    parse(char(stop), io) == nothing || break
+    x = parse(io, level)
     push!(xs, x)
-    nt, pos = read(ts)
+    nt = read(io)
     nt == stop && break
-    nt == ',' || error("Expected a delimiter at $(curstring(pos))")
+    nt == ',' || error("Expected a delimiter at $(curstring(io))")
   end
   return xs
 end
 
-function parse_atom(ts::TokenStream, level)
-  consume_stmts!(ts)
-  tk, cur = read(ts)
-  tk == '(' ? Tuple(parse_brackets(ts, level, ')')) :
-  tk
-end
-
-function parse_ex(ts::TokenStream, level)
-  ex = parse_atom(ts, level)
-  ex == :return && return Return(parse_ex(ts, level))
-  while (nt = peek(ts)[1]) == '('
-    args = parse_atom(ts, level)
-    ex = Call(ex, args.args)
+function expr(io, level)
+  consume_ws(io)
+  ex = parseone(io, symbol, number, op_token)
+  ex == :return && return Return(expr(io, level))
+  while (args = parse(brackets, io, level)) != nothing
+    ex = Call(ex, args)
   end
-  if (nt = peek(ts)[1]) ∈ Symbol.(operators) && (nt != :(:))
-    read(ts)
-    ex = Operator(nt, [ex, parse(ts, level)])
+  consume_ws(io)
+  if (op = parse(op_token, io)) != nothing
+    ex = Operator(op, [ex, parse(io, level)])
   end
   return ex
 end
 
-function parse_block(ts, name, level)
+function parse_block(io, level)
+  name = @try symbol(io)
+  !eof(io) || peek(io) in (':', ' ') || return
   args = []
   while true
-    next = peek(ts)[1]
-    !(next isa Stmt || next in (',', :(:))) || break
-    push!(args, parse_ex(ts, level))
+    parse(char(':'), io) == nothing || break
+    parse(stmt, io) == nothing || return
+    push!(args, @try parse(expr, io, level))
   end
-  c, cur = read(ts)
-  c == :(:) || error("$name block requires a colon at $(curstring(cur))")
-  nt, _ = peek(ts)
-  nt isa Stmt || return Block(name, args, [parse(ts, level)], true)
+  consume_ws(io)
+  (nt = peek(stmts, io)) == nothing && return Block(name, args, [parse(io, level)], true)
   inner = nt.indent
   inner <= level && return Block(name, args, [])
   exs = []
-  while true
-    nt, pos = peek(ts)
-    nt == '\0' && break
-    @assert nt isa Stmt
+  while !eof(io)
+    (nt = peek(stmts, io)) == nothing && error("Expecting a statement")
     nt.indent == inner || break
-    push!(exs, parse(ts, inner))
+    push!(exs, parse(io, inner))
   end
-  return Block(name, args, exs)
+  b = Block(name, args, exs)
+  b.name == :if && return parse_if(io, b, level)
+  return b
 end
 
-function parse_if(ts, ex, level)
+function parse_if(io, ex, level)
   cond = Any[ex.args[1]]
   body = Any[ex.block]
   while true
-    m = position(ts)
-    consume_stmts!(ts)
-    peek(ts)[1] in (:else, :elseif) || (seek(ts, m); break)
-    ex = parse_block(ts, Symbol(read(ts)[1]), level)
+    ex = parse(io) do io
+      st = stmts(io) # TODO make sure indent is right
+      b = parse(parse_block, io, level)
+      (b == nothing || b.name ∉ (:elseif, :else)) && return
+      b
+    end
+    ex == nothing && break
     push!(cond, ex.name == :elseif ? ex.args[1] : true)
     push!(body, ex.block)
   end
   return If(cond, body)
 end
 
-function parse(ts::TokenStream, level)
-  ex = parse_ex(ts, level)
-  next = peek(ts)[1]
-  if ex isa Symbol && !(next isa Stmt || next in (',', ')', '\0'))
-    ex = parse_block(ts, ex, 0)
-    ex.name == :if && (ex = parse_if(ts, ex, 0))
-    return ex
-  end
-  return ex
+function parse(io::IO, level::Integer)
+  consume_ws(io); stmts(io)
+  parseone(io,
+    io -> parse_block(io, level),
+    io -> expr(io, level))
 end
 
-parse(s::String) = parse(TokenStream(s), 0)
+parse(s::String) = parse(LineNumberingReader(IOBuffer(s)), 0)
 
 macro vsx_str(x)
   QuoteNode(parse(x))
