@@ -158,7 +158,8 @@ end
 
 function expr(io, level)
   consume_ws(io)
-  ex = parseone(io, symbol, number, op_token)
+  ex = parseone(io, symbol, string, number, op_token)
+  ex == nothing && error("Unexpected character $(read(io))")
   ex == :return && return Return(expr(io, level))
   while (args = parse(brackets, io, level)) != nothing
     ex = Call(ex, args)
@@ -172,7 +173,7 @@ end
 
 function parse_block(io, level)
   name = @try symbol(io)
-  !eof(io) || peek(io) in (':', ' ') || return
+  (!eof(io) && peek(io) in (':', ' ')) || return
   args = []
   while true
     parse(char(':'), io) == nothing || break
