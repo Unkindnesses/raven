@@ -18,7 +18,7 @@ fn read<T: Read>(buf: &mut T) -> char {
     return char;
 }
 
-fn peekf<T: Read + Seek,O>(buf: &mut T, f: &dyn Fn(&mut T)->O) -> O {
+fn peekf<T: Read + Seek, O, F: Fn(&mut T)->O>(buf: &mut T, f: F) -> O {
     let pos = buf.seek(SeekFrom::Current(0)).unwrap();
     let result = f(buf);
     buf.seek(SeekFrom::Start(pos)).unwrap();
