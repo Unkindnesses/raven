@@ -1,7 +1,9 @@
 mod parse;
+mod eval;
 
 use std::env;
 use parse::*;
+use eval::*;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -11,5 +13,6 @@ fn main() {
     }
     let path = &args[1];
     let ex = parsefile(path);
-    println!("{:?}", ex);
+    let result = eval(ex);
+    println!("{:?}", result);
 }

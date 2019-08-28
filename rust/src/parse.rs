@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{BufReader,SeekFrom};
 use std::io::prelude::*;
+use Expr::*;
 
 #[derive(Debug)]
 pub enum Expr {
@@ -8,8 +9,6 @@ pub enum Expr {
     Symbol(String),
     List(Vec<Expr>),
 }
-
-use Expr::*;
 
 // TODO: unicode
 fn read<T: Read>(buf: &mut T) -> char {
