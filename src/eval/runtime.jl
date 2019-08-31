@@ -95,6 +95,7 @@ end
 
 for (name, def) in [:> => >, :+ => +, :- => -, :* => *, :/ => /,
              :struct => (t, a...) -> Struct([t, a...]),
+             :tuple => (a...) -> vstruct(:Tuple, a...),
              :part => part, :nparts => nparts, :tag => tag]
   main[name] = name
   main.methods[name] = def

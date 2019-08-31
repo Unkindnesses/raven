@@ -163,9 +163,14 @@ function brackets(io, level, start = '(', stop = bracketmap[start])
   return xs
 end
 
+function _tuple(io)
+  bs = @try brackets(io, 0)
+  return Tuple(bs)
+end
+
 function expr(io, level)
   consume_ws(io)
-  ex = parseone(io, symbol, string, number, op_token, quotation)
+  ex = parseone(io, symbol, string, number, op_token, quotation, _tuple)
   ex == nothing && error("Unexpected character $(read(io))")
   ex == :return && return Return(expr(io, level))
   while (args = parse(brackets, io, level)) != nothing
