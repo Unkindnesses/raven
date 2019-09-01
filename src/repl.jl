@@ -78,6 +78,7 @@ function repl_eval(repl, input)
     vprint(stdout, evalstring(input))
     println()
   catch e
+    printstyled("Error: ", color = :red, bold = true)
     Base.showerror(stdout, e)
     println()
   end

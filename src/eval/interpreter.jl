@@ -13,7 +13,7 @@ end
 lookup(it, v) = v
 lookup(it, v::Quote) = v.expr
 lookup(it, v::Variable) = it.env[v]
-lookup(it, v::Symbol) = main[v]
+lookup(it, v::Symbol) = haskey(main, v) ? main[v] : error("$v not defined")
 
 function step!(it::Interpreter)
   b, st = it.ip
