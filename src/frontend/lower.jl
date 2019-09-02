@@ -99,10 +99,10 @@ function lower!(sc, ir::IR, ex::Block)
   end
 end
 
-function lowerfn(ex)
+function lowerfn(ex, args)
   sc = Scope()
   ir = IR()
-  for arg in ex.args[1].args
+  for arg in args
     sc[arg] = Slot(arg)
     push!(ir, :($(Slot(arg)) = $(argument!(ir))))
   end

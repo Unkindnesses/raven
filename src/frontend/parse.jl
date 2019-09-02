@@ -86,7 +86,7 @@ function symbol(io)
   return Symbol(Base.read(sym))
 end
 
-operators = ["=", "+", "-", "*", "/", ">", "<", ">=", "<="]
+operators = ["=", "+", "-", "*", "/", ">", "<", ">=", "<=", "::"]
 opchars = unique(reduce(*, operators))
 
 function op_token(io::IO)
@@ -192,6 +192,7 @@ function parse_block(io, level)
     parse(stmt, io) == nothing || return
     push!(args, @try parse(expr, io, level))
   end
+  peek(io) == ':' && return # typeof operator
   consume_ws(io)
   (nt = peek(stmts, io)) == nothing && return Block(name, args, [parse(io, level)], true)
   inner = nt.indent

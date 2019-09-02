@@ -41,9 +41,7 @@ end
 function eval_stmt(it::Interpreter, ex)
   if isexpr(ex, :call)
     args = map(x -> lookup(it, x), ex.args)
-    f = main.methods[args[1]]
-    func = f isa IR ? (a...) -> interpret(f, a...) : f
-    func(args[2:end]...)
+    vinvoke(args...)
   else
     error("Unrecognised expression $(ex.head)")
   end
