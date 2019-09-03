@@ -10,9 +10,10 @@ include("frontend/ast.jl")
 include("frontend/parse.jl")
 include("frontend/lower.jl")
 
+include("eval/data.jl")
 include("eval/interpreter.jl")
-include("eval/runtime.jl")
 include("eval/patterns.jl")
+include("eval/runtime.jl")
 
 include("repl.jl")
 

@@ -1,8 +1,6 @@
 const hole = vstruct(:Hole)
 bind(name, pattern) = vstruct(:Bind, name, pattern)
 
-main[:Any] = vstruct(:Pattern, bind(:x, hole))
-
 # Pattern Lowering
 
 function lowerpattern(ex, as)
