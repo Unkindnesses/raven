@@ -3,6 +3,14 @@ bind(name, pattern) = vstruct(:Bind, name, pattern)
 
 # Pattern Lowering
 
+function lowerisa(ex, as)
+  if ex isa Symbol
+    return vstruct(:Isa, main[ex])
+  else
+    lowerpattern(ex, as)
+  end
+end
+
 function lowerpattern(ex, as)
   if ex isa Symbol
     ex in as || push!(as, ex)
@@ -11,6 +19,10 @@ function lowerpattern(ex, as)
     return ex
   elseif ex isa Tuple
     vstruct(:Struct, :Tuple, map(x -> lowerpattern(x, as), ex.args)...)
+  elseif ex isa Operator && ex.op == :(::)
+    name, T = ex.args
+    name in as || push!(as, name)
+    bind(name, lowerisa(T, as))
   else
     error("Invalid pattern syntax $(ex)")
   end
@@ -45,11 +57,15 @@ function match(bs, p, x)
       bs == nothing && return
     end
     return bs
+  elseif tag(p) == :Isa
+    return vinvoke(:isa, x, part(p, 1)) ? bs : nothing
   elseif tag(p) == :Bind
     bs = match(bs, resolve(part(p, 2)), x)
     bs == nothing && return
     # TODO handle duplicate names
     assoc(bs, part(p, 1), x)
+  else
+    error("Invalid pattern $p")
   end
 end
 

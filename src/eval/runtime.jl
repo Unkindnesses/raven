@@ -92,3 +92,6 @@ for (name, def) in [:> => >, :+ => +, :- => -, :* => *, :/ => /,
           VMethod(lowerpattern(vsx"args")...,
                   args -> def(args.data[2:end]...)))
 end
+
+main[:Int] = :Int
+method!(main, :isa, VMethod(lowerpattern(vsx"(x, `Int`)")..., x -> x isa Integer))
