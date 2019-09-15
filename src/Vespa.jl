@@ -15,6 +15,8 @@ include("eval/interpreter.jl")
 include("eval/patterns.jl")
 include("eval/runtime.jl")
 
+evalfile(joinpath(@__DIR__, "..", "base", "base.vs"))
+
 include("repl.jl")
 
 end # module
