@@ -16,9 +16,10 @@ function lowerpattern(ex, as)
     ex in as || push!(as, ex)
     return bind(ex, hole)
   elseif ex isa Union{Primitive,Quote}
-    return ex
+    ex isa Quote && (ex = ex.expr)
+    return vstruct(:Literal, ex)
   elseif ex isa Tuple
-    vstruct(:Struct, :Tuple, map(x -> lowerpattern(x, as), ex.args)...)
+    vstruct(:Struct, vstruct(:Literal, :Tuple), map(x -> lowerpattern(x, as), ex.args)...)
   elseif ex isa Operator && ex.op == :(::)
     name, T = ex.args
     name in as || push!(as, name)
@@ -45,11 +46,11 @@ resolve(p) = p isa Symbol ? pattern(p) : p
 function match(bs, p, x)
   if p isa Function
     return p(x) ? bs : nothing
-  elseif p isa Union{Primitive,Quote}
-    p isa Quote && (p = p.expr)
-    return p == x ? bs : nothing
   elseif p == hole
     return bs
+  elseif tag(p) == :Literal
+    p = part(p, 1)
+    return p == x ? bs : nothing
   elseif tag(p) == :Struct
     nparts(p) == nparts(x) + 1 || return
     for i = 0:nparts(x)

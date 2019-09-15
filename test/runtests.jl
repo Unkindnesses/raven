@@ -10,4 +10,8 @@ end
   include("interpret.jl")
 end
 
+@testset "Patterns" begin
+  include("patterns.jl")
+end
+
 end
