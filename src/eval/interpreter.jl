@@ -19,7 +19,7 @@ function step!(it::Interpreter)
   b, st = it.ip
   if st > length(it.stmts[b])
     for br in IRTools.branches(block(it.ir, b))
-      IRTools.isconditional(br) && it.env[br.condition] && continue
+      IRTools.isconditional(br) && Bool(it.env[br.condition]) && continue
       IRTools.isreturn(br) && return lookup(it, br.args[1])
       it.ip = br.block, 1
       for (arg, x) in zip(arguments(block(it.ir, br.block)), br.args)
@@ -42,6 +42,8 @@ function eval_stmt(it::Interpreter, ex)
   if isexpr(ex, :call)
     args = map(x -> lookup(it, x), ex.args)
     vinvoke(args...)
+  elseif !isexpr(ex)
+    lookup(it, ex)
   else
     error("Unrecognised expression $(ex.head)")
   end

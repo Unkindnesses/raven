@@ -4,7 +4,10 @@ struct VMethod
   pattern
   args
   func
+  partial
 end
+
+VMethod(pat, args, func) = VMethod(pat, args, func, nothing)
 
 function select_method(func::Symbol, args...)
   args = vstruct(:Tuple, args...)
@@ -84,14 +87,25 @@ end
 
 # Builtins
 
-for (name, def) in [:> => >, :+ => +, :- => -, :* => *, :/ => /,
-             :struct => (t, a...) -> Struct([t, a...]),
-             :tuple => (a...) -> vstruct(:Tuple, a...),
-             :part => part, :nparts => nparts, :tag => tag]
+for (name, def) in [:struct => (t, a...) -> Struct([t, a...]),
+                    :tuple => (a...) -> vstruct(:Tuple, a...),
+                    :part => part, :nparts => nparts, :tag => tag]
   method!(main, name,
           VMethod(lowerpattern(vsx"args")...,
                   args -> def(args.data[2:end]...)))
 end
 
 main[:Int] = :Int
-method!(main, :isa, VMethod(lowerpattern(vsx"(x, `Int`)")..., x -> x isa Integer))
+method!(main, :isa, VMethod(lowerpattern(vsx"(x, `Int`)")..., x -> isprimitive(x, Int)))
+
+for (name, def) in [:+ => +, :- => -, :* => *, :/ => /]
+  method!(main, name,
+          VMethod(lowerpattern(vsx"(x::Int, y::Int)")..., def,
+                  (a, b) -> PrimitiveHole{Int}()))
+end
+
+for (name, def) in [:> => >]
+  method!(main, name,
+          VMethod(lowerpattern(vsx"(x::Int, y::Int)")..., (x...) -> Int(def(x...)),
+                  (a, b) -> PrimitiveHole{Int}()))
+end

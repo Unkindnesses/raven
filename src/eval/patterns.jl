@@ -1,6 +1,9 @@
 const hole = vstruct(:Hole)
 bind(name, pattern) = vstruct(:Bind, name, pattern)
 
+isprimitive(x::T, ::Type{T}) where T = true
+isprimitive(x, ::Type) = false
+
 # Pattern Lowering
 
 function lowerisa(ex, as)

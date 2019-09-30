@@ -108,7 +108,7 @@ function lowerfn(ex, args)
   end
   out = lower!(sc, ir, ex.block)
   out == nothing || IRTools.return!(ir, out)
-  return ir |> IRTools.ssa! |> IRTools.prune!
+  return ir |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
 end
 
 function lowerexpr(ex)
