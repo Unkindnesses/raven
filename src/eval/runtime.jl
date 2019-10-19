@@ -29,7 +29,7 @@ struct VModule
   methods::Dict{Symbol,Vector{VMethod}}
 end
 
-VModule() = VModule(Dict{Symbol,Any}(), Dict{Symbol,IR}())
+VModule() = primitives!(VModule(Dict{Symbol,Any}(), Dict{Symbol,IR}()))
 
 function method!(mod::VModule, name::Symbol, m::VMethod)
   mod.defs[name] = name
@@ -38,6 +38,32 @@ function method!(mod::VModule, name::Symbol, m::VMethod)
 end
 
 @forward VModule.defs Base.getindex, Base.setindex!, Base.haskey
+
+function primitives!(mod)
+  for (name, def) in [:struct => (t, a...) -> Struct([t, a...]),
+                      :tuple => (a...) -> vstruct(:Tuple, a...),
+                      :part => part, :nparts => nparts, :tag => tag]
+    method!(mod, name,
+            VMethod(lowerpattern(mod, vsx"args")...,
+                    args -> def(args.data[2:end]...)))
+  end
+  mod[:Int] = :Int
+  method!(mod, :isa, VMethod(lowerpattern(mod, vsx"(x, `Int`)")..., x -> isprimitive(x, Int)))
+
+  for (name, def) in [:+ => +, :- => -, :* => *, :/ => /]
+    method!(mod, name,
+            VMethod(lowerpattern(mod, vsx"(x::Int, y::Int)")..., def,
+                    (a, b) -> PrimitiveHole{Int}()))
+  end
+
+  for (name, def) in [:> => >]
+    method!(mod, name,
+            VMethod(lowerpattern(mod, vsx"(x::Int, y::Int)")..., (x...) -> Int(def(x...)),
+                    (a, b) -> PrimitiveHole{Int}()))
+  end
+
+  return mod
+end
 
 function eval_expr(m::VModule, x)
   ir = lowerexpr(x)
@@ -48,7 +74,7 @@ function veval(m::VModule, x::Block)
   x.name == :fn || return eval_expr(m, x)
   f = x.args[1].func
   args = Tuple(x.args[1].args)
-  pat, args = lowerpattern(args)
+  pat, args = lowerpattern(m, args)
   method!(main, f, VMethod(pat, args, lowerfn(x, args)))
   return f
 end
@@ -83,29 +109,4 @@ evalstring(f::String) = evalfile(IOBuffer(f))
 
 macro vs_str(x)
   :(evalstring($x))
-end
-
-# Builtins
-
-for (name, def) in [:struct => (t, a...) -> Struct([t, a...]),
-                    :tuple => (a...) -> vstruct(:Tuple, a...),
-                    :part => part, :nparts => nparts, :tag => tag]
-  method!(main, name,
-          VMethod(lowerpattern(vsx"args")...,
-                  args -> def(args.data[2:end]...)))
-end
-
-main[:Int] = :Int
-method!(main, :isa, VMethod(lowerpattern(vsx"(x, `Int`)")..., x -> isprimitive(x, Int)))
-
-for (name, def) in [:+ => +, :- => -, :* => *, :/ => /]
-  method!(main, name,
-          VMethod(lowerpattern(vsx"(x::Int, y::Int)")..., def,
-                  (a, b) -> PrimitiveHole{Int}()))
-end
-
-for (name, def) in [:> => >]
-  method!(main, name,
-          VMethod(lowerpattern(vsx"(x::Int, y::Int)")..., (x...) -> Int(def(x...)),
-                  (a, b) -> PrimitiveHole{Int}()))
 end

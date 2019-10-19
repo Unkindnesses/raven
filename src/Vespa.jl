@@ -19,6 +19,7 @@ include("eval/interpreter.jl")
 include("eval/patterns.jl")
 include("eval/abstract.jl")
 include("eval/runtime.jl")
+include("eval/compiler.jl")
 
 evalfile(joinpath(@__DIR__, "..", "base", "base.vs"))
 

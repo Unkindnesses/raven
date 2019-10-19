@@ -6,15 +6,15 @@ isprimitive(x, ::Type) = false
 
 # Pattern Lowering
 
-function lowerisa(ex, as)
+function lowerisa(mod, ex, as)
   if ex isa Symbol
-    return vstruct(:Isa, main[ex])
+    return vstruct(:Isa, mod[ex])
   else
-    lowerpattern(ex, as)
+    lowerpattern(mod, ex, as)
   end
 end
 
-function lowerpattern(ex, as)
+function lowerpattern(mod, ex, as)
   if ex isa Symbol
     ex in as || push!(as, ex)
     return bind(ex, hole)
@@ -22,19 +22,19 @@ function lowerpattern(ex, as)
     ex isa Quote && (ex = ex.expr)
     return vstruct(:Literal, ex)
   elseif ex isa Tuple
-    vstruct(:Struct, vstruct(:Literal, :Tuple), map(x -> lowerpattern(x, as), ex.args)...)
+    vstruct(:Struct, vstruct(:Literal, :Tuple), map(x -> lowerpattern(mod, x, as), ex.args)...)
   elseif ex isa Operator && ex.op == :(::)
     name, T = ex.args
     name in as || push!(as, name)
-    bind(name, lowerisa(T, as))
+    bind(name, lowerisa(mod, T, as))
   else
     error("Invalid pattern syntax $(ex)")
   end
 end
 
-function lowerpattern(ex)
+function lowerpattern(mod, ex)
   as = []
-  p = lowerpattern(ex, as)
+  p = lowerpattern(mod, ex, as)
   return p, as
 end
 
