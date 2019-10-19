@@ -4,8 +4,9 @@ using MacroTools: @forward, isexpr
 using FunctionalCollections
 
 using IRTools
-using IRTools: IR, Variable, Statement, Slot, Variable, argument!, block, blocks, arguments, argtypes,
+using IRTools: IR, Variable, Statement, Variable, argument!, block, blocks, arguments, argtypes,
   block, isreturn
+using IRTools.Inner: Slot
 
 include("utils.jl")
 
