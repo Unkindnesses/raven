@@ -18,7 +18,12 @@ function vload(cx::Source, x::Block)
   return f
 end
 
-vload(m::VModule, x) = load_expr(m, x)
+vload(m::Source, x) = load_expr(m, x)
+
+function finish!(cx::Source)
+  fn = Block(:fn, [Call(:_start, [])], cx.main)
+  method!(cx.mod, :_start, VMethod(lowerpattern(cx.mod, Tuple([])), [], lowerfn(fn, [])))
+end
 
 function loadfile(io::IO)
   cx = Source()
@@ -30,6 +35,7 @@ function loadfile(io::IO)
     out = vload(cx, ex)
     stmts(io)
   end
+  finish!(cx)
   return cx
 end
 

@@ -25,7 +25,8 @@ isfn(x) = x isa Block && x.name == :fn
 
 lower!(sc, ir::IR, x::Union{Integer,String,Quote}) = x
 lower!(sc, ir::IR, x::Symbol) = sc[x]
-lower!(sc, ir::IR, x::Vector) = (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
+lower!(sc, ir::IR, x::Vector) =
+  isempty(x) ? nothing : (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
 
 function lower!(sc, ir::IR, ex::Operator)
   if ex.op == :(=)
