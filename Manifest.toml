@@ -3,6 +3,12 @@
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
+[[BinaryProvider]]
+deps = ["Libdl", "Logging", "SHA"]
+git-tree-sha1 = "c7361ce8a2129f20b0e05a89f7070820cfed6648"
+uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
+version = "0.5.6"
+
 [[CSTParser]]
 deps = ["Tokenize"]
 git-tree-sha1 = "c69698c3d4a7255bc1b4bc2afc09f59db910243b"
@@ -148,3 +154,11 @@ uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [[Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
+
+[[WebAssembly]]
+deps = ["BinaryProvider", "IRTools", "Libdl", "MacroTools"]
+git-tree-sha1 = "542fac93e0c8db917dd9e23b353168a1221c06ba"
+repo-rev = "master"
+repo-url = "https://github.com/MikeInnes/WebAssembly.jl.git"
+uuid = "4f6df8df-4739-5653-a877-cf57ee625c27"
+version = "0.1.1"

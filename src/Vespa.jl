@@ -3,7 +3,7 @@ module Vespa
 using MacroTools: @forward, isexpr
 using FunctionalCollections
 
-using IRTools
+using IRTools, WebAssembly
 using IRTools: IR, Variable, Statement, Variable, argument!, block, blocks, arguments, argtypes,
   block, isreturn
 using IRTools.Inner: Slot
@@ -20,6 +20,8 @@ include("eval/patterns.jl")
 include("eval/abstract.jl")
 include("eval/runtime.jl")
 include("eval/compiler.jl")
+
+include("backend/wasm.jl")
 
 evalfile(joinpath(@__DIR__, "..", "base", "base.vs"))
 
