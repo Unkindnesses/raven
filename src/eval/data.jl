@@ -10,10 +10,13 @@ nparts(x::Struct) = length(x.data)-1
 part(x::Struct, i) = x.data[i+1]
 
 Base.:(==)(a::Struct, b::Struct) = a.data == b.data
+Base.hash(x::Struct, h::UInt) = hash((Struct, x.data), h)
 
 tag(x) = part(x, 0)
 
 const vnothing = vstruct(:Nothing)
+
+vtuple(xs...) = vstruct(:Tuple, xs...)
 
 Primitive = Union{Int,Float64,Symbol,String}
 

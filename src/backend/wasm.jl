@@ -5,7 +5,9 @@ wasmtype(T::Type) = WType(T)
 wasmtype(T::WType) = T
 
 wasmops = Dict(
-  (:+, i64, i64) => (i64.add, i64))
+  (:+, i64, i64) => (i64.add, i64),
+  (:*, i64, i64) => (i64.mul, i64),
+  (:-, i64, i64) => (i64.sub, i64))
 
 function wasmops!(ir)
   for (v, st) in ir
@@ -18,10 +20,9 @@ function wasmops!(ir)
   return ir
 end
 
-function wasmmodule(mod::VModule)
-  main = mod.methods[:_start][1]
-  inf = infer!(main.func)
-  f = WebAssembly.irfunc(:_start, wasmops!(main.func))
+function wasmmodule(mod::Inference)
+  main = mod.frames[vtuple(:_start)].ir
+  f = WebAssembly.irfunc(:_start, wasmops!(main))
   WebAssembly.Module(funcs = [f], exports = [WebAssembly.Export(:_start, :_start, :func)])
 end
 

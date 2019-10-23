@@ -36,7 +36,7 @@ function loadfile(io::IO)
     stmts(io)
   end
   finish!(cx)
-  return cx.mod
+  return Inference(cx.mod)
 end
 
 loadfile(f::String) = open(loadfile, f)

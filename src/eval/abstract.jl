@@ -46,13 +46,14 @@ end
 Frame(ir::IR) = Frame(ir, [], keys.(blocks(ir)), ⊥)
 
 function frame(ir::IR, args...)
-  prepare_ir!(ir)
+  ir = prepare_ir!(copy(ir))
   argtypes(ir) .= args
   return Frame(ir)
 end
 
 struct Inference
-  frames::Dict{Vector{Any},Frame}
+  mod::VModule
+  frames::Dict{Any,Frame}
   queue::WorkQueue{Any}
 end
 
@@ -118,21 +119,10 @@ function infer!(inf::Inference)
   return inf
 end
 
-function Inference(fr::Frame)
+function Inference(mod::VModule)
   q = WorkQueue{Any}()
-  push!(q, (fr, 1, 1))
-  Inference(Dict(argtypes(fr.ir)=>fr), q)
-end
-
-function infer!(ir::IR, args...)
-  fr = frame(ir, args...)
-  inf = Inference(fr)
+  init = frame(mod.methods[:_start][1].func)
+  push!(q, (init, 1, 1))
+  inf = Inference(mod, Dict(vtuple(:_start) => init), q)
   infer!(inf)
-end
-
-function return_type(ir::IR, args...)
-  fr = frame(copy(ir), args...)
-  inf = Inference(fr)
-  infer!(inf)
-  return fr.rettype
 end

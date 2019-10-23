@@ -14,8 +14,4 @@ end
   include("patterns.jl")
 end
 
-@testset "Abstract" begin
-  include("abstract.jl")
-end
-
 end
