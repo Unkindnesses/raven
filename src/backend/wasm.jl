@@ -17,3 +17,14 @@ function wasmops!(ir)
   end
   return ir
 end
+
+function wasmmodule(mod::VModule)
+  main = mod.methods[:_start][1]
+  inf = infer!(main.func)
+  f = WebAssembly.irfunc(:_start, wasmops!(main.func))
+  WebAssembly.Module(funcs = [f], exports = [WebAssembly.Export(:_start, :_start, :func)])
+end
+
+function compile(file, out)
+  WebAssembly.binary(wasmmodule(loadfile(file)), out)
+end
