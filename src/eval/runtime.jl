@@ -59,7 +59,7 @@ function primitives!(mod)
   for (name, def) in [:> => >]
     method!(mod, name,
             VMethod(lowerpattern(mod, vsx"(x::Int, y::Int)")..., (x...) -> Int(def(x...)),
-                    (a, b) -> PrimitiveHole{Int}()))
+                    (a, b) -> PrimitiveHole{Bool}()))
   end
 
   return mod

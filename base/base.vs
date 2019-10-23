@@ -11,4 +11,4 @@ fn relu(x):
   else:
     0
 
-2+2
+pow(2, 3)

@@ -1,5 +1,6 @@
 exprtype(ir, x::Variable) = IRTools.exprtype(ir, x)
-exprtype(ir, x::Union{Number,String,Symbol}) = x
+exprtype(ir, x::Number) = PrimitiveHole{typeof(x)}()
+exprtype(ir, x::Symbol) = x
 
 struct Hole end
 
@@ -64,7 +65,15 @@ function infercall!(inf, loc, block, ex)
   if m.partial != nothing
     return m.partial(args...)
   else
-    error("Call not supported")
+    T = vtuple(Ts...)
+    if !haskey(inf.frames, T)
+      fr = frame(m.func, args...)
+      inf.frames[T] = fr
+    end
+    fr = inf.frames[T]
+    push!(inf.queue, (fr, 1, 1))
+    push!(fr.edges, loc)
+    return fr.rettype
   end
 end
 
