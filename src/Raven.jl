@@ -23,7 +23,7 @@ include("eval/compiler.jl")
 
 include("backend/wasm.jl")
 
-evalfile(joinpath(@__DIR__, "..", "base", "base.vs"))
+evalfile(joinpath(@__DIR__, "..", "base", "base.rv"))
 
 include("repl.jl")
 
