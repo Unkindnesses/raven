@@ -1,5 +1,5 @@
-using Vespa, Test
-using Vespa: Call, If, Block, Operator, @vsx_str
+using Raven, Test
+using Raven: Call, If, Block, Operator, @vsx_str
 
 @test vsx"foo(x, y)" == Call(:foo, [:x, :y])
 

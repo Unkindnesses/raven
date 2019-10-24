@@ -34,7 +34,7 @@ function repl_init(repl)
 end
 
 function create_mode(repl, main)
-  pkg_mode = LineEdit.Prompt("vespa> ";
+  pkg_mode = LineEdit.Prompt("raven> ";
     prompt_prefix = repl.options.hascolor ? Base.text_colors[:magenta] : "",
     prompt_suffix = "",
     on_enter = return_callback,

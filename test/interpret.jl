@@ -1,5 +1,5 @@
-using Vespa, Test
-using Vespa: @vs_str, lowerfn, interpret
+using Raven, Test
+using Raven: @vs_str, lowerfn, interpret
 
 vs"""
   fn relu(x):
@@ -29,4 +29,4 @@ vs"""
 
 @test vs"pow(2, 3)" == 8
 
-@test vs"struct(1, 2)" isa Vespa.Struct
+@test vs"struct(1, 2)" isa Raven.Struct
