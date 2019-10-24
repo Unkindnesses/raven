@@ -234,6 +234,6 @@ end
 
 parse(s::String) = parse(LineNumberingReader(IOBuffer(s)), 0)
 
-macro vsx_str(x)
+macro rvx_str(x)
   QuoteNode(parse(x))
 end

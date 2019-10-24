@@ -4,7 +4,7 @@ struct Struct
   data::Vector{Any}
 end
 
-vstruct(x...) = Struct(Any[x...])
+rstruct(x...) = Struct(Any[x...])
 
 nparts(x::Struct) = length(x.data)-1
 part(x::Struct, i) = x.data[i+1]
@@ -14,9 +14,9 @@ Base.hash(x::Struct, h::UInt) = hash((Struct, x.data), h)
 
 tag(x) = part(x, 0)
 
-const vnothing = vstruct(:Nothing)
+const rnothing = rstruct(:Nothing)
 
-vtuple(xs...) = vstruct(:Tuple, xs...)
+rtuple(xs...) = rstruct(:Tuple, xs...)
 
 Primitive = Union{Int,Float64,Symbol,String}
 

@@ -1,16 +1,16 @@
 # Eval
 
-struct VMethod
+struct RMethod
   pattern
   args
   func
   partial
 end
 
-VMethod(pat, args, func) = VMethod(pat, args, func, nothing)
+RMethod(pat, args, func) = RMethod(pat, args, func, nothing)
 
 function select_method(func::Symbol, args...)
-  args = vstruct(:Tuple, args...)
+  args = rstruct(:Tuple, args...)
   for meth in reverse(main.methods[func])
     bs = match(meth.pattern, args)
     bs == nothing || return (meth, bs)
@@ -24,77 +24,77 @@ function vinvoke(func::Symbol, args...)
   f isa Function ? f(args...) : interpret(f, args...)
 end
 
-struct VModule
+struct RModule
   defs::Dict{Symbol,Any}
-  methods::Dict{Symbol,Vector{VMethod}}
+  methods::Dict{Symbol,Vector{RMethod}}
 end
 
-VModule() = primitives!(VModule(Dict{Symbol,Any}(), Dict{Symbol,IR}()))
+RModule() = primitives!(RModule(Dict{Symbol,Any}(), Dict{Symbol,IR}()))
 
-function method!(mod::VModule, name::Symbol, m::VMethod)
+function method!(mod::RModule, name::Symbol, m::RMethod)
   mod.defs[name] = name
-  push!(get!(mod.methods, name, VMethod[]), m)
+  push!(get!(mod.methods, name, RMethod[]), m)
   return
 end
 
-@forward VModule.defs Base.getindex, Base.setindex!, Base.haskey
+@forward RModule.defs Base.getindex, Base.setindex!, Base.haskey
 
 function primitives!(mod)
   for (name, def) in [:struct => (t, a...) -> Struct([t, a...]),
-                      :tuple => (a...) -> vstruct(:Tuple, a...),
+                      :tuple => (a...) -> rstruct(:Tuple, a...),
                       :part => part, :nparts => nparts, :tag => tag]
     method!(mod, name,
-            VMethod(lowerpattern(mod, vsx"args")...,
+            RMethod(lowerpattern(mod, rvx"args")...,
                     args -> def(args.data[2:end]...)))
   end
   mod[:Int] = :Int
-  method!(mod, :isa, VMethod(lowerpattern(mod, vsx"(x, `Int`)")..., x -> isprimitive(x, Int)))
+  method!(mod, :isa, RMethod(lowerpattern(mod, rvx"(x, `Int`)")..., x -> isprimitive(x, Int)))
 
   for (name, def) in [:+ => +, :- => -, :* => *, :/ => /]
     method!(mod, name,
-            VMethod(lowerpattern(mod, vsx"(x::Int, y::Int)")..., def,
+            RMethod(lowerpattern(mod, rvx"(x::Int, y::Int)")..., def,
                     (a, b) -> PrimitiveHole{Int}()))
   end
 
   for (name, def) in [:> => >]
     method!(mod, name,
-            VMethod(lowerpattern(mod, vsx"(x::Int, y::Int)")..., (x...) -> Int(def(x...)),
+            RMethod(lowerpattern(mod, rvx"(x::Int, y::Int)")..., (x...) -> Int(def(x...)),
                     (a, b) -> PrimitiveHole{Bool}()))
   end
 
   return mod
 end
 
-function eval_expr(m::VModule, x)
+function eval_expr(m::RModule, x)
   ir = lowerexpr(x)
   interpret(ir)
 end
 
-function veval(m::VModule, x::Block)
+function veval(m::RModule, x::Block)
   x.name == :fn || return eval_expr(m, x)
   f = x.args[1].func
   args = Tuple(x.args[1].args)
   pat, args = lowerpattern(m, args)
-  method!(main, f, VMethod(pat, args, lowerfn(x, args)))
+  method!(main, f, RMethod(pat, args, lowerfn(x, args)))
   return f
 end
 
-function veval(m::VModule, x::Operator)
+function veval(m::RModule, x::Operator)
   x.op == :(=) || return eval_expr(m, x)
   name, ex = x.args
   name isa Symbol || error("Invalid binding $name")
   m[name] = eval_expr(m, ex)
 end
 
-veval(m::VModule, x) = eval_expr(m, x)
+veval(m::RModule, x) = eval_expr(m, x)
 
-const main = VModule()
+const main = RModule()
 
 veval(x) = veval(main, x)
 
 function evalfile(io::IO)
   io = LineNumberingReader(io)
-  out = vnothing
+  out = rnothing
   stmts(io)
   while !eof(io)
     ex = parse(io, 0)
@@ -107,6 +107,6 @@ end
 evalfile(f::String) = open(evalfile, f)
 evalstring(f::String) = evalfile(IOBuffer(f))
 
-macro vs_str(x)
+macro rv_str(x)
   :(evalstring($x))
 end

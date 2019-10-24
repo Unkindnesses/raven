@@ -53,7 +53,7 @@ function frame(ir::IR, args...)
 end
 
 struct Inference
-  mod::VModule
+  mod::RModule
   frames::Dict{Any,Frame}
   queue::WorkQueue{Any}
 end
@@ -65,7 +65,7 @@ function infercall!(inf, loc, block, ex)
   if m.partial != nothing
     return m.partial(args...)
   else
-    T = vtuple(Ts...)
+    T = rtuple(Ts...)
     if !haskey(inf.frames, T)
       fr = frame(m.func, args...)
       inf.frames[T] = fr
@@ -128,10 +128,10 @@ function infer!(inf::Inference)
   return inf
 end
 
-function Inference(mod::VModule)
+function Inference(mod::RModule)
   q = WorkQueue{Any}()
   init = frame(mod.methods[:_start][1].func)
   push!(q, (init, 1, 1))
-  inf = Inference(mod, Dict(vtuple(:_start) => init), q)
+  inf = Inference(mod, Dict(rtuple(:_start) => init), q)
   infer!(inf)
 end

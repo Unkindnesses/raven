@@ -28,7 +28,7 @@ function lowerwasm!(mod::WModule, ir::IR)
         op, T = wasmops[(op, Ts...)]
         ir[v] = IRTools.stmt(st, expr = Base.Expr(:call, op, args...), type = T)
       else
-        T = vtuple(exprtype.((ir,), st.expr.args)...)
+        T = rtuple(exprtype.((ir,), st.expr.args)...)
         func = lowerwasm!(mod, T)
         ir[v] = Base.Expr(:call, WebAssembly.Call(func), args...)
         ir[v] = IRTools.stmt(ir[v], type = wasmtype(ir[v].type))
@@ -48,7 +48,7 @@ end
 
 function wasmmodule(inf::Inference)
   mod = WModule(inf)
-  lowerwasm!(mod, vtuple(:_start))
+  lowerwasm!(mod, rtuple(:_start))
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
   WebAssembly.Module(funcs = fs, exports = [WebAssembly.Export(:_start, :_start, :func)])
 end

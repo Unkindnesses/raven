@@ -1,5 +1,5 @@
-const hole = vstruct(:Hole)
-bind(name, pattern) = vstruct(:Bind, name, pattern)
+const hole = rstruct(:Hole)
+bind(name, pattern) = rstruct(:Bind, name, pattern)
 
 isprimitive(x::T, ::Type{T}) where T = true
 isprimitive(x, ::Type) = false
@@ -8,7 +8,7 @@ isprimitive(x, ::Type) = false
 
 function lowerisa(mod, ex, as)
   if ex isa Symbol
-    return vstruct(:Isa, mod[ex])
+    return rstruct(:Isa, mod[ex])
   else
     lowerpattern(mod, ex, as)
   end
@@ -20,9 +20,9 @@ function lowerpattern(mod, ex, as)
     return bind(ex, hole)
   elseif ex isa Union{Primitive,Quote}
     ex isa Quote && (ex = ex.expr)
-    return vstruct(:Literal, ex)
+    return rstruct(:Literal, ex)
   elseif ex isa Tuple
-    vstruct(:Struct, vstruct(:Literal, :Tuple), map(x -> lowerpattern(mod, x, as), ex.args)...)
+    rstruct(:Struct, rstruct(:Literal, :Tuple), map(x -> lowerpattern(mod, x, as), ex.args)...)
   elseif ex isa Operator && ex.op == :(::)
     name, T = ex.args
     name in as || push!(as, name)

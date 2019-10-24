@@ -1,36 +1,36 @@
 using Raven, Test
-using Raven: Call, If, Block, Operator, @vsx_str
+using Raven: Call, If, Block, Operator, @rvx_str
 
-@test vsx"foo(x, y)" == Call(:foo, [:x, :y])
+@test rvx"foo(x, y)" == Call(:foo, [:x, :y])
 
-@test vsx"fn f(x): add(x, 1)" ==
-  Block(:fn, [vsx"f(x)"], [vsx"add(x,1)"], true)
+@test rvx"fn f(x): add(x, 1)" ==
+  Block(:fn, [rvx"f(x)"], [rvx"add(x,1)"], true)
 
-@test vsx"""
+@test rvx"""
   fn f(x):
     add(x, 1)
-  """ == Block(:fn, [vsx"f(x)"], [vsx"add(x,1)"])
+  """ == Block(:fn, [rvx"f(x)"], [rvx"add(x,1)"])
 
-@test vsx"""
+@test rvx"""
   fn f(x): # comment
     add(x, 1)
-  """ == Block(:fn, [vsx"f(x)"], [vsx"add(x,1)"])
+  """ == Block(:fn, [rvx"f(x)"], [rvx"add(x,1)"])
 
-@test vsx"""
+@test rvx"""
   fn f(x):
     add(x, 1)
     add(x, 2)
-  """ == Block(:fn, [vsx"f(x)"], [vsx"add(x, 1)", vsx"add(x, 2)"])
+  """ == Block(:fn, [rvx"f(x)"], [rvx"add(x, 1)", rvx"add(x, 2)"])
 
-@test vsx"2 + 3" == Operator(:+, [2, 3])
+@test rvx"2 + 3" == Operator(:+, [2, 3])
 
-@test vsx"x = 2+3" == Operator(:(=), [:x, vsx"2+3"])
+@test rvx"x = 2+3" == Operator(:(=), [:x, rvx"2+3"])
 
-@test vsx"""
+@test rvx"""
   if x > 0:
     1
   elseif x < 0:
     2
   else:
     3
-  """ == If([vsx"x>0", vsx"x<0",true],[[vsx"1"],[vsx"2"],[vsx"3"]])
+  """ == If([rvx"x>0", rvx"x<0",true],[[rvx"1"],[rvx"2"],[rvx"3"]])

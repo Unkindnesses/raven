@@ -1,7 +1,7 @@
 using Raven, Test
-using Raven: @vs_str, lowerfn, interpret
+using Raven: @rv_str, lowerfn, interpret
 
-vs"""
+rv"""
   fn relu(x):
     if x > 0:
       x
@@ -9,16 +9,16 @@ vs"""
       0
   """
 
-@test vs"relu(5)" == 5
-@test vs"relu(0-5)" == 0
+@test rv"relu(5)" == 5
+@test rv"relu(0-5)" == 0
 
-vs"""
+rv"""
   fn relu2(x): relu(x)
   """
 
-@test vs"relu2(5)" == 5
+@test rv"relu2(5)" == 5
 
-vs"""
+rv"""
   fn pow(x, n):
     r = 1
     while n > 0:
@@ -27,6 +27,6 @@ vs"""
     return r
   """
 
-@test vs"pow(2, 3)" == 8
+@test rv"pow(2, 3)" == 8
 
-@test vs"struct(1, 2)" isa Raven.Struct
+@test rv"struct(1, 2)" isa Raven.Struct

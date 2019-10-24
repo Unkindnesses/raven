@@ -1,7 +1,7 @@
 using Raven, Test
-using Raven: @vsx_str, lowerpattern, match, vstruct
+using Raven: @rvx_str, lowerpattern, match, rstruct
 
-p, = lowerpattern(Raven.main, vsx"(x, y)")
+p, = lowerpattern(Raven.main, rvx"(x, y)")
 
-@test match(p, vstruct(:Tuple, 1, 2)) == Dict(:x=>1,:y=>2)
-@test match(p, vstruct(:Tuple, 1, 2, 3)) == nothing
+@test match(p, rstruct(:Tuple, 1, 2)) == Dict(:x=>1,:y=>2)
+@test match(p, rstruct(:Tuple, 1, 2, 3)) == nothing
