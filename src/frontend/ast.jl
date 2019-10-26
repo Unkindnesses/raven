@@ -20,19 +20,14 @@ struct Operator <: Expr
   args::Vector{Any}
 end
 
-struct If <: Expr
-  cond::Vector{Any}
-  body::Vector{Any}
+struct Block <: Expr
+  args::Vector{Any}
 end
 
-struct Block <: Expr
+struct Syntax <: Expr
   name::Symbol
   args::Vector{Any}
-  block::Vector{Any}
-  short::Bool
 end
-
-Block(name, args, block) = Block(name, args, block, false)
 
 struct Quote
   expr::Any
@@ -40,7 +35,7 @@ end
 
 using MacroTools: @q
 
-for T in [Return, Tuple, Call, If, Operator, Block]
+for T in [Return, Tuple, Call, Operator, Syntax, Block]
   @eval Base.:(==)(a::$T, b::$T) = $(Base.Expr(:&&, [:(a.$f == b.$f) for f in fieldnames(T)]...))
 end
 
@@ -87,34 +82,22 @@ function _show(io::Ctx, x::Operator)
   print(io, ")")
 end
 
-function _show(io::Ctx, x::If)
-  _show(io, Block(:if, [x.cond[1]], x.body[1]))
-  for i = 2:length(x.cond)
-    print(io, "\n", " "^io.indent)
-    if x.cond[i] == true
-      _show(io, Block(:else, [], x.body[i]))
-    else
-      _show(io, Block(:elseif, [x.cond[i]], x.body[i]))
-    end
+function _show(io::Ctx, x::Block)
+  io′ = indent(io)
+  print(io, "{")
+  for x in x.args
+    print(io, "\n", " "^io′.indent)
+    _show(io′, x)
   end
+  print(io, "\n", " "^io.indent, "}")
 end
 
-function _show(io::Ctx, x::Block)
+function _show(io::Ctx, x::Syntax)
   _show(io, x.name)
-  for arg in x.args
-    print(io, " ")
-    _show(io, arg)
-  end
-  print(io, ":")
-  if x.short
-    print(io, " ")
-    _show(io, x.block[1])
-  else
-    io = indent(io)
-    for i = 1:length(x.block)
-      print(io, "\n", " "^io.indent)
-      _show(io, x.block[i])
-    end
+  print(io, " ")
+  for i in 1:length(x.args)
+    _show(io, x.args[i])
+    i == length(x.args) || print(io, " ")
   end
 end
 

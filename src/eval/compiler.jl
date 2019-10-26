@@ -9,7 +9,7 @@ function load_expr(cx::Source, x)
   push!(cx.main, x)
 end
 
-function vload(cx::Source, x::Block)
+function vload(cx::Source, x::Syntax)
   x.name == :fn || return load_expr(m, x)
   f = x.args[1].func
   args = Tuple(x.args[1].args)
@@ -21,7 +21,7 @@ end
 vload(m::Source, x) = load_expr(m, x)
 
 function finish!(cx::Source)
-  fn = Block(:fn, [Call(:_start, [])], cx.main)
+  fn = Syntax(:fn, [Call(:_start, []), Block(cx.main)])
   method!(cx.mod, :_start, RMethod(lowerpattern(cx.mod, Tuple([])), [], lowerfn(fn, [])))
 end
 
@@ -31,7 +31,7 @@ function loadfile(io::IO)
   out = rnothing
   stmts(io)
   while !eof(io)
-    ex = parse(io, 0)
+    ex = parse(io)
     out = vload(cx, ex)
     stmts(io)
   end

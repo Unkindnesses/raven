@@ -70,7 +70,7 @@ function eval_expr(m::RModule, x)
   interpret(ir)
 end
 
-function veval(m::RModule, x::Block)
+function veval(m::RModule, x::Syntax)
   x.name == :fn || return eval_expr(m, x)
   f = x.args[1].func
   args = Tuple(x.args[1].args)
@@ -97,7 +97,7 @@ function evalfile(io::IO)
   out = rnothing
   stmts(io)
   while !eof(io)
-    ex = parse(io, 0)
+    ex = parse(io)
     out = veval(ex)
     stmts(io)
   end

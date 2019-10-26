@@ -52,7 +52,34 @@ function lower!(sc, ir::IR, ex::Return)
   return
 end
 
-function lower!(sc, ir::IR, ex::If, value = true)
+struct If
+  cond::Vector{Any}
+  body::Vector{Any}
+end
+
+function If(b::Syntax)
+  cond = []
+  body = []
+  while true
+    if b.name == :if && isempty(cond)
+      push!(cond, b.args[1])
+      push!(body, b.args[2])
+      get(b.args, 3, nothing) isa Syntax ? (b = b.args[3]) : break
+    elseif b.name == :else && b.args[1] == :if
+      push!(cond, b.args[2])
+      push!(body, b.args[3])
+      get(b.args, 4, nothing) isa Syntax ? (b = b.args[4]) : break
+    elseif b.name == :else
+      push!(cond, true)
+      push!(body, b.args[1])
+      break
+    else error("broken if block")
+    end
+  end
+  return If(cond, body)
+end
+
+function lowerif!(sc, ir::IR, ex::If, value = true)
   b = blocks(ir)[end]
   ts = []
   vs = []
@@ -62,7 +89,7 @@ function lower!(sc, ir::IR, ex::If, value = true)
       _lower!(sc, ir, ex)
   for (cond, body) in zip(ex.cond, ex.body)
     if cond === true
-      body!(ir, body)
+      body!(ir, body.args)
       push!(ts, b)
       b = IRTools.block!(ir)
       break
@@ -70,7 +97,7 @@ function lower!(sc, ir::IR, ex::If, value = true)
     cond = lower!(sc, ir, cond)
     t = IRTools.block!(ir)
     push!(ts, t)
-    body!(ir, body)
+    body!(ir, body.args)
     f = IRTools.block!(ir)
     IRTools.branch!(b, f, unless = cond)
     b = f
@@ -84,21 +111,24 @@ function lower!(sc, ir::IR, ex::If, value = true)
   value && IRTools.argument!(b, insert = false)
 end
 
-_lower!(sc, ir::IR, ex::If) = lower!(sc, ir, ex, false)
-
-function lower!(sc, ir::IR, ex::Block)
+function lower!(sc, ir::IR, ex::Syntax, value = true)
   if ex.name == :while
     header = IRTools.block!(ir)
     cond = lower!(sc, ir, ex.args[1])
     body = IRTools.block!(ir)
-    lower!(sc, ir, ex.block)
+    lower!(sc, ir, ex.args[2].args)
     after = IRTools.block!(ir)
     IRTools.branch!(header, after, unless = cond)
     IRTools.branch!(body, header)
+    return rnothing
+  elseif ex.name == :if
+    lowerif!(sc, ir, If(ex), value)
   else
-    error("unrecognised block $(b.name)")
+    error("unrecognised block $(ex.name)")
   end
 end
+
+_lower!(sc, ir::IR, ex::Syntax) = lower!(sc, ir, ex, false)
 
 function lowerfn(ex, args)
   sc = Scope()
@@ -107,7 +137,7 @@ function lowerfn(ex, args)
     sc[arg] = Slot(arg)
     push!(ir, :($(Slot(arg)) = $(argument!(ir))))
   end
-  out = lower!(sc, ir, ex.block)
+  out = lower!(sc, ir, ex.args[2].args)
   out == nothing || IRTools.return!(ir, out)
   return ir |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
 end

@@ -112,7 +112,7 @@ end
 
 function quotation(io::IO)
   read(io) == '`' || return
-  x = parse(io, 0)
+  x = parse(io)
   read(io) == '`' || error("Expecting a `")
   return Quote(x)
 end
@@ -149,12 +149,12 @@ bracketmap = Dict(
   '[' => ']',
   '{' => '}')
 
-function brackets(io, level, start = '(', stop = bracketmap[start])
+function brackets(io, start = '(', stop = bracketmap[start])
   read(io) == start || return
   xs = []
   while true
     parse(char(stop), io) == nothing || break
-    x = parse(io, level)
+    x = parse(io)
     push!(xs, x)
     nt = read(io)
     nt == stop && break
@@ -163,76 +163,62 @@ function brackets(io, level, start = '(', stop = bracketmap[start])
   return xs
 end
 
+function _block(io)
+  read(io) == '{' || return
+  consume_ws(io)
+  peek(io) == '}' && return Block([])
+  args = []
+  while !eof(io)
+    stmts(io)
+    peek(io) == '}' && break
+    push!(args, parse(io))
+  end
+  read(io)
+  return Block(args)
+end
+
 function _tuple(io)
-  bs = @try brackets(io, 0)
+  bs = @try brackets(io)
   return Tuple(bs)
 end
 
-function expr(io, level)
+function expr(io)
   consume_ws(io)
-  ex = parseone(io, symbol, string, number, op_token, quotation, _tuple)
+  ex = parseone(io, symbol, string, number, op_token, quotation, _tuple, _block)
   ex == nothing && error("Unexpected character $(read(io))")
-  ex == :return && return Return(expr(io, level))
-  while (args = parse(brackets, io, level)) != nothing
+  ex == :return && return Return(expr(io))
+  while (args = parse(brackets, io)) != nothing
     ex = Call(ex, args)
   end
   consume_ws(io)
   if (op = parse(op_token, io)) != nothing
-    ex = Operator(op, [ex, parse(io, level)])
+    ex = Operator(op, [ex, parse(io)])
   end
   return ex
 end
 
-function parse_block(io, level)
+function _syntax(io)
   name = @try symbol(io)
-  (!eof(io) && peek(io) in (':', ' ')) || return
+  (!eof(io) && peek(io) in ('{', ' ')) || return
   args = []
-  while true
-    parse(char(':'), io) == nothing || break
-    parse(stmt, io) == nothing || return
-    push!(args, @try parse(expr, io, level))
-  end
-  peek(io) == ':' && return # typeof operator
-  consume_ws(io)
-  (nt = peek(stmts, io)) == nothing && return Block(name, args, [parse(io, level)], true)
-  inner = nt.indent
-  inner <= level && return Block(name, args, [])
-  exs = []
+  block = false
   while !eof(io)
-    (nt = peek(stmts, io)) == nothing && error("Expecting a statement")
-    nt.indent == inner || break
-    push!(exs, parse(io, inner))
+    parse(stmt, io) == nothing || break
+    peek(io) in ('}', ')', ']') && break
+    next = block ? parse(io) : parse(expr, io)
+    next isa Block && (block = true)
+    push!(args, next)
   end
-  b = Block(name, args, exs)
-  b.name == :if && return parse_if(io, b, level)
-  return b
+  block || return
+  return Syntax(name, args)
 end
 
-function parse_if(io, ex, level)
-  cond = Any[ex.args[1]]
-  body = Any[ex.block]
-  while true
-    ex = parse(io) do io
-      st = stmts(io) # TODO make sure indent is right
-      b = parse(parse_block, io, level)
-      (b == nothing || b.name ∉ (:elseif, :else)) && return
-      b
-    end
-    ex == nothing && break
-    push!(cond, ex.name == :elseif ? ex.args[1] : true)
-    push!(body, ex.block)
-  end
-  return If(cond, body)
-end
-
-function parse(io::IO, level::Integer)
+function parse(io::IO)
   consume_ws(io); stmts(io)
-  parseone(io,
-    io -> parse_block(io, level),
-    io -> expr(io, level))
+  parseone(io, _syntax, expr)
 end
 
-parse(s::String) = parse(LineNumberingReader(IOBuffer(s)), 0)
+parse(s::String) = parse(LineNumberingReader(IOBuffer(s)))
 
 macro rvx_str(x)
   QuoteNode(parse(x))
