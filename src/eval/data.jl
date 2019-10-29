@@ -38,6 +38,6 @@ function vprint(io::IO, s::Struct)
 end
 
 vprint(io, x::Symbol) = print(io, "`", x, "`")
-vprint(io::IO, x::Union{Int64, Float64}) = print(io, x)
+vprint(io::IO, x::Union{Int64, Int32, Float64, Float32}) = show(io, x)
 
 vprint(io::IO, x::Expr) = print(io, "`", x, "`")

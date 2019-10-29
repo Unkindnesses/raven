@@ -3,7 +3,11 @@
 # |     \|      \\  \/ |   ___|     \| |
 # |__|\__\___|\__\\__/ |______|__/\____|
 
-fn pow(x::Int, n::Int) {
+fn Ptr(x::Int32) { struct(`Ptr`, x) }
+fn Ptr(x::Int64) { Ptr(Int32(x)) }
+fn addr(x) { part(x, 1) }
+
+fn pow(x, n) {
   r = 1
   while n > 0 {
     n = n - 1

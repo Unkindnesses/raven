@@ -47,19 +47,27 @@ function primitives!(mod)
             RMethod(lowerpattern(mod, rvx"args")...,
                     args -> def(args.data[2:end]...)))
   end
-  mod[:Int] = :Int
-  method!(mod, :isa, RMethod(lowerpattern(mod, rvx"(x, `Int`)")..., x -> isprimitive(x, Int)))
+  for T in [Int64, Int32, Float64, Float32]
+    mod[Symbol(T)] = Symbol(T)
+    method!(mod, :isa, RMethod(lowerpattern(mod, parse("(x, `$T`)"))..., x -> Int32(isprimitive(x, T))))
 
-  for (name, def) in [:+ => +, :- => -, :* => *, :/ => /]
-    method!(mod, name,
-            RMethod(lowerpattern(mod, rvx"(x::Int, y::Int)")..., def,
-                    (a, b) -> PrimitiveHole{Int}()))
-  end
+    for (name, def) in [:+ => +, :- => -, :* => *, :/ => /]
+      method!(mod, name,
+              RMethod(lowerpattern(mod, parse("(x::$T, y::$T)"))..., def,
+                      (a, b) -> PrimitiveHole{T}()))
+    end
 
-  for (name, def) in [:> => >]
-    method!(mod, name,
-            RMethod(lowerpattern(mod, rvx"(x::Int, y::Int)")..., (x...) -> Int(def(x...)),
-                    (a, b) -> PrimitiveHole{Bool}()))
+    for (name, def) in [:> => >]
+      method!(mod, name,
+              RMethod(lowerpattern(mod, parse("(x::$T, y::$T)"))..., (x...) -> Int32(def(x...)),
+                      (a, b) -> PrimitiveHole{Bool}()))
+    end
+
+    for S in [Int64, Int32, Float64, Float32]
+      method!(mod, Symbol(S),
+              RMethod(lowerpattern(mod, parse("(x::$T,)"))..., x -> S(x),
+                      _ -> PrimitiveHole{T}()))
+    end
   end
 
   return mod

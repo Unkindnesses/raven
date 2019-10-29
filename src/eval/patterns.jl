@@ -62,7 +62,7 @@ function match(bs, p, x)
     end
     return bs
   elseif tag(p) == :Isa
-    return vinvoke(:isa, x, part(p, 1)) ? bs : nothing
+    return Bool(vinvoke(:isa, x, part(p, 1))) ? bs : nothing
   elseif tag(p) == :Bind
     bs = match(bs, resolve(part(p, 2)), x)
     bs == nothing && return
