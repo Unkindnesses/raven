@@ -40,7 +40,7 @@ end
 
 function lowerwasm!(mod::WModule, T)
   haskey(mod.funcs, T) && return mod.funcs[T][1]
-  name = T.data[2]::Symbol
+  name = part(T, 1)::Symbol
   ir = lowerwasm!(mod, mod.inf.frames[T].ir)
   mod.funcs[T] = (name, ir)
   return name

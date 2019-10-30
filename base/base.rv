@@ -3,7 +3,7 @@
 # |     \/      \\  \/ /|   ___|     \| |
 # |__|\__\___|\__\\___/ |______|__/\____|
 
-fn Ptr(x::Int32) { struct(`Ptr`, x) }
+fn Ptr(x::Int32) { data(`Ptr`, x) }
 fn Ptr(x::Int64) { Ptr(Int32(x)) }
 fn addr(x) { part(x, 1) }
 

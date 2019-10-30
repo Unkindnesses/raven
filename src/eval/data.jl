@@ -1,27 +1,27 @@
 # Types
 
-struct Struct
-  data::Vector{Any}
+struct Data
+  parts::Vector{Any}
 end
 
-rstruct(x...) = Struct(Any[x...])
+data(x...) = Data(Any[x...])
 
-nparts(x::Struct) = length(x.data)-1
-part(x::Struct, i) = x.data[i+1]
+nparts(x::Data) = length(x.parts)-1
+part(x::Data, i) = x.parts[i+1]
 
-Base.:(==)(a::Struct, b::Struct) = a.data == b.data
-Base.hash(x::Struct, h::UInt) = hash((Struct, x.data), h)
+Base.:(==)(a::Data, b::Data) = a.parts == b.parts
+Base.hash(x::Data, h::UInt) = hash((Data, x.parts), h)
 
 tag(x) = part(x, 0)
 
-const rnothing = rstruct(:Nothing)
+const rnothing = data(:Nothing)
 
-rtuple(xs...) = rstruct(:Tuple, xs...)
+rtuple(xs...) = data(:Tuple, xs...)
 
 Primitive = Union{Int,Float64,Symbol,String}
 
 # Primitive Types
-for T in :[Int64, Float64, Symbol, String].args
+for T in :[Int64, Int32, Float64, Float32, Symbol, String].args
   @eval part(x::$T, i::Integer) =
           i == 0 ? $(QuoteNode(T)) :
           i == 1 ? x :
@@ -31,13 +31,13 @@ end
 
 # Printing
 
-function vprint(io::IO, s::Struct)
-  print(io, "struct(")
-  join(io, [sprint(vprint, x) for x in s.data], ", ")
+function vprint(io::IO, s::Data)
+  print(io, "data(")
+  join(io, [sprint(vprint, x) for x in s.parts], ", ")
   print(io, ")")
 end
 
 vprint(io, x::Symbol) = print(io, "`", x, "`")
-vprint(io::IO, x::Union{Int64, Int32, Float64, Float32}) = show(io, x)
+vprint(io::IO, x::Union{Int64, Int32, Float64, Float32, String}) = show(io, x)
 
 vprint(io::IO, x::Expr) = print(io, "`", x, "`")

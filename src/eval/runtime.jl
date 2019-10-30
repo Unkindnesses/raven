@@ -10,7 +10,7 @@ end
 RMethod(pat, args, func) = RMethod(pat, args, func, nothing)
 
 function select_method(func::Symbol, args...)
-  args = rstruct(:Tuple, args...)
+  args = data(:Tuple, args...)
   for meth in reverse(main.methods[func])
     bs = match(meth.pattern, args)
     bs == nothing || return (meth, bs)
@@ -40,12 +40,12 @@ end
 @forward RModule.defs Base.getindex, Base.setindex!, Base.haskey
 
 function primitives!(mod)
-  for (name, def) in [:struct => (t, a...) -> Struct([t, a...]),
-                      :tuple => (a...) -> rstruct(:Tuple, a...),
+  for (name, def) in [:data => (t, a...) -> Data([t, a...]),
+                      :tuple => (a...) -> data(:Tuple, a...),
                       :part => part, :nparts => nparts, :tag => tag]
     method!(mod, name,
             RMethod(lowerpattern(mod, rvx"args")...,
-                    args -> def(args.data[2:end]...)))
+                    args -> def(args.parts[2:end]...)))
   end
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)

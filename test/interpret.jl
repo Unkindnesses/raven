@@ -33,4 +33,4 @@ rv"""
 
 @test rv"pow(2, 3)" == 8
 
-@test rv"struct(1, 2)" isa Raven.Struct
+@test rv"data(1, 2)" isa Raven.Data

@@ -1,5 +1,5 @@
-const hole = rstruct(:Hole)
-bind(name, pattern) = rstruct(:Bind, name, pattern)
+const hole = data(:Hole)
+bind(name, pattern) = data(:Bind, name, pattern)
 
 isprimitive(x::T, ::Type{T}) where T = true
 isprimitive(x, ::Type) = false
@@ -8,7 +8,7 @@ isprimitive(x, ::Type) = false
 
 function lowerisa(mod, ex, as)
   if ex isa Symbol
-    return rstruct(:Isa, mod[ex])
+    return data(:Isa, mod[ex])
   else
     lowerpattern(mod, ex, as)
   end
@@ -20,9 +20,9 @@ function lowerpattern(mod, ex, as)
     return bind(ex, hole)
   elseif ex isa Union{Primitive,Quote}
     ex isa Quote && (ex = ex.expr)
-    return rstruct(:Literal, ex)
+    return data(:Literal, ex)
   elseif ex isa Tuple
-    rstruct(:Struct, rstruct(:Literal, :Tuple), map(x -> lowerpattern(mod, x, as), ex.args)...)
+    data(:Data, data(:Literal, :Tuple), map(x -> lowerpattern(mod, x, as), ex.args)...)
   elseif ex isa Operator && ex.op == :(::)
     name, T = ex.args
     name in as || push!(as, name)
@@ -54,7 +54,7 @@ function match(bs, p, x)
   elseif tag(p) == :Literal
     p = part(p, 1)
     return p == x ? bs : nothing
-  elseif tag(p) == :Struct
+  elseif tag(p) == :Data
     nparts(p) == nparts(x) + 1 || return
     for i = 0:nparts(x)
       bs = match(bs, part(p, i+1), part(x, i))
