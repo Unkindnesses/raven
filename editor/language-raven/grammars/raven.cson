@@ -3,57 +3,72 @@ fileTypes: ['rv']
 name: 'Raven'
 patterns: [
   {
-    match: "\\b[0-9]+\\.?[0-9]*\\b"
-    name: "constant.numeric.raven"
-  }
-  {
-    begin: '#'
+    begin: '[A-Za-z]+\\b(?![ ]*[\\+\\-\\*/><\\=,])(?=[^{}]*{)'
     beginCaptures:
       0:
-        name: 'punctuation.definition.comment.raven'
-    end: '$'
-    name: 'comment.line.hash.raven'
+        name: "keyword.other.raven"
+    end: '{'
+    patterns: [
+      {include: "#expr"}
+    ]
   }
-  {
-    name: "string.quoted.double.raven"
-    begin: '"'
-    beginCaptures:
-      "0":
-        name: "punctuation.definition.string.begin.raven"
-    end: '"'
-    endCaptures:
-      "0":
-        name: "punctuation.definition.string.end.raven"
-  }
-  {
-    name: "constant.other.symbol.julia"
-    begin: '`+'
-    beginCaptures:
-      "0":
-        name: "punctuation.definition.quote.begin.raven"
-    end: '`+'
-    endCaptures:
-      "0":
-        name: "punctuation.definition.quote.end.raven"
-  }
-  {
-    name:"keyword.other.raven"
-    match: "fn|data|if|else|while|loop|return|break|continue|import|export|macro"
-  }
-  {
-    name: "keyword.operator.relation.raven"
-    match: "::"
-  }
-  {
-    name: "keyword.operator.arithmetic.raven"
-    match: "\\+|-|\\*|/"
-  }
-  {
-    name: "keyword.operator.other.raven"
-    match: "&"
-  }
-  {
-    name: "keyword.operator.update.raven"
-    match: "="
-  }
+  {include: "#expr"}
 ]
+repository:
+  expr:
+    patterns: [
+      {
+        match: "\\b[0-9]+\\.?[0-9]*\\b"
+        name: "constant.numeric.raven"
+      }
+      {
+        begin: '#'
+        beginCaptures:
+          0:
+            name: 'punctuation.definition.comment.raven'
+        end: '$'
+        name: 'comment.line.hash.raven'
+      }
+      {
+        name: "string.quoted.double.raven"
+        begin: '"'
+        beginCaptures:
+          "0":
+            name: "punctuation.definition.string.begin.raven"
+        end: '"'
+        endCaptures:
+          "0":
+            name: "punctuation.definition.string.end.raven"
+      }
+      {
+        name: "constant.other.symbol.julia"
+        begin: '`+'
+        beginCaptures:
+          "0":
+            name: "punctuation.definition.quote.begin.raven"
+        end: '`+'
+        endCaptures:
+          "0":
+            name: "punctuation.definition.quote.end.raven"
+      }
+      {
+        name:"keyword.other.raven"
+        match: "return|break|continue"
+      }
+      {
+        name: "keyword.operator.relation.raven"
+        match: "::"
+      }
+      {
+        name: "keyword.operator.arithmetic.raven"
+        match: "[\\+|-|\\*|/|>|<]+"
+      }
+      {
+        name: "keyword.operator.other.raven"
+        match: "&"
+      }
+      {
+        name: "keyword.operator.update.raven"
+        match: "="
+      }
+    ]
