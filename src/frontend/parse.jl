@@ -1,5 +1,9 @@
 using LNR
 
+struct ParseError
+  m
+end
+
 Base.mark(io::LineNumberingReader) = mark(io.io)
 Base.reset(io::LineNumberingReader) = reset(io.io)
 
@@ -23,6 +27,15 @@ function parse(f, io, a...; kw...)
   result = f(io, a...; kw...)
   result === nothing && (seek(io, p); return)
   return result
+end
+
+function tryparse(args...; kw...)
+  try
+    parse(args...; kw...)
+  catch e
+    e isa ParseError || rethrow(e)
+    nothing
+  end
 end
 
 function parseone(io, fs...)
@@ -185,13 +198,13 @@ end
 function expr(io)
   consume_ws(io)
   ex = parseone(io, symbol, string, number, op_token, quotation, _tuple, _block)
-  ex == nothing && error("Unexpected character $(read(io))")
+  ex == nothing && throw(ParseError("Unexpected character $(read(io))"))
   ex == :return && return Return(expr(io))
-  while (args = parse(brackets, io)) != nothing
+  while (args = tryparse(brackets, io)) != nothing
     ex = Call(ex, args)
   end
   consume_ws(io)
-  if (op = parse(op_token, io)) != nothing
+  if (op = tryparse(op_token, io)) != nothing
     ex = Operator(op, [ex, parse(io)])
   end
   return ex
@@ -204,6 +217,7 @@ function _syntax(io)
   block = false
   while !eof(io)
     parse(stmt, io) == nothing || break
+    consume_ws(io)
     peek(io) in ('}', ')', ']') && break
     next = block ? parse(io) : parse(expr, io)
     next isa Block && (block = true)
