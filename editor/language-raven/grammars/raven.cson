@@ -3,7 +3,7 @@ fileTypes: ['rv']
 name: 'Raven'
 patterns: [
   {
-    begin: '[A-Za-z]+\\b(?![ ]*[\\+\\-\\*/><\\=,])(?=[^{}]*{)'
+    begin: '[A-Za-z]+\\b(?![ ]*[\\+\\-\\*/><\\=,])(?=[^{}#]*{)'
     beginCaptures:
       0:
         name: "keyword.other.raven"
@@ -41,15 +41,38 @@ repository:
             name: "punctuation.definition.string.end.raven"
       }
       {
-        name: "constant.other.symbol.julia"
-        begin: '`+'
+        begin: "(```)(html)"
         beginCaptures:
-          "0":
+          1:
             name: "punctuation.definition.quote.begin.raven"
-        end: '`+'
+          2:
+            name: "support.function.macro.raven"
+        end: "```"
         endCaptures:
           "0":
             name: "punctuation.definition.quote.end.raven"
+        patterns: [
+          {include: "text.html.basic"}
+        ]
+      }
+      {
+        begin: "(html)(`)"
+        beginCaptures:
+          1:
+            name: "support.function.macro.raven"
+          2:
+            name: "punctuation.definition.quote.begin.raven"
+        end: "`"
+        endCaptures:
+          "0":
+            name: "punctuation.definition.quote.end.raven"
+        patterns: [
+          {include: "text.html.basic"}
+        ]
+      }
+      {
+        match: '`+'
+        name: "punctuation.definition.quote.raven"
       }
       {
         name:"keyword.other.raven"
