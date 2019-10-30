@@ -42,7 +42,7 @@ end
 function primitives!(mod)
   for (name, def) in [:data => (t, a...) -> Data([t, a...]),
                       :tuple => (a...) -> data(:Tuple, a...),
-                      :part => part, :nparts => nparts, :tag => tag]
+                      :part => part, :nparts => nparts]
     method!(mod, name,
             RMethod(lowerpattern(mod, rvx"args")...,
                     args -> def(args.parts[2:end]...)))

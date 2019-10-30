@@ -3,6 +3,8 @@
 # |     \/      \\  \/ /|   ___|     \| |
 # |__|\__\___|\__\\___/ |______|__/\____|
 
+fn tag(x) { part(x, 0) }
+
 fn Ptr(x::Int32) { data(`Ptr`, x) }
 fn Ptr(x::Int64) { Ptr(Int32(x)) }
 fn addr(x) { part(x, 1) }
