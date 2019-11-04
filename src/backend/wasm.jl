@@ -9,8 +9,8 @@ wasmops = Dict(
   (:-, i64, i64) => (i64.sub, i64),
   (:>, i64, i64) => (i64.gt_s, i32))
 
-intrinsic(op::Symbol, args::PrimitiveHole...) =
-  get(wasmops, (op, wasmtype.(args)...), nothing)
+intrinsic(op::Symbol, args::Union{Primitive,PrimitiveHole}...) =
+  get(wasmops, (op, WType.(jtype.(args))...), nothing)
 
 intrinsic(op, args...) = nothing
 

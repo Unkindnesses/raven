@@ -40,6 +40,9 @@ isprimitive(x::PrimitiveHole{T}, ::Type{T}) where T = true
 struct Bottom end
 const ⊥ = Bottom()
 
+jtype(x::PrimitiveHole{T}) where T = T
+jtype(x::Primitive) = typeof(x)
+
 # Printing
 
 function vprint(io::IO, s::Data)
