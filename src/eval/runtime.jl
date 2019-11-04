@@ -9,16 +9,18 @@ end
 
 RMethod(pat, args, func) = RMethod(pat, args, func, nothing)
 
-function select_method(func::Symbol, args...)
+function select_method(mod, func::Symbol, args...)
   args = data(:Tuple, args...)
-  for meth in reverse(main.methods[func])
-    bs = match(meth.pattern, args)
+  for meth in reverse(mod.methods[func])
+    bs = match(mod, meth.pattern, args)
     bs == nothing || return (meth, bs)
   end
 end
 
-function vinvoke(func::Symbol, args...)
-  meth, bs = select_method(func, args...)
+function vinvoke(mod, func::Symbol, args...)
+  found = select_method(mod, func, args...)
+  found == nothing && error("No method found for ($func, $(join(args, ", ")))")
+  meth, bs = found
   f = meth.func
   args = [bs[a] for a in meth.args]
   f isa Function ? f(args...) : interpret(f, args...)
@@ -40,13 +42,11 @@ end
 @forward RModule.defs Base.getindex, Base.setindex!, Base.haskey
 
 function primitives!(mod)
-  for (name, def) in [:data => (t, a...) -> Data([t, a...]),
-                      :tuple => (a...) -> data(:Tuple, a...),
-                      :part => part, :nparts => nparts]
-    method!(mod, name,
-            RMethod(lowerpattern(mod, rvx"args")...,
-                    args -> def(args.parts[2:end]...)))
-  end
+  method!(mod, :data, RMethod(lowerpattern(mod, rvx"args")..., args -> data(args.parts[2:end]...), args -> data(args.parts[2:end]...)))
+  method!(mod, :tuple, RMethod(lowerpattern(mod, rvx"args")..., identity, identity))
+  method!(mod, :part, RMethod(lowerpattern(mod, rvx"(data, i)")..., part, part))
+  method!(mod, :nparts, RMethod(lowerpattern(mod, rvx"args")..., nparts))
+  method!(mod, :widen, RMethod(lowerpattern(mod, rvx"(x,)")..., identity, x::Primitive -> PrimitiveHole{typeof(x)}()))
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)
     method!(mod, :isa, RMethod(lowerpattern(mod, parse("(x, `$T`)"))..., x -> Int32(isprimitive(x, T))))
@@ -64,9 +64,10 @@ function primitives!(mod)
     end
 
     for S in [Int64, Int32, Float64, Float32]
+      partial(::PrimitiveHole) = PrimitiveHole{S}()
+      partial(x::Primitive) = S(x)
       method!(mod, Symbol(S),
-              RMethod(lowerpattern(mod, parse("(x::$T,)"))..., x -> S(x),
-                      _ -> PrimitiveHole{T}()))
+              RMethod(lowerpattern(mod, parse("(x::$T,)"))..., x -> S(x), partial))
     end
   end
 
@@ -96,7 +97,7 @@ end
 
 veval(m::RModule, x) = eval_expr(m, x)
 
-const main = RModule()
+main = RModule()
 
 veval(x) = veval(main, x)
 

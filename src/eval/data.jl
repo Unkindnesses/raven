@@ -1,10 +1,10 @@
 # Types
 
-struct Data
-  parts::Vector{Any}
+struct Data{N}
+  parts::NTuple{N,Any}
 end
 
-data(x...) = Data(Any[x...])
+data(x...) = Data((x...,))
 
 nparts(x::Data) = length(x.parts)-1
 part(x::Data, i) = x.parts[i+1]
@@ -18,7 +18,7 @@ const rnothing = data(:Nothing)
 
 rtuple(xs...) = data(:Tuple, xs...)
 
-Primitive = Union{Int,Float64,Symbol,String}
+Primitive = Union{Int64,Int32,Float64,Float32,Symbol,String}
 
 # Primitive Types
 for T in :[Int64, Int32, Float64, Float32, Symbol, String].args
@@ -28,6 +28,17 @@ for T in :[Int64, Int32, Float64, Float32, Symbol, String].args
           error("Tried to access part $i of 2")
   @eval nparts(x::$T) = 2
 end
+
+# Abstract Types
+
+struct Hole end
+
+struct PrimitiveHole{T} end
+
+isprimitive(x::PrimitiveHole{T}, ::Type{T}) where T = true
+
+struct Bottom end
+const ⊥ = Bottom()
 
 # Printing
 

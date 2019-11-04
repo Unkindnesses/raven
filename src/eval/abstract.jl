@@ -1,18 +1,14 @@
 exprtype(ir, x::Variable) = IRTools.exprtype(ir, x)
-exprtype(ir, x::Number) = PrimitiveHole{typeof(x)}()
-exprtype(ir, x::Symbol) = x
+exprtype(ir, x::Primitive) = x
 
-struct Hole end
-
-struct PrimitiveHole{T} end
-
-isprimitive(x::PrimitiveHole{T}, ::Type{T}) where T = true
-
-struct Bottom end
-const ⊥ = Bottom()
-
+union(x) = x
+union(x::Data, y::Data) = x == y ? x : error("Unions not supported")
 union(::Bottom, xs...) = union(xs...)
-union(xs::Union{T,PrimitiveHole{T}}...) where T = PrimitiveHole{T}()
+union(x::T, y::PrimitiveHole{T}) where T = PrimitiveHole{T}()
+union(x::PrimitiveHole{T}, y::PrimitiveHole{T}) where T = PrimitiveHole{T}()
+union(x::T, y::T) where T<:Primitive = x == y ? x : PrimitiveHole{T}()
+union(x::PrimitiveHole{T}, y::T) where T = PrimitiveHole{T}()
+
 issubtype(x::Union{T,PrimitiveHole{T}}, y::PrimitiveHole{T}) where T = true
 issubtype(x, y) = x == y
 
@@ -54,13 +50,13 @@ end
 
 struct Inference
   mod::RModule
-  frames::Dict{Any,Frame}
+  frames::IdDict{Any,Frame}
   queue::WorkQueue{Any}
 end
 
 function infercall!(inf, loc, block, ex)
   Ts = exprtype.((block.ir,), ex.args)
-  (m, bs) = select_method(Ts...)
+  (m, bs) = select_method(inf.mod, Ts...)
   args = [bs[x] for x in m.args]
   if m.partial != nothing
     return m.partial(args...)
@@ -69,9 +65,9 @@ function infercall!(inf, loc, block, ex)
     if !haskey(inf.frames, T)
       fr = frame(m.func, args...)
       inf.frames[T] = fr
+      push!(inf.queue, (fr, 1, 1))
     end
     fr = inf.frames[T]
-    push!(inf.queue, (fr, 1, 1))
     push!(fr.edges, loc)
     return fr.rettype
   end

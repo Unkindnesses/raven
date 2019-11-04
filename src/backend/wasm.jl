@@ -1,14 +1,18 @@
-using WebAssembly: WType, i32, i64, f32, f64
+using WebAssembly: WType, WTuple, i32, i64, f32, f64
 
 wasmtype(::PrimitiveHole{T}) where T = WebAssembly.WType(T)
-wasmtype(T::Type) = WType(T)
-wasmtype(T::WType) = T
+wasmtype(x::Primitive) = WTuple()
 
 wasmops = Dict(
   (:+, i64, i64) => (i64.add, i64),
   (:*, i64, i64) => (i64.mul, i64),
   (:-, i64, i64) => (i64.sub, i64),
   (:>, i64, i64) => (i64.gt_s, i32))
+
+intrinsic(op::Symbol, args::PrimitiveHole...) =
+  get(wasmops, (op, wasmtype.(args)...), nothing)
+
+intrinsic(op, args...) = nothing
 
 struct WModule
   inf::Inference
@@ -17,20 +21,28 @@ end
 
 WModule(inf) = WModule(inf, Dict())
 
+function sigs!(ir::IR)
+  for (v, st) in ir
+    ir[v] = Base.Expr(:call, exprtype.((ir,), st.expr.args), st.expr.args...)
+  end
+  return ir
+end
+
 function lowerwasm!(mod::WModule, ir::IR)
+  sigs!(ir)
   for b in blocks(ir)
     IRTools.argtypes(b) .= wasmtype.(IRTools.argtypes(b))
     for (v, st) in b
-      op = st.expr.args[1]
-      args = st.expr.args[2:end]
-      Ts = wasmtype.(IRTools.exprtype.((ir,), args))
-      if haskey(wasmops, (op, Ts...))
-        op, T = wasmops[(op, Ts...)]
-        ir[v] = IRTools.stmt(st, expr = Base.Expr(:call, op, args...), type = T)
+      Ts, args = st.expr.args[1], st.expr.args[2:end]
+      if Ts[1] == :widen
+        ir[v] = IRTools.stmt(st.expr.args[3], type = wasmtype(st.type))
+      elseif (int = intrinsic(Ts...)) != nothing
+        op, T = int
+        args = st.expr.args[2:end]
+        ir[v] = IRTools.stmt(st, expr = Base.Expr(:call, op, args[2:end]...), type = T)
       else
-        T = rtuple(exprtype.((ir,), st.expr.args)...)
-        func = lowerwasm!(mod, T)
-        ir[v] = Base.Expr(:call, WebAssembly.Call(func), args...)
+        func = lowerwasm!(mod, rtuple(Ts...))
+        ir[v] = Base.Expr(:call, WebAssembly.Call(func), args[2:end]...)
         ir[v] = IRTools.stmt(ir[v], type = wasmtype(ir[v].type))
       end
     end

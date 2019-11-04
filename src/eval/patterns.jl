@@ -46,7 +46,7 @@ pattern(p) =
 
 resolve(p) = p isa Symbol ? pattern(p) : p
 
-function match(bs, p, x)
+function match(mod, bs, p, x)
   if p isa Function
     return p(x) ? bs : nothing
   elseif p == hole
@@ -57,14 +57,14 @@ function match(bs, p, x)
   elseif tag(p) == :Data
     nparts(p) == nparts(x) + 1 || return
     for i = 0:nparts(x)
-      bs = match(bs, part(p, i+1), part(x, i))
+      bs = match(mod, bs, part(p, i+1), part(x, i))
       bs == nothing && return
     end
     return bs
   elseif tag(p) == :Isa
-    return Bool(vinvoke(:isa, x, part(p, 1))) ? bs : nothing
+    return Bool(vinvoke(mod, :isa, x, part(p, 1))) ? bs : nothing
   elseif tag(p) == :Bind
-    bs = match(bs, resolve(part(p, 2)), x)
+    bs = match(mod, bs, resolve(part(p, 2)), x)
     bs == nothing && return
     # TODO handle duplicate names
     assoc(bs, part(p, 1), x)
@@ -73,4 +73,4 @@ function match(bs, p, x)
   end
 end
 
-match(p, x) = match(phmap(), p, x)
+match(mod, p, x) = match(mod, phmap(), p, x)

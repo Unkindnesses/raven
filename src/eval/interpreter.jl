@@ -41,7 +41,7 @@ end
 function eval_stmt(it::Interpreter, ex)
   if isexpr(ex, :call)
     args = map(x -> lookup(it, x), ex.args)
-    vinvoke(args...)
+    vinvoke(main, args...)
   elseif !isexpr(ex)
     lookup(it, ex)
   else
