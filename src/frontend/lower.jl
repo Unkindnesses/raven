@@ -47,6 +47,8 @@ function lower!(sc, ir::IR, ex::Tuple)
   _push!(ir, Base.Expr(:call, :tuple, lower!.((sc,), (ir,), ex.args)...))
 end
 
+lower!(sc, ir::IR, ex::Quote) = ex.expr
+
 function lower!(sc, ir::IR, ex::Return)
   IRTools.return!(ir, lower!(sc, ir, ex.val))
   return
