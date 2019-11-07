@@ -26,4 +26,5 @@ fn relu(x) {
   }
 }
 
-pow(2, 3)
+p = Ptr(widen(2))
+pow(Int64(addr(p)), widen(3))

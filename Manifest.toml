@@ -4,16 +4,16 @@
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
 [[BinaryProvider]]
-deps = ["Libdl", "Logging", "SHA"]
-git-tree-sha1 = "c7361ce8a2129f20b0e05a89f7070820cfed6648"
+deps = ["Libdl", "SHA"]
+git-tree-sha1 = "5b08ed6036d9d3f0ee6369410b830f8873d4024c"
 uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
-version = "0.5.6"
+version = "0.5.8"
 
 [[CSTParser]]
 deps = ["Tokenize"]
-git-tree-sha1 = "c69698c3d4a7255bc1b4bc2afc09f59db910243b"
+git-tree-sha1 = "99dda94f5af21a4565dc2b97edf6a95485f116c3"
 uuid = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
-version = "0.6.2"
+version = "1.0.0"
 
 [[Compat]]
 deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
@@ -23,9 +23,9 @@ version = "2.2.0"
 
 [[DataStructures]]
 deps = ["InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "2103e504f427e54ffa19af9ada225733a21f951f"
+git-tree-sha1 = "1fe8fad5fc84686dcbc674aa255bc867a64f8132"
 uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.17.3"
+version = "0.17.5"
 
 [[Dates]]
 deps = ["Printf"]
@@ -68,7 +68,6 @@ uuid = "50d2b5c4-7a5e-59d5-8109-a42b560f39c0"
 version = "0.14.0"
 
 [[LibGit2]]
-deps = ["Printf"]
 uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 
 [[Libdl]]
@@ -155,7 +154,7 @@ uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
 [[WebAssembly]]
 deps = ["BinaryProvider", "IRTools", "Libdl", "MacroTools"]
-git-tree-sha1 = "ad60651a6d05f0d8b7260afe232cb11487ff6226"
+git-tree-sha1 = "9194f0e74a60e004710687ebc4b3972460053bab"
 repo-rev = "master"
 repo-url = "https://github.com/MikeInnes/WebAssembly.jl.git"
 uuid = "4f6df8df-4739-5653-a877-cf57ee625c27"
