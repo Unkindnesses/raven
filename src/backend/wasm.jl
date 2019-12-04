@@ -1,5 +1,26 @@
 using WebAssembly: WType, WTuple, i32, i64, f32, f64
 
+function intrinsic(ex)
+  @assert ex isa Operator && ex.op == :.
+  typ = WType(ex.args[1])
+  ex = ex.args[2]
+  if ex isa Call
+    name = ex.func
+    args = ex.args
+  elseif ex isa Operator && ex.op == :/
+    name = Symbol(ex.args[1], "/", ex.args[2].func)
+    args = ex.args[2].args
+  else
+    error("Unrecognised intrinsic $(repr(ex))")
+  end
+  WebAssembly.Op(typ, name)
+end
+
+function intrinsic_args(ex)
+  ex isa Operator && return intrinsic_args(ex.args[2])
+  return map(x -> x.args[1], ex.args)
+end
+
 WNum = Union{Int32,Int64,Float32,Float64}
 
 function cat_layout(xs...; result = [])
@@ -47,6 +68,7 @@ WModule(inf) = WModule(inf, Dict(), Dict())
 
 function sigs!(ir::IR)
   for (v, st) in ir
+    st.expr.args[1] isa WebAssembly.Op && continue
     ir[v] = Base.Expr(:call, exprtype.((ir,), st.expr.args), st.expr.args...)
   end
   return ir
@@ -68,7 +90,9 @@ function lowerwasm!(mod::WModule, ir::IR)
     IRTools.argtypes(b) .= layout.(IRTools.argtypes(b))
     for (v, st) in b
       Ts, args = st.expr.args[1], st.expr.args[2:end]
-      if Ts[1] == :widen
+      if Ts isa WebAssembly.Op
+        ir[v] = IRTools.stmt(st.expr, type = Ts.typ)
+      elseif Ts[1] == :widen
         ir[v] = IRTools.stmt(st.expr.args[3], type = layout(st.type))
       elseif Ts[1] == :data
         lowerdata!(mod, ir, v)

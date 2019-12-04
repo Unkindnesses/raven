@@ -91,7 +91,10 @@ function step!(inf::Inference)
   if ip <= length(stmts)
     var = stmts[ip]
     st = block[var]
-    if isexpr(st.expr, :call)
+    if isexpr(st.expr, :call) && st.expr.args[1] isa WebAssembly.Op
+      block.ir[var] = Statement(block[var], type = PrimitiveHole{WebAssembly.jltype(st.expr.args[1].typ)}())
+      push!(inf.queue, (frame, b, ip+1))
+    elseif isexpr(st.expr, :call)
       T = infercall!(inf, (frame, b, ip), block, st.expr)
       if T != ⊥
         block.ir[var] = Statement(block[var], type = union(st.type, T))

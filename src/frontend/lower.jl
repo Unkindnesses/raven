@@ -125,6 +125,11 @@ function lower!(sc, ir::IR, ex::Syntax, value = true)
     return rnothing
   elseif ex.name == :if
     lowerif!(sc, ir, If(ex), value)
+  elseif ex.name == :wasm
+    ex = ex.args[1].args[1]
+    op = intrinsic(ex)
+    args = lower!.((sc,), (ir,), intrinsic_args(ex))
+    push!(ir, Base.Expr(:call, op, args...))
   else
     error("unrecognised block $(ex.name)")
   end

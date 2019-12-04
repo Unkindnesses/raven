@@ -2,11 +2,13 @@ using LNR
 
 struct ParseError
   m
+  loc
 end
 
 Base.mark(io::LineNumberingReader) = mark(io.io)
 Base.reset(io::LineNumberingReader) = reset(io.io)
 
+loc(io) = (cursor(io).line, cursor(io).column)
 curstring(cur::Cursor) = "$(cur.line):$(cur.column)"
 curstring(io::LineNumberingReader) = curstring(cursor(io))
 
@@ -99,7 +101,7 @@ function symbol(io)
   return Symbol(Base.read(sym))
 end
 
-operators = ["=", "+", "-", "*", "/", ">", "<", ">=", "<=", "::"]
+operators = ["=", "+", "-", "*", "/", ">", "<", ">=", "<=", "::", "."]
 opchars = unique(reduce(*, operators))
 
 function op_token(io::IO)
@@ -198,7 +200,7 @@ end
 function expr(io)
   consume_ws(io)
   ex = parseone(io, symbol, string, number, op_token, quotation, _tuple, _block)
-  ex == nothing && throw(ParseError("Unexpected character $(read(io))"))
+  ex == nothing && throw(ParseError("Unexpected character $(read(io))", loc(io)))
   ex == :return && return Return(expr(io))
   while (args = tryparse(brackets, io)) != nothing
     ex = Call(ex, args)
