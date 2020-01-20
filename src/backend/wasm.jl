@@ -43,9 +43,7 @@ wasmops = Dict(
   (:+, i64, i64) => (i64.add, i64),
   (:*, i64, i64) => (i64.mul, i64),
   (:-, i64, i64) => (i64.sub, i64),
-  (:>, i64, i64) => (i64.gt_s, i32),
-  (:Int32, i64)  => (i32.wrap/i64, i32),
-  (:Int64, i32)  => (i64.extend_s/i32, i64))
+  (:>, i64, i64) => (i64.gt_s, i32))
 
 intrinsic(op::Symbol, args::Union{WNum,PrimitiveHole{<:WNum}}...) =
   get(wasmops, (op, WType.(jtype.(args))...), nothing)

@@ -62,13 +62,6 @@ function primitives!(mod)
               RMethod(lowerpattern(mod, parse("(x::$T, y::$T)"))..., (x...) -> Int32(def(x...)),
                       (a, b) -> PrimitiveHole{Bool}()))
     end
-
-    for S in [Int64, Int32, Float64, Float32]
-      partial(::PrimitiveHole) = PrimitiveHole{S}()
-      partial(x::Primitive) = S(x)
-      method!(mod, Symbol(S),
-              RMethod(lowerpattern(mod, parse("(x::$T,)"))..., x -> S(x), partial))
-    end
   end
 
   return mod
