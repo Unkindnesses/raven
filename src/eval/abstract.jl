@@ -1,5 +1,4 @@
-exprtype(ir, x::Variable) = IRTools.exprtype(ir, x)
-exprtype(ir, x::Primitive) = x
+exprtype(ir, x) = IRTools.exprtype(ir, x, typeof = identity)
 
 union(x) = x
 union(x::Data, y::Data) = x == y ? x : error("Unions not supported")
