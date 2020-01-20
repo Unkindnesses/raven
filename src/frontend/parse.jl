@@ -93,7 +93,7 @@ function symbol(io)
   while !eof(io)
     p = position(io)
     c = read(io)
-    isletter(c) || c in ('?','!') || c in ('0':'9') ||
+    isletter(c) || c in ('?','!','_') || c in ('0':'9') ||
       (seek(io, p); break)
     write(sym, c)
   end
@@ -193,8 +193,17 @@ function _block(io)
 end
 
 function _tuple(io)
-  bs = @try brackets(io)
-  return Tuple(bs)
+  read(io) == '(' || return
+  xs = []
+  while true
+    parse(char(')'), io) == nothing || break
+    x = parse(io)
+    push!(xs, x)
+    nt = read(io)
+    nt == ')' && (length(xs) == 1 ? (return xs[]) : break)
+    nt == ',' || error("Expected a delimiter at $(curstring(io))")
+  end
+  return Tuple(xs)
 end
 
 function expr(io)

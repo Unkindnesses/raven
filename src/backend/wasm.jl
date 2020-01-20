@@ -1,5 +1,8 @@
 using WebAssembly: WType, WTuple, i32, i64, f32, f64
 
+rettype(x::WebAssembly.Op) =
+  startswith(String(x.name), r"(gt|ge|lt|le)\_") ? i32 : x.typ
+
 function intrinsic(ex)
   @assert ex isa Operator && ex.op == :.
   typ = WType(ex.args[1])
@@ -38,17 +41,6 @@ function wparts(x)
   ly = layout(x)
   return ly isa WTuple ? ly.parts : [ly]
 end
-
-wasmops = Dict(
-  (:+, i64, i64) => (i64.add, i64),
-  (:*, i64, i64) => (i64.mul, i64),
-  (:-, i64, i64) => (i64.sub, i64),
-  (:>, i64, i64) => (i64.gt_s, i32))
-
-intrinsic(op::Symbol, args::Union{WNum,PrimitiveHole{<:WNum}}...) =
-  get(wasmops, (op, WType.(jtype.(args))...), nothing)
-
-intrinsic(op, args...) = nothing
 
 struct WModule
   inf::Inference
@@ -89,7 +81,7 @@ function lowerwasm!(mod::WModule, ir::IR)
     for (v, st) in b
       Ts, args = st.expr.args[1], st.expr.args[2:end]
       if Ts isa WebAssembly.Op
-        ir[v] = IRTools.stmt(st.expr, type = Ts.typ)
+        ir[v] = IRTools.stmt(st.expr, type = rettype(Ts))
       elseif Ts[1] == :widen
         ir[v] = IRTools.stmt(st.expr.args[3], type = layout(st.type))
       elseif Ts[1] == :data
@@ -100,10 +92,6 @@ function lowerwasm!(mod::WModule, ir::IR)
           ir[v] = IRTools.stmt(args[2], type = layout(st.type))
         else error("composite data not implemented")
         end
-      elseif (int = intrinsic(Ts...)) != nothing
-        op, T = int
-        args = st.expr.args[2:end]
-        ir[v] = IRTools.stmt(st, expr = Base.Expr(:call, op, args[2:end]...), type = T)
       else
         func = lowerwasm!(mod, rtuple(Ts...))
         ir[v] = Base.Expr(:call, WebAssembly.Call(func), args[2:end]...)

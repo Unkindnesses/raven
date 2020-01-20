@@ -5,26 +5,52 @@
 
 fn tag(x) { part(x, 0) }
 
+Int32   = `Int32`
+Int64   = `Int64`
+Float32 = `Float32`
+Float64 = `Float64`
+
+fn Int32(x::Int64) {
+  wasm { i32.wrap/i64(x::i64) }
+}
+
+fn Int64(x::Int32) {
+  wasm { i64.extend_s/i32(x::i32) }
+}
+
+fn (a::Int64) + (b::Int64) {
+  wasm { i64.add(a::i64, b::i64) }
+}
+
+fn (a::Int64) * (b::Int64) {
+  wasm { i64.mul(a::i64, b::i64) }
+}
+
+fn (a::Int64) - (b::Int64) {
+  wasm { i64.sub(a::i64, b::i64) }
+}
+
+fn (a::Int64) > (b::Int64) {
+  wasm { i64.gt_s(a::i64, b::i64) }
+}
+
 fn Ptr(x::Int32) { data(`Ptr`, x) }
 fn Ptr(x::Int64) { Ptr(Int32(x)) }
 fn addr(x) { part(x, 1) }
 
 fn pow(x, n) {
   r = 1
-  while n > 0 {
-    n = n - 1
+  while n > widen(0) {
+    n = n - widen(1)
     r = r * x
   }
   return r
 }
 
 fn relu(x) {
-  if x > 0 {
+  if x > widen(0) {
     x
   } else {
     0
   }
 }
-
-p = Ptr(widen(2))
-pow(Int64(addr(p)), widen(3))

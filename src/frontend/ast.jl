@@ -66,6 +66,7 @@ end
 function _show(io::Ctx, x::Tuple)
   print(io, "(")
   join(io, repr.((io,), x.args), ", ")
+  length(x.args) == 1 && print(io, ',')
   print(io, ")")
 end
 

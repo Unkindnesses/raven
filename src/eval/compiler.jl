@@ -11,7 +11,8 @@ end
 
 function vload(cx::Source, x::Syntax)
   x.name == :fn || return load_expr(m, x)
-  f = x.args[1].func
+  sig = x.args[1]
+  f = sig isa Operator ? sig.op : sig.func
   args = Tuple(x.args[1].args)
   pat, args = lowerpattern(cx.mod, args)
   method!(cx.mod, f, RMethod(pat, args, lowerfn(x, args)))

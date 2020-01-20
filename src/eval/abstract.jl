@@ -53,6 +53,16 @@ struct Inference
   queue::WorkQueue{Any}
 end
 
+function frame!(inf, T, ir, args...)
+  haskey(inf.frames, T) && return inf.frames[T]
+  fr = frame(ir, args...)
+  inf.frames[T] = fr
+  for bl in reverse(blocks(ir))
+    push!(inf.queue, (fr, bl.id, 1))
+  end
+  return fr
+end
+
 function infercall!(inf, loc, block, ex)
   Ts = exprtype.((block.ir,), ex.args)
   (m, bs) = select_method(inf.mod, Ts...)
@@ -61,12 +71,7 @@ function infercall!(inf, loc, block, ex)
     return m.partial(args...)
   else
     T = rtuple(Ts...)
-    if !haskey(inf.frames, T)
-      fr = frame(m.func, args...)
-      inf.frames[T] = fr
-      push!(inf.queue, (fr, 1, 1))
-    end
-    fr = inf.frames[T]
+    fr = frame!(inf, T, m.func, args...)
     push!(fr.edges, loc)
     return fr.rettype
   end
@@ -91,7 +96,7 @@ function step!(inf::Inference)
     var = stmts[ip]
     st = block[var]
     if isexpr(st.expr, :call) && st.expr.args[1] isa WebAssembly.Op
-      block.ir[var] = Statement(block[var], type = PrimitiveHole{WebAssembly.jltype(st.expr.args[1].typ)}())
+      block.ir[var] = Statement(block[var], type = PrimitiveHole{WebAssembly.jltype(rettype(st.expr.args[1]))}())
       push!(inf.queue, (frame, b, ip+1))
     elseif isexpr(st.expr, :call)
       T = infercall!(inf, (frame, b, ip), block, st.expr)
@@ -128,8 +133,7 @@ end
 
 function Inference(mod::RModule)
   q = WorkQueue{Any}()
-  init = frame(mod.methods[:_start][1].func)
-  push!(q, (init, 1, 1))
-  inf = Inference(mod, Dict(rtuple(:_start) => init), q)
+  inf = Inference(mod, Dict(), q)
+  frame!(inf, rtuple(:_start), mod.methods[:_start][1].func)
   infer!(inf)
 end

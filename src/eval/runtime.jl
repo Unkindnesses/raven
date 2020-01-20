@@ -50,18 +50,6 @@ function primitives!(mod)
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)
     method!(mod, :isa, RMethod(lowerpattern(mod, parse("(x, `$T`)"))..., x -> Int32(isprimitive(x, T))))
-
-    for (name, def) in [:+ => +, :- => -, :* => *, :/ => /]
-      method!(mod, name,
-              RMethod(lowerpattern(mod, parse("(x::$T, y::$T)"))..., def,
-                      (a, b) -> PrimitiveHole{T}()))
-    end
-
-    for (name, def) in [:> => >]
-      method!(mod, name,
-              RMethod(lowerpattern(mod, parse("(x::$T, y::$T)"))..., (x...) -> Int32(def(x...)),
-                      (a, b) -> PrimitiveHole{Bool}()))
-    end
   end
 
   return mod
@@ -74,7 +62,8 @@ end
 
 function veval(m::RModule, x::Syntax)
   x.name == :fn || return eval_expr(m, x)
-  f = x.args[1].func
+  sig = x.args[1]
+  f = sig isa Operator ? sig.op : sig.func
   args = Tuple(x.args[1].args)
   pat, args = lowerpattern(m, args)
   method!(main, f, RMethod(pat, args, lowerfn(x, args)))
