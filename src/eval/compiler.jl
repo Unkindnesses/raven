@@ -18,6 +18,14 @@ function vload(cx::Source, x::Syntax)
   return f
 end
 
+function vload(cx::Source, x::Operator)
+  if x.op == :(=) && x.args[1] isa Symbol && x.args[2] isa Union{Primitive,Quote}
+    cx.mod.defs[x.args[1]] = x.args[2].expr
+  else
+    push!(cx.main, x)
+  end
+end
+
 vload(m::Source, x) = load_expr(m, x)
 
 function finish!(cx::Source)

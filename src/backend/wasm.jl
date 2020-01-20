@@ -31,7 +31,7 @@ function cat_layout(xs...; result = [])
 end
 
 layout(::PrimitiveHole{T}) where T = WebAssembly.WType(T)
-layout(x::Primitive) = WTuple()
+layout(x::Union{Primitive,Quote}) = WTuple()
 layout(x::Data) = cat_layout(layout.(x.parts)...)
 
 function wparts(x)
