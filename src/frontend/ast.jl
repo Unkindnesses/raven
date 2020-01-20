@@ -29,7 +29,7 @@ struct Syntax <: Expr
   args::Vector{Any}
 end
 
-struct Quote
+struct Quote <: Expr
   expr::Any
 end
 
@@ -80,6 +80,12 @@ function _show(io::Ctx, x::Operator)
   print(io, "(")
   join(io, repr.((io,), x.args), " $(x.op) ")
   print(io, ")")
+end
+
+function _show(io::Ctx, x::Quote)
+  print(io, "`")
+  print(io, x.expr)
+  print(io, "`")
 end
 
 function _show(io::Ctx, x::Block)
