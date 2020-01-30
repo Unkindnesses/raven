@@ -88,7 +88,7 @@ function lowerwasm!(mod::WModule, ir::IR)
         lowerdata!(mod, ir, v)
       elseif Ts[1] == :part
         x::Data, i::Integer = Ts[2:end]
-        if length(wparts(st.type)) == 1 && length(wparts(part(x, i))) == 1
+        if length(wparts(st.type)) == 1 && length(wparts(x)) == 1
           ir[v] = IRTools.stmt(args[2], type = layout(st.type))
         else error("composite data not implemented")
         end
