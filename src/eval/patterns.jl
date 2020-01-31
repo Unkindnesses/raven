@@ -27,6 +27,8 @@ function lowerpattern(mod, ex, as)
     name, T = ex.args
     name in as || push!(as, name)
     bind(name, lowerisa(mod, T, as))
+  elseif ex isa Call && ex.func == :data
+    data(:Data, map(x -> lowerpattern(mod, x, as), ex.args)...)
   else
     error("Invalid pattern syntax $(ex)")
   end
