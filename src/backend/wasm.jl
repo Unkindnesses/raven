@@ -70,7 +70,7 @@ function lowerdata!(mod::WModule, ir, v)
   if length(ps) == 1
     ir[v] = IRTools.stmt(args[ps[]], type = layout(ir[v].type))
   else
-    error("composite data not implemented")
+    ir[v] = IRTools.stmt(Base.Expr(:tuple, map(p -> args[p], ps)...), type = layout(ir[v].type))
   end
 end
 
@@ -90,7 +90,10 @@ function lowerwasm!(mod::WModule, ir::IR)
         x::Data, i::Integer = Ts[2:end]
         if length(wparts(st.type)) == 1 && length(wparts(x)) == 1
           ir[v] = IRTools.stmt(args[2], type = layout(st.type))
-        else error("composite data not implemented")
+        elseif length(wparts(st.type)) == 1
+          ir[v] = IRTools.stmt(Base.Expr(:ref, args[2], args[3]),
+                       type = layout(st.type))
+        else error("composite `part` not supported")
         end
       else
         func = lowerwasm!(mod, rtuple(Ts...))
