@@ -5,11 +5,23 @@ end
 
 Source() = Source(RModule(), [])
 
+base = joinpath(@__DIR__, "../../base")
+
+function load_import(cx, x)
+  modname(x::Operator) = Base.string(modname(x.args[1]), ".", modname(x.args[2]))
+  modname(x::Symbol) = Base.string(x)
+  name = x.args[1].args[1]
+  name = modname(name)
+  path = replace(name, "."=>"/")
+  open(io -> loadfile(cx, io), "$base/$path.rv")
+end
+
 function load_expr(cx::Source, x)
   push!(cx.main, x)
 end
 
 function vload(cx::Source, x::Syntax)
+  x.name == :import && return load_import(cx, x)
   x.name == :fn || return load_expr(cx, x)
   sig = x.args[1]
   f = sig isa Operator ? sig.op : sig.func
@@ -47,7 +59,7 @@ end
 
 function loadfile(f::String)
   cx = Source()
-  open(io -> loadfile(cx, io), joinpath(@__DIR__, "../../base/base.rv"))
+  open(io -> loadfile(cx, io), "$base/base.rv")
   open(io -> loadfile(cx, io), f)
   finish!(cx)
   return Inference(cx.mod)

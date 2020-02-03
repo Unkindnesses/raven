@@ -3,45 +3,11 @@
 # |     \/      \\  \/ /|   ___|     \| |
 # |__|\__\___/\__\\___/ |______|__/\____|
 
-fn tag(x) { part(x, 0) }
-
 Int32   = `Int32`
 Int64   = `Int64`
 Float32 = `Float32`
 Float64 = `Float64`
 
-fn Int32(x::Int64) {
-  wasm { i32.wrap/i64(x::i64) }
-}
+import { wasm.numeric }
 
-fn Int64(x::Int32) {
-  wasm { i64.extend_s/i32(x::i32) }
-}
-
-fn (a::Int64) + (b::Int64) {
-  wasm { i64.add(a::i64, b::i64) }
-}
-
-fn (a::Int64) * (b::Int64) {
-  wasm { i64.mul(a::i64, b::i64) }
-}
-
-fn (a::Int64) - (b::Int64) {
-  wasm { i64.sub(a::i64, b::i64) }
-}
-
-fn (a::Int64) > (b::Int64) {
-  wasm { i64.gt_s(a::i64, b::i64) }
-}
-
-fn (a::Int64) == (b::Int64) {
-  wasm { i64.eq(a::i64, b::i64) }
-}
-
-fn not(x::Int32) {
-  wasm { i32.eqz(x::i32) }
-}
-
-fn (a::Int32) & (b::Int32) {
-  wasm { i32.and(a::i32, b::i32) }
-}
+fn tag(x) { part(x, 0) }
