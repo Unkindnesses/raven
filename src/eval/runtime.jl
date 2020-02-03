@@ -15,6 +15,7 @@ function select_method(mod, func::Symbol, args...)
     bs = match(mod, meth.pattern, args)
     bs == nothing || return (meth, bs)
   end
+  error("No method matching $func($(join(args.parts[2:end], ", ")))")
 end
 
 function vinvoke(mod, func::Symbol, args...)
