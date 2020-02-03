@@ -10,7 +10,7 @@ function load_expr(cx::Source, x)
 end
 
 function vload(cx::Source, x::Syntax)
-  x.name == :fn || return load_expr(m, x)
+  x.name == :fn || return load_expr(cx, x)
   sig = x.args[1]
   f = sig isa Operator ? sig.op : sig.func
   args = Tuple(x.args[1].args)
