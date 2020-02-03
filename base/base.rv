@@ -42,23 +42,10 @@ fn not(x::Int32) {
   wasm { i32.eqz(x::i32) }
 }
 
+fn (a::Int32) & (b::Int32) {
+  wasm { i32.and(a::i32, b::i32) }
+}
+
 fn Ptr(x::Int32) { data(`Ptr`, x) }
 fn Ptr(x::Int64) { Ptr(Int32(x)) }
 fn addr(x) { part(x, 1) }
-
-fn pow(x, n) {
-  r = 1
-  while n > widen(0) {
-    n = n - widen(1)
-    r = r * x
-  }
-  return r
-}
-
-fn relu(x) {
-  if x > widen(0) {
-    x
-  } else {
-    0
-  }
-}
