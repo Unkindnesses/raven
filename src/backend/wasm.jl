@@ -1,7 +1,7 @@
 using WebAssembly: WType, WTuple, i32, i64, f32, f64
 
 rettype(x::WebAssembly.Op) =
-  startswith(String(x.name), r"(gt|ge|lt|le)\_") ? i32 : x.typ
+  startswith(String(x.name), r"gt|ge|lt|le|eq|ne") ? i32 : x.typ
 
 function intrinsic(ex)
   @assert ex isa Operator && ex.op == :.

@@ -34,6 +34,14 @@ fn (a::Int64) > (b::Int64) {
   wasm { i64.gt_s(a::i64, b::i64) }
 }
 
+fn (a::Int64) == (b::Int64) {
+  wasm { i64.eq(a::i64, b::i64) }
+}
+
+fn not(x::Int32) {
+  wasm { i32.eqz(x::i32) }
+}
+
 fn Ptr(x::Int32) { data(`Ptr`, x) }
 fn Ptr(x::Int64) { Ptr(Int32(x)) }
 fn addr(x) { part(x, 1) }
