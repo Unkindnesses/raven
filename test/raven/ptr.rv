@@ -1,0 +1,8 @@
+fn Ptr(x::Int32) { data(`Ptr`, x) }
+fn Ptr(x::Int64) { Ptr(Int32(x)) }
+fn addr(x) { part(x, 1) }
+
+p = Ptr(widen(5))
+a = addr(p)
+
+return Int64(a) == widen(5)

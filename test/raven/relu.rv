@@ -1,0 +1,12 @@
+# Currently disabled: relooper has trouble
+
+fn relu(x) {
+  if x > widen(0) {
+    x
+  } else {
+    0
+  }
+}
+
+# return (relu(widen(5)) == widen(5)) & (relu(widen(0)-widen(5)) == widen(0))
+# relu(widen(5))

@@ -34,8 +34,7 @@ function finish!(cx::Source)
   method!(cx.mod, :_start, RMethod(lowerpattern(cx.mod, Tuple([])), [], lowerfn(fn, [])))
 end
 
-function loadfile(io::IO)
-  cx = Source()
+function loadfile(cx::Source, io::IO)
   io = LineNumberingReader(io)
   out = rnothing
   stmts(io)
@@ -44,9 +43,12 @@ function loadfile(io::IO)
     out = vload(cx, ex)
     stmts(io)
   end
+end
+
+function loadfile(f::String)
+  cx = Source()
+  open(io -> loadfile(cx, io), joinpath(@__DIR__, "../../base/base.rv"))
+  open(io -> loadfile(cx, io), f)
   finish!(cx)
   return Inference(cx.mod)
 end
-
-loadfile(f::String) = open(loadfile, f)
-loadstring(f::String) = loadfile(IOBuffer(f))

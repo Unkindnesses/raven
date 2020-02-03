@@ -41,11 +41,11 @@ version = "0.5.0"
 
 [[IRTools]]
 deps = ["InteractiveUtils", "MacroTools", "Test"]
-git-tree-sha1 = "cc13211cd960c3661447eac5e294c57efa2d4635"
+git-tree-sha1 = "e762f78bbe09e893ab8da2b7b85136a9cf5c9132"
 repo-rev = "master"
 repo-url = "https://github.com/MikeInnes/IRTools.jl.git"
 uuid = "7869d1d1-7146-5819-86e3-90919afe41df"
-version = "0.3.0"
+version = "0.3.1"
 
 [[InteractiveUtils]]
 deps = ["Markdown"]
@@ -145,7 +145,7 @@ uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
 [[WebAssembly]]
 deps = ["BinaryProvider", "IRTools", "Libdl", "MacroTools"]
-git-tree-sha1 = "08a8fa6bcc19245456cc7c01a80d2eb2a092828c"
+git-tree-sha1 = "6ccee6ba7dcb651a11a42a408757a1ff322beec0"
 repo-rev = "master"
 repo-url = "https://github.com/MikeInnes/WebAssembly.jl.git"
 uuid = "4f6df8df-4739-5653-a877-cf57ee625c27"

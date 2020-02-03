@@ -1,0 +1,14 @@
+fn pow(x, n) {
+  r = 1
+  while n > widen(0) {
+    n = n - widen(1)
+    r = r * x
+  }
+  return r
+}
+
+x = widen(2)
+n = widen(3)
+r = pow(x, n)
+
+return r == widen(8)

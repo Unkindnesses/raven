@@ -45,7 +45,3 @@ fn not(x::Int32) {
 fn (a::Int32) & (b::Int32) {
   wasm { i32.and(a::i32, b::i32) }
 }
-
-fn Ptr(x::Int32) { data(`Ptr`, x) }
-fn Ptr(x::Int64) { Ptr(Int32(x)) }
-fn addr(x) { part(x, 1) }
