@@ -1,0 +1,7 @@
+fn Complex(re, im) { data(`Complex`, re, im) }
+fn re(z) { part(z, 1) }
+fn im(z) { part(z, 2) }
+
+z = Complex(widen(5), widen(6))
+
+return (part(z, 1) == widen(5)) & (part(z, 2) == widen(6))

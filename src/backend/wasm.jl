@@ -118,7 +118,12 @@ function wasmmodule(inf::Inference)
   mod = WModule(inf)
   lowerwasm!(mod, rtuple(:_start))
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
-  WebAssembly.Module(funcs = fs, exports = [WebAssembly.Export(:_start, :_start, :func)])
+  mod = WebAssembly.Module(
+    funcs = fs,
+    exports = [WebAssembly.Export(:_start, :_start, :func)],
+    mems = [WebAssembly.Mem(0)])
+  WebAssembly.multivalue_shim!(mod)
+  return mod
 end
 
 function compile(file, out)

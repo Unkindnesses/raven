@@ -9,6 +9,6 @@ end
 
 passes(test) = parse(Bool, result(test))
 
-for test in [:pow, :ptr, :relu]
+@testset for test in [:pow, :ptr, :relu, :complex]
   @test passes(test)
 end
