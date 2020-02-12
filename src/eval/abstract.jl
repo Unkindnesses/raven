@@ -1,3 +1,5 @@
+using IRTools: WorkQueue
+
 exprtype(ir, x) = IRTools.exprtype(ir, x, typeof = identity)
 
 union(x) = x

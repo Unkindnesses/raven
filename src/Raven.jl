@@ -8,8 +8,6 @@ using IRTools: IR, Variable, Statement, Variable, argument!, block, blocks, argu
   block, isreturn
 using IRTools.Inner: Slot
 
-include("utils.jl")
-
 include("frontend/ast.jl")
 include("frontend/parse.jl")
 include("frontend/lower.jl")
