@@ -1,7 +1,7 @@
 fn pow(x, n) {
   r = 1
-  while n > widen(0) {
-    n = n - widen(1)
+  while n > 0 {
+    n = n - 1
     r = r * x
   }
   return r
@@ -11,4 +11,4 @@ x = widen(2)
 n = widen(3)
 r = pow(x, n)
 
-return r == widen(8)
+return r == 8

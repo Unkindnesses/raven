@@ -21,7 +21,7 @@ end
 
 function intrinsic_args(ex)
   ex isa Operator && return intrinsic_args(ex.args[2])
-  return map(x -> x.args[1], ex.args)
+  return map(x -> Call(:widen, [x.args[1]]), ex.args)
 end
 
 WNum = Union{Int32,Int64,Float32,Float64}
@@ -83,7 +83,8 @@ function lowerwasm!(mod::WModule, ir::IR)
       if Ts isa WebAssembly.Op
         ir[v] = IRTools.stmt(st.expr, type = rettype(Ts))
       elseif Ts[1] == :widen
-        ir[v] = IRTools.stmt(st.expr.args[3], type = layout(st.type))
+        val = Ts[2] isa Integer ? Ts[2] : st.expr.args[3]
+        ir[v] = IRTools.stmt(val, type = layout(st.type))
       elseif Ts[1] == :data
         lowerdata!(mod, ir, v)
       elseif Ts[1] == :part
@@ -97,7 +98,8 @@ function lowerwasm!(mod::WModule, ir::IR)
         end
       else
         func = lowerwasm!(mod, rtuple(Ts...))
-        ir[v] = Base.Expr(:call, WebAssembly.Call(func), args[2:end]...)
+        # Filter gets rid of constants
+        ir[v] = Base.Expr(:call, WebAssembly.Call(func), filter(x -> x isa Variable, args[2:end])...)
         ir[v] = IRTools.stmt(ir[v], type = layout(ir[v].type))
       end
     end

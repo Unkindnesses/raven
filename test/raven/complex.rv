@@ -4,4 +4,4 @@ fn imag(z) { part(z, 2) }
 
 z = Complex(widen(5), widen(6))
 
-return (real(z) == widen(5)) & (imag(z) == widen(6))
+return (real(z) == 5) & (imag(z) == 6)

@@ -47,7 +47,11 @@ function primitives!(mod)
   method!(mod, :tuple, RMethod(lowerpattern(mod, rvx"args")..., identity, identity))
   method!(mod, :part, RMethod(lowerpattern(mod, rvx"(data, i)")..., part, part))
   method!(mod, :nparts, RMethod(lowerpattern(mod, rvx"args")..., nparts))
-  method!(mod, :widen, RMethod(lowerpattern(mod, rvx"(x,)")..., identity, x::Primitive -> PrimitiveHole{typeof(x)}()))
+
+  partial_widen(x::Primitive) = PrimitiveHole{typeof(x)}()
+  partial_widen(x) = x
+  method!(mod, :widen, RMethod(lowerpattern(mod, rvx"(x,)")..., identity, partial_widen))
+
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)
     method!(mod, :isa, RMethod(lowerpattern(mod, parse("(x, `$T`)"))..., x -> Int32(isprimitive(x, T))))

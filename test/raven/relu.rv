@@ -1,9 +1,9 @@
 fn relu(x) {
-  if x > widen(0) {
+  if x > 0 {
     x
   } else {
     0
   }
 }
 
-return (relu(widen(5)) == widen(5)) & (relu(widen(0)-widen(5)) == widen(0))
+return (relu(widen(5)) == 5) & (relu(widen(0-5)) == 0)
