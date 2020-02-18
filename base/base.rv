@@ -8,6 +8,6 @@ Int64   = `Int64`
 Float32 = `Float32`
 Float64 = `Float64`
 
-import { wasm.numeric }
+import { wasm }
 
 fn tag(x) { part(x, 0) }

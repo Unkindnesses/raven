@@ -89,7 +89,8 @@ end
 
 function symbol(io)
   sym = IOBuffer()
-  isletter(peek(io)) || return
+  c = peek(io)
+  isletter(c) || c in ('_',) || return
   while !eof(io)
     p = position(io)
     c = read(io)
