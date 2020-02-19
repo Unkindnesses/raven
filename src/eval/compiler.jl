@@ -14,13 +14,16 @@ function simpleconst(cx::Source, x)
   return
 end
 
-function load_import(cx, x)
+function importpath(x)
   modname(x::Operator) = Base.string(modname(x.args[1]), ".", modname(x.args[2]))
   modname(x::Symbol) = Base.string(x)
   name = x.args[1].args[1]
   name = modname(name)
   path = replace(name, "."=>"/")
-  open(io -> loadfile(cx, io), "$base/$path.rv")
+end
+
+function load_import(cx, x)
+  open(io -> loadfile(cx, io), "$base/$(importpath(x)).rv")
 end
 
 function load_expr(cx::Source, x)

@@ -9,10 +9,11 @@ using IRTools: IR, Variable, Statement, Variable, argument!, block, blocks, argu
 using IRTools.Inner: Slot
 
 include("frontend/ast.jl")
+include("eval/data.jl")
+
 include("frontend/parse.jl")
 include("frontend/lower.jl")
 
-include("eval/data.jl")
 include("eval/interpreter.jl")
 include("eval/patterns.jl")
 include("eval/runtime.jl")
@@ -21,7 +22,7 @@ include("eval/compiler.jl")
 
 include("backend/wasm.jl")
 
-# evalfile(joinpath(@__DIR__, "..", "base", "base.rv"))
+evalfile(joinpath(@__DIR__, "..", "base", "base.rv"))
 
 include("repl.jl")
 

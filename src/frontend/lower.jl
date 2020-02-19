@@ -23,7 +23,7 @@ _lower!(sc, ir, x) = lower!(sc, ir, x)
 
 isfn(x) = x isa Block && x.name == :fn
 
-lower!(sc, ir::IR, x::Union{Integer,String,Quote}) = x
+lower!(sc, ir::IR, x::Union{Integer,String,Quote,Data}) = x
 lower!(sc, ir::IR, x::Symbol) = sc[x]
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? nothing : (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
@@ -75,6 +75,10 @@ function If(b::Syntax)
       break
     else error("broken if block")
     end
+  end
+  if cond[end] !== true
+    push!(cond, true)
+    push!(body, Block([rnothing]))
   end
   return If(cond, body)
 end
@@ -128,6 +132,8 @@ function lower!(sc, ir::IR, ex::Syntax, value = true)
     op = intrinsic(ex)
     args = lower!.((sc,), (ir,), intrinsic_args(ex))
     push!(ir, Base.Expr(:call, op, args...))
+  elseif ex.name == :import
+    push!(ir, Base.Expr(:import, importpath(ex)))
   else
     error("unrecognised block $(ex.name)")
   end

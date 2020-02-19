@@ -86,6 +86,22 @@ veval(m::RModule, x) = eval_expr(m, x)
 
 main = RModule()
 
+main[:__backendWasm] = Int32(0)
+
+for T in :[Int32, Int64].args
+  for op in :[+, -, *, /, &, |].args
+    method!(main, op, RMethod(lowerpattern(main, parse("(a::$T, b::$T)"))...,
+                              getfield(Base, op)))
+  end
+  for op in :[==, >].args
+    method!(main, op, RMethod(lowerpattern(main, parse("(a::$T, b::$T)"))...,
+                              (args...) -> getfield(Base, op)(args...) |> Int32))
+  end
+  for S in :[Int32, Int64].args
+    method!(main, S, RMethod(lowerpattern(main, parse("(x::$T,)"))..., x -> getfield(Base, S)(x)))
+  end
+end
+
 veval(x) = veval(main, x)
 
 function evalfile(io::IO)
