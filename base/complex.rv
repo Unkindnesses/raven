@@ -1,0 +1,8 @@
+fn Complex(re, im) { data(`Complex`, re, im) }
+
+fn real(z::Complex) { part(z, 1) }
+fn imag(z::Complex) { part(z, 2) }
+
+fn abs2(z::Complex) {
+  (real(z)*real(z)) + (imag(z)*imag(z))
+}

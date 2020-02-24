@@ -1,7 +1,3 @@
-fn Complex(re, im) { data(`Complex`, re, im) }
-fn real(z::Complex) { part(z, 1) }
-fn imag(z::Complex) { part(z, 2) }
-
 z = Complex(widen(5), widen(6))
 
-return (real(z) == 5) & (imag(z) == 6)
+return abs2(z) == 61
