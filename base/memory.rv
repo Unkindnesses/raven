@@ -1,0 +1,8 @@
+fn Ptr(x::Int32) { data(`Ptr`, x) }
+fn Ptr(x::Int64) { Ptr(Int32(x)) }
+
+fn addr(x::Ptr) { part(x, 1) }
+
+fn memorySize() {
+  wasm { (memory.size)()::i32 }
+}
