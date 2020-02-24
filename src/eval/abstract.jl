@@ -1,6 +1,8 @@
 using IRTools: WorkQueue
 
-exprtype(ir, x) = IRTools.exprtype(ir, x, typeof = identity)
+_typeof(x) = x
+_typeof(x::Quote) = x.expr
+exprtype(ir, x) = IRTools.exprtype(ir, x, typeof = _typeof)
 
 union(x) = x
 union(x::Data, y::Data) = x == y ? x : error("Unions not supported")

@@ -1,6 +1,6 @@
 fn Complex(re, im) { data(`Complex`, re, im) }
-fn real(z) { part(z, 1) }
-fn imag(z) { part(z, 2) }
+fn real(z::Complex) { part(z, 1) }
+fn imag(z::Complex) { part(z, 2) }
 
 z = Complex(widen(5), widen(6))
 

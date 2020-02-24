@@ -47,6 +47,8 @@ function primitives!(mod)
   method!(mod, :tuple, RMethod(lowerpattern(rvx"args")..., identity, identity))
   method!(mod, :part, RMethod(lowerpattern(rvx"(data, i)")..., part, part))
   method!(mod, :nparts, RMethod(lowerpattern(rvx"args")..., nparts))
+  # TODO: this is a hacky fallback
+  method!(mod, Symbol("matches?"), RMethod(lowerpattern(rvx"(x, T)")..., (x, T) -> tag(x) == T))
 
   partial_widen(x::Primitive) = PrimitiveHole{typeof(x)}()
   partial_widen(x) = x
