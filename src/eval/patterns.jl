@@ -6,15 +6,15 @@ isprimitive(x, ::Type) = false
 
 # Pattern Lowering
 
-function lowerisa(mod, ex, as)
+function lowerisa(ex, as)
   if ex isa Symbol
-    return data(:Isa, mod[ex])
+    return data(:Isa, ex)
   else
-    lowerpattern(mod, ex, as)
+    lowerpattern(ex, as)
   end
 end
 
-function lowerpattern(mod, ex, as)
+function _lowerpattern(ex, as)
   if ex isa Symbol
     ex in as || push!(as, ex)
     return bind(ex, hole)
@@ -22,31 +22,25 @@ function lowerpattern(mod, ex, as)
     ex isa Quote && (ex = ex.expr)
     return data(:Literal, ex)
   elseif ex isa Tuple
-    data(:Data, data(:Literal, :Tuple), map(x -> lowerpattern(mod, x, as), ex.args)...)
+    data(:Data, data(:Literal, :Tuple), map(x -> _lowerpattern(x, as), ex.args)...)
   elseif ex isa Operator && ex.op == :(::)
     name, T = ex.args
     name in as || push!(as, name)
-    bind(name, lowerisa(mod, T, as))
+    bind(name, lowerisa(T, as))
   elseif ex isa Call && ex.func == :data
-    data(:Data, map(x -> lowerpattern(mod, x, as), ex.args)...)
+    data(:Data, map(x -> _lowerpattern(x, as), ex.args)...)
   else
     error("Invalid pattern syntax $(ex)")
   end
 end
 
-function lowerpattern(mod, ex)
+function lowerpattern(ex)
   as = []
-  p = lowerpattern(mod, ex, as)
+  p = _lowerpattern(ex, as)
   return p, as
 end
 
 # Pattern Matching
-
-pattern(p) =
-  p == :Int64 ? x -> x isa Int64 :
-  error("Unknown pattern $p")
-
-resolve(p) = p isa Symbol ? pattern(p) : p
 
 function match(mod, bs, p, x)
   if p isa Function
@@ -64,9 +58,9 @@ function match(mod, bs, p, x)
     end
     return bs
   elseif tag(p) == :Isa
-    return Bool(vinvoke(mod, :isa, x, part(p, 1))) ? bs : nothing
+    return Bool(vinvoke(mod, Symbol("matches?"), x, mod[part(p, 1)])) ? bs : nothing
   elseif tag(p) == :Bind
-    bs = match(mod, bs, resolve(part(p, 2)), x)
+    bs = match(mod, bs, part(p, 2), x)
     bs == nothing && return
     # TODO handle duplicate names
     assoc(bs, part(p, 1), x)

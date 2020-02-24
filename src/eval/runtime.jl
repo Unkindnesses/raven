@@ -43,18 +43,18 @@ end
 @forward RModule.defs Base.getindex, Base.setindex!, Base.haskey
 
 function primitives!(mod)
-  method!(mod, :data, RMethod(lowerpattern(mod, rvx"args")..., args -> data(args.parts[2:end]...), args -> data(args.parts[2:end]...)))
-  method!(mod, :tuple, RMethod(lowerpattern(mod, rvx"args")..., identity, identity))
-  method!(mod, :part, RMethod(lowerpattern(mod, rvx"(data, i)")..., part, part))
-  method!(mod, :nparts, RMethod(lowerpattern(mod, rvx"args")..., nparts))
+  method!(mod, :data, RMethod(lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...), args -> data(args.parts[2:end]...)))
+  method!(mod, :tuple, RMethod(lowerpattern(rvx"args")..., identity, identity))
+  method!(mod, :part, RMethod(lowerpattern(rvx"(data, i)")..., part, part))
+  method!(mod, :nparts, RMethod(lowerpattern(rvx"args")..., nparts))
 
   partial_widen(x::Primitive) = PrimitiveHole{typeof(x)}()
   partial_widen(x) = x
-  method!(mod, :widen, RMethod(lowerpattern(mod, rvx"(x,)")..., identity, partial_widen))
+  method!(mod, :widen, RMethod(lowerpattern(rvx"(x,)")..., identity, partial_widen))
 
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)
-    method!(mod, :isa, RMethod(lowerpattern(mod, parse("(x, `$T`)"))..., x -> Int32(isprimitive(x, T))))
+    method!(mod, Symbol("matches?"), RMethod(lowerpattern(parse("(x, `$T`)"))..., x -> Int32(isprimitive(x, T))))
   end
 
   return mod
@@ -70,7 +70,7 @@ function veval(m::RModule, x::Syntax)
   sig = x.args[1]
   f = sig isa Operator ? sig.op : sig.func
   args = Tuple(x.args[1].args)
-  pat, args = lowerpattern(m, args)
+  pat, args = lowerpattern(args)
   method!(main, f, RMethod(pat, args, lowerfn(x, args)))
   return f
 end
@@ -90,15 +90,15 @@ main[:__backendWasm] = Int32(0)
 
 for T in :[Int32, Int64].args
   for op in :[+, -, *, /, &, |].args
-    method!(main, op, RMethod(lowerpattern(main, parse("(a::$T, b::$T)"))...,
+    method!(main, op, RMethod(lowerpattern(parse("(a::$T, b::$T)"))...,
                               getfield(Base, op)))
   end
   for op in :[==, >].args
-    method!(main, op, RMethod(lowerpattern(main, parse("(a::$T, b::$T)"))...,
+    method!(main, op, RMethod(lowerpattern(parse("(a::$T, b::$T)"))...,
                               (args...) -> getfield(Base, op)(args...) |> Int32))
   end
   for S in :[Int32, Int64].args
-    method!(main, S, RMethod(lowerpattern(main, parse("(x::$T,)"))..., x -> getfield(Base, S)(x)))
+    method!(main, S, RMethod(lowerpattern(parse("(x::$T,)"))..., x -> getfield(Base, S)(x)))
   end
 end
 
