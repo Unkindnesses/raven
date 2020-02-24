@@ -3,6 +3,23 @@ fn Complex(re, im) { data(`Complex`, re, im) }
 fn real(z::Complex) { part(z, 1) }
 fn imag(z::Complex) { part(z, 2) }
 
+fn (a::Complex) == (b::Complex) {
+  (real(a) == real(b)) & (imag(a) == imag(b))
+}
+
 fn abs2(z::Complex) {
   (real(z)*real(z)) + (imag(z)*imag(z))
+}
+
+fn (a::Complex) + (b::Complex) {
+  Complex(real(a)+real(b), imag(a)+imag(b))
+}
+
+fn (a::Complex) - (b::Complex) {
+  Complex(real(a)-real(b), imag(a)-imag(b))
+}
+
+fn (a::Complex) * (b::Complex) {
+  Complex((real(a)*real(b)) - (imag(a)*imag(b)),
+          (real(a)*imag(b)) + (real(b)*imag(a)))
 }

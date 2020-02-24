@@ -18,17 +18,6 @@ const rnothing = data(:Nothing)
 
 rtuple(xs...) = data(:Tuple, xs...)
 
-Primitive = Union{Int64,Int32,Float64,Float32,Symbol,String}
-
-# Primitive Types
-for T in :[Int64, Int32, Float64, Float32, Symbol, String].args
-  @eval part(x::$T, i::Integer) =
-          i == 0 ? $(QuoteNode(T)) :
-          i == 1 ? x :
-          error("Tried to access part $i of 2")
-  @eval nparts(x::$T) = 2
-end
-
 # Abstract Types
 
 struct Hole end
@@ -41,7 +30,18 @@ struct Bottom end
 const ⊥ = Bottom()
 
 jtype(x::PrimitiveHole{T}) where T = T
+
+Primitive = Union{Int64,Int32,Float64,Float32,Symbol,String}
 jtype(x::Primitive) = typeof(x)
+
+# Primitive Types
+for T in :[Int64, Int32, Float64, Float32, Symbol, String].args
+  @eval part(x::Union{$T,PrimitiveHole{$T}}, i::Integer) =
+          i == 0 ? $(QuoteNode(T)) :
+          i == 1 ? x :
+          error("Tried to access part $i of 2")
+  @eval nparts(x::$T) = 2
+end
 
 # Printing
 
