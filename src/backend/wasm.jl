@@ -1,26 +1,21 @@
 using WebAssembly: WType, WTuple, i32, i64, f32, f64
 
-rettype(x::WebAssembly.Op) =
-  startswith(String(x.name), r"gt|ge|lt|le|eq|ne") ? i32 : x.typ
+struct WIntrinsic
+  op::WebAssembly.Op
+  ret
+end
 
 function intrinsic(ex)
-  @assert ex isa Operator && ex.op == :.
-  typ = WType(ex.args[1])
-  ex = ex.args[2]
-  if ex isa Call
-    name = ex.func
-    args = ex.args
-  elseif ex isa Operator && ex.op == :/
-    name = Symbol(ex.args[1], "/", ex.args[2].func)
-    args = ex.args[2].args
-  else
-    error("Unrecognised intrinsic $(repr(ex))")
-  end
-  WebAssembly.Op(typ, name)
+  @assert ex isa Operator && ex.op == :(::)
+  typ = WType(ex.args[2])
+  ex = ex.args[1].func
+  namify(x::Symbol) = x
+  namify(x::Raven.Operator) = Symbol(join(namify.(x.args), x.op))
+  WIntrinsic(WebAssembly.Op(namify(ex)), typ)
 end
 
 function intrinsic_args(ex)
-  ex isa Operator && return intrinsic_args(ex.args[2])
+  ex isa Operator && ex.op == :(::) && return intrinsic_args(ex.args[1])
   return map(x -> Call(:widen, [x.args[1]]), ex.args)
 end
 
@@ -58,7 +53,7 @@ WModule(inf) = WModule(inf, Dict(), Dict())
 
 function sigs!(ir::IR)
   for (v, st) in ir
-    st.expr.args[1] isa WebAssembly.Op && continue
+    st.expr.args[1] isa WIntrinsic && continue
     ir[v] = Base.Expr(:call, exprtype.((ir,), st.expr.args), st.expr.args...)
   end
   return ir
@@ -80,8 +75,9 @@ function lowerwasm!(mod::WModule, ir::IR)
     IRTools.argtypes(b) .= layout.(IRTools.argtypes(b))
     for (v, st) in b
       Ts, args = st.expr.args[1], st.expr.args[2:end]
-      if Ts isa WebAssembly.Op
-        ir[v] = IRTools.stmt(st.expr, type = rettype(Ts))
+      if Ts isa WIntrinsic
+        ex = Base.Expr(:call, st.expr.args[1].op, st.expr.args[2:end]...)
+        ir[v] = IRTools.stmt(st.expr, expr = ex, type = Ts.ret)
       elseif Ts[1] == :widen
         val = Ts[2] isa Integer ? Ts[2] : st.expr.args[3]
         ir[v] = IRTools.stmt(val, type = layout(st.type))
