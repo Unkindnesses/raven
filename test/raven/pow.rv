@@ -1,14 +1,5 @@
-fn pow(x, n) {
-  r = 1
-  while n > 0 {
-    n = n - 1
-    r = r * x
-  }
-  return r
-}
-
 x = widen(2)
 n = widen(3)
-r = pow(x, n)
+r = x^n
 
 return r == 8
