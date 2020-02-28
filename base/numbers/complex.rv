@@ -23,3 +23,9 @@ fn (a::Complex) * (b::Complex) {
   Complex((real(a)*real(b)) - (imag(a)*imag(b)),
           (real(a)*imag(b)) + (real(b)*imag(a)))
 }
+
+# fn Complex(a, b) * Complex(c, d) {
+#   Complex(a*c - b*d, a*d + c*b)
+# }
+#
+# fn abs2(Complex(x, y)) { x^2 + y^2 }
