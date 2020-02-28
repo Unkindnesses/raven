@@ -74,18 +74,27 @@ end
 
 # Tokens
 
-function number(io::IO)
-  sym = IOBuffer()
+function integer(io::IO)
+  num = IOBuffer()
   isnumeric(peek(io)) || return
   while !eof(io)
     p = position(io)
     c = read(io)
     c in '0':'9' || (seek(io, p); break)
-    write(sym, c)
+    write(num, c)
   end
-  seek(sym, 0)
-  return Base.parse(Int, String(Base.read(sym)))
+  seek(num, 0)
+  return Base.parse(Int, String(Base.read(num)))
 end
+
+function negnum(io::IO)
+  read(io) == '-' || return
+  num = number(io)
+  num == nothing && return
+  return -num
+end
+
+number(io::IO) = parseone(io, negnum, integer)
 
 function symbol(io)
   sym = IOBuffer()
