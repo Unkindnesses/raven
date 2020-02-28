@@ -1,6 +1,4 @@
 z = Complex(widen(5), widen(6))
 
-z2 = Complex(widen(-11), widen(60))
-
 return (abs2(z) == 61) &
-       ((z*z) == z2)
+       ((z*z) == Complex(widen(-11), widen(60)))
