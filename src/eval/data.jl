@@ -45,13 +45,18 @@ end
 
 # Printing
 
+vprint(io::IO, x) = show(io, x)
+
 function vprint(io::IO, s::Data)
   print(io, "data(")
   join(io, [sprint(vprint, x) for x in s.parts], ", ")
   print(io, ")")
 end
 
-vprint(io, x::Symbol) = print(io, "`", x, "`")
-vprint(io::IO, x::Union{Int64, Int32, Float64, Float32, String}) = show(io, x)
+vprint(io::IO, ::PrimitiveHole{T}) where T = print(io, "::$T")
+
+vprint(io::IO, x::Symbol) = print(io, "`", x, "`")
 
 vprint(io::IO, x::Expr) = print(io, "`", x, "`")
+
+Base.show(io::IO, d::Data) = vprint(io, d)
