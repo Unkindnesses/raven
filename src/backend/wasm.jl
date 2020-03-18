@@ -1,14 +1,21 @@
 using WebAssembly: WType, WTuple, i32, i64, f32, f64
 
+rvtype(x::WType) = PrimitiveHole{WebAssembly.jltype(x)}()
+rvtype(x::WTuple) = data(:Tuple, map(rvtype, x.parts)...)
+
 struct WIntrinsic
   op::WebAssembly.Op
   ret
 end
 
 function intrinsic(ex)
-  @assert ex isa Operator && ex.op == :(::)
-  typ = WType(ex.args[2])
-  ex = ex.args[1].func
+  if ex isa Operator && ex.op == :(::)
+    typ = WType(ex.args[2])
+    ex = ex.args[1].func
+  else
+    typ = WebAssembly.WTuple()
+    ex = ex.func
+  end
   namify(x::Symbol) = x
   namify(x::Raven.Operator) = Symbol(join(namify.(x.args), x.op))
   WIntrinsic(WebAssembly.Op(namify(ex)), typ)

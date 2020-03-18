@@ -1,1 +1,12 @@
-memorySize() == Int32(0)
+r = memorySize() == Int32(0)
+
+memoryGrow(Int32(1))
+
+r = r & (memorySize() == Int32(1))
+
+p = Ptr(0)
+
+i32store(p, Int32(5))
+r = r & (i32load(p) == Int32(5))
+
+return r

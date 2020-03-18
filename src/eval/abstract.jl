@@ -100,7 +100,7 @@ function step!(inf::Inference)
     var = stmts[ip]
     st = block[var]
     if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
-      block.ir[var] = Statement(block[var], type = PrimitiveHole{WebAssembly.jltype(st.expr.args[1].ret)}())
+      block.ir[var] = Statement(block[var], type = rvtype(st.expr.args[1].ret))
       push!(inf.queue, (frame, b, ip+1))
     elseif isexpr(st.expr, :call)
       T = infercall!(inf, (frame, b, ip), block, st.expr)
