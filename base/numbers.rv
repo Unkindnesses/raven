@@ -2,9 +2,8 @@ import { numbers.complex }
 
 fn Int64(x::Int64) { x }
 
-# TODO figure out constant return
-fn one(x::Int64) { widen(Int64(1)) }
-fn one(x::Int32) { widen(Int32(1)) }
+fn one(x::Int64) { Int64(1) }
+fn one(x::Int32) { Int32(1) }
 
 # TODO: abstract integer type
 fn x ^ (n::Int64) {

@@ -70,6 +70,7 @@ function lowerdata!(mod::WModule, ir, v)
 end
 
 function lowerwasm!(mod::WModule, ir::IR)
+  casts!(ir)
   sigs!(ir)
   for b in blocks(ir)
     IRTools.argtypes(b) .= layout.(IRTools.argtypes(b))
@@ -81,6 +82,10 @@ function lowerwasm!(mod::WModule, ir::IR)
       elseif Ts[1] == :widen
         val = Ts[2] isa Integer ? Ts[2] : st.expr.args[3]
         ir[v] = IRTools.stmt(val, type = layout(st.type))
+      elseif Ts[1] == :cast
+        _, T, val = Ts
+        (val isa Number && T isa PrimitiveHole) || error("unsupported cast")
+        ir[v] = IRTools.stmt(Ts[3], type = layout(T))
       elseif Ts[1] == :data
         lowerdata!(mod, ir, v)
       elseif Ts[1] == :part
