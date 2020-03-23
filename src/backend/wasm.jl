@@ -77,6 +77,7 @@ function lowerdata!(mod::WModule, ir, v)
 end
 
 function lowerwasm!(mod::WModule, ir::IR)
+  prune!(ir)
   casts!(ir)
   sigs!(ir)
   for b in blocks(ir)

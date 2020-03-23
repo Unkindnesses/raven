@@ -5,7 +5,7 @@ using FunctionalCollections
 
 using IRTools, WebAssembly
 using IRTools: IR, Variable, Statement, Variable, argument!, block, blocks, arguments, argtypes,
-  block, isreturn, branches
+  block, isreturn, branches, prune!
 using IRTools.Inner: Slot
 
 include("frontend/ast.jl")
