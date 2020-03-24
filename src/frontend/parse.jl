@@ -241,7 +241,7 @@ function _syntax(io)
     parse(stmt, io) == nothing || break
     consume_ws(io)
     peek(io) in ('}', ')', ']') && break
-    next = block ? parse(io) : parse(expr, io)
+    next = parse(expr, io)
     next isa Block && (block = true)
     push!(args, next)
   end

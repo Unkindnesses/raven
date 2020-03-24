@@ -32,5 +32,5 @@ using Raven: Call, Syntax, Block, Operator, @rvx_str
     3
   }
   """ == Syntax(:if, [rvx"x>0", Block([1]),
-                      Syntax(:else, [:if, rvx"x<0", Block([2]),
-                                     Syntax(:else, [Block([3])])])])
+                      :else, :if, rvx"x<0", Block([2]),
+                      :else, Block([3])])

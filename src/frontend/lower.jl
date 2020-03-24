@@ -60,21 +60,18 @@ end
 function If(b::Syntax)
   cond = []
   body = []
-  while true
-    if b.name == :if && isempty(cond)
-      push!(cond, b.args[1])
-      push!(body, b.args[2])
-      get(b.args, 3, nothing) isa Syntax ? (b = b.args[3]) : break
-    elseif b.name == :else && b.args[1] == :if
-      push!(cond, b.args[2])
-      push!(body, b.args[3])
-      get(b.args, 4, nothing) isa Syntax ? (b = b.args[4]) : break
-    elseif b.name == :else
+  push!(cond, b.args[1])
+  push!(body, b.args[2])
+  args = b.args[3:end]
+  while !isempty(args)
+    @assert popfirst!(args) == :else "Broken if block"
+    if args[1] == :if
+      popfirst!(args)
+      push!(cond, popfirst!(args))
+    else
       push!(cond, true)
-      push!(body, b.args[1])
-      break
-    else error("broken if block")
     end
+    push!(body, popfirst!(args))
   end
   if cond[end] !== true
     push!(cond, true)
