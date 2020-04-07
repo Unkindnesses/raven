@@ -1,4 +1,5 @@
 if __backendWasm {
   import { wasm.numeric }
   import { wasm.memory }
+  import { wasm.js }
 }

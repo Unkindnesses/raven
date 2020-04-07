@@ -4,26 +4,31 @@ rvtype(x::WType) = PrimitiveHole{WebAssembly.jltype(x)}()
 rvtype(x::WTuple) = data(:Tuple, map(rvtype, x.parts)...)
 
 struct WIntrinsic
-  op::WebAssembly.Op
+  op
   ret
 end
 
 function intrinsic(ex)
   if ex isa Operator && ex.op == :(::)
     typ = WType(ex.args[2])
-    ex = ex.args[1].func
+    ex = ex.args[1]
   else
     typ = WebAssembly.WTuple()
-    ex = ex.func
   end
-  namify(x::Symbol) = x
-  namify(x::Raven.Operator) = Symbol(join(namify.(x.args), x.op))
-  WIntrinsic(WebAssembly.Op(namify(ex)), typ)
+  op = ex.func
+  if op == :call
+    WIntrinsic(WebAssembly.Call(ex.args[1].expr), typ)
+  else
+    namify(x::Symbol) = x
+    namify(x::Raven.Operator) = Symbol(join(namify.(x.args), x.op))
+    WIntrinsic(WebAssembly.Op(namify(op)), typ)
+  end
 end
 
 function intrinsic_args(ex)
   ex isa Operator && ex.op == :(::) && return intrinsic_args(ex.args[1])
-  return map(x -> Call(:widen, [x.args[1]]), ex.args)
+  args = filter(x -> x isa Operator && x.op == :(::), ex.args)
+  return map(x -> Call(:widen, [x.args[1]]), args)
 end
 
 WNum = Union{Int32,Int64,Float32,Float64}
@@ -125,12 +130,18 @@ function lowerwasm!(mod::WModule, T)
   return id
 end
 
+default_imports = [
+  WebAssembly.Import(:support, :global, :jsglobal, :func, [], [i32]),
+  WebAssembly.Import(:support, :incrementRefCount, :incref, :func, [i32], []),
+  WebAssembly.Import(:support, :decrementRefCount, :decref, :func, [i32], [])]
+
 function wasmmodule(inf::Inference)
   mod = WModule(inf)
   lowerwasm!(mod, rtuple(:_start))
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
   mod = WebAssembly.Module(
     funcs = fs,
+    imports = default_imports,
     exports = [WebAssembly.Export(:_start, :_start, :func)],
     mems = [WebAssembly.Mem(0)])
   WebAssembly.multivalue_shim!(mod)

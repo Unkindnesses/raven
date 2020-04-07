@@ -1,4 +1,5 @@
 const fs = require('fs').promises;
+const support = require('../js/support')
 
 async function loadWasm(f) {
   buf = await fs.readFile(process.argv[2])

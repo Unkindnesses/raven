@@ -1,0 +1,16 @@
+fn JSObject(ref) { data(`JSObject`, ref) }
+
+fn incrementRefCount(ref::JSObject) {
+  ref = part(ref, 1)
+  wasm { call(`incref`, ref::i32) }
+}
+
+fn decrementRefCount(ref::JSObject) {
+  ref = part(ref, 1)
+  wasm { call(`decref`, ref::i32) }
+}
+
+fn global() {
+  ref = (wasm { call(`jsglobal`)::i32 })
+  return JSObject(ref)
+}
