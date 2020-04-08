@@ -148,6 +148,6 @@ function wasmmodule(inf::Inference)
   return mod
 end
 
-function compile(file, out)
+function emitwasm(file, out)
   WebAssembly.binary(wasmmodule(loadfile(file)), out)
 end

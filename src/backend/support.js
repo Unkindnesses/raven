@@ -1,8 +1,8 @@
-var idcounter = 0;
-var references = {};
+let idcounter = 0;
+const references = {};
 
 function createRef(obj) {
-  var ref = idcounter++;
+  const ref = idcounter++;
   references[ref] = {count: 0, object: obj};
   return ref;
 }
@@ -26,4 +26,4 @@ function global() {
   return createRef(globalThis);
 }
 
-module.exports = {global, incrementRefCount, decrementRefCount};
+const support = {global, incrementRefCount, decrementRefCount};

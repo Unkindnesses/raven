@@ -3,6 +3,6 @@
 *.jl.cov
 *.jl.*.cov
 *.jl.mem
-/Cargo*
 dev
 *.wasm
+test/**/*.js
