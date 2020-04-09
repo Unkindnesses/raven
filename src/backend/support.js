@@ -1,3 +1,5 @@
+const fs = require('fs').promises;
+
 let idcounter = 0;
 const references = {};
 
@@ -27,3 +29,15 @@ function global() {
 }
 
 const support = {global, incrementRefCount, decrementRefCount};
+
+async function loadWasm(f) {
+  let imports = {support};
+  let buf = await fs.readFile(f)
+  let res = await WebAssembly.instantiate(new Uint8Array(buf), imports);
+  return res.instance.exports;
+}
+
+async function main() {
+  let {_start} = await loadWasm(__dirname + '/' + wasmFile);
+  console.log(_start());
+}
