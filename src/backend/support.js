@@ -9,7 +9,7 @@ function createRef(obj) {
   return ref;
 }
 
-function objectFromRef(ref) {
+function fromRef(ref) {
   return references[ref].object;
 }
 
@@ -36,19 +36,21 @@ function global() {
 }
 
 function property(obj, prop) {
-  obj = objectFromRef(obj);
-  prop = objectFromRef(prop);
+  obj = fromRef(obj);
+  prop = fromRef(prop);
   if (!(prop in obj)) { throw `No property ${prop} found.`; }
   return createRef(obj[prop]);
 }
 
 function call(f, ...args) {
-  f = objectFromRef(f);
-  args = args.map(objectFromRef);
+  f = fromRef(f);
+  args = args.map(fromRef);
   return createRef(f(...args));
 }
 
-const support = {global, property, call, incrementRefCount, decrementRefCount};
+const support = {global, property, call,
+                 incrementRefCount, decrementRefCount,
+                 createRef, fromRef};
 
 async function loadWasm(f) {
   let imports = {support};

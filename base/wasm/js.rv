@@ -1,20 +1,16 @@
 fn JSObject(ref::Int32) { data(`JSObject`, ref) }
 
+fn jsref(x) { jsref(JSObject(x)) }
+
 fn jsref(obj::JSObject) { part(obj, 1) }
 
-fn String(obj::JSObject) { data(`String`, obj) }
-
-fn JSObject(s::String) { part(s, 1) }
-
-fn jsref(s::String) { jsref(JSObject(s)) }
-
-fn incrementRefCount(ref::JSObject) {
-  ref = part(ref, 1)
+fn incrementRefCount(obj::JSObject) {
+  ref = jsref(obj)
   wasm { call(`incref`, ref::i32) }
 }
 
-fn decrementRefCount(ref::JSObject) {
-  ref = part(ref, 1)
+fn decrementRefCount(obj::JSObject) {
+  ref = jsref(obj)
   wasm { call(`decref`, ref::i32) }
 }
 
@@ -35,4 +31,20 @@ fn call(f, x) {
   x = jsref(x)
   ref = (wasm { call(`jscall1`, f::i32, x::i32)::i32 })
   return JSObject(ref)
+}
+
+fn String(obj::JSObject) { data(`String`, obj) }
+
+fn JSObject(s::String) { part(s, 1) }
+
+fn JSObject(x::Float64) {
+  ref = (wasm { call(`jsbox`, x::f64)::i32 })
+  return JSObject(ref)
+}
+
+fn JSObject(x::Int64) { JSObject(Float64(x)) }
+
+fn Float64(x::JSObject) {
+  ref = jsref(x)
+  wasm { call(`jsunbox`, ref::i32)::f64 }
 }
