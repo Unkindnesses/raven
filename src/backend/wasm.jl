@@ -52,6 +52,7 @@ end
 struct WModule
   inf::Inference
   symbols::Dict{Symbol,Int}
+  strings::Vector{String}
   funcs::Dict{Any,Base.Tuple{Symbol,IR}}
 end
 
@@ -61,7 +62,14 @@ function name(mod::WModule, s::Symbol)
   return Symbol(s, ":", c)
 end
 
-WModule(inf) = WModule(inf, Dict(), Dict())
+function stringid!(mod::WModule, s::String)
+  i = findfirst(==(s), mod.strings)
+  i === nothing || return i-1
+  push!(mod.strings, s)
+  return length(mod.strings)-1
+end
+
+WModule(inf) = WModule(inf, Dict(), [], Dict())
 
 function sigs!(ir::IR)
   for (v, st) in ir
@@ -110,6 +118,8 @@ function lowerwasm!(mod::WModule, ir::IR)
                        type = layout(st.type))
         else error("composite `part` not supported")
         end
+      elseif Ts[1] == :JSObject && Ts[2] isa String
+        ir[v] = IRTools.stmt(Int32(stringid!(mod, Ts[2])), type = layout(st.type))
       else
         func = lowerwasm!(mod, rtuple(Ts...))
         # Filter gets rid of constants
@@ -132,11 +142,14 @@ end
 
 default_imports = [
   WebAssembly.Import(:support, :global, :jsglobal, :func, [], [i32]),
+  WebAssembly.Import(:support, :property, :jsproperty, :func, [i32, i32], [i32]),
+  WebAssembly.Import(:support, :call, :jscall1, :func, [i32, i32], [i32]),
   WebAssembly.Import(:support, :incrementRefCount, :incref, :func, [i32], []),
   WebAssembly.Import(:support, :decrementRefCount, :decref, :func, [i32], [])]
 
 function wasmmodule(inf::Inference)
   mod = WModule(inf)
+  strings = mod.strings
   lowerwasm!(mod, rtuple(:_start))
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
   mod = WebAssembly.Module(
@@ -145,9 +158,17 @@ function wasmmodule(inf::Inference)
     exports = [WebAssembly.Export(:_start, :_start, :func)],
     mems = [WebAssembly.Mem(0)])
   WebAssembly.multivalue_shim!(mod)
-  return mod
+  return mod, strings
+end
+
+function wasmmodule(mod::RModule)
+  # TODO hacky
+  method!(mod, :JSObject, RMethod(lowerpattern(rvx"(s::String,)")..., _ -> error(), _ -> data(:JSObject, PrimitiveHole{Int32}())))
+  wasmmodule(Inference(mod))
 end
 
 function emitwasm(file, out)
-  WebAssembly.binary(wasmmodule(loadfile(file)), out)
+  mod, strings = wasmmodule(loadfile(file))
+  WebAssembly.binary(mod, out)
+  return strings
 end

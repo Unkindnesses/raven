@@ -10,5 +10,7 @@ Float64 = `Float64`
 
 fn tag(x) { part(x, 0) }
 
+fn identity(x) { x }
+
 import { wasm }
 import { numbers }

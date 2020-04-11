@@ -24,11 +24,31 @@ function decrementRefCount(ref) {
   }
 }
 
+function registerStrings(ss) {
+  for (const s of ss) {
+    const ref = createRef(s);
+    incrementRefCount(ref);
+  }
+}
+
 function global() {
   return createRef(globalThis);
 }
 
-const support = {global, incrementRefCount, decrementRefCount};
+function property(obj, prop) {
+  obj = objectFromRef(obj);
+  prop = objectFromRef(prop);
+  if (!(prop in obj)) { throw `No property ${prop} found.`; }
+  return createRef(obj[prop]);
+}
+
+function call(f, ...args) {
+  f = objectFromRef(f);
+  args = args.map(objectFromRef);
+  return createRef(f(...args));
+}
+
+const support = {global, property, call, incrementRefCount, decrementRefCount};
 
 async function loadWasm(f) {
   let imports = {support};

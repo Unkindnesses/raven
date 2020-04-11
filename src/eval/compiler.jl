@@ -78,7 +78,7 @@ function loadfile(cx::Source, io::IO)
   end
 end
 
-function _loadfile(f::String)
+function loadfile(f::String)
   cx = Source()
   cx.mod.defs[:__backendWasm] = true
   open(io -> loadfile(cx, io), "$base/base.rv")
@@ -86,5 +86,3 @@ function _loadfile(f::String)
   finish!(cx)
   return cx.mod
 end
-
-loadfile(f::String) = Inference(_loadfile(f))

@@ -1,4 +1,12 @@
-fn JSObject(ref) { data(`JSObject`, ref) }
+fn JSObject(ref::Int32) { data(`JSObject`, ref) }
+
+fn jsref(obj::JSObject) { part(obj, 1) }
+
+fn String(obj::JSObject) { data(`String`, obj) }
+
+fn JSObject(s::String) { part(s, 1) }
+
+fn jsref(s::String) { jsref(JSObject(s)) }
 
 fn incrementRefCount(ref::JSObject) {
   ref = part(ref, 1)
@@ -12,5 +20,19 @@ fn decrementRefCount(ref::JSObject) {
 
 fn global() {
   ref = (wasm { call(`jsglobal`)::i32 })
+  return JSObject(ref)
+}
+
+fn property(obj, prop) {
+  obj = jsref(obj)
+  prop = jsref(prop)
+  ref = (wasm { call(`jsproperty`, obj::i32, prop::i32)::i32 })
+  return JSObject(ref)
+}
+
+fn call(f, x) {
+  f = jsref(f)
+  x = jsref(x)
+  ref = (wasm { call(`jscall1`, f::i32, x::i32)::i32 })
   return JSObject(ref)
 }
