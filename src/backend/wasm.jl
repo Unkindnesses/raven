@@ -118,7 +118,7 @@ function lowerwasm!(mod::WModule, ir::IR)
                        type = layout(st.type))
         else error("composite `part` not supported")
         end
-      elseif Ts[1] == :JSObject && Ts[2] isa String
+      elseif Ts[1] == :tojs && Ts[2] isa String
         ir[v] = IRTools.stmt(Int32(stringid!(mod, Ts[2])), type = layout(st.type))
       else
         func = lowerwasm!(mod, rtuple(Ts...))
@@ -165,7 +165,7 @@ end
 
 function wasmmodule(mod::RModule)
   # TODO hacky
-  method!(mod, :JSObject, RMethod(lowerpattern(rvx"(s::String,)")..., _ -> error(), _ -> data(:JSObject, PrimitiveHole{Int32}())))
+  method!(mod, :tojs, RMethod(lowerpattern(rvx"(s::String,)")..., _ -> error(), _ -> data(:JSObject, PrimitiveHole{Int32}())))
   wasmmodule(Inference(mod))
 end
 

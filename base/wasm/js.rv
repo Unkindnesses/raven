@@ -1,6 +1,6 @@
 fn JSObject(ref::Int32) { data(`JSObject`, ref) }
 
-fn jsref(x) { jsref(JSObject(x)) }
+fn jsref(x) { jsref(tojs(x)) }
 
 fn jsref(obj::JSObject) { part(obj, 1) }
 
@@ -35,14 +35,14 @@ fn call(f, x) {
 
 fn String(obj::JSObject) { data(`String`, obj) }
 
-fn JSObject(s::String) { part(s, 1) }
+fn tojs(s::String) { part(s, 1) }
 
-fn JSObject(x::Float64) {
+fn tojs(x::Float64) {
   ref = (wasm { call(`jsbox`, x::f64)::i32 })
   return JSObject(ref)
 }
 
-fn JSObject(x::Int64) { JSObject(Float64(x)) }
+fn tojs(x::Int64) { tojs(Float64(x)) }
 
 fn Float64(x::JSObject) {
   ref = jsref(x)
