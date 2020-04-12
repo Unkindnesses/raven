@@ -43,8 +43,15 @@ fn tojs(x::Float64) {
 }
 
 fn tojs(x::Int64) { tojs(Float64(x)) }
+fn tojs(x::Int32) { tojs(Float64(x)) }
 
 fn Float64(x::JSObject) {
   ref = jsref(x)
   wasm { call(`jsunbox`, ref::i32)::f64 }
+}
+
+fn log(x) {
+  console = property(global(), "console")
+  log = property(console, "log")
+  call(log, x)
 }

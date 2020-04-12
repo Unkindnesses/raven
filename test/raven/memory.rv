@@ -9,4 +9,4 @@ p = Ptr(0)
 i32store(p, Int32(5))
 r = r & (i32load(p) == Int32(5))
 
-return r
+log(r)

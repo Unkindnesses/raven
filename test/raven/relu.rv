@@ -6,4 +6,6 @@ fn relu(x) {
   }
 }
 
-return (relu(widen(5)) == 5) & (relu(widen(-5)) == 0)
+result = (relu(widen(5)) == 5) & (relu(widen(-5)) == 0)
+
+log(result)

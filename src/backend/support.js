@@ -61,5 +61,5 @@ async function loadWasm(f) {
 
 async function main() {
   let {_start} = await loadWasm(__dirname + '/' + wasmFile);
-  console.log(_start());
+  _start();
 }

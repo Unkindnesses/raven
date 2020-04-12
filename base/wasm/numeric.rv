@@ -10,6 +10,10 @@ fn Float64(x::Int64) {
   wasm { (f64.convert_s/i64)(x::i64)::f64 }
 }
 
+fn Float64(x::Int32) {
+  wasm { (f64.convert_s/i32)(x::i32)::f64 }
+}
+
 fn (a::Int64) + (b::Int64) {
   wasm { (i64.add)(a::i64, b::i64)::i64 }
 }

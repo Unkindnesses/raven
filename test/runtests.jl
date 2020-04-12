@@ -6,9 +6,9 @@ using Raven, Test
   include("parser.jl")
 end
 
-@testset "Interpreter" begin
-  include("interpret.jl")
-end
+# @testset "Interpreter" begin
+#   include("interpret.jl")
+# end
 
 @testset "Compiler" begin
   include("compiler.jl")

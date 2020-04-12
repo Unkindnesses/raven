@@ -2,4 +2,4 @@ x = widen(2)
 n = widen(3)
 r = x^n
 
-return r == 8
+log(r == 8)
