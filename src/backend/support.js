@@ -38,8 +38,11 @@ function global() {
 function property(obj, prop) {
   obj = fromRef(obj);
   prop = fromRef(prop);
-  if (!(prop in obj)) { throw `No property ${prop} found.`; }
-  return createRef(obj[prop]);
+  var result = obj[prop];
+  if (typeof result == 'function') {
+    result = result.bind(obj);
+  }
+  return createRef(result);
 }
 
 function call(f, ...args) {

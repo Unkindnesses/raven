@@ -55,3 +55,8 @@ fn log(x) {
   log = property(console, "log")
   call(log, x)
 }
+
+fn append(a::String, b::String) {
+  cat = property(a, "concat")
+  call(cat, b)
+}
