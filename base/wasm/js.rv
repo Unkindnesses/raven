@@ -26,10 +26,11 @@ fn property(obj, prop) {
   return JSObject(ref)
 }
 
-fn call(f, x) {
-  f = jsref(f)
+fn call(obj, meth, x) {
+  obj = jsref(obj)
+  meth = jsref(meth)
   x = jsref(x)
-  ref = (wasm { call(`jscall1`, f::i32, x::i32)::i32 })
+  ref = (wasm { call(`jscall1`, obj::i32, meth::i32, x::i32)::i32 })
   return JSObject(ref)
 }
 
@@ -52,11 +53,9 @@ fn Float64(x::JSObject) {
 
 fn log(x) {
   console = property(global(), "console")
-  log = property(console, "log")
-  call(log, x)
+  call(console, "log", x)
 }
 
 fn concat(a::String, b::String) {
-  cat = property(a, "concat")
-  call(cat, b)
+  call(a, "concat", b)
 }

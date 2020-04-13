@@ -36,19 +36,14 @@ function global() {
 }
 
 function property(obj, prop) {
-  obj = fromRef(obj);
-  prop = fromRef(prop);
-  var result = obj[prop];
-  if (typeof result == 'function') {
-    result = result.bind(obj);
-  }
-  return createRef(result);
+  return createRef(fromRef(obj)[fromRef(prop)]);
 }
 
-function call(f, ...args) {
-  f = fromRef(f);
+function call(obj, meth, ...args) {
+  obj = fromRef(obj);
+  meth = fromRef(meth);
   args = args.map(fromRef);
-  return createRef(f(...args));
+  return createRef(obj[meth].call(obj, ...args));
 }
 
 const support = {global, property, call,
