@@ -26,12 +26,26 @@ fn property(obj, prop) {
   return JSObject(ref)
 }
 
+fn call(obj, meth) {
+  obj = jsref(obj)
+  meth = jsref(meth)
+  ref = (wasm { call(`jscall0`, obj::i32, meth::i32)::i32 })
+  return JSObject(ref)
+}
+
 fn call(obj, meth, x) {
   obj = jsref(obj)
   meth = jsref(meth)
   x = jsref(x)
   ref = (wasm { call(`jscall1`, obj::i32, meth::i32, x::i32)::i32 })
   return JSObject(ref)
+}
+
+fn new(T) {
+  Object = property(global(), "Object")
+  this = call(Object, "create", property(T, "prototype"))
+  call(T, "call", this)
+  return this
 }
 
 fn String(obj::JSObject) { data(`String`, obj) }
