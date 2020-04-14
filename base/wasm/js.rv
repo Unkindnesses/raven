@@ -60,3 +60,8 @@ fn Float64(x::JSObject) {
   ref = jsref(x)
   wasm { call(`jsunbox`, ref::i32)::f64 }
 }
+
+fn panic(s::String) {
+  ref = jsref(s)
+  wasm { call(`panic`, ref::i32) }
+}

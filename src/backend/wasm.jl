@@ -145,6 +145,7 @@ default_imports = [
   WebAssembly.Import(:support, :property, :jsproperty, :func, [i32, i32], [i32]),
   WebAssembly.Import(:support, :call, :jscall0, :func, [i32, i32], [i32]),
   WebAssembly.Import(:support, :call, :jscall1, :func, [i32, i32, i32], [i32]),
+  WebAssembly.Import(:support, :panic, :panic, :func, [i32], []),
   WebAssembly.Import(:support, :incrementRefCount, :incref, :func, [i32], []),
   WebAssembly.Import(:support, :decrementRefCount, :decref, :func, [i32], []),
   WebAssembly.Import(:support, :createRef, :jsbox, :func, [f64], [i32]),
