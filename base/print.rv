@@ -2,6 +2,7 @@ fn print(x::String) {
   process = property(global(), "process")
   stdout = property(process, "stdout")
   call(stdout, "write", x)
+  return
 }
 
 fn println(x) {
@@ -12,6 +13,7 @@ fn println(x) {
 fn println(x::JSObject) {
   console = property(global(), "console")
   call(console, "log", x)
+  return
 }
 
 fn string(x::Int32) {
@@ -20,4 +22,8 @@ fn string(x::Int32) {
 
 fn print(x::Int32) {
   print(string(x))
+}
+
+fn print(x::Nothing) {
+  print("nothing")
 }

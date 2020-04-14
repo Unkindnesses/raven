@@ -217,11 +217,16 @@ function _tuple(io)
   return Tuple(xs)
 end
 
+function ret(io)
+  symbol(io) == :return || return
+  tryparse(stmt, io) != nothing && return Return(Call(:data, [Quote(:Nothing)]))
+  Return(expr(io))
+end
+
 function expr(io)
   consume_ws(io)
-  ex = parseone(io, symbol, string, number, op_token, quotation, _tuple, _block)
+  ex = parseone(io, ret, symbol, string, number, op_token, quotation, _tuple, _block)
   ex == nothing && throw(ParseError("Unexpected character $(read(io))", loc(io)))
-  ex == :return && return Return(expr(io))
   while (args = tryparse(brackets, io)) != nothing
     ex = Call(ex, args)
   end
