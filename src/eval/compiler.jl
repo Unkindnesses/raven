@@ -63,8 +63,10 @@ end
 vload(m::Source, x) = load_expr(m, x)
 
 function finish!(cx::Source)
-  fn = Syntax(:fn, [Call(:_start, []), Block(cx.main)])
-  method!(cx.mod, :_start, RMethod(lowerpattern(Tuple([])), [], lowerfn(fn, [])))
+  fn = Syntax(:fn, [Call(:_main, []), Block(cx.main)])
+  method!(cx.mod, :_main, RMethod(lowerpattern(Tuple([]))..., lowerfn(fn, [])))
+  fn = Syntax(:fn, [Call(:_start, []), Block([Call(:_main, []), Call(:data, [Quote(:Nothing)])])])
+  method!(cx.mod, :_start, RMethod(lowerpattern(Tuple([]))..., lowerfn(fn, [])))
 end
 
 function loadfile(cx::Source, io::IO)
