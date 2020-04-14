@@ -65,11 +65,6 @@ fn Float64(x::JSObject) {
   wasm { call(`jsunbox`, ref::i32)::f64 }
 }
 
-fn log(x) {
-  console = property(global(), "console")
-  call(console, "log", x)
-}
-
 fn concat(a::String, b::String) {
   call(a, "concat", b)
 }

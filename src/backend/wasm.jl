@@ -166,7 +166,7 @@ end
 
 function wasmmodule(mod::RModule)
   # TODO hacky
-  method!(mod, :tojs, RMethod(lowerpattern(rvx"(s::String,)")..., _ -> error(), _ -> data(:JSObject, PrimitiveHole{Int32}())))
+  method!(mod, :tojs, RMethod(lowerpattern(rvx"(s::PrimitiveString,)")..., _ -> error(), _ -> data(:JSObject, PrimitiveHole{Int32}())))
   wasmmodule(Inference(mod))
 end
 

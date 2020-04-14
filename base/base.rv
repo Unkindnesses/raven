@@ -16,3 +16,4 @@ nothing = data(`Nothing`)
 
 import { wasm }
 import { numbers }
+import { print }

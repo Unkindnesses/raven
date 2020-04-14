@@ -3,4 +3,4 @@ z = Complex(widen(5), widen(6))
 result = (abs2(z) == 61) &
          ((z*z) == Complex(widen(-11), widen(60)))
 
-log(result)
+println(result)

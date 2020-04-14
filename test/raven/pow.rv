@@ -2,4 +2,4 @@ x = widen(2)
 n = widen(3)
 r = x^n
 
-log(r == 8)
+println(r == 8)

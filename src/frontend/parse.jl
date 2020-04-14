@@ -133,7 +133,7 @@ function string(io::IO)
   while (c = read(io)) != '"'
     write(s, c)
   end
-  return String(take!(s))
+  return unescape_string(String(take!(s)))
 end
 
 function quotation(io::IO)

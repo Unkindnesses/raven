@@ -6,4 +6,4 @@ fn addr(x::Ptr) { part(x, 1) }
 p = Ptr(widen(5))
 a = addr(p)
 
-log(Int64(a) == 5)
+println(Int64(a) == 5)

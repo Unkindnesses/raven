@@ -58,6 +58,8 @@ function primitives!(mod)
     mod[Symbol(T)] = Symbol(T)
     method!(mod, Symbol("matches?"), RMethod(lowerpattern(parse("(x, `$T`)"))..., x -> Int32(isprimitive(x, T))))
   end
+  mod[:PrimitiveString] = :PrimitiveString
+  method!(mod, Symbol("matches?"), RMethod(lowerpattern(rvx"(x, `PrimitiveString`)")..., x -> x isa String))
 
   return mod
 end

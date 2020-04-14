@@ -1,0 +1,23 @@
+fn print(x::String) {
+  process = property(global(), "process")
+  stdout = property(process, "stdout")
+  call(stdout, "write", x)
+}
+
+fn println(x) {
+  print(x)
+  print("\n")
+}
+
+fn println(x::JSObject) {
+  console = property(global(), "console")
+  call(console, "log", x)
+}
+
+fn string(x::Int32) {
+  String(call(x, "toString"))
+}
+
+fn print(x::Int32) {
+  print(string(x))
+}
