@@ -12,8 +12,6 @@ fn tag(x) { part(x, 0) }
 
 fn identity(x) { x }
 
-nothing = data(`Nothing`)
-
 import { wasm }
 import { numbers }
 import { print }
