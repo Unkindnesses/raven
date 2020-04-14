@@ -48,10 +48,6 @@ fn new(T) {
   return this
 }
 
-fn String(obj::JSObject) { data(`String`, obj) }
-
-fn tojs(s::String) { part(s, 1) }
-
 fn tojs(x::Float64) {
   ref = (wasm { call(`jsbox`, x::f64)::i32 })
   return JSObject(ref)
@@ -63,8 +59,4 @@ fn tojs(x::Int32) { tojs(Float64(x)) }
 fn Float64(x::JSObject) {
   ref = jsref(x)
   wasm { call(`jsunbox`, ref::i32)::f64 }
-}
-
-fn concat(a::String, b::String) {
-  call(a, "concat", b)
 }

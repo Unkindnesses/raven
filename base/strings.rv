@@ -1,0 +1,7 @@
+fn String(obj::JSObject) { data(`String`, obj) }
+
+fn tojs(s::String) { part(s, 1) }
+
+fn concat(a::String, b::String) {
+  call(a, "concat", b)
+}
