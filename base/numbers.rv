@@ -2,6 +2,9 @@ import { numbers.complex }
 
 fn Int64(x::Int64) { x }
 
+fn zero(x::Int64) { Int64(0) }
+fn zero(x::Int32) { Int32(0) }
+
 fn one(x::Int64) { Int64(1) }
 fn one(x::Int32) { Int32(1) }
 
