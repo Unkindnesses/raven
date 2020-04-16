@@ -12,7 +12,10 @@ fn tag(x) { part(x, 0) }
 
 fn identity(x) { x }
 
+fn Nothing() { data(`Nothing`) }
+
 import { wasm }
 import { numbers }
+import { structures }
 import { strings }
 import { print }

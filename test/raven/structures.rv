@@ -1,0 +1,2 @@
+xs = list(widen(1), widen(2), widen(3))
+println(sum(xs) == 6)

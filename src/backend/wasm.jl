@@ -44,6 +44,16 @@ layout(::PrimitiveHole{T}) where T = WebAssembly.WType(T)
 layout(x::Union{Primitive,Quote}) = WTuple()
 layout(x::Data) = cat_layout(layout.(x.parts)...)
 
+nregisters(l::WType) = 1
+nregisters(l::WTuple) = length(l.parts)
+
+function sublayout(T, i)
+  before = data(T.parts[1:i]...)
+  offset = nregisters(layout(before))
+  length = nregisters(layout(T.parts[i+1]))
+  offset .+ (1:length)
+end
+
 function wparts(x)
   ly = layout(x)
   return ly isa WTuple ? ly.parts : [ly]
@@ -81,12 +91,18 @@ end
 
 function lowerdata!(mod::WModule, ir, v)
   Ts, args = ir[v].expr.args[1][2:end], ir[v].expr.args[3:end]
-  ps = filter(i -> !isempty(wparts(Ts[i])), 1:length(args))
-  if length(ps) == 1
-    ir[v] = IRTools.stmt(args[ps[]], type = layout(ir[v].type))
-  else
-    ir[v] = IRTools.stmt(Base.Expr(:tuple, map(p -> args[p], ps)...), type = layout(ir[v].type))
+  parts = []
+  for (T, x) in zip(Ts, args)
+    if nregisters(layout(T)) == 1
+      push!(parts, x)
+    else
+      for i = 1:nregisters(layout(T))
+        push!(parts, insert!(ir, v, Base.Expr(:ref, x, i)))
+      end
+    end
   end
+  ir[v] = IRTools.stmt(length(parts) == 1 ? parts[1] : Base.Expr(:tuple, parts...),
+                       type = layout(ir[v].type))
 end
 
 function lowerwasm!(mod::WModule, ir::IR)
@@ -111,13 +127,13 @@ function lowerwasm!(mod::WModule, ir::IR)
         lowerdata!(mod, ir, v)
       elseif Ts[1] == :part
         x::Data, i::Integer = Ts[2:end]
-        if length(wparts(st.type)) == 1 && length(wparts(x)) == 1
-          ir[v] = IRTools.stmt(args[2], type = layout(st.type))
-        elseif length(wparts(st.type)) == 1
-          ir[v] = IRTools.stmt(Base.Expr(:ref, args[2], args[3]),
-                       type = layout(st.type))
-        else error("composite `part` not supported")
-        end
+        xlayout = layout(x)
+        part(i) = xlayout isa WTuple ? insert!(ir, v, Base.Expr(:ref, args[2], i)) : args[2]
+        range = sublayout(x, i)
+        ex = layout(st.type) isa WTuple ?
+          Base.Expr(:tuple, part.(range)...) :
+          part(range[1])
+        ir[v] = IRTools.stmt(ex, type = layout(st.type))
       elseif Ts[1] == :tojs && Ts[2] isa String
         ir[v] = IRTools.stmt(Int32(stringid!(mod, Ts[2])), type = layout(st.type))
       else

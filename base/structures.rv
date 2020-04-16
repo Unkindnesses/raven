@@ -1,0 +1,14 @@
+fn EmptyList() { data(`EmptyList`) }
+fn Prepend(a, b) { data(`Prepend`, a, b) }
+
+fn first(l::Prepend) { part(l, 1) }
+fn rest(l::Prepend) { part(l, 2) }
+
+fn list() { EmptyList() }
+fn list(x) { Prepend(x, list()) }
+fn list(x, y) { Prepend(x, list(y)) }
+fn list(x, y, z) { Prepend(x, list(y, z)) }
+
+fn sum(xs::EmptyList, s) { s }
+fn sum(xs::Prepend, s) { sum(rest(xs), s + first(xs)) }
+fn sum(xs::Prepend) { sum(xs, zero(first(xs))) }
