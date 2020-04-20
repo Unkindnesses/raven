@@ -26,6 +26,13 @@ fn (a::Complex) * (b::Complex) {
           (real(a)*imag(b)) + (real(b)*imag(a)))
 }
 
+fn print(x::Complex) {
+  print(real(x))
+  print(" + ")
+  print(imag(x))
+  print("im")
+}
+
 # fn Complex(a, b) * Complex(c, d) {
 #   Complex(a*c - b*d, a*d + c*b)
 # }
