@@ -1,32 +1,32 @@
-fn Ptr(x::Int32) { data(`Ptr`, x) }
-fn Ptr(x::Int64) { Ptr(Int32(x)) }
+fn Ptr(x: Int32) { data(`Ptr`, x) }
+fn Ptr(x: Int64) { Ptr(Int32(x)) }
 
-fn addr(x::Ptr) { part(x, 1) }
+fn addr(x: Ptr) { part(x, 1) }
 
-fn (p::Ptr) + (x) {
+fn (p: Ptr) + (x) {
   Ptr(addr(p) + Int32(x))
 }
 
-fn (p::Ptr) - (x) {
+fn (p: Ptr) - (x) {
   Ptr(addr(p) - Int32(x))
 }
 
 fn memorySize() {
-  wasm { (memory.size)()::i32 }
+  wasm { (memory.size)(): i32 }
 }
 
-fn memoryGrow(n::Int32) {
-  wasm { (memory.grow)(n::i32)::i32 }
+fn memoryGrow(n: Int32) {
+  wasm { (memory.grow)(n: i32): i32 }
 }
 
-fn i32load(p::Ptr) {
+fn i32load(p: Ptr) {
   a = addr(p)
-  wasm { (i32.load)(a::i32)::i32 }
+  wasm { (i32.load)(a: i32): i32 }
 }
 
-fn i32store(p::Ptr, x::Int32) {
+fn i32store(p: Ptr, x: Int32) {
   a = addr(p)
-  wasm { (i32.store)(a::i32, x::i32) }
+  wasm { (i32.store)(a: i32, x: i32) }
 }
 
 fn pages(bytes) {
@@ -37,7 +37,7 @@ fn pages(bytes) {
   return ps
 }
 
-fn malloc(n::Int32) {
+fn malloc(n: Int32) {
   if memorySize() == Int32(0) {
     ptr = Ptr(0)
     size = Int32(0)

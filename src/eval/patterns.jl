@@ -23,7 +23,7 @@ function _lowerpattern(ex, as)
     return data(:Literal, ex)
   elseif ex isa Tuple
     data(:Data, data(:Literal, :Tuple), map(x -> _lowerpattern(x, as), ex.args)...)
-  elseif ex isa Operator && ex.op == :(::)
+  elseif ex isa Operator && ex.op == :(:)
     name, T = ex.args
     name in as || push!(as, name)
     bind(name, lowerisa(T, as))

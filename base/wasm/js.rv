@@ -1,35 +1,35 @@
-fn JSObject(ref::Int32) { data(`JSObject`, ref) }
+fn JSObject(ref: Int32) { data(`JSObject`, ref) }
 
 fn jsref(x) { jsref(tojs(x)) }
 
-fn jsref(obj::JSObject) { part(obj, 1) }
+fn jsref(obj: JSObject) { part(obj, 1) }
 
-fn incrementRefCount(obj::JSObject) {
+fn incrementRefCount(obj: JSObject) {
   ref = jsref(obj)
-  wasm { call(`incref`, ref::i32) }
+  wasm { call(`incref`, ref: i32) }
 }
 
-fn decrementRefCount(obj::JSObject) {
+fn decrementRefCount(obj: JSObject) {
   ref = jsref(obj)
-  wasm { call(`decref`, ref::i32) }
+  wasm { call(`decref`, ref: i32) }
 }
 
 fn global() {
-  ref = (wasm { call(`jsglobal`)::i32 })
+  ref = (wasm { call(`jsglobal`): i32 })
   return JSObject(ref)
 }
 
 fn property(obj, prop) {
   obj = jsref(obj)
   prop = jsref(prop)
-  ref = (wasm { call(`jsproperty`, obj::i32, prop::i32)::i32 })
+  ref = (wasm { call(`jsproperty`, obj: i32, prop: i32): i32 })
   return JSObject(ref)
 }
 
 fn call(obj, meth) {
   obj = jsref(obj)
   meth = jsref(meth)
-  ref = (wasm { call(`jscall0`, obj::i32, meth::i32)::i32 })
+  ref = (wasm { call(`jscall0`, obj: i32, meth: i32): i32 })
   return JSObject(ref)
 }
 
@@ -37,7 +37,7 @@ fn call(obj, meth, x) {
   obj = jsref(obj)
   meth = jsref(meth)
   x = jsref(x)
-  ref = (wasm { call(`jscall1`, obj::i32, meth::i32, x::i32)::i32 })
+  ref = (wasm { call(`jscall1`, obj: i32, meth: i32, x: i32): i32 })
   return JSObject(ref)
 }
 
@@ -48,20 +48,20 @@ fn new(T) {
   return this
 }
 
-fn tojs(x::Float64) {
-  ref = (wasm { call(`jsbox`, x::f64)::i32 })
+fn tojs(x: Float64) {
+  ref = (wasm { call(`jsbox`, x: f64): i32 })
   return JSObject(ref)
 }
 
-fn tojs(x::Int64) { tojs(Float64(x)) }
-fn tojs(x::Int32) { tojs(Float64(x)) }
+fn tojs(x: Int64) { tojs(Float64(x)) }
+fn tojs(x: Int32) { tojs(Float64(x)) }
 
-fn Float64(x::JSObject) {
+fn Float64(x: JSObject) {
   ref = jsref(x)
-  wasm { call(`jsunbox`, ref::i32)::f64 }
+  wasm { call(`jsunbox`, ref: i32): f64 }
 }
 
-fn panic(s::String) {
+fn panic(s: String) {
   ref = jsref(s)
-  wasm { call(`panic`, ref::i32) }
+  wasm { call(`panic`, ref: i32) }
 }

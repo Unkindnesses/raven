@@ -9,7 +9,7 @@ struct WIntrinsic
 end
 
 function intrinsic(ex)
-  if ex isa Operator && ex.op == :(::)
+  if ex isa Operator && ex.op == :(:)
     typ = WType(ex.args[2])
     ex = ex.args[1]
   else
@@ -26,8 +26,8 @@ function intrinsic(ex)
 end
 
 function intrinsic_args(ex)
-  ex isa Operator && ex.op == :(::) && return intrinsic_args(ex.args[1])
-  args = filter(x -> x isa Operator && x.op == :(::), ex.args)
+  ex isa Operator && ex.op == :(:) && return intrinsic_args(ex.args[1])
+  args = filter(x -> x isa Operator && x.op == :(:), ex.args)
   return map(x -> Call(:widen, [x.args[1]]), args)
 end
 
@@ -183,7 +183,7 @@ end
 
 function wasmmodule(mod::RModule)
   # TODO hacky
-  method!(mod, :tojs, RMethod(lowerpattern(rvx"(s::PrimitiveString,)")..., _ -> error(), _ -> data(:JSObject, PrimitiveHole{Int32}())))
+  method!(mod, :tojs, RMethod(lowerpattern(rvx"(s: PrimitiveString,)")..., _ -> error(), _ -> data(:JSObject, PrimitiveHole{Int32}())))
   wasmmodule(Inference(mod))
 end
 

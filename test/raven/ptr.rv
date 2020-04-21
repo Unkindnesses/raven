@@ -1,7 +1,7 @@
-fn Ptr(x::Int32) { data(`Ptr`, x) }
-fn Ptr(x::Int64) { Ptr(Int32(x)) }
+fn Ptr(x: Int32) { data(`Ptr`, x) }
+fn Ptr(x: Int64) { Ptr(Int32(x)) }
 
-fn addr(x::Ptr) { part(x, 1) }
+fn addr(x: Ptr) { part(x, 1) }
 
 p = Ptr(widen(5))
 a = addr(p)

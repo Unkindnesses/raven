@@ -1,15 +1,15 @@
 import { numbers.complex }
 
-fn Int64(x::Int64) { x }
+fn Int64(x: Int64) { x }
 
-fn zero(x::Int64) { Int64(0) }
-fn zero(x::Int32) { Int32(0) }
+fn zero(x: Int64) { Int64(0) }
+fn zero(x: Int32) { Int32(0) }
 
-fn one(x::Int64) { Int64(1) }
-fn one(x::Int32) { Int32(1) }
+fn one(x: Int64) { Int64(1) }
+fn one(x: Int32) { Int32(1) }
 
 # TODO: abstract integer type
-fn x ^ (n::Int64) {
+fn x ^ (n: Int64) {
   r = one(x)
   while n > 0 {
     n = n - one(n)

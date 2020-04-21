@@ -80,7 +80,7 @@ repository:
       }
       {
         name: "keyword.operator.relation.raven"
-        match: "::"
+        match: ":"
       }
       {
         name: "keyword.operator.arithmetic.raven"
