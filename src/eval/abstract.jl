@@ -71,8 +71,8 @@ function infercall!(inf, loc, block, ex)
   Ts = exprtype.((block.ir,), ex.args)
   (m, bs) = select_method(inf.mod, Ts...)
   args = [bs[x] for x in m.args]
-  if m.partial != nothing
-    return m.partial(args...)
+  if m.partial
+    return m.func(args...)
   else
     T = rtuple(Ts...)
     fr = frame!(inf, T, m.func, args...)

@@ -4,14 +4,15 @@ struct RMethod
   pattern
   args
   func
-  partial
+  partial::Bool
 end
 
-RMethod(pat, args, func) = RMethod(pat, args, func, nothing)
+RMethod(pat, args, func) = RMethod(pat, args, func, false)
 
-function select_method(mod, func::Symbol, args...)
+function select_method(mod, func::Symbol, args...; partial = true)
   args = data(:Tuple, args...)
   for meth in reverse(mod.methods[func])
+    partial || !meth.partial || continue
     bs = match(mod, meth.pattern, args)
     bs == nothing || return (meth, bs)
   end
@@ -19,7 +20,7 @@ function select_method(mod, func::Symbol, args...)
 end
 
 function vinvoke(mod, func::Symbol, args...)
-  found = select_method(mod, func, args...)
+  found = select_method(mod, func, args..., partial = false)
   found == nothing && error("No method found for ($func, $(join(args, ", ")))")
   meth, bs = found
   f = meth.func
@@ -43,16 +44,20 @@ end
 @forward RModule.defs Base.getindex, Base.setindex!, Base.haskey
 
 function primitives!(mod)
-  method!(mod, :data, RMethod(lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...), args -> data(args.parts[2:end]...)))
-  method!(mod, :tuple, RMethod(lowerpattern(rvx"args")..., identity, identity))
-  method!(mod, :part, RMethod(lowerpattern(rvx"(data, i)")..., part, part))
+  method!(mod, :data, RMethod(lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...)))
+  method!(mod, :data, RMethod(lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...), true))
+  method!(mod, :tuple, RMethod(lowerpattern(rvx"args")..., identity))
+  method!(mod, :tuple, RMethod(lowerpattern(rvx"args")..., identity, true))
+  method!(mod, :part, RMethod(lowerpattern(rvx"(data, i)")..., part))
+  method!(mod, :part, RMethod(lowerpattern(rvx"(data, i)")..., part, true))
   method!(mod, :nparts, RMethod(lowerpattern(rvx"args")..., nparts))
   # TODO: this is a hacky fallback
   method!(mod, Symbol("matches?"), RMethod(lowerpattern(rvx"(x, T)")..., (x, T) -> tag(x) == T))
 
   partial_widen(x::Primitive) = PrimitiveHole{typeof(x)}()
   partial_widen(x) = x
-  method!(mod, :widen, RMethod(lowerpattern(rvx"(x,)")..., identity, partial_widen))
+  method!(mod, :widen, RMethod(lowerpattern(rvx"(x,)")..., identity))
+  method!(mod, :widen, RMethod(lowerpattern(rvx"(x,)")..., partial_widen, true))
 
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)
