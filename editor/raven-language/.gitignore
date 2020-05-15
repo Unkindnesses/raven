@@ -1,2 +1,4 @@
 syntaxes/raven.tmLanguage.json
 node_modules
+out
+.vscode-test
