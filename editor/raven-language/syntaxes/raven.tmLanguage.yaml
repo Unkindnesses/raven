@@ -1,0 +1,90 @@
+"$schema": https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json
+name: Raven
+patterns:
+- include: '#macros'
+- include: '#expressions'
+- include: '#comments'
+repository:
+  macros:
+    begin: '[A-Za-z][A-Za-z\.0-9]*\b(?![ ]*[\+\-\*/><\=,])(?=[^{}#]*{)'
+    beginCaptures:
+      0:
+        name: keyword.other.raven
+    end: '{'
+    patterns:
+      - include: '#expressions'
+  expressions:
+    patterns:
+    - include: '#keywords'
+    - include: '#variables'
+    - include: '#strings'
+    - include: '#numbers'
+    - include: '#operators'
+    - include: '#quotes'
+  keywords:
+    name: keyword.control.raven
+    match: '\b(return|break|continue)\b'
+  # variables:
+  #   name: variable.other.raven
+  #   match: '[A-Za-z][A-Za-z0-9!]*'
+  operators:
+    patterns:
+      - name: keyword.operator.relation.raven
+        match: ':'
+      - name: keyword.operator.arithmetic.raven
+        match: '[\+|-|\*|/|>|<]+'
+      - name: keyword.operator.other.raven
+        match: '&'
+      - name: keyword.operator.update.raven
+  strings:
+    name: string.quoted.double.raven
+    begin: '"'
+    end: '"'
+    patterns:
+    - name: constant.character.escape.raven
+      match: '\\.'
+  numbers:
+    name: "constant.numeric.raven"
+    match: '\b[0-9]+\.?[0-9]*\b'
+  comments:
+    patterns:
+      - include: '#blockcomments'
+      - name: comment.line.hash.raven
+        begin: '#'
+        captures:
+          0:
+            name: punctuation.definition.comment.raven
+        end: '$'
+  blockcomments:
+    name: comment.block.raven
+    begin: '#\|'
+    end: '\|#'
+    patterns:
+    - include: '#blockcomments'
+  quotes:
+    patterns:
+    - begin: '(```)(html)'
+      beginCaptures:
+        1:
+          name: punctuation.definition.quote.begin.raven
+        2:
+          name: support.function.macro.raven
+      end: '```'
+      endCaptures:
+        0:
+          name: punctuation.definition.quote.end.raven
+      patterns:
+      - include: text.html.basic
+    - begin: '(html)(`)'
+      beginCaptures:
+        1:
+          name: support.function.macro.raven
+        0:
+          name: support.function.macro.raven
+      end: '`'
+      endCaptures:
+        0:
+          name: punctuation.definition.quote.end.raven
+      patterns:
+        - include: text.html.basic
+scopeName: source.raven

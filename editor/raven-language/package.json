@@ -1,0 +1,41 @@
+{
+    "name": "raven-language",
+    "displayName": "Raven",
+    "description": "Raven language support",
+    "version": "0.0.1",
+    "publisher": "MikeInnes",
+    "engines": {
+        "vscode": "^1.45.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "raven",
+                "aliases": [
+                    "Raven",
+                    "raven"
+                ],
+                "extensions": [
+                    ".rv"
+                ],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "raven",
+                "scopeName": "source.raven",
+                "path": "./syntaxes/raven.tmLanguage.json"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "js-yaml syntaxes/raven.tmLanguage.yaml > syntaxes/raven.tmLanguage.json"
+    },
+    "devDependencies": {
+        "js-yaml": "^3.13.1"
+    }
+}
