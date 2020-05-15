@@ -11,6 +11,7 @@
         "Programming Languages"
     ],
 	"activationEvents": [
+        "onLanguage:raven",
 		"onCommand:raven.helloWorld"
 	],
 	"main": "./out/extension.js",
