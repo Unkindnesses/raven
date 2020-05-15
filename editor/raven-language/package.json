@@ -13,7 +13,7 @@
 	"activationEvents": [
         "onLanguage:raven",
 		"onCommand:raven.helloWorld"
-	],
+    ],
 	"main": "./out/extension.js",
     "contributes": {
         "languages": [
@@ -41,7 +41,13 @@
 				"command": "raven.helloWorld",
 				"title": "Raven: Hello"
 			}
-		]
+		],
+        "configurationDefaults": {
+            "[raven]": {
+                "editor.tabSize": 2,
+                "editor.insertSpaces": true
+            }
+        }
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",
