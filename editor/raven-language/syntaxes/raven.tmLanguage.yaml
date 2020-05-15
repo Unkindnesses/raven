@@ -74,7 +74,7 @@ repository:
         0:
           name: punctuation.definition.quote.end.raven
       patterns:
-      - include: text.html.basic
+      - include: text.html.derivative
     - begin: '(html)(`)'
       beginCaptures:
         1:
@@ -86,5 +86,5 @@ repository:
         0:
           name: punctuation.definition.quote.end.raven
       patterns:
-        - include: text.html.basic
+        - include: text.html.derivative
 scopeName: source.raven
