@@ -11,8 +11,7 @@
         "Programming Languages"
     ],
 	"activationEvents": [
-        "onLanguage:raven",
-		"onCommand:raven.helloWorld"
+        "onLanguage:raven"
     ],
 	"main": "./out/extension.js",
     "contributes": {
@@ -36,18 +35,19 @@
                 "path": "./syntaxes/raven.tmLanguage.json"
             }
         ],
-		"commands": [
-			{
-				"command": "raven.helloWorld",
-				"title": "Raven: Hello"
-			}
-		],
         "configurationDefaults": {
             "[raven]": {
                 "editor.tabSize": 2,
                 "editor.insertSpaces": true
             }
-        }
+        },
+        "keybindings": [
+            {
+              "key": "space",
+              "when": "editorFocus && editorLangId == raven",
+              "command": "raven.space"
+            }
+        ]
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",
