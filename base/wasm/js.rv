@@ -4,14 +4,14 @@ fn jsref(x) { jsref(tojs(x)) }
 
 fn jsref(obj: JSObject) { part(obj, 1) }
 
-fn incrementRefCount(obj: JSObject) {
+fn retain(obj: JSObject) {
   ref = jsref(obj)
-  wasm { call(`incref`, ref: i32) }
+  wasm { call(`retain`, ref: i32) }
 }
 
-fn decrementRefCount(obj: JSObject) {
+fn release(obj: JSObject) {
   ref = jsref(obj)
-  wasm { call(`decref`, ref: i32) }
+  wasm { call(`release`, ref: i32) }
 }
 
 fn global() {

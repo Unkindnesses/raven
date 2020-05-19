@@ -13,11 +13,11 @@ function fromRef(ref) {
   return references[ref].object;
 }
 
-function incrementRefCount(ref) {
+function retain(ref) {
   references[ref].count += 1;
 }
 
-function decrementRefCount(ref) {
+function release(ref) {
   references[ref].count -= 1;
   if (references[ref].count == 0) {
     delete references[ref];
@@ -27,7 +27,7 @@ function decrementRefCount(ref) {
 function registerStrings(ss) {
   for (const s of ss) {
     const ref = createRef(s);
-    incrementRefCount(ref);
+    retain(ref);
   }
 }
 
@@ -60,7 +60,7 @@ function panic(obj) {
 }
 
 const support = {global, property, call,
-                 incrementRefCount, decrementRefCount,
+                 retain, release,
                  createRef, fromRef, panic};
 
 async function loadWasm(f) {
