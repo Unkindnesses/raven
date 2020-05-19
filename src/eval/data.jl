@@ -9,6 +9,10 @@ data(x...) = Data((x...,))
 nparts(x::Data) = length(x.parts)-1
 part(x::Data, i) = x.parts[i+1]
 
+Base.getindex(x::Data, i::Integer) = x.parts[i+1]
+Base.getindex(x::Data, i::AbstractVector) = data(x.parts[i.+1]...)
+Base.lastindex(x::Data) = lastindex(x.parts)
+Base.iterate(x::Data, st...) = iterate(x.parts, st...)
 Base.:(==)(a::Data, b::Data) = a.parts == b.parts
 Base.hash(x::Data, h::UInt) = hash((Data, x.parts), h)
 

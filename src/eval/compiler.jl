@@ -46,7 +46,7 @@ function vload(cx::Source, x::Syntax)
   f = sig isa Operator ? sig.op : sig.func
   args = Tuple(x.args[1].args)
   pat, args = lowerpattern(args)
-  method!(cx.mod, f, RMethod(pat, args, lowerfn(x, args)))
+  method!(cx.mod, f, RMethod(f, pat, args, lowerfn(x, args)))
   return f
 end
 
@@ -64,9 +64,9 @@ vload(m::Source, x) = load_expr(m, x)
 
 function finish!(cx::Source)
   fn = Syntax(:fn, [Call(:_main, []), Block(cx.main)])
-  method!(cx.mod, :_main, RMethod(lowerpattern(Tuple([]))..., lowerfn(fn, [])))
+  method!(cx.mod, :_main, RMethod(:_main, lowerpattern(Tuple([]))..., lowerfn(fn, [])))
   fn = Syntax(:fn, [Call(:_start, []), Block([Call(:_main, []), Call(:data, [Quote(:Nothing)])])])
-  method!(cx.mod, :_start, RMethod(lowerpattern(Tuple([]))..., lowerfn(fn, [])))
+  method!(cx.mod, :_start, RMethod(:_start, lowerpattern(Tuple([]))..., lowerfn(fn, [])))
 end
 
 function loadfile(cx::Source, io::IO)

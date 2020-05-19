@@ -105,6 +105,8 @@ function lowerdata!(mod::WModule, ir, v)
                        type = layout(ir[v].type))
 end
 
+ismethod(m, name) = m isa RMethod && m.name == name
+
 function lowerwasm!(mod::WModule, ir::IR)
   prune!(ir)
   casts!(ir)
@@ -116,16 +118,16 @@ function lowerwasm!(mod::WModule, ir::IR)
       if Ts isa WIntrinsic
         ex = Base.Expr(:call, st.expr.args[1].op, st.expr.args[2:end]...)
         ir[v] = IRTools.stmt(st.expr, expr = ex, type = Ts.ret)
-      elseif Ts[1] == :widen
+      elseif ismethod(Ts[1], :widen)
         val = Ts[2] isa Integer ? Ts[2] : st.expr.args[3]
         ir[v] = IRTools.stmt(val, type = layout(st.type))
       elseif Ts[1] == :cast
         _, T, val = Ts
         (val isa Number && T isa PrimitiveHole) || error("unsupported cast")
         ir[v] = IRTools.stmt(Ts[3], type = layout(T))
-      elseif Ts[1] == :data
+      elseif ismethod(Ts[1], :data)
         lowerdata!(mod, ir, v)
-      elseif Ts[1] == :part
+      elseif ismethod(Ts[1], :part)
         x::Data, i::Integer = Ts[2:end]
         xlayout = layout(x)
         part(i) = xlayout isa WTuple ? insert!(ir, v, Base.Expr(:ref, args[2], i)) : args[2]
@@ -134,7 +136,7 @@ function lowerwasm!(mod::WModule, ir::IR)
           Base.Expr(:tuple, part.(range)...) :
           part(range[1])
         ir[v] = IRTools.stmt(ex, type = layout(st.type))
-      elseif Ts[1] == :tojs && Ts[2] isa String
+      elseif ismethod(Ts[1], :tojs) && Ts[2] isa String
         ir[v] = IRTools.stmt(Int32(stringid!(mod, Ts[2])), type = layout(st.type))
       else
         func = lowerwasm!(mod, rtuple(Ts...))
@@ -149,8 +151,8 @@ end
 
 function lowerwasm!(mod::WModule, T)
   haskey(mod.funcs, T) && return mod.funcs[T][1]
-  id = part(T, 1)::Symbol
-  id = name(mod, id)
+  f = part(T, 1)::Union{Symbol,RMethod}
+  id = name(mod, f isa Symbol ? f : Symbol(f.name, ":method"))
   ir = lowerwasm!(mod, mod.inf.frames[T].ir)
   mod.funcs[T] = (id, ir)
   return id
@@ -183,7 +185,7 @@ end
 
 function wasmmodule(mod::RModule)
   # TODO hacky
-  method!(mod, :tojs, RMethod(lowerpattern(rvx"(s: PrimitiveString,)")..., _ -> data(:JSObject, PrimitiveHole{Int32}()), true))
+  method!(mod, :tojs, RMethod(:tojs, lowerpattern(rvx"(s: PrimitiveString,)")..., _ -> data(:JSObject, PrimitiveHole{Int32}()), true))
   wasmmodule(Inference(mod))
 end
 

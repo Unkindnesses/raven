@@ -70,3 +70,20 @@ function match(mod, bs, p, x)
 end
 
 match(mod, p, x) = match(mod, phmap(), p, x)
+
+ismatch(mod, p, x) = match(mod, p, x) != nothing
+
+function simple_match(mod, p, x)
+  tag(p) == :Bind && ismatch(mod, p, x) && return (:)
+  (tag(p) == :Data && part(p, 1) == data(:Literal, :Tuple)) || return
+  is = []
+  for i = 1:nparts(x)
+    pi = p[i+1]
+    if tag(pi) == :Bind && ismatch(mod, pi, x[i])
+      push!(is, i)
+    else
+      return
+    end
+  end
+  return is
+end

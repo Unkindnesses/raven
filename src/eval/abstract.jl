@@ -67,18 +67,41 @@ function frame!(inf, T, ir, args...)
   return fr
 end
 
+function dispatcher(inf, Ts)
+  func::Symbol = Ts[1]
+  args = rtuple(Ts[2:end]...)
+  # TODO: just create the branch for each method, then elide later.
+  applicable = [meth for meth in reverse(inf.mod.methods[func])
+                if match(inf.mod, meth.pattern, args) != nothing]
+  isempty(applicable) && error("No method matching $func($(join(args.parts[2:end], ", ")))")
+  meth = first(applicable)
+  ir = IR()
+  if (is = simple_match(inf.mod, meth.pattern, args)) != nothing
+    args = argument!(ir)
+    args = is == (:) ? [args] :
+      [push!(ir, Base.Expr(:call, part_method, args, i)) for i in is]
+  else
+    args = argument!(ir)
+    args = push!(ir, Base.Expr(:call, :match, meth.pattern, args))
+    args = [push!(ir, Base.Expr(:call, part_method, args, i)) for i = 1:length(meth.args)]
+  end
+  return!(ir, push!(ir, Base.Expr(:call, meth, args...)))
+  return ir
+end
+
 function infercall!(inf, loc, block, ex)
   Ts = exprtype.((block.ir,), ex.args)
-  (m, bs) = select_method(inf.mod, Ts...)
-  args = [bs[x] for x in m.args]
-  if m.partial
-    return m.func(args...)
+  if ex.args[1] isa RMethod
+    meth = ex.args[1]
+    Ts = Ts[2:end]
+    meth.partial && return meth.func(Ts...)
+    fr = frame!(inf, rtuple(meth, Ts...), meth.func, Ts...)
   else
     T = rtuple(Ts...)
-    fr = frame!(inf, T, m.func, args...)
-    push!(fr.edges, loc)
-    return fr.rettype
+    fr = frame!(inf, T, dispatcher(inf, Ts), rtuple(Ts[2:end]...))
   end
+  push!(fr.edges, loc)
+  return fr.rettype
 end
 
 function openbranches(bl)

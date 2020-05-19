@@ -1,13 +1,16 @@
 # Eval
 
 struct RMethod
+  name::Symbol
   pattern
   args
   func
   partial::Bool
 end
 
-RMethod(pat, args, func) = RMethod(pat, args, func, false)
+RMethod(name, pat, args, func) = RMethod(name, pat, args, func, false)
+
+Base.show(io::IO, meth::RMethod) = print(io, "RMethod($(meth.name))")
 
 function select_method(mod, func::Symbol, args...; partial = true)
   args = data(:Tuple, args...)
@@ -43,29 +46,30 @@ end
 
 @forward RModule.defs Base.getindex, Base.setindex!, Base.haskey
 
+part_method = RMethod(:part, lowerpattern(rvx"(data, i)")..., part, true)
+
 function primitives!(mod)
-  method!(mod, :data, RMethod(lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...)))
-  method!(mod, :data, RMethod(lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...), true))
-  method!(mod, :tuple, RMethod(lowerpattern(rvx"args")..., identity))
-  method!(mod, :tuple, RMethod(lowerpattern(rvx"args")..., identity, true))
-  method!(mod, :part, RMethod(lowerpattern(rvx"(data, i)")..., part))
-  method!(mod, :part, RMethod(lowerpattern(rvx"(data, i)")..., part, true))
-  method!(mod, :nparts, RMethod(lowerpattern(rvx"args")..., nparts))
+  method!(mod, :data, RMethod(:data, lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...)))
+  method!(mod, :data, RMethod(:data, lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...), true))
+  method!(mod, :tuple, RMethod(:tuple, lowerpattern(rvx"args")..., identity))
+  method!(mod, :tuple, RMethod(:tuple, lowerpattern(rvx"args")..., identity, true))
+  method!(mod, :part, RMethod(:part, lowerpattern(rvx"(data, i)")..., part))
+  method!(mod, :part, RMethod(:part, lowerpattern(rvx"(data, i)")..., part, true))
+  method!(mod, :nparts, RMethod(:nparts, lowerpattern(rvx"args")..., nparts))
   # TODO: this is a hacky fallback
-  method!(mod, Symbol("matches?"), RMethod(lowerpattern(rvx"(x, T)")..., (x, T) -> tag(x) == T))
+  method!(mod, Symbol("matches?"), RMethod(Symbol("matches?"), lowerpattern(rvx"(x, T)")..., (x, T) -> tag(x) == T))
 
   partial_widen(x::Primitive) = PrimitiveHole{typeof(x)}()
   partial_widen(x) = x
-  method!(mod, :widen, RMethod(lowerpattern(rvx"(x,)")..., identity))
-  method!(mod, :widen, RMethod(lowerpattern(rvx"(x,)")..., partial_widen, true))
+  method!(mod, :widen, RMethod(:widen, lowerpattern(rvx"(x,)")..., identity))
+  method!(mod, :widen, RMethod(:widen, lowerpattern(rvx"(x,)")..., partial_widen, true))
 
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)
-    method!(mod, Symbol("matches?"), RMethod(lowerpattern(parse("(x, `$T`)"))..., x -> Int32(isprimitive(x, T))))
+    method!(mod, Symbol("matches?"), RMethod(Symbol("matches?"), lowerpattern(parse("(x, `$T`)"))..., x -> Int32(isprimitive(x, T))))
   end
   mod[:PrimitiveString] = :PrimitiveString
-  method!(mod, Symbol("matches?"), RMethod(lowerpattern(rvx"(x, `PrimitiveString`)")..., x -> x isa String))
-
+  method!(mod, Symbol("matches?"), RMethod(Symbol("matches?"), lowerpattern(rvx"(x, `PrimitiveString`)")..., x -> x isa String))
   return mod
 end
 
@@ -80,7 +84,7 @@ function veval(m::RModule, x::Syntax)
   f = sig isa Operator ? sig.op : sig.func
   args = Tuple(x.args[1].args)
   pat, args = lowerpattern(args)
-  method!(main, f, RMethod(pat, args, lowerfn(x, args)))
+  method!(main, f, RMethod(f, pat, args, lowerfn(x, args)))
   return f
 end
 
@@ -99,15 +103,15 @@ main[:__backendWasm] = Int32(0)
 
 for T in :[Int32, Int64].args
   for op in :[+, -, *, /, &, |].args
-    method!(main, op, RMethod(lowerpattern(parse("(a: $T, b: $T)"))...,
+    method!(main, op, RMethod(op, lowerpattern(parse("(a: $T, b: $T)"))...,
                               getfield(Base, op)))
   end
   for op in :[==, >].args
-    method!(main, op, RMethod(lowerpattern(parse("(a: $T, b: $T)"))...,
+    method!(main, op, RMethod(op, lowerpattern(parse("(a: $T, b: $T)"))...,
                               (args...) -> getfield(Base, op)(args...) |> Int32))
   end
   for S in :[Int32, Int64].args
-    method!(main, S, RMethod(lowerpattern(parse("(x: $T,)"))..., x -> getfield(Base, S)(x)))
+    method!(main, S, RMethod(S, lowerpattern(parse("(x: $T,)"))..., x -> getfield(Base, S)(x)))
   end
 end
 
