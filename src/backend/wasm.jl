@@ -1,6 +1,6 @@
 using WebAssembly: WType, WTuple, i32, i64, f32, f64
 
-rvtype(x::WType) = PrimitiveHole{WebAssembly.jltype(x)}()
+rvtype(x::WType) = Hole{WebAssembly.jltype(x)}()
 rvtype(x::WTuple) = data(:Tuple, map(rvtype, x.parts)...)
 
 struct WIntrinsic
@@ -40,7 +40,7 @@ function cat_layout(xs...; result = [])
   return length(result) == 1 ? result[1] : WTuple(result)
 end
 
-layout(::PrimitiveHole{T}) where T = WebAssembly.WType(T)
+layout(::Hole{T}) where T = WebAssembly.WType(T)
 layout(x::Union{Primitive,Quote}) = WTuple()
 layout(x::Data) = cat_layout(layout.(x.parts)...)
 
@@ -123,7 +123,7 @@ function lowerwasm!(mod::WModule, ir::IR)
         ir[v] = IRTools.stmt(val, type = layout(st.type))
       elseif Ts[1] == :cast
         _, T, val = Ts
-        (val isa Number && T isa PrimitiveHole) || error("unsupported cast")
+        (val isa Number && T isa Hole) || error("unsupported cast")
         ir[v] = IRTools.stmt(Ts[3], type = layout(T))
       elseif ismethod(Ts[1], :data)
         lowerdata!(mod, ir, v)
@@ -185,7 +185,7 @@ end
 
 function wasmmodule(mod::RModule)
   # TODO hacky
-  method!(mod, :tojs, RMethod(:tojs, lowerpattern(rvx"(s: PrimitiveString,)")..., _ -> data(:JSObject, PrimitiveHole{Int32}()), true))
+  method!(mod, :tojs, RMethod(:tojs, lowerpattern(rvx"(s: PrimitiveString,)")..., _ -> data(:JSObject, Hole{Int32}()), true))
   wasmmodule(Inference(mod))
 end
 
