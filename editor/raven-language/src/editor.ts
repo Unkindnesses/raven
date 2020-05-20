@@ -4,7 +4,7 @@ async function space(editor: vscode.TextEditor, edit: vscode.TextEditorEdit) {
     if (editor.selections.length == 1 && editor.selection.isEmpty) {
         let position = editor.selection.active;
         // `{|}` -> `{ | }`
-        let start = new vscode.Position(position.line, position.character-1);
+        let start = new vscode.Position(position.line, Math.max(position.character-1,0));
         var end   = new vscode.Position(position.line, position.character+1);
         var text = editor.document.getText(new vscode.Range(start, end));
         if (text == '{}') {
