@@ -24,21 +24,15 @@ rtuple(xs...) = data(:Tuple, xs...)
 
 # Abstract Types
 
-struct Hole{T} end
-
-isprimitive(x::Hole{T}, ::Type{T}) where T = true
-
 struct Bottom end
 const ⊥ = Bottom()
-
-jtype(x::Hole{T}) where T = T
 
 Primitive = Union{Int64,Int32,Float64,Float32,Symbol,String}
 jtype(x::Primitive) = typeof(x)
 
 # Primitive Types
 for T in :[Int64, Int32, Float64, Float32, Symbol, String].args
-  @eval part(x::Union{$T,Hole{$T}}, i::Integer) =
+  @eval part(x::Union{$T,Type{$T}}, i::Integer) =
           i == 0 ? $(QuoteNode(T)) :
           i == 1 ? x :
           error("Tried to access part $i of 2")
@@ -55,7 +49,7 @@ function vprint(io::IO, s::Data)
   print(io, ")")
 end
 
-vprint(io::IO, ::Hole{T}) where T = print(io, "::$T")
+vprint(io::IO, ::Type{T}) where T = print(io, "::$T")
 
 vprint(io::IO, x::Symbol) = print(io, "`", x, "`")
 

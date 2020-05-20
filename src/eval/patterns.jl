@@ -2,6 +2,7 @@ const hole = data(:Hole)
 bind(name, pattern) = data(:Bind, name, pattern)
 
 isprimitive(x::T, ::Type{T}) where T = true
+isprimitive(::Type{T}, ::Type{T}) where T = true
 isprimitive(x, ::Type) = false
 
 # Pattern Lowering

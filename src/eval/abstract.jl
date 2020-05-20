@@ -7,12 +7,12 @@ exprtype(ir, x) = IRTools.exprtype(ir, x, typeof = _typeof)
 union(x) = x
 union(x::Data, y::Data) = x == y ? x : error("Unions not supported")
 union(::Bottom, xs...) = union(xs...)
-union(x::T, y::Hole{T}) where T = Hole{T}()
-union(x::Hole{T}, y::Hole{T}) where T = Hole{T}()
-union(x::T, y::T) where T<:Primitive = x == y ? x : Hole{T}()
-union(x::Hole{T}, y::T) where T = Hole{T}()
+union(x::T, y::Type{T}) where T = T
+union(x::Type{T}, y::Type{T}) where T = T
+union(x::T, y::T) where T<:Primitive = x == y ? x : T
+union(x::Type{T}, y::T) where T = T
 
-issubtype(x::Union{T,Hole{T}}, y::Hole{T}) where T = true
+issubtype(x::Union{T,Type{T}}, y::Type{T}) where T = true
 issubtype(x, y) = x == y
 
 function prepare_ir!(ir)

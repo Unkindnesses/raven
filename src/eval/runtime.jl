@@ -59,7 +59,7 @@ function primitives!(mod)
   # TODO: this is a hacky fallback
   method!(mod, Symbol("matches?"), RMethod(Symbol("matches?"), lowerpattern(rvx"(x, T)")..., (x, T) -> tag(x) == T))
 
-  partial_widen(x::Primitive) = Hole{typeof(x)}()
+  partial_widen(x::Primitive) = typeof(x)
   partial_widen(x) = x
   method!(mod, :widen, RMethod(:widen, lowerpattern(rvx"(x,)")..., identity))
   method!(mod, :widen, RMethod(:widen, lowerpattern(rvx"(x,)")..., partial_widen, true))
