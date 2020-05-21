@@ -82,6 +82,7 @@ function simple_match(mod, p, x)
     pi = p[i+1]
     if tag(pi) == :Bind && ismatch(mod, pi, x[i])
       push!(is, i)
+    elseif tag(pi) == :Literal && pi[1] == x[i]
     else
       return
     end

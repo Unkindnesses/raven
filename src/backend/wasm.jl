@@ -172,12 +172,12 @@ default_imports = [
 function wasmmodule(inf::Inference)
   mod = WModule(inf)
   strings = mod.strings
-  lowerwasm!(mod, rtuple(:_start))
+  lowerwasm!(mod, rtuple(startmethod(inf.mod)))
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
   mod = WebAssembly.Module(
     funcs = fs,
     imports = default_imports,
-    exports = [WebAssembly.Export(:_start, :_start, :func)],
+    exports = [WebAssembly.Export(:_start, Symbol("_start:method:1"), :func)],
     mems = [WebAssembly.Mem(0)])
   WebAssembly.multivalue_shim!(mod)
   return mod, strings

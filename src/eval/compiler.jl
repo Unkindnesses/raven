@@ -88,3 +88,5 @@ function loadfile(f::String)
   finish!(cx)
   return cx.mod
 end
+
+startmethod(mod) = mod.methods[:_start][1]

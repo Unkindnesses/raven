@@ -67,14 +67,32 @@ function frame!(inf, T, ir, args...)
   return fr
 end
 
+function frame!(inf, Ts)
+  if Ts[1] isa RMethod
+    meth = Ts[1]
+    Ts = Ts[2:end]
+    meth.partial && return meth.func(Ts...)
+    fr = frame!(inf, rtuple(meth, Ts...), meth.func, Ts...)
+  else
+    T = rtuple(Ts...)
+    fr = frame!(inf, T, dispatcher(inf, Ts), rtuple(Ts[2:end]...))
+  end
+  return fr
+end
+
+function applicable(mod, Ts)
+  args = rtuple(Ts[2:end]...)
+  [meth for meth in reverse(mod.methods[Ts[1]])
+   if match(mod, meth.pattern, args) != nothing]
+end
+
 function dispatcher(inf, Ts)
   func::Symbol = Ts[1]
   args = rtuple(Ts[2:end]...)
   # TODO: just create the branch for each method, then elide later.
-  applicable = [meth for meth in reverse(inf.mod.methods[func])
-                if match(inf.mod, meth.pattern, args) != nothing]
-  isempty(applicable) && error("No method matching $func($(join(args.parts[2:end], ", ")))")
-  meth = first(applicable)
+  meths = applicable(inf.mod, Ts)
+  isempty(meths) && error("No method matching $func($(join(args.parts[2:end], ", ")))")
+  meth = first(meths)
   ir = IR()
   if (is = simple_match(inf.mod, meth.pattern, args)) != nothing
     args = argument!(ir)
@@ -91,15 +109,8 @@ end
 
 function infercall!(inf, loc, block, ex)
   Ts = exprtype.((block.ir,), ex.args)
-  if ex.args[1] isa RMethod
-    meth = ex.args[1]
-    Ts = Ts[2:end]
-    meth.partial && return meth.func(Ts...)
-    fr = frame!(inf, rtuple(meth, Ts...), meth.func, Ts...)
-  else
-    T = rtuple(Ts...)
-    fr = frame!(inf, T, dispatcher(inf, Ts), rtuple(Ts[2:end]...))
-  end
+  fr = frame!(inf, Ts)
+  fr isa Frame || return fr
   push!(fr.edges, loc)
   return fr.rettype
 end
@@ -158,9 +169,48 @@ function infer!(inf::Inference)
   return inf
 end
 
-function Inference(mod::RModule)
+function Inference(mod::RModule; start = (startmethod(mod),))
   q = WorkQueue{Any}()
   inf = Inference(mod, Dict(), q)
-  frame!(inf, rtuple(:_start), mod.methods[:_start][1].func)
+  frame!(inf, start)
   infer!(inf)
 end
+
+# Reflection / introspection utils
+
+struct TypedMethod
+  name
+  dispatcher
+  patterns
+  methods
+end
+
+function Base.show(io::IO, m::TypedMethod)
+  println(io, "Typed code for ", m.name)
+  print(io, m.dispatcher)
+  for i = 1:length(m.methods)
+    println(io)
+    println(io, m.patterns[i])
+    print(io, m.methods[i])
+  end
+end
+
+function match_argtypes(inf, pattern, args)
+  if (is = simple_match(inf.mod, pattern, args)) != nothing
+    return map(i -> args[i], is)
+  else
+    error("Pattern not supported yet")
+  end
+end
+
+function typed(mod, Ts)
+  inf = Inference(mod, start = Ts)
+  dispatcher = inf.frames[rtuple(Ts...)].ir
+  meths = applicable(inf.mod, Ts)
+  patterns = [meth.pattern for meth in meths]
+  args = rtuple(Ts[2:end]...)
+  methods = [inf.frames[rtuple(meth, match_argtypes(inf, meth.pattern, args)...)].ir for meth in meths]
+  TypedMethod(Ts[1], dispatcher, patterns, methods)
+end
+
+typed(f::String, Ts) = typed(loadfile(f), Ts)
