@@ -75,7 +75,7 @@ end
 
 function repl_eval(repl, input)
   try
-    vprint(stdout, evalstring(input))
+    vprint(stdout, evalstring(main, input))
     println()
   catch e
     printstyled("Error: ", color = :red, bold = true)
@@ -83,3 +83,8 @@ function repl_eval(repl, input)
     println()
   end
 end
+
+const main = RModule()
+interpreter_primitives!(main)
+
+includerv(main, joinpath(@__DIR__, "..", "base", "base.rv"))

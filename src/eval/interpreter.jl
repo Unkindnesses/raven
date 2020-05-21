@@ -1,13 +1,14 @@
 mutable struct Interpreter
+  mod::RModule
   ir::IR
   ip::Base.Tuple{Int,Int}
   env::Dict{Variable,Any}
   stmts::Vector{Vector{Variable}}
 end
 
-function Interpreter(ir, args...)
+function Interpreter(mod, ir, args...)
   env = Dict(zip(arguments(block(ir, 1)), args))
-  Interpreter(ir, (1, 1), env, keys.(blocks(ir)))
+  Interpreter(mod, ir, (1, 1), env, keys.(blocks(ir)))
 end
 
 lookup(it, v) = v
@@ -41,11 +42,11 @@ end
 function eval_stmt(it::Interpreter, ex)
   if isexpr(ex, :call)
     args = map(x -> lookup(it, x), ex.args)
-    vinvoke(main, args...)
+    vinvoke(it.mod, args...)
   elseif !isexpr(ex)
     lookup(it, ex)
   elseif isexpr(ex, :import)
-    evalfile(joinpath(base, "$base/$(ex.args[1]).rv"))
+    includerv(it.mod, joinpath(base, "$base/$(ex.args[1]).rv"))
     return rnothing
   else
     error("Unrecognised expression $(ex.head)")
@@ -57,4 +58,4 @@ function run!(it::Interpreter)
   return r
 end
 
-interpret(ir::IR, args...) = run!(Interpreter(ir, args...))
+interpret(mod, ir::IR, args...) = run!(Interpreter(mod, ir, args...))

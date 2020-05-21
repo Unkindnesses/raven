@@ -14,17 +14,15 @@ include("eval/data.jl")
 include("frontend/parse.jl")
 include("frontend/lower.jl")
 
-include("eval/interpreter.jl")
 include("eval/patterns.jl")
 include("eval/runtime.jl")
+include("eval/interpreter.jl")
 include("eval/abstract.jl")
 include("eval/compiler.jl")
 
 include("backend/passes.jl")
 include("backend/wasm.jl")
 include("backend/js.jl")
-
-evalfile(joinpath(@__DIR__, "..", "base", "base.rv"))
 
 include("repl.jl")
 

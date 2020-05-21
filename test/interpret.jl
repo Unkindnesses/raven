@@ -3,7 +3,7 @@ using Raven, Test
 cd(@__DIR__)
 
 function result(test)
-  Raven.evalfile("raven/$test.rv") |> Bool
+  Raven.includerv("raven/$test.rv") |> Bool
 end
 
 @testset for test in [:pow, :ptr, :relu, :complex]
