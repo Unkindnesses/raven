@@ -80,6 +80,7 @@ function interpreter_primitives!(mod)
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)
     method!(mod, Symbol("matches?"), RMethod(Symbol("matches?"), lowerpattern(parse("(x, `$T`)"))..., x -> Int32(isprimitive(x, T))))
+    method!(mod, :string, RMethod(:string, lowerpattern(parse("(x: $T,)"))..., Base.string))
     for op in :[+, -, *, /, &, |].args
       method!(mod, op, RMethod(op, lowerpattern(parse("(a: $T, b: $T)"))...,
                                 getfield(Base, op)))
@@ -90,7 +91,6 @@ function interpreter_primitives!(mod)
     end
     for S in :[Int32, Int64].args
       method!(mod, S, RMethod(S, lowerpattern(parse("(x: $T,)"))..., x -> getfield(Base, S)(x)))
-      method!(mod, S, RMethod(:string, lowerpattern(parse("(x: $T,)"))..., string))
     end
   end
 end
