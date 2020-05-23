@@ -4,11 +4,10 @@ mutable struct Interpreter
   ip::Base.Tuple{Int,Int}
   env::Dict{Variable,Any}
   stmts::Vector{Vector{Variable}}
-end
-
-function Interpreter(mod, ir, args...)
-  env = Dict(zip(arguments(block(ir, 1)), args))
-  Interpreter(mod, ir, (1, 1), env, keys.(blocks(ir)))
+  function Interpreter(mod::RModule, ir::IR, args...)
+    env = Dict(zip(arguments(block(ir, 1)), args))
+    new(mod, ir, (1, 1), env, keys.(blocks(ir)))
+  end
 end
 
 lookup(it, v) = v
