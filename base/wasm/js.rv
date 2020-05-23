@@ -65,3 +65,24 @@ fn panic(s: String) {
   ref = jsref(s)
   wasm { call(`panic`, ref: i32) }
 }
+
+fn string(x: Int32) {
+  String(call(x, "toString"))
+}
+
+fn string(x: Int64) {
+  String(call(x, "toString"))
+}
+
+fn print(x: String) {
+  process = property(global(), "process")
+  stdout = property(process, "stdout")
+  call(stdout, "write", x)
+  return
+}
+
+fn println(x: JSObject) {
+  console = property(global(), "console")
+  call(console, "log", x)
+  return
+}

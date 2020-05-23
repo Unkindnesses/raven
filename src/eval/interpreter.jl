@@ -59,3 +59,10 @@ function run!(it::Interpreter)
 end
 
 interpret(mod, ir::IR, args...) = run!(Interpreter(mod, ir, args...))
+
+function interpret(file::String)
+  mod = RModule()
+  interpreter_primitives!(mod)
+  includerv(mod, joinpath(@__DIR__, "../../base", "base.rv"))
+  includerv(mod, file)
+end

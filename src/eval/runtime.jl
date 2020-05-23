@@ -75,6 +75,7 @@ function interpreter_primitives!(mod)
   method!(mod, :part, RMethod(:part, lowerpattern(rvx"(data, i)")..., part))
   method!(mod, :nparts, RMethod(:nparts, lowerpattern(rvx"args")..., nparts))
   method!(mod, :widen, RMethod(:widen, lowerpattern(rvx"(x,)")..., identity))
+  method!(mod, :print, RMethod(:print, lowerpattern(parse("(a: String,)"))..., x -> (print(x); rnothing)))
   method!(mod, Symbol("matches?"), RMethod(Symbol("matches?"), lowerpattern(rvx"(x, T)")..., (x, T) -> tag(x) == T))
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)
@@ -105,7 +106,7 @@ function veval(m::RModule, x::Syntax)
   f = sig isa Operator ? sig.op : sig.func
   args = Tuple(x.args[1].args)
   pat, args = lowerpattern(args)
-  method!(main, f, RMethod(f, pat, args, lowerfn(x, args)))
+  method!(m, f, RMethod(f, pat, args, lowerfn(x, args)))
   return f
 end
 
@@ -135,10 +136,4 @@ evalstring(mod, f::String) = includerv(mod, IOBuffer(f))
 
 macro rv_str(x)
   :(evalstring(main, $x))
-end
-
-function interpretFile(f::String)
-  mod = RModule()
-  interpreter_primitives!(mod)
-  return includerv(mod, f)
 end

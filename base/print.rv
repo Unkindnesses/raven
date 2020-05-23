@@ -1,31 +1,10 @@
-fn print(x: String) {
-  process = property(global(), "process")
-  stdout = property(process, "stdout")
-  call(stdout, "write", x)
-  return
-}
-
 fn println(x) {
   print(x)
   print("\n")
 }
 
-fn println(x: JSObject) {
-  console = property(global(), "console")
-  call(console, "log", x)
-  return
-}
-
-fn string(x: Int32) {
-  String(call(x, "toString"))
-}
-
 fn print(x: Int32) {
   print(string(x))
-}
-
-fn string(x: Int64) {
-  String(call(x, "toString"))
 }
 
 fn print(x: Int64) {
