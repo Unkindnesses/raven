@@ -1,6 +1,7 @@
 import REPL: REPL, LineEdit, REPLCompletions
 
 function __init__()
+  reset()
   if isdefined(Base, :active_repl)
     repl_init(Base.active_repl)
   else
@@ -75,8 +76,10 @@ end
 
 function repl_eval(repl, input)
   try
-    vprint(stdout, evalstring(main, input))
-    println()
+    result = evalstring(main, input)
+    if result != rnothing
+      vinvoke(main, :println, result)
+    end
   catch e
     printstyled("Error: ", color = :red, bold = true)
     Base.showerror(stdout, e)
@@ -84,7 +87,8 @@ function repl_eval(repl, input)
   end
 end
 
-const main = RModule()
-interpreter_primitives!(main)
-
-includerv(main, joinpath(@__DIR__, "..", "base", "base.rv"))
+function reset()
+  global main = RModule()
+  interpreter_primitives!(main)
+  includerv(main, joinpath(@__DIR__, "..", "base", "base.rv"))
+end

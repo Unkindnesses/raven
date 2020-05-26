@@ -74,7 +74,7 @@ fn string(x: Int64) {
   String(call(x, "toString"))
 }
 
-fn print(x: String) {
+fn _print(x: String) {
   process = property(global(), "process")
   stdout = property(process, "stdout")
   call(stdout, "write", x)

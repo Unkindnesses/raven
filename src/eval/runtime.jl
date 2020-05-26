@@ -73,9 +73,10 @@ function interpreter_primitives!(mod)
   method!(mod, :data, RMethod(:data, lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...)))
   method!(mod, :tuple, RMethod(:tuple, lowerpattern(rvx"args")..., identity))
   method!(mod, :part, RMethod(:part, lowerpattern(rvx"(data, i)")..., part))
-  method!(mod, :nparts, RMethod(:nparts, lowerpattern(rvx"args")..., nparts))
+  method!(mod, :nparts, RMethod(:nparts, lowerpattern(rvx"(x,)")..., nparts))
   method!(mod, :widen, RMethod(:widen, lowerpattern(rvx"(x,)")..., identity))
-  method!(mod, :print, RMethod(:print, lowerpattern(parse("(a: String,)"))..., x -> (print(x); rnothing)))
+  method!(mod, :_print, RMethod(:_print, lowerpattern(parse("(a: String,)"))..., x -> (print(x); rnothing)))
+  method!(mod, :string, RMethod(:string, lowerpattern(parse("(x: Symbol,)"))..., Base.string))
   method!(mod, Symbol("matches?"), RMethod(Symbol("matches?"), lowerpattern(rvx"(x, T)")..., (x, T) -> tag(x) == T))
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)
@@ -85,7 +86,7 @@ function interpreter_primitives!(mod)
       method!(mod, op, RMethod(op, lowerpattern(parse("(a: $T, b: $T)"))...,
                                 getfield(Base, op)))
     end
-    for op in :[==, >].args
+    for op in :[==, >, <, <=].args
       method!(mod, op, RMethod(op, lowerpattern(parse("(a: $T, b: $T)"))...,
                                 (args...) -> getfield(Base, op)(args...) |> Int32))
     end

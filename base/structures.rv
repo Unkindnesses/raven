@@ -12,3 +12,7 @@ fn list(x, y, z) { Prepend(x, list(y, z)) }
 fn sum(xs: EmptyList, s) { s }
 fn sum(xs: Prepend, s) { sum(rest(xs), s + first(xs)) }
 fn sum(xs: Prepend) { sum(xs, zero(first(xs))) }
+
+fn print(x: EmptyList) {
+  print("list()")
+}

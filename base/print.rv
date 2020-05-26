@@ -3,6 +3,26 @@ fn println(x) {
   print("\n")
 }
 
+fn print(x) {
+  print("data(")
+  print(tag(x))
+  i = 1
+  while i <= nparts(x) {
+    print(", ")
+    print(part(x, i))
+    i = i + 1
+  }
+  print(")")
+}
+
+fn print(s: String) { _print(s) }
+
+fn print(x: Symbol) {
+  print("`")
+  print(string(x))
+  print("`")
+}
+
 fn print(x: Int32) {
   print(string(x))
 }

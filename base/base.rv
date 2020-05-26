@@ -7,6 +7,7 @@ Int32   = `Int32`
 Int64   = `Int64`
 Float32 = `Float32`
 Float64 = `Float64`
+Symbol  = `Symbol`
 
 fn tag(x) { part(x, 0) }
 
@@ -14,8 +15,8 @@ fn identity(x) { x }
 
 fn Nothing() { data(`Nothing`) }
 
+import { print }
 import { wasm }
 import { numbers }
 import { structures }
 import { strings }
-import { print }
