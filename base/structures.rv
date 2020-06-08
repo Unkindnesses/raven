@@ -16,3 +16,18 @@ fn sum(xs: Prepend) { sum(xs, zero(first(xs))) }
 fn print(x: EmptyList) {
   print("list()")
 }
+
+fn print(x: Prepend) {
+  print("list(")
+  print(part(x, 1))
+  while true {
+    x = part(x, 2)
+    if tag(x) == `Prepend` {
+      print(", ")
+      print(part(x, 1))
+    } else {
+      break
+    }
+  }
+  print(")")
+}

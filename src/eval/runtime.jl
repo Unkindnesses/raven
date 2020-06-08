@@ -70,6 +70,8 @@ end
 
 function interpreter_primitives!(mod)
   mod[:__backendWasm] = Int32(0)
+  mod[Symbol("false")] = Int32(0)
+  mod[Symbol("true")] = Int32(1)
   method!(mod, :data, RMethod(:data, lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...)))
   method!(mod, :tuple, RMethod(:tuple, lowerpattern(rvx"args")..., identity))
   method!(mod, :part, RMethod(:part, lowerpattern(rvx"(data, i)")..., part))
@@ -78,6 +80,7 @@ function interpreter_primitives!(mod)
   method!(mod, :_print, RMethod(:_print, lowerpattern(parse("(a: String,)"))..., x -> (print(x); rnothing)))
   method!(mod, :string, RMethod(:string, lowerpattern(parse("(x: Symbol,)"))..., Base.string))
   method!(mod, Symbol("matches?"), RMethod(Symbol("matches?"), lowerpattern(rvx"(x, T)")..., (x, T) -> tag(x) == T))
+  method!(mod, :(==), RMethod(:(==), lowerpattern(rvx"(x: Symbol, y: Symbol)")..., (x, y) -> Int32(x==y)))
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)
     method!(mod, Symbol("matches?"), RMethod(Symbol("matches?"), lowerpattern(parse("(x, `$T`)"))..., x -> Int32(isprimitive(x, T))))
