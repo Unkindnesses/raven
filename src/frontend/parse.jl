@@ -223,9 +223,14 @@ function ret(io)
   Return(expr(io))
 end
 
+function _break(io)
+  symbol(io) == Symbol("break") || return
+  return Break()
+end
+
 function expr(io)
   consume_ws(io)
-  ex = parseone(io, ret, symbol, string, number, op_token, quotation, _tuple, _block)
+  ex = parseone(io, ret, _break, symbol, string, number, op_token, quotation, _tuple, _block)
   ex == nothing && throw(ParseError("Unexpected character $(read(io))", loc(io)))
   while (args = tryparse(brackets, io)) != nothing
     ex = Call(ex, args)

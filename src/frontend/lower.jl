@@ -52,6 +52,31 @@ function lower!(sc, ir::IR, ex::Return)
   return
 end
 
+function lower!(sc, ir::IR, ex::Break)
+  IRTools.branch!(ir, -1)
+  return
+end
+
+function lowerwhile!(sc, ir::IR, ex)
+  header = IRTools.block!(ir)
+  cond = lower!(sc, ir, ex.args[1])
+  IRTools.block!(ir)
+  lower!(sc, ir, ex.args[2].args)
+  body = blocks(ir)[end]
+  after = IRTools.block!(ir)
+  # Rewrite continue/break to the right block number
+  for i = header.id:body.id
+    bl = block(ir, i)
+    for j = 1:length(branches(bl))
+      br = branches(bl)[j]
+      br.block == -1 && (branches(bl)[j] = IRTools.Branch(br, block = after.id))
+    end
+  end
+  IRTools.branch!(header, after, unless = cond)
+  IRTools.branch!(body, header)
+  return rnothing
+end
+
 struct If
   cond::Vector{Any}
   body::Vector{Any}
@@ -105,23 +130,16 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
   end
   for i = 1:length(ts)
     IRTools.canbranch(ts[i]) &&
-      value ?
+      (value ?
         IRTools.branch!(ts[i], b, vs[i]) :
-        IRTools.branch!(ts[i], b)
+        IRTools.branch!(ts[i], b))
   end
   value && IRTools.argument!(b, insert = false)
 end
 
 function lower!(sc, ir::IR, ex::Syntax, value = true)
   if ex.name == :while
-    header = IRTools.block!(ir)
-    cond = lower!(sc, ir, ex.args[1])
-    body = IRTools.block!(ir)
-    lower!(sc, ir, ex.args[2].args)
-    after = IRTools.block!(ir)
-    IRTools.branch!(header, after, unless = cond)
-    IRTools.branch!(body, header)
-    return rnothing
+    lowerwhile!(sc, ir, ex)
   elseif ex.name == :if
     lowerif!(sc, ir, If(ex), value)
   elseif ex.name == :wasm

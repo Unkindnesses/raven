@@ -6,6 +6,10 @@ struct Return <: Expr
   val
 end
 
+struct Break <: Expr end
+
+struct Continue <: Expr end
+
 struct Tuple <: Expr
   args::Vector{Any}
 end
@@ -62,6 +66,9 @@ function _show(io::Ctx, x::Return)
   print(io, "return ")
   _show(io, x.val)
 end
+
+_show(io::Ctx, x::Break) = print(io, "break")
+_show(io::Ctx, x::Continue) = print(io, "continue")
 
 function _show(io::Ctx, x::Tuple)
   print(io, "(")
