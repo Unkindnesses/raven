@@ -1,33 +1,73 @@
 fn EmptyList() { data(`EmptyList`) }
-fn Prepend(a, b) { data(`Prepend`, a, b) }
+fn Prepend(xs, x) { data(`Prepend`, xs, x) }
 
-fn first(l: Prepend) { part(l, 1) }
-fn rest(l: Prepend) { part(l, 2) }
+# fn prepend(xs: List, x) { Prepend(x, xs) }
+fn prepend(xs: Prepend, x) { Prepend(xs, x) }
+fn prepend(xs: EmptyList, x) { Prepend(xs, x) }
+
+fn first(l: Prepend) { part(l, 2) }
+fn rest(l: Prepend) { part(l, 1) }
 
 fn list() { EmptyList() }
-fn list(x) { Prepend(x, list()) }
-fn list(x, y) { Prepend(x, list(y)) }
-fn list(x, y, z) { Prepend(x, list(y, z)) }
+# fn list(x, xs...) { prepend(x, list(xs...)) }
+fn list(x) { prepend(list(), x) }
+fn list(x, y) { prepend(list(y), x) }
+fn list(x, y, z) { prepend(list(y, z), x) }
 
-fn sum(xs: EmptyList, s) { s }
+fn isempty(xs: Prepend) { false }
+fn isempty(xs: EmptyList) { true }
+
+fn length(xs: Prepend) { 1 + length(rest(xs)) }
+fn length(xs: EmptyList) { 0 }
+
+fn range(start, end) {
+  if (start > end) {
+    list()
+  } else {
+    prepend(range(start+one(start), end), start)
+  }
+}
+
+fn repeat(n, x) {
+  if (n == 0) {
+    list()
+  } else {
+    prepend(repeat(n-1, x), x)
+  }
+}
+
+fn interleave(xs, ys) {
+  if (isempty(xs) | isempty(ys)) {
+    list()
+  } else {
+    result = interleave(rest(xs), rest(ys))
+    prepend(prepend(result, first(ys)), first(xs))
+  }
+}
+
+fn interpose(sep, xs) {
+  rest(interleave(repeat(length(xs), sep), xs))
+}
+
 fn sum(xs: Prepend, s) { sum(rest(xs), s + first(xs)) }
 fn sum(xs: Prepend) { sum(xs, zero(first(xs))) }
+fn sum(xs: EmptyList, s) { s }
 
-fn print(x: EmptyList) {
+fn map(f, xs: EmptyList) { xs }
+fn map(f, xs: Prepend) { prepend(map(f, rest(xs)), f(first(xs))) }
+
+fn foreach(f, _: EmptyList) { nothing }
+fn foreach(f, xs: Prepend) {
+  f(first(xs))
+  foreach(f, rest(xs))
+}
+
+fn print(_: EmptyList) {
   print("list()")
 }
 
-fn print(x: Prepend) {
+fn print(xs: Prepend) {
   print("list(")
-  print(part(x, 1))
-  while true {
-    x = part(x, 2)
-    if tag(x) == `Prepend` {
-      print(", ")
-      print(part(x, 1))
-    } else {
-      break
-    }
-  }
+  foreach(print, interpose(", ", xs))
   print(")")
 }
