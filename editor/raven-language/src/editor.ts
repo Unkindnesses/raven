@@ -15,14 +15,6 @@ async function space(editor: vscode.TextEditor, edit: vscode.TextEditorEdit) {
             editor.selection = new vscode.Selection(pos, pos);
             return;
         }
-        // `| }` -> ` |}`
-        var end   = new vscode.Position(position.line, position.character+2);
-        var text = editor.document.getText(new vscode.Range(position, end));
-        if (text == ' }') {
-            let pos = new vscode.Position(position.line, position.character+1);
-            editor.selection = new vscode.Selection(pos, pos);
-            return;
-        }
     }
     // Fallback: simulate standard behaviour
     editor.selections.forEach((selection, i) => {
