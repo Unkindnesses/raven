@@ -112,7 +112,7 @@ function symbol(io)
 end
 
 operators = ["=", "==", "+", "-", "*", "/", "^", ">", "<", ">=", "<=", ":",
-             ".", "&", "|"]
+             ".", "&", "|", "|>"]
 opchars = unique(reduce(*, operators))
 
 function op_token(io::IO)

@@ -13,6 +13,8 @@ fn tag(x) { part(x, 0) }
 
 fn identity(x) { x }
 
+fn (x |> f) { f(x) }
+
 fn Nothing() { data(`Nothing`) }
 
 import { print }
