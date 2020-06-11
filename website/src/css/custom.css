@@ -60,6 +60,8 @@ html[data-theme='dark'] .alert a:hover {
 .code-wrapper {
   /* padding: 5px 0 5px 0; */
   border-bottom: 1px solid #6e6e6e;
+  border-bottom-left-radius: 3px;
+  border-bottom-right-radius: 3px;
 }
 
 .code-header {
@@ -69,4 +71,6 @@ html[data-theme='dark'] .alert a:hover {
   padding-left: 10px;
   color: #929292;
   font-variant: small-caps;
+  border-top-left-radius: 3px;
+  border-top-right-radius: 3px;
 }
