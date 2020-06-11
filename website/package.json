@@ -12,8 +12,11 @@
     "@docusaurus/core": "^2.0.0-alpha.56",
     "@docusaurus/preset-classic": "^2.0.0-alpha.56",
     "classnames": "^2.2.6",
+    "file-loader": "^6.0.0",
+    "monaco-plugin": "file:monaco-plugin",
     "react": "^16.8.4",
-    "react-dom": "^16.8.4"
+    "react-dom": "^16.8.4",
+    "react-monaco-editor": "^0.36.0"
   },
   "browserslist": {
     "production": [

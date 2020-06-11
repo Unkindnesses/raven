@@ -1,3 +1,5 @@
+const path = require('path');
+
 module.exports = {
   title: 'The Raven Language',
   tagline: 'Documentation for the Raven Language',
@@ -107,4 +109,6 @@ module.exports = {
       },
     ],
   ],
+  plugins: [path.resolve(__dirname, './monaco-plugin')]
+  // plugins: ['monaco-plugin']
 };

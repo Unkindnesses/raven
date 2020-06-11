@@ -56,3 +56,17 @@ html[data-theme='dark'] .alert a:hover {
   margin: 0 calc(-1 * var(--ifm-pre-padding));
   padding: 0 var(--ifm-pre-padding);
 }
+
+.code-wrapper {
+  /* padding: 5px 0 5px 0; */
+  border-bottom: 1px solid #6e6e6e;
+}
+
+.code-header {
+  width: 100%;
+  background: #1E1E1E;
+  border-top: 1px solid #6e6e6e;
+  padding-left: 10px;
+  color: #929292;
+  font-variant: small-caps;
+}

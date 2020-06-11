@@ -1,0 +1,10 @@
+{
+  "name": "monaco-plugin",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "author": "",
+  "dependencies": {
+    "monaco-editor-webpack-plugin": "^1.9.0"
+  }
+}
