@@ -7,6 +7,7 @@ module.exports = {
   organizationName: 'MikeInnes', // Usually your GitHub org/user name.
   projectName: 'raven', // Usually your repo name.
   themeConfig: {
+    defaultDarkMode: true,
     navbar: {
       title: 'The Raven Language',
       logo: {
@@ -77,6 +78,9 @@ module.exports = {
       ],
       copyright: `Copyright © ${new Date().getFullYear()} The Raven Language.`,
     },
+    prism: {
+      theme: require('prism-react-renderer/themes/vsDark')
+    }
   },
   presets: [
     [
@@ -84,7 +88,7 @@ module.exports = {
       {
         docs: {
           // It is recommended to set document id as docs home page (`docs/` path).
-          homePageId: 'doc1',
+          homePageId: 'intro/intro',
           sidebarPath: require.resolve('./sidebars.js'),
           // Please change this to your repo.
           editUrl:

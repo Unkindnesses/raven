@@ -1,6 +1,6 @@
 module.exports = {
   someSidebar: {
-    'The Grimoire': ['doc1', 'doc2', 'doc3'],
-    Features: ['mdx'],
+    'The Grimoire': ['intro/intro', 'intro/setup'],
+    'Foundations': ['basics/functions'],
   },
 };

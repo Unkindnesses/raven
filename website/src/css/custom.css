@@ -27,14 +27,31 @@ html[data-theme='dark'] {
   --ifm-color-info: #a6a7e9;
   --ifm-color-warning: #e2cf61;
   --ifm-color-danger: #ff2a2a;
+  --ifm-link-color: rgb(255, 74, 74);
 }
 
 html[data-theme='dark'] .footer {
   background-color: var(--ifm-background-surface-color);
 }
 
+html[data-theme='dark'] .admonition {
+  background-color: transparent;
+  color: var(--ifm-font-color-base);
+  border-width: 3px;
+  --ra-admonition-icon-color: var(--ifm-font-color-base);
+}
+
+html[data-theme='dark'] .alert a {
+  color: var(--ifm-link-color);
+  text-decoration: inherit;
+}
+
+html[data-theme='dark'] .alert a:hover {
+  text-decoration: underline;
+}
+
 .docusaurus-highlight-code-line {
-  background-color: rgb(72, 77, 91);
+  background-color: rgb(36, 53, 94);
   display: block;
   margin: 0 calc(-1 * var(--ifm-pre-padding));
   padding: 0 var(--ifm-pre-padding);
