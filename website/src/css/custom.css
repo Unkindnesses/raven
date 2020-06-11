@@ -74,3 +74,16 @@ html[data-theme='dark'] .alert a:hover {
   border-top-left-radius: 3px;
   border-top-right-radius: 3px;
 }
+
+.code-header .buttons {
+  float: right;
+}
+
+.code-header .buttons a {
+  color: rgb(165, 165, 165);
+  margin-right: 10px;
+}
+
+.code-header .buttons a:hover {
+  color: rgb(214, 214, 214);
+}

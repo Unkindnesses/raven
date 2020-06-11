@@ -1,5 +1,6 @@
 import React, {useEffect, useState, useRef} from 'react';
 import MonacoEditor from 'react-monaco-editor';
+import {CopyIcon,ChevronRightIcon,XIcon} from '@primer/octicons-react'
 
 export default ({children, className: languageClassName, metastring}) => {
   let code = children.replace(/\n$/, '');
@@ -39,6 +40,13 @@ export default ({children, className: languageClassName, metastring}) => {
     <>
       <div className='code-header'>
         {language ? language : 'Code'}
+        <span class='buttons'>
+          {language == 'raven' ?
+            <a href="#"><ChevronRightIcon /></a> :
+            null}
+          <a href="#"><CopyIcon /></a>
+          <a href="#"><XIcon size='small' /></a>
+        </span>
       </div>
       <div className='code-wrapper'>
         <div style={{height: (lineCount*23+10) + 'px'}}>
