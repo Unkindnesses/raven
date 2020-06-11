@@ -10,7 +10,7 @@ You don't *need* any setup to start exploring Raven. This documentation is inter
 2+2 # Try editing this!
 ```
 
-If you just want to explore, you can move straight on to the basics.
+If you're happy just to explore, you can move straight on to the basics.
 
 If you want start doing more ambitious things, the best way is to get the [VS Code editor with the Raven plugin](#setup-with-vs-code).
 
