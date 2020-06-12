@@ -1,6 +1,7 @@
 import React, {useEffect, useState, useRef} from 'react';
 import MonacoEditor from 'react-monaco-editor';
-import {CopyIcon,ChevronRightIcon,XIcon} from '@primer/octicons-react'
+import {CopyIcon,CheckCircleFillIcon,ChevronRightIcon,XIcon} from '@primer/octicons-react'
+import Clipboard from 'clipboard'
 
 export default ({children, className: languageClassName, metastring}) => {
   let code = children.replace(/\n$/, '');
@@ -11,12 +12,50 @@ export default ({children, className: languageClassName, metastring}) => {
 
   const [lineCount, setLineCount] = useState(code.split('\n').length);
 
-  function onDidMount(editor, monaco) {
-    editor.onDidChangeModelContent(function () {
-      const newLineCount = editor.getModel().getLineCount();
-      setLineCount(newLineCount);
-      editor.layout();
-    });
+  const editor = useRef();
+
+  function layout() {
+    const newLineCount = editor.current.getModel().getLineCount();
+    setLineCount(newLineCount);
+    editor.current.layout();
+  }
+
+  function onDidMount(ed, monaco) {
+    editor.current = ed;
+    editor.current.onDidChangeModelContent(layout);
+  }
+
+  async function reset(e) {
+    e.preventDefault();
+    await editor.current.setValue(code);
+    layout();
+    editor.current.focus();
+  }
+
+  const [showCopied, setShowCopied] = useState(false);
+  const copyButton = useRef();
+
+  useEffect(() => {
+    let clipboard;
+
+    if (copyButton.current) {
+      clipboard = new Clipboard(copyButton.current, {
+        text: () => editor.current.getValue()
+      });
+    }
+
+    return () => {
+      if (clipboard) {
+        clipboard.destroy();
+      }
+    };
+  }, [copyButton.current]);
+
+  function copy(e) {
+    e.preventDefault();
+    setShowCopied(true);
+    setTimeout(() => setShowCopied(false), 2000);
+    editor.current.focus();
   }
 
   let options = {
@@ -40,12 +79,14 @@ export default ({children, className: languageClassName, metastring}) => {
     <>
       <div className='code-header'>
         {language ? language : 'Code'}
-        <span class='buttons'>
+        <span className='buttons'>
           {language == 'raven' ?
-            <a href="#"><ChevronRightIcon /></a> :
+            <a href="#" onClick={e=>e.preventDefault()}><ChevronRightIcon /></a> :
             null}
-          <a href="#"><CopyIcon /></a>
-          <a href="#"><XIcon size='small' /></a>
+          <a href="#" ref={copyButton} onClick={copy}>
+            {showCopied ? <CheckCircleFillIcon /> : <CopyIcon />}
+          </a>
+          <a href="#" onClick={reset}><XIcon /></a>
         </span>
       </div>
       <div className='code-wrapper'>
