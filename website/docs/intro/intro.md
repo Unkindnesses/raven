@@ -4,7 +4,7 @@ title: Introduction
 
 Welcome the *The Grimoire*, the complete guide to the Raven programming language. Raven is an expressive functional language that feels as breezy as a scripting tool. It is interactive, with support for notebooks and live coding, yet it can scale to the most ambitious projects via powerful error checking, great editor support, and robust debugging. Better yet, Raven compiles to fast [WebAssembly](https://webassembly.org/) code, meaning it works in the browser and can be used to publish interactive reports and documentation.
 
-The Grimoire is itself an interactive Raven program. The spells, incantations and wonders within can be enjoyed from the comfort of your browser.
+The Grimoire is itself an interactive Raven program. The charms, incantations and wonders within can be enjoyed from the comfort of your browser.
 
 ```raven
 # Edit me!

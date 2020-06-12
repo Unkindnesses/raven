@@ -34,6 +34,13 @@ html[data-theme='dark'] .footer {
   background-color: var(--ifm-background-surface-color);
 }
 
+/* Hide dark logo and show light one, in dark mode. */
+html[data-theme='dark'] .navbar__logo {
+  background-image: url(/img/logo-white.svg);
+  background-size: 100%;
+  object-position: 100px;
+}
+
 html[data-theme='dark'] .admonition {
   background-color: transparent;
   color: var(--ifm-font-color-base);
