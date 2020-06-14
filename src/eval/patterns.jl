@@ -59,7 +59,7 @@ function match(mod, bs, p, x)
     end
     return bs
   elseif tag(p) == :Isa
-    return Bool(vinvoke(mod, Symbol("matches?"), x, mod[part(p, 1)])) ? bs : nothing
+    return Bool(vinvoke(mod, Symbol("isa?"), x, mod[part(p, 1)])) ? bs : nothing
   elseif tag(p) == :Bind
     bs = match(mod, bs, part(p, 2), x)
     bs == nothing && return
