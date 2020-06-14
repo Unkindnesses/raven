@@ -28,12 +28,12 @@ repository:
   places:
     patterns:
       - name: entity.name.function.raven
-        match: '[A-Za-z][A-Za-z0-9!]*(?=\()'
+        match: '[A-Za-z][A-Za-z0-9!\?]*(?=\()'
       - name: entity.name.type.raven
-        match: '(?<=\:) ?[A-Za-z][A-Za-z0-9!]*'
+        match: '(?<=\:) ?[A-Za-z][A-Za-z0-9!?]*'
   variables:
     name: variable.other.raven
-    match: '[A-Za-z][A-Za-z0-9!]*'
+    match: '[A-Za-z][A-Za-z0-9!\?]*'
   operators:
     patterns:
       - name: keyword.operator.relation.raven
