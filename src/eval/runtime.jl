@@ -81,6 +81,7 @@ function interpreter_primitives!(mod)
   method!(mod, :string, RMethod(:string, lowerpattern(parse("(x: Symbol,)"))..., Base.string))
   method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(rvx"(x, T)")..., (x, T) -> Int32(tag(x) == T)))
   method!(mod, :(==), RMethod(:(==), lowerpattern(rvx"(x: Symbol, y: Symbol)")..., (x, y) -> Int32(x==y)))
+  method!(mod, :panic, RMethod(:panic, lowerpattern(parse("(x: String,)"))..., error))
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)
     method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(parse("(x, `$T`)"))..., x -> Int32(isprimitive(x, T))))
