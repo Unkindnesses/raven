@@ -8,6 +8,7 @@ fn isa?(xs: Prepend, `List`) { true }
 fn isa?(xs: EmptyList, `List`) { true }
 
 fn prepend(xs: List, x) { Prepend(xs, x) }
+fn prepend(xs: List, x, y) { prepend(prepend(xs, x), y) }
 
 fn first(l: EmptyList) { panic("first: List is empty") }
 fn first(l: Prepend) { part(l, 2) }
@@ -46,8 +47,7 @@ fn repeat(n, x) {
 fn interleave(xs: List, ys: List) { list() }
 
 fn interleave(xs: Prepend, ys: Prepend) {
-  result = interleave(rest(xs), rest(ys))
-  prepend(prepend(result, first(ys)), first(xs))
+  prepend(interleave(rest(xs), rest(ys)), first(ys), first(xs))
 }
 
 fn interpose(sep, xs) {
