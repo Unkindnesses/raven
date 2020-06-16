@@ -22,8 +22,8 @@ fn list(x) { prepend(list(), x) }
 fn list(x, y) { prepend(list(y), x) }
 fn list(x, y, z) { prepend(list(y, z), x) }
 
-fn isempty(xs: Prepend) { false }
-fn isempty(xs: EmptyList) { true }
+fn empty?(xs: Prepend) { false }
+fn empty?(xs: EmptyList) { true }
 
 fn length(xs: Prepend) { 1 + length(rest(xs)) }
 fn length(xs: EmptyList) { 0 }
