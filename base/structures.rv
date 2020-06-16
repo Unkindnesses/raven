@@ -36,13 +36,8 @@ fn range(start, end) {
   }
 }
 
-fn repeat(n, x) {
-  if (n == 0) {
-    list()
-  } else {
-    prepend(repeat(n-1, x), x)
-  }
-}
+fn repeat(n, x) { prepend(repeat(n-1, x), x) }
+fn repeat(0, x) { list() }
 
 fn interleave(xs: List, ys: List) { list() }
 
@@ -55,8 +50,9 @@ fn interpose(sep, xs) {
 }
 
 fn sum(xs: Prepend, s) { sum(rest(xs), s + first(xs)) }
-fn sum(xs: Prepend) { sum(xs, zero(first(xs))) }
 fn sum(xs: EmptyList, s) { s }
+
+fn sum(xs: List) { sum(xs, zero(first(xs))) }
 
 fn map(f, xs: EmptyList) { xs }
 fn map(f, xs: Prepend) { prepend(map(f, rest(xs)), f(first(xs))) }
