@@ -1,11 +1,18 @@
+List = `List`
+
 fn EmptyList() { data(`EmptyList`) }
-fn Prepend(xs, x) { data(`Prepend`, xs, x) }
+fn Prepend(xs: List, x) { data(`Prepend`, xs, x) }
 
-# fn prepend(xs: List, x) { Prepend(x, xs) }
-fn prepend(xs: Prepend, x) { Prepend(xs, x) }
-fn prepend(xs: EmptyList, x) { Prepend(xs, x) }
+fn isa?(xs, `List`) { false }
+fn isa?(xs: Prepend, `List`) { true }
+fn isa?(xs: EmptyList, `List`) { true }
 
+fn prepend(xs: List, x) { Prepend(xs, x) }
+
+fn first(l: EmptyList) { panic("first: List is empty") }
 fn first(l: Prepend) { part(l, 2) }
+
+fn rest(l: EmptyList)  { panic("rest: List is empty") }
 fn rest(l: Prepend) { part(l, 1) }
 
 fn list() { EmptyList() }
@@ -36,13 +43,11 @@ fn repeat(n, x) {
   }
 }
 
-fn interleave(xs, ys) {
-  if (isempty(xs) | isempty(ys)) {
-    list()
-  } else {
-    result = interleave(rest(xs), rest(ys))
-    prepend(prepend(result, first(ys)), first(xs))
-  }
+fn interleave(xs: List, ys: List) { list() }
+
+fn interleave(xs: Prepend, ys: Prepend) {
+  result = interleave(rest(xs), rest(ys))
+  prepend(prepend(result, first(ys)), first(xs))
 }
 
 fn interpose(sep, xs) {
@@ -62,11 +67,7 @@ fn foreach(f, xs: Prepend) {
   foreach(f, rest(xs))
 }
 
-fn print(_: EmptyList) {
-  print("list()")
-}
-
-fn print(xs: Prepend) {
+fn print(xs: List) {
   print("list(")
   foreach(print, interpose(", ", xs))
   print(")")

@@ -49,6 +49,8 @@ end
 part_method = RMethod(:part, lowerpattern(rvx"(data, i)")..., part, true)
 
 function primitives!(mod)
+  mod[Symbol("false")] = Int32(0)
+  mod[Symbol("true")] = Int32(1)
   method!(mod, :data, RMethod(:data, lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...), true))
   method!(mod, :tuple, RMethod(:tuple, lowerpattern(rvx"args")..., identity, true))
   method!(mod, :part, RMethod(:part, lowerpattern(rvx"(data, i)")..., part, true))

@@ -43,6 +43,19 @@ end
 
 # Pattern Matching
 
+# Check for mismatched literals first
+# This lets us fail faster in some cases, and also avoids some cases from becoming circular.
+function quickcheck(p, x)
+  nparts(p) == nparts(x) + 1 || return false
+  for i = 0:nparts(x)
+    pi = part(p, i+1)
+    if tag(pi) == :Literal && part(pi, 1) != part(x, i)
+      return false
+    end
+  end
+  return true
+end
+
 function match(mod, bs, p, x)
   if p isa Function
     return p(x) ? bs : nothing
@@ -52,7 +65,7 @@ function match(mod, bs, p, x)
     p = part(p, 1)
     return p == x ? bs : nothing
   elseif tag(p) == :Data
-    nparts(p) == nparts(x) + 1 || return
+    quickcheck(p, x) || return
     for i = 0:nparts(x)
       bs = match(mod, bs, part(p, i+1), part(x, i))
       bs == nothing && return
