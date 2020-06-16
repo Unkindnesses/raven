@@ -11,7 +11,7 @@ function lowerisa(ex, as)
   if ex isa Symbol
     return data(:Isa, ex)
   else
-    lowerpattern(ex, as)
+    _lowerpattern(ex, as)
   end
 end
 
