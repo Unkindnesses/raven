@@ -3,11 +3,11 @@ fn Ptr(x: Int64) { Ptr(Int32(x)) }
 
 fn addr(x: Ptr) { part(x, 1) }
 
-fn (p: Ptr) + (x) {
+fn ((p: Ptr) + x) {
   Ptr(addr(p) + Int32(x))
 }
 
-fn (p: Ptr) - (x) {
+fn ((p: Ptr) - x) {
   Ptr(addr(p) - Int32(x))
 }
 

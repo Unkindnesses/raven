@@ -31,18 +31,20 @@ function parse(f, io, a...; kw...)
   return result
 end
 
-function tryparse(args...; kw...)
+function tryparse(f, io, args...; kw...)
+  p = position(io)
   try
-    parse(args...; kw...)
+    parse(f, io, args...; kw...)
   catch e
     e isa ParseError || rethrow(e)
+    seek(io, p)
     nothing
   end
 end
 
-function parseone(io, fs...)
+function parseone(io, fs...; kw...)
   for f in fs
-    (x = parse(f, io)) != nothing && return x
+    (x = parse(f, io; kw...)) != nothing && return x
   end
 end
 
@@ -138,7 +140,7 @@ end
 
 function quotation(io::IO)
   read(io) == '`' || return
-  x = parse(io)
+  x = parse(io, quasi = false)
   read(io) == '`' || error("Expecting a `")
   return Quote(x)
 end
@@ -228,9 +230,12 @@ function _break(io)
   return Break()
 end
 
-function expr(io)
+nop(io) = nothing
+
+function expr(io; quasi = true)
   consume_ws(io)
-  ex = parseone(io, ret, _break, symbol, string, number, op_token, quotation, _tuple, _block)
+  quot = quasi ? quotation : nop
+  ex = parseone(io, ret, _break, symbol, string, number, op_token, quot, _tuple, _block)
   ex == nothing && throw(ParseError("Unexpected character $(read(io))", loc(io)))
   while (args = tryparse(brackets, io)) != nothing
     ex = Call(ex, args)
@@ -242,16 +247,18 @@ function expr(io)
   return ex
 end
 
-function _syntax(io)
-  name = @try symbol(io)
-  (!eof(io) && peek(io) in ('{', ' ')) || return
+function _syntax(io; quasi = true)
+  name = @try expr(io)
+  name isa Symbol || return
+  !eof(io) || return
   args = []
   block = false
   while !eof(io)
     parse(stmt, io) == nothing || break
     consume_ws(io)
     peek(io) in ('}', ')', ']') && break
-    next = parse(expr, io)
+    next = tryparse(expr, io; quasi)
+    next == nothing && return
     next isa Block && (block = true)
     push!(args, next)
   end
@@ -259,9 +266,9 @@ function _syntax(io)
   return Syntax(name, args)
 end
 
-function parse(io::IO)
+function parse(io::IO; quasi = true)
   consume_ws(io); stmts(io)
-  parseone(io, _syntax, expr)
+  parseone(io, _syntax, expr; quasi)
 end
 
 parse(s::String) = parse(LineNumberingReader(IOBuffer(s)))
