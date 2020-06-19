@@ -48,6 +48,8 @@ fn interpose(sep, xs) {
   rest(interleave(repeat(length(xs), sep), xs))
 }
 
+fn interpose(sep, xs: EmptyList) { xs }
+
 fn sum(xs: Prepend, s) { sum(rest(xs), s + first(xs)) }
 fn sum(xs: EmptyList, s) { s }
 
