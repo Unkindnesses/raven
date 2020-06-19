@@ -10,6 +10,10 @@ isprimitive(x, ::Type) = false
 function lowerisa(ex, as)
   if ex isa Symbol
     return data(:Isa, ex)
+  elseif ex isa Operator && ex.op == :(|)
+    data(:Or, map(x -> lowerisa(x, as), ex.args)...)
+  elseif ex isa Operator && ex.op == :(&)
+    data(:And, map(x -> lowerisa(x, as), ex.args)...)
   else
     _lowerpattern(ex, as)
   end
@@ -73,6 +77,12 @@ function match(mod, bs, p, x)
     return bs
   elseif tag(p) == :Isa
     return Bool(vinvoke(mod, Symbol("isa?"), x, mod[part(p, 1)])) ? bs : nothing
+  elseif tag(p) == :Or
+    for i = 1:nparts(p)
+      bs′ = match(mod, bs, part(p, i), x)
+      bs′ == nothing || return bs′
+    end
+    return
   elseif tag(p) == :Bind
     bs = match(mod, bs, part(p, 2), x)
     bs == nothing && return

@@ -4,8 +4,7 @@ fn EmptyList() { data(`EmptyList`) }
 fn Prepend(xs: List, x) { data(`Prepend`, xs, x) }
 
 fn isa?(xs, `List`) { false }
-fn isa?(xs: Prepend, `List`) { true }
-fn isa?(xs: EmptyList, `List`) { true }
+fn isa?(xs: Prepend | EmptyList, `List`) { true }
 
 fn prepend(xs: List, x) { Prepend(xs, x) }
 fn prepend(xs: List, x, y) { prepend(prepend(xs, x), y) }
