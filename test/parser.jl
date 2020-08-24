@@ -1,5 +1,5 @@
 using Raven, Test
-using Raven: Call, Syntax, Block, Operator, @rvx_str
+using Raven: Call, Syntax, Block, Operator, Splat, @rvx_str
 
 @test rvx"foo(x, y)" == Call(:foo, [:x, :y])
 
@@ -34,3 +34,5 @@ using Raven: Call, Syntax, Block, Operator, @rvx_str
   """ == Syntax(:if, [rvx"x>0", Block([1]),
                       :else, :if, rvx"x<0", Block([2]),
                       :else, Block([3])])
+
+@test rvx"foo(x, y...)" == Call(:foo, [:x, Splat(:y)])

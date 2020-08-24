@@ -76,6 +76,15 @@ end
 
 # Tokens
 
+function exact(s)
+  function (io)
+    for ch in s
+      (!eof(io) && (read(io) == ch)) || return
+    end
+    return s
+  end
+end
+
 function integer(io::IO)
   num = IOBuffer()
   isnumeric(peek(io)) || return
@@ -183,6 +192,9 @@ function brackets(io, start = '(', stop = bracketmap[start])
   while true
     parse(char(stop), io) == nothing || break
     x = parse(io)
+    if parse(exact("..."), io) != nothing
+      x = Splat(x)
+    end
     push!(xs, x)
     nt = read(io)
     nt == stop && break

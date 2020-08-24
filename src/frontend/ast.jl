@@ -14,6 +14,10 @@ struct Tuple <: Expr
   args::Vector{Any}
 end
 
+struct Splat
+  expr::Any
+end
+
 struct Call <: Expr
   func
   args::Vector{Any}
@@ -82,6 +86,11 @@ function _show(io::Ctx, x::Call)
   print(io, "(")
   join(io, repr.((io,), x.args), ", ")
   print(io, ")")
+end
+
+function _show(io::Ctx, x::Splat)
+  _show(io, x.expr)
+  print(io, "...")
 end
 
 function _show(io::Ctx, x::Operator)
