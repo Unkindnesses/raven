@@ -53,6 +53,7 @@ function primitives!(mod)
   mod[Symbol("true")] = Int32(1)
   method!(mod, :data, RMethod(:data, lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...), true))
   method!(mod, :part, RMethod(:part, lowerpattern(rvx"(data, i)")..., part, true))
+  method!(mod, :nparts, RMethod(:nparts, lowerpattern(rvx"(x,)")..., nparts, true))
   # TODO: this is a hacky fallback
   method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(rvx"(x, T)")..., (x, T) -> Int32(tag(x) == T)))
 

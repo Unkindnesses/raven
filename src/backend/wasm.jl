@@ -136,6 +136,8 @@ function lowerwasm!(mod::WModule, ir::IR)
           Base.Expr(:tuple, part.(range)...) :
           part(range[1])
         ir[v] = IRTools.stmt(ex, type = layout(st.type))
+      elseif ismethod(Ts[1], :nparts)
+        ir[v] = nparts(Ts[2])
       elseif ismethod(Ts[1], :tojs) && Ts[2] isa String
         ir[v] = IRTools.stmt(Int32(stringid!(mod, Ts[2])), type = layout(st.type))
       else
