@@ -50,6 +50,10 @@ fn (a: Int64) < (b: Int64) {
   wasm { (i64.lt_s)(a: i64, b: i64): i32 }
 }
 
+fn (a: Int64) <= (b: Int64) {
+  wasm { (i64.le_s)(a: i64, b: i64): i32 }
+}
+
 fn (a: Int32) < (b: Int32) {
   wasm { (i32.lt_s)(a: i32, b: i32): i32 }
 }
