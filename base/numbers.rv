@@ -8,6 +8,10 @@ fn zero(x: Int32) { Int32(0) }
 fn one(x: Int64) { Int64(1) }
 fn one(x: Int32) { Int32(1) }
 
+fn (a != b) {
+  not(a == b)
+}
+
 # TODO: abstract integer type
 fn x ^ (n: Int64) {
   r = one(x)

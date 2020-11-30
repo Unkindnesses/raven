@@ -8,6 +8,7 @@ Int64   = `Int64`
 Float32 = `Float32`
 Float64 = `Float64`
 Symbol  = `Symbol`
+Tuple   = `Tuple`
 
 fn tag(x) { part(x, 0) }
 
