@@ -43,6 +43,8 @@ mutable struct Frame
   rettype
 end
 
+Base.show(io::IO, ::Frame) = print(io, "Frame(...)")
+
 Frame(ir::IR) = Frame(ir, [], keys.(blocks(ir)), ⊥)
 
 function frame(ir::IR, args...)
