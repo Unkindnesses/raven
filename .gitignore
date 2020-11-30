@@ -5,4 +5,4 @@
 *.jl.mem
 dev
 *.wasm
-test/**/*.js
+test/compiled

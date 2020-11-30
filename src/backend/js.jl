@@ -13,9 +13,11 @@ function emitjs(path, wasm, strings)
   end
 end
 
-function compile(file)
+function compile(file, dir = dirname(file))
   path, _ = splitext(file)
-  strings = emitwasm(file, "$path.wasm")
-  emitjs("$path.js", "$(basename(path)).wasm", strings)
+  name = basename(path)
+  mkpath(dir)
+  strings = emitwasm(file, joinpath(dir, "$name.wasm"))
+  emitjs(joinpath(dir, "$name.js"), "$name.wasm", strings)
   return
 end
