@@ -169,10 +169,15 @@ default_imports = [
   WebAssembly.Import(:support, :createRef, :jsbox, :func, [f64], [i32]),
   WebAssembly.Import(:support, :fromRef, :jsunbox, :func, [i32], [f64])]
 
-function wasmmodule(inf::Inference)
+function wasm_ir(inf::Inference)
   mod = WModule(inf)
-  strings = mod.strings
   lowerwasm!(mod, rtuple(startmethod(inf.mod)))
+  return mod
+end
+
+function wasmmodule(inf::Inference)
+  mod = wasm_ir(inf)
+  strings = mod.strings
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
   mod = WebAssembly.Module(
     funcs = fs,
@@ -183,9 +188,13 @@ function wasmmodule(inf::Inference)
   return mod, strings
 end
 
-function wasmmodule(mod::RModule)
-  # TODO hacky
+# TODO hacky
+function wasm_primitives!(mod::RModule)
   method!(mod, :tojs, RMethod(:tojs, lowerpattern(rvx"(s: PrimitiveString,)")..., _ -> data(:JSObject, Int32), true))
+end
+
+function wasmmodule(mod::RModule)
+  wasm_primitives!(mod)
   wasmmodule(Inference(mod))
 end
 
@@ -193,4 +202,18 @@ function emitwasm(file, out)
   mod, strings = wasmmodule(loadfile(file))
   WebAssembly.binary(mod, out)
   return strings
+end
+
+sigmatch(sig, func) = sig[1] == func || ismethod(sig[1], func)
+
+function code_wasm(src, func = :_main)
+  mod = loadfile(src)
+  wasm_primitives!(mod)
+  mod = wasm_ir(Inference(mod))
+  Dict{Any,IR}(sig => fr[2] for (sig, fr) in mod.funcs if sigmatch(sig, func))
+end
+
+function code_typed(src, func = :_main)
+  inf = Inference(loadfile(src))
+  Dict{Any,IR}(sig => fr.ir for (sig, fr) in inf.frames if sigmatch(sig, func))
 end
