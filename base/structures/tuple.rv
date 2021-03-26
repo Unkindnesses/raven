@@ -1,0 +1,12 @@
+fn print(x: Tuple) {
+  print("(")
+  i = 1
+  while i <= nparts(x) {
+    if (i != 1) {
+      print(", ")
+    }
+    print(part(x, i))
+    i = i + 1
+  }
+  print(")")
+}
