@@ -186,7 +186,6 @@ function wasmmodule(inf::Inference)
     imports = default_imports,
     exports = [WebAssembly.Export(:_start, Symbol("_start:method:1"), :func)],
     mems = [WebAssembly.Mem(0)])
-  WebAssembly.multivalue_shim!(mod)
   return mod, strings
 end
 
@@ -200,9 +199,18 @@ function wasmmodule(mod::RModule)
   wasmmodule(Inference(mod))
 end
 
+function binary(m::WebAssembly.Module, file; optimise = true)
+  wat = tempname() * ".wat"
+  WebAssembly.write_wat(wat, m)
+  run(`wat2wasm $wat -o $file`)
+  optimise && run(`wasm-opt --enable-multivalue $file -O4 -o $file`)
+  rm(wat)
+  return
+end
+
 function emitwasm(file, out)
   mod, strings = wasmmodule(loadfile(file))
-  WebAssembly.binary(mod, out)
+  binary(mod, out)
   return strings
 end
 
