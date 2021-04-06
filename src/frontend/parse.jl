@@ -278,6 +278,7 @@ function _syntax(io; quasi = true)
   return Syntax(name, args)
 end
 
+# returns `nothing` if there is no valid input (EOF or only whitespace/comments)
 function parse(io::IO; quasi = true)
   consume_ws(io); stmts(io)
   parseone(io, _syntax, expr; quasi)

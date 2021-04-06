@@ -73,8 +73,7 @@ function loadfile(cx::Source, io::IO)
   io = LineNumberingReader(io)
   out = rnothing
   stmts(io)
-  while !eof(io)
-    ex = parse(io)
+  while (ex = parse(io)) != nothing
     out = vload(cx, ex)
     stmts(io)
   end
