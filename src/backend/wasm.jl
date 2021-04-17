@@ -224,6 +224,8 @@ function code_wasm(src, func = :_main)
 end
 
 function code_typed(src, func = :_main)
-  inf = Inference(loadfile(src))
+  mod = loadfile(src)
+  wasm_primitives!(mod)
+  inf = Inference(mod)
   Dict{Any,IR}(sig => fr.ir for (sig, fr) in inf.frames if sigmatch(sig, func))
 end
