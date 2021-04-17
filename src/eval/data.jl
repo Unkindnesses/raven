@@ -56,3 +56,6 @@ vprint(io::IO, x::Symbol) = print(io, "`", x, "`")
 vprint(io::IO, x::Expr) = print(io, "`", x, "`")
 
 Base.show(io::IO, d::Data) = vprint(io, d)
+
+# Show inside AST
+_show(io::Ctx, x::Data) = show(io.io, x)

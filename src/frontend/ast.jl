@@ -124,6 +124,4 @@ function _show(io::Ctx, x::Syntax)
   end
 end
 
-_show(io::Ctx, x::Data) = show(io.io, x)
-
 Base.show(io::IO, x::Expr) = _show(ShowContext(io), x)
