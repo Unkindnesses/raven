@@ -52,22 +52,6 @@ function eval_stmt(it::Interpreter, ex)
   end
 end
 
-function run!(it::Interpreter)
-  while (r = step!(it)) == nothing end
-  return r
-end
-
-interpret(mod, ir::IR, args...) = run!(Interpreter(mod, ir, args...))
-
-function interpret(file::String)
-  mod = RModule()
-  interpreter_primitives!(mod)
-  includerv(mod, joinpath(@__DIR__, "../../base", "base.rv"))
-  includerv(mod, file)
-end
-
-# Old interp stuff
-
 function select_method(mod, func::Symbol, args...; partial = true)
   args = data(:Tuple, args...)
   for meth in reverse(mod.methods[func])
@@ -86,6 +70,54 @@ function vinvoke(mod, func::Symbol, args...)
   args = [bs[a] for a in meth.args]
   f isa Function ? f(args...) : interpret(mod, f, args...)
 end
+
+function run!(it::Interpreter)
+  while (r = step!(it)) == nothing end
+  return r
+end
+
+interpret(mod, ir::IR, args...) = run!(Interpreter(mod, ir, args...))
+
+function interpret(file::String)
+  m = RModule()
+  interpreter_primitives!(m)
+  loadfile(m, file)
+  interpret(m, startmethod(m).func)
+  return
+end
+
+function interpreter_primitives!(mod)
+  mod[Symbol("false")] = Int32(0)
+  mod[Symbol("true")] = Int32(1)
+  method!(mod, :data, RMethod(:data, lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...)))
+  method!(mod, :part, RMethod(:part, lowerpattern(rvx"(data, i)")..., part))
+  method!(mod, :nparts, RMethod(:nparts, lowerpattern(rvx"(x,)")..., nparts))
+  method!(mod, :widen, RMethod(:widen, lowerpattern(rvx"(x,)")..., identity))
+  method!(mod, :_print, RMethod(:_print, lowerpattern(parse("(a: String,)"))..., x -> (print(x); rnothing)))
+  method!(mod, :string, RMethod(:string, lowerpattern(parse("(x: Symbol,)"))..., Base.string))
+  method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(rvx"(x, T)")..., (x, T) -> Int32(tag(x) == T)))
+  method!(mod, :(==), RMethod(:(==), lowerpattern(rvx"(x: Symbol, y: Symbol)")..., (x, y) -> Int32(x==y)))
+  method!(mod, :panic, RMethod(:panic, lowerpattern(parse("(x: String,)"))..., error))
+  method!(mod, :not, RMethod(:not, lowerpattern(parse("(x: Int32,)"))..., x -> Int32(x==0)))
+  for T in [Int64, Int32, Float64, Float32]
+    mod[Symbol(T)] = Symbol(T)
+    method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(parse("(x, `$T`)"))..., x -> Int32(x isa T)))
+    method!(mod, :string, RMethod(:string, lowerpattern(parse("(x: $T,)"))..., Base.string))
+    for op in :[+, -, *, /, &, |].args
+      method!(mod, op, RMethod(op, lowerpattern(parse("(a: $T, b: $T)"))...,
+                                getfield(Base, op)))
+    end
+    for op in :[==, >, <, <=].args
+      method!(mod, op, RMethod(op, lowerpattern(parse("(a: $T, b: $T)"))...,
+                                (args...) -> getfield(Base, op)(args...) |> Int32))
+    end
+    for S in :[Int32, Int64].args
+      method!(mod, S, RMethod(S, lowerpattern(parse("(x: $T,)"))..., x -> getfield(Base, S)(x)))
+    end
+  end
+end
+
+# Line-by-line interpreter for the REPL
 
 function eval_expr(m::RModule, x)
   ir = lowerexpr(x)
@@ -128,36 +160,4 @@ evalstring(mod, f::String) = includerv(mod, IOBuffer(f))
 
 macro rv_str(x)
   :(evalstring(main, $x))
-end
-
-function interpreter_primitives!(mod)
-  mod[:__backendWasm] = Int32(0)
-  mod[Symbol("false")] = Int32(0)
-  mod[Symbol("true")] = Int32(1)
-  method!(mod, :data, RMethod(:data, lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...)))
-  method!(mod, :part, RMethod(:part, lowerpattern(rvx"(data, i)")..., part))
-  method!(mod, :nparts, RMethod(:nparts, lowerpattern(rvx"(x,)")..., nparts))
-  method!(mod, :widen, RMethod(:widen, lowerpattern(rvx"(x,)")..., identity))
-  method!(mod, :_print, RMethod(:_print, lowerpattern(parse("(a: String,)"))..., x -> (print(x); rnothing)))
-  method!(mod, :string, RMethod(:string, lowerpattern(parse("(x: Symbol,)"))..., Base.string))
-  method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(rvx"(x, T)")..., (x, T) -> Int32(tag(x) == T)))
-  method!(mod, :(==), RMethod(:(==), lowerpattern(rvx"(x: Symbol, y: Symbol)")..., (x, y) -> Int32(x==y)))
-  method!(mod, :panic, RMethod(:panic, lowerpattern(parse("(x: String,)"))..., error))
-  method!(mod, :not, RMethod(:not, lowerpattern(parse("(x: Int32,)"))..., x -> Int32(x==0)))
-  for T in [Int64, Int32, Float64, Float32]
-    mod[Symbol(T)] = Symbol(T)
-    method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(parse("(x, `$T`)"))..., x -> Int32(x isa T)))
-    method!(mod, :string, RMethod(:string, lowerpattern(parse("(x: $T,)"))..., Base.string))
-    for op in :[+, -, *, /, &, |].args
-      method!(mod, op, RMethod(op, lowerpattern(parse("(a: $T, b: $T)"))...,
-                                getfield(Base, op)))
-    end
-    for op in :[==, >, <, <=].args
-      method!(mod, op, RMethod(op, lowerpattern(parse("(a: $T, b: $T)"))...,
-                                (args...) -> getfield(Base, op)(args...) |> Int32))
-    end
-    for S in :[Int32, Int64].args
-      method!(mod, S, RMethod(S, lowerpattern(parse("(x: $T,)"))..., x -> getfield(Base, S)(x)))
-    end
-  end
 end

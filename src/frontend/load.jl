@@ -3,7 +3,7 @@ struct Source
   main::Vector{Any}
 end
 
-Source() = Source(RModule(), [])
+Source(mod::RModule) = Source(mod, [])
 
 base = joinpath(@__DIR__, "../../base")
 
@@ -32,7 +32,7 @@ end
 
 function static_if(cx::Source, x)
   if simpleconst(cx, x.args[1]) != nothing
-    simpleconst(cx, x.args[1]) && vload(cx, x.args[2])
+    Bool(simpleconst(cx, x.args[1])) && vload(cx, x.args[2])
   else
     load_expr(cx, x)
   end
@@ -79,13 +79,14 @@ function loadfile(cx::Source, io::IO)
   end
 end
 
-function loadfile(f::String)
-  cx = Source()
-  cx.mod.defs[:__backendWasm] = true
+function loadfile(mod::RModule, f::String)
+  cx = Source(mod)
   open(io -> loadfile(cx, io), "$base/base.rv")
   open(io -> loadfile(cx, io), f)
   finish!(cx)
   return cx.mod
 end
+
+loadfile(f::String) = loadfile(RModule(), f)
 
 startmethod(mod) = mod.methods[:_start][1]

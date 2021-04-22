@@ -210,7 +210,9 @@ function binary(m::WebAssembly.Module, file; optimise = true)
 end
 
 function emitwasm(file, out)
-  mod, strings = wasmmodule(loadfile(file))
+  m = RModule()
+  m[:__backendWasm] = Int32(1)
+  mod, strings = wasmmodule(loadfile(m, file))
   binary(mod, out)
   return strings
 end

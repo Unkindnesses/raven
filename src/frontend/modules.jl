@@ -32,6 +32,7 @@ isprimitive(x, ::Type) = false
 function primitives!(mod)
   mod[Symbol("false")] = Int32(0)
   mod[Symbol("true")] = Int32(1)
+  mod[:__backendWasm] = Int32(0)
   method!(mod, :data, RMethod(:data, lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...), true))
   method!(mod, :part, RMethod(:part, lowerpattern(rvx"(data, i)")..., part, true))
   method!(mod, :nparts, RMethod(:nparts, lowerpattern(rvx"(x,)")..., nparts, true))
