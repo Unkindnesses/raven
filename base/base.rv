@@ -21,7 +21,6 @@ fn tuple(x, y) { data(`Tuple`, x, y) }
 fn tuple(x, y, z) { data(`Tuple`, x, y, z) }
 
 fn Nothing() { data(`Nothing`) }
-nothing = Nothing()
 
 import { print }
 import { wasm }
