@@ -25,6 +25,10 @@ end
 
 @forward RModule.defs Base.getindex, Base.setindex!, Base.haskey
 
+isprimitive(x::T, ::Type{T}) where T = true
+isprimitive(::Type{T}, ::Type{T}) where T = true
+isprimitive(x, ::Type) = false
+
 function primitives!(mod)
   mod[Symbol("false")] = Int32(0)
   mod[Symbol("true")] = Int32(1)
@@ -40,6 +44,7 @@ function primitives!(mod)
 
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)
+    # TODO: hack
     method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(parse("(x, `$T`)"))..., x -> Int32(isprimitive(x, T))))
   end
   mod[:PrimitiveString] = :PrimitiveString

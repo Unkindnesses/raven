@@ -146,7 +146,7 @@ function interpreter_primitives!(mod)
   method!(mod, :not, RMethod(:not, lowerpattern(parse("(x: Int32,)"))..., x -> Int32(x==0)))
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)
-    method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(parse("(x, `$T`)"))..., x -> Int32(isprimitive(x, T))))
+    method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(parse("(x, `$T`)"))..., x -> Int32(x isa T)))
     method!(mod, :string, RMethod(:string, lowerpattern(parse("(x: $T,)"))..., Base.string))
     for op in :[+, -, *, /, &, |].args
       method!(mod, op, RMethod(op, lowerpattern(parse("(a: $T, b: $T)"))...,
