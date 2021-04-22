@@ -88,6 +88,8 @@ function applicable(mod, Ts)
    if match(mod, meth.pattern, args) != nothing]
 end
 
+part_method = RMethod(:part, lowerpattern(rvx"(data, i)")..., part, true)
+
 function dispatcher(inf, Ts)
   func::Symbol = Ts[1]
   args = rtuple(Ts[2:end]...)

@@ -13,13 +13,12 @@ include("eval/data.jl")
 
 include("frontend/parse.jl")
 include("frontend/lower.jl")
+include("frontend/modules.jl")
+include("frontend/load.jl")
 
 include("eval/patterns.jl")
-include("frontend/modules.jl")
 include("eval/interpreter.jl")
 include("eval/abstract.jl")
-
-include("frontend/load.jl")
 
 include("backend/passes.jl")
 include("backend/wasm.jl")
