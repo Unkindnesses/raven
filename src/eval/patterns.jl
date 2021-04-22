@@ -1,54 +1,7 @@
-const hole = data(:Hole)
-bind(name, pattern) = data(:Bind, name, pattern)
-
-isprimitive(x::T, ::Type{T}) where T = true
-isprimitive(::Type{T}, ::Type{T}) where T = true
-isprimitive(x, ::Type) = false
-
-# Pattern Lowering
-
-function lowerisa(ex, as)
-  if ex isa Symbol
-    return data(:Isa, ex)
-  elseif ex isa Operator && ex.op == :(|)
-    data(:Or, map(x -> lowerisa(x, as), ex.args)...)
-  elseif ex isa Operator && ex.op == :(&)
-    data(:And, map(x -> lowerisa(x, as), ex.args)...)
-  else
-    _lowerpattern(ex, as)
-  end
-end
-
-function _lowerpattern(ex, as)
-  if ex isa Symbol
-    ex in as || push!(as, ex)
-    return bind(ex, hole)
-  elseif ex isa Union{Primitive,Quote}
-    ex isa Quote && (ex = ex.expr)
-    return data(:Literal, ex)
-  elseif ex isa Tuple
-    data(:Data, data(:Literal, :Tuple), map(x -> _lowerpattern(x, as), ex.args)...)
-  elseif ex isa Operator && ex.op == :(:)
-    name, T = ex.args
-    name in as || push!(as, name)
-    bind(name, lowerisa(T, as))
-  elseif ex isa Call && ex.func == :data
-    data(:Data, map(x -> _lowerpattern(x, as), ex.args)...)
-  else
-    error("Invalid pattern syntax $(ex)")
-  end
-end
-
-function lowerpattern(ex)
-  as = []
-  p = _lowerpattern(ex, as)
-  return p, as
-end
-
 # Pattern Matching
 
 # Check for mismatched literals first
-# This lets us fail faster in some cases, and also avoids some cases from becoming circular.
+# This lets us fail faster in some cases, and also avoids some cases becoming circular.
 function quickcheck(p, x)
   nparts(p) == nparts(x) + 1 || return false
   for i = 0:nparts(x)

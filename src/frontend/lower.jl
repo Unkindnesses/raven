@@ -1,3 +1,48 @@
+# Pattern Lowering
+
+const hole = data(:Hole)
+bind(name, pattern) = data(:Bind, name, pattern)
+
+function lowerisa(ex, as)
+  if ex isa Symbol
+    return data(:Isa, ex)
+  elseif ex isa Operator && ex.op == :(|)
+    data(:Or, map(x -> lowerisa(x, as), ex.args)...)
+  elseif ex isa Operator && ex.op == :(&)
+    data(:And, map(x -> lowerisa(x, as), ex.args)...)
+  else
+    _lowerpattern(ex, as)
+  end
+end
+
+function _lowerpattern(ex, as)
+  if ex isa Symbol
+    ex in as || push!(as, ex)
+    return bind(ex, hole)
+  elseif ex isa Union{Primitive,Quote}
+    ex isa Quote && (ex = ex.expr)
+    return data(:Literal, ex)
+  elseif ex isa Tuple
+    data(:Data, data(:Literal, :Tuple), map(x -> _lowerpattern(x, as), ex.args)...)
+  elseif ex isa Operator && ex.op == :(:)
+    name, T = ex.args
+    name in as || push!(as, name)
+    bind(name, lowerisa(T, as))
+  elseif ex isa Call && ex.func == :data
+    data(:Data, map(x -> _lowerpattern(x, as), ex.args)...)
+  else
+    error("Invalid pattern syntax $(ex)")
+  end
+end
+
+function lowerpattern(ex)
+  as = []
+  p = _lowerpattern(ex, as)
+  return p, as
+end
+
+# Expr -> IR lowering
+
 # TODO; should look things up in module scope, or represent globals
 # explicitly
 

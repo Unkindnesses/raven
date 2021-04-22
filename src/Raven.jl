@@ -9,9 +9,8 @@ using IRTools: IR, Variable, Statement, Variable, argument!, block, blocks, argu
 using IRTools.Inner: Slot
 
 include("frontend/ast.jl")
-include("eval/data.jl")
-
 include("frontend/parse.jl")
+include("frontend/data.jl")
 include("frontend/lower.jl")
 include("frontend/modules.jl")
 include("frontend/load.jl")

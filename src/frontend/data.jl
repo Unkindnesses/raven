@@ -1,3 +1,7 @@
+isprimitive(x::T, ::Type{T}) where T = true
+isprimitive(::Type{T}, ::Type{T}) where T = true
+isprimitive(x, ::Type) = false
+
 # Types
 
 struct Data{N}
