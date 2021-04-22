@@ -16,6 +16,7 @@ fn identity(x) { x }
 
 fn (x |> f) { f(x) }
 
+fn tuple() { data(`Tuple`) }
 fn tuple(x) { data(`Tuple`, x) }
 fn tuple(x, y) { data(`Tuple`, x, y) }
 fn tuple(x, y, z) { data(`Tuple`, x, y, z) }
