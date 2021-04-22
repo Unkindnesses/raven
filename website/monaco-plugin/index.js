@@ -8,6 +8,7 @@ module.exports = function(context, options) {
                 {test: /\.ttf$/, use: ['file-loader']}
             );
             config.plugins.push(new MonacoWebpackPlugin());
+            return {};
         }
     }
 }

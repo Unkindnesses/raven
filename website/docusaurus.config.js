@@ -9,14 +9,16 @@ module.exports = {
   organizationName: 'MikeInnes', // Usually your GitHub org/user name.
   projectName: 'raven', // Usually your repo name.
   themeConfig: {
-    defaultDarkMode: true,
+    colorMode: {
+      defaultMode: "dark"
+    },
     navbar: {
       title: 'The Raven Language',
       logo: {
         alt: 'My Site Logo',
         src: 'img/logo.svg',
       },
-      links: [
+      items: [
         // {
         //   to: 'docs/',
         //   activeBasePath: 'docs',
@@ -90,7 +92,6 @@ module.exports = {
       {
         docs: {
           // It is recommended to set document id as docs home page (`docs/` path).
-          homePageId: 'intro/intro',
           sidebarPath: require.resolve('./sidebars.js'),
           // Please change this to your repo.
           editUrl:
@@ -110,5 +111,4 @@ module.exports = {
     ],
   ],
   plugins: [path.resolve(__dirname, './monaco-plugin')]
-  // plugins: ['monaco-plugin']
 };
