@@ -23,6 +23,4 @@ include("backend/passes.jl")
 include("backend/wasm.jl")
 include("backend/js.jl")
 
-include("repl.jl")
-
 end # module
