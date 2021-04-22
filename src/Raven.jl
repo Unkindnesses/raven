@@ -15,7 +15,7 @@ include("frontend/parse.jl")
 include("frontend/lower.jl")
 
 include("eval/patterns.jl")
-include("eval/runtime.jl")
+include("frontend/modules.jl")
 include("eval/interpreter.jl")
 include("eval/abstract.jl")
 

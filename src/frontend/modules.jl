@@ -1,5 +1,3 @@
-# Eval
-
 struct RMethod
   name::Symbol
   pattern
@@ -11,25 +9,6 @@ end
 RMethod(name, pat, args, func) = RMethod(name, pat, args, func, false)
 
 Base.show(io::IO, meth::RMethod) = print(io, "RMethod($(meth.name))")
-
-function select_method(mod, func::Symbol, args...; partial = true)
-  args = data(:Tuple, args...)
-  for meth in reverse(mod.methods[func])
-    partial || !meth.partial || continue
-    bs = match(mod, meth.pattern, args)
-    bs == nothing || return (meth, bs)
-  end
-  error("No method matching $func($(join(args.parts[2:end], ", ")))")
-end
-
-function vinvoke(mod, func::Symbol, args...)
-  found = select_method(mod, func, args..., partial = false)
-  found == nothing && error("No method found for ($func, $(join(args, ", ")))")
-  meth, bs = found
-  f = meth.func
-  args = [bs[a] for a in meth.args]
-  f isa Function ? f(args...) : interpret(mod, f, args...)
-end
 
 struct RModule
   defs::Dict{Symbol,Any}
@@ -47,6 +26,8 @@ end
 @forward RModule.defs Base.getindex, Base.setindex!, Base.haskey
 
 part_method = RMethod(:part, lowerpattern(rvx"(data, i)")..., part, true)
+
+# Wasm / interpreter primitives
 
 function primitives!(mod)
   mod[Symbol("false")] = Int32(0)
@@ -100,47 +81,4 @@ function interpreter_primitives!(mod)
       method!(mod, S, RMethod(S, lowerpattern(parse("(x: $T,)"))..., x -> getfield(Base, S)(x)))
     end
   end
-end
-
-function eval_expr(m::RModule, x)
-  ir = lowerexpr(x)
-  interpret(m, ir)
-end
-
-function veval(m::RModule, x::Syntax)
-  x.name == :fn || return eval_expr(m, x)
-  sig = x.args[1]
-  f = sig isa Operator ? sig.op : sig.func
-  args = Tuple(x.args[1].args)
-  pat, args = lowerpattern(args)
-  method!(m, f, RMethod(f, pat, args, lowerfn(x, args)))
-  return f
-end
-
-function veval(m::RModule, x::Operator)
-  x.op == :(=) || return eval_expr(m, x)
-  name, ex = x.args
-  name isa Symbol || error("Invalid binding $name")
-  m[name] = eval_expr(m, ex)
-end
-
-veval(m::RModule, x) = eval_expr(m, x)
-
-function includerv(mod, io::IO)
-  io = LineNumberingReader(io)
-  out = rnothing
-  stmts(io)
-  while !eof(io)
-    ex = parse(io)
-    out = veval(mod, ex)
-    stmts(io)
-  end
-  return out
-end
-
-includerv(mod, f::String) = open(io -> includerv(mod, io), f)
-evalstring(mod, f::String) = includerv(mod, IOBuffer(f))
-
-macro rv_str(x)
-  :(evalstring(main, $x))
 end
