@@ -18,7 +18,8 @@ include("eval/patterns.jl")
 include("eval/runtime.jl")
 include("eval/interpreter.jl")
 include("eval/abstract.jl")
-include("eval/compiler.jl")
+
+include("frontend/load.jl")
 
 include("backend/passes.jl")
 include("backend/wasm.jl")
