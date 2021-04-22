@@ -11,13 +11,13 @@
   "dependencies": {
     "@docusaurus/core": "^2.0.0-alpha.56",
     "@docusaurus/preset-classic": "^2.0.0-alpha.56",
-    "@primer/octicons-react": "^10.0.0",
+    "@primer/octicons-react": "^12.0.0",
     "classnames": "^2.2.6",
     "file-loader": "^6.0.0",
     "monaco-plugin": "file:monaco-plugin",
-    "react": "^16.8.4",
-    "react-dom": "^16.8.4",
-    "react-monaco-editor": "^0.36.0"
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-monaco-editor": "^0.43.0"
   },
   "browserslist": {
     "production": [
@@ -30,5 +30,6 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  }
+  },
+  "_id": "docs@0.0.0"
 }
