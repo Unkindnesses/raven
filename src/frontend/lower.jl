@@ -1,3 +1,6 @@
+# TODO; should look things up in module scope, or represent globals
+# explicitly
+
 struct GlobalScope end
 
 Base.getindex(g::GlobalScope, x::Symbol) = x

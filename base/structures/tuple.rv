@@ -10,3 +10,6 @@ fn print(x: Tuple) {
   }
   print(")")
 }
+
+# TODO: convert generic data to tuple
+# Concat tuple
