@@ -209,10 +209,14 @@ function binary(m::WebAssembly.Module, file; optimise = true)
   return
 end
 
-function emitwasm(file, out)
+function loadwasm(file)
   m = RModule()
   m[:__backendWasm] = Int32(1)
-  mod, strings = wasmmodule(loadfile(m, file))
+  return loadfile(m, file)
+end
+
+function emitwasm(file, out)
+  mod, strings = wasmmodule(loadwasm(file))
   binary(mod, out)
   return strings
 end
@@ -220,14 +224,14 @@ end
 sigmatch(sig, func) = sig[1] == func || ismethod(sig[1], func)
 
 function code_wasm(src, func = :_main)
-  mod = loadfile(src)
+  mod = loadwasm(src)
   wasm_primitives!(mod)
   mod = wasm_ir(Inference(mod))
   Dict{Any,IR}(sig => fr[2] for (sig, fr) in mod.funcs if sigmatch(sig, func))
 end
 
 function code_typed(src, func = :_main)
-  mod = loadfile(src)
+  mod = loadwasm(src)
   wasm_primitives!(mod)
   inf = Inference(mod)
   Dict{Any,IR}(sig => fr.ir for (sig, fr) in inf.frames if sigmatch(sig, func))
