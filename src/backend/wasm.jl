@@ -59,6 +59,35 @@ function wparts(x)
   return ly isa WTuple ? ly.parts : [ly]
 end
 
+# Create a `part` method to dynamically index tuples allocated as registers.
+# TODO: should make sure this comes out as a switch / branch table.
+function partir(x, i)
+  i <: Int64 || error("Only i64 indexes are supported.")
+  T = partial_part(x, i)
+  ir = IR()
+  _ = argument!(ir, type = WTuple())
+  vx = argument!(ir, type = layout(x))
+  vi = argument!(ir, type = layout(i))
+  xlayout = layout(x)
+  part(i) = xlayout isa WTuple ? push!(ir, Base.Expr(:ref, vx, i)) : vx
+  for i = 1:nparts(x)
+    cond = push!(ir, IRTools.stmt(Base.Expr(:call, i64.eq, i, vi), type = i32))
+    branch!(ir, length(ir.blocks) + 2, unless = cond)
+    block!(ir)
+    range = sublayout(x, i)
+    T′ = partial_part(x, i)
+    @assert T == T′ # TODO: add a cast
+    ex = layout(T′) isa WTuple ?
+      Base.Expr(:tuple, part.(range)...) :
+      part(range[1])
+    y = push!(ir, IRTools.stmt(ex, type = layout(T)))
+    return!(ir, y)
+    block!(ir)
+  end
+  push!(ir, WebAssembly.unreachable)
+  return ir
+end
+
 struct WModule
   inf::Inference
   symbols::Dict{Symbol,Int}
@@ -125,17 +154,24 @@ function lowerwasm!(mod::WModule, ir::IR)
         _, T, val = Ts
         (val isa Number && T isa Type) || error("unsupported cast")
         ir[v] = IRTools.stmt(Ts[3], type = layout(T))
-      elseif ismethod(Ts[1], :data)
+      elseif ismethod(Ts[1], :data) # TODO: should specifically check this is the fallback method
         lowerdata!(mod, ir, v)
-      elseif ismethod(Ts[1], :part)
-        x::Data, i::Integer = Ts[2:end]
-        xlayout = layout(x)
-        part(i) = xlayout isa WTuple ? insert!(ir, v, Base.Expr(:ref, args[2], i)) : args[2]
-        range = sublayout(x, i)
-        ex = layout(st.type) isa WTuple ?
-          Base.Expr(:tuple, part.(range)...) :
-          part(range[1])
-        ir[v] = IRTools.stmt(ex, type = layout(st.type))
+      elseif ismethod(Ts[1], :part) # TODO: same
+        x::Data, i = Ts[2:end]
+        if i isa Int
+          xlayout = layout(x)
+          part(i) = xlayout isa WTuple ? insert!(ir, v, Base.Expr(:ref, args[2], i)) : args[2]
+          range = sublayout(x, i)
+          ex = layout(st.type) isa WTuple ?
+            Base.Expr(:tuple, part.(range)...) :
+            part(range[1])
+          ir[v] = IRTools.stmt(ex, type = layout(st.type))
+        else
+          func = partmethod!(mod, Ts[1], x, i)
+          # See note below on filter
+          ir[v] = Base.Expr(:call, WebAssembly.Call(func), filter(x -> x isa Variable, args[2:end])...)
+          ir[v] = IRTools.stmt(ir[v], type = layout(ir[v].type))
+        end
       elseif ismethod(Ts[1], :nparts)
         ir[v] = nparts(Ts[2])
       elseif ismethod(Ts[1], :tojs) && Ts[2] isa String
@@ -143,6 +179,8 @@ function lowerwasm!(mod::WModule, ir::IR)
       else
         func = lowerwasm!(mod, rtuple(Ts...))
         # Filter gets rid of constants
+        # TODO: this is a hack. Should use a cast to get the layout the
+        # function is expecting, then remove trivial args.
         ir[v] = Base.Expr(:call, WebAssembly.Call(func), filter(x -> x isa Variable, args[2:end])...)
         ir[v] = IRTools.stmt(ir[v], type = layout(ir[v].type))
       end
@@ -157,6 +195,15 @@ function lowerwasm!(mod::WModule, T)
   id = name(mod, f isa Symbol ? f : Symbol(f.name, ":method"))
   ir = lowerwasm!(mod, mod.inf.frames[T].ir)
   mod.funcs[T] = (id, ir)
+  return id
+end
+
+function partmethod!(mod::WModule, m::RMethod, x, i)
+  T = rtuple(m, x, i)
+  haskey(mod.funcs, T) && return mod.funcs[T][1]
+  id = name(mod, Symbol("part:method"))
+  ir = partir(x, i)
+  mod.funcs[rtuple(m, x, i)] = (id, ir)
   return id
 end
 
@@ -203,9 +250,12 @@ end
 function binary(m::WebAssembly.Module, file; optimise = true)
   wat = tempname() * ".wat"
   WebAssembly.write_wat(wat, m)
-  run(`wat2wasm $wat -o $file`)
-  optimise && run(`wasm-opt --enable-multivalue $file -O4 -o $file`)
-  rm(wat)
+  try
+    run(`wat2wasm $wat -o $file`)
+    optimise && run(`wasm-opt --enable-multivalue $file -O4 -o $file`)
+  finally
+    rm(wat)
+  end
   return
 end
 

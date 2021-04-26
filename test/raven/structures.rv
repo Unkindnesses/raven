@@ -1,2 +1,7 @@
 xs = list(widen(1), widen(2), widen(3))
-println(sum(xs) == 6)
+test1 = sum(xs) == 6
+
+xs = (widen(4), widen(5))
+test2 = (part(xs, widen(1)) + part(xs, widen(2))) == 4+5
+
+println(test1 & test2)

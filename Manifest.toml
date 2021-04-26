@@ -174,7 +174,7 @@ uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
 
 [[WebAssembly]]
 deps = ["BinaryProvider", "IRTools", "Libdl", "MacroTools"]
-git-tree-sha1 = "2b96302ab23780bcbb2d244c81fc39ad93539781"
+git-tree-sha1 = "6cedf96c29193d2f6da753cf4994fcf9c94f5b03"
 repo-rev = "master"
 repo-url = "https://github.com/MikeInnes/WebAssembly.jl.git"
 uuid = "4f6df8df-4739-5653-a877-cf57ee625c27"
