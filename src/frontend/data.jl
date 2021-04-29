@@ -28,7 +28,6 @@ struct Bottom end
 const ⊥ = Bottom()
 
 Primitive = Union{Int64,Int32,Float64,Float32,Symbol,String}
-jtype(x::Primitive) = typeof(x)
 
 # Primitive Types
 for T in :[Int64, Int32, Float64, Float32, Symbol, String].args
