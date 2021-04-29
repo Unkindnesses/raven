@@ -76,11 +76,14 @@ function partir(x, i)
     block!(ir)
     range = sublayout(x, i)
     T′ = partial_part(x, i)
-    @assert T == T′ # TODO: add a cast
     ex = layout(T′) isa WTuple ?
       Base.Expr(:tuple, part.(range)...) :
       part(range[1])
-    y = push!(ir, IRTools.stmt(ex, type = layout(T)))
+    y = push!(ir, IRTools.stmt(ex, type = layout(T′)))
+    if T′ != T
+      T′ isa Number && T == typeof(T′) || error("unsupported cast")
+      y = push!(ir, IRTools.stmt(T′, type = layout(T)))
+    end
     return!(ir, y)
     block!(ir)
   end
@@ -152,8 +155,8 @@ function lowerwasm!(mod::WModule, ir::IR)
         ir[v] = IRTools.stmt(val, type = layout(st.type))
       elseif Ts[1] == :cast
         _, T, val = Ts
-        (val isa Number && T isa Type) || error("unsupported cast")
-        ir[v] = IRTools.stmt(Ts[3], type = layout(T))
+        (val isa Number && T == typeof(val)) || error("unsupported cast")
+        ir[v] = IRTools.stmt(val, type = layout(T))
       elseif ismethod(Ts[1], :data) # TODO: should specifically check this is the fallback method
         lowerdata!(mod, ir, v)
       elseif ismethod(Ts[1], :part) # TODO: same
