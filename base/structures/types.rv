@@ -1,0 +1,33 @@
+# Not imported (yet). This informally describes how the AST and patterns are
+# represented in Raven.
+
+data Expr {
+  Number | String | Symbol
+  Return(ex: Expr)
+  Break() | Continue()
+  Tuple(xs: List[Expr])
+  Splat(ex: Expr)
+  Call(f: Expr, args: List[Expr])
+  Operator(op: Symbol, args: List[Expr])
+  Block(stmts: List[Expr])
+  Syntax(name: Symbol)
+  Quote(ex: Expr)
+}
+
+data Pattern {
+  Hole()
+  Literal(_: Number | String | Symbol)
+  Bind(name: Symbol, pat: Pattern)
+  IsA?(type: Symbol)
+  Repeat(_: Pattern)
+  Data(_: Pattern...)
+  And(_: Pattern...)
+  Or(_: Pattern...)
+}
+
+fn constant?(_: Pattern) { false }
+fn constant?(Data(parts...)) { all?(constant?, parts) }
+fn constant?(Literal(_)) { true }
+
+fn value(Literal(x)) { x }
+fn value(Data(parts...)) { data(map(value, parts)...) }
