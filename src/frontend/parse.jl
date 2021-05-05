@@ -223,9 +223,12 @@ function _tuple(io)
   while true
     parse(char(')'), io) == nothing || break
     x = parse(io)
+    if parse(exact("..."), io) != nothing
+      x = Splat(x)
+    end
     push!(xs, x)
     nt = read(io)
-    nt == ')' && (length(xs) == 1 ? (return xs[]) : break)
+    nt == ')' && (length(xs) == 1 && !(x isa Splat) ? (return xs[]) : break)
     nt == ',' || error("Expected a delimiter at $(curstring(io))")
   end
   return Tuple(xs)

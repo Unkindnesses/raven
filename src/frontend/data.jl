@@ -8,6 +8,7 @@ data(x...) = Data((x...,))
 
 nparts(x::Data) = length(x.parts)-1
 part(x::Data, i) = x.parts[i+1]
+parts(x) = x.parts[2:end]
 
 Base.getindex(x::Data, i::Integer) = x.parts[i+1]
 Base.getindex(x::Data, i::AbstractVector) = data(x.parts[i.+1]...)

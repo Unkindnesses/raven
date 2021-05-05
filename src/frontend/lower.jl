@@ -28,6 +28,8 @@ function _lowerpattern(ex, as)
     name, T = ex.args
     name in as || push!(as, name)
     bind(name, lowerisa(T, as))
+  elseif ex isa Splat
+    data(:Repeat, _lowerpattern(ex.expr, as))
   elseif ex isa Call && ex.func == :data
     data(:Data, map(x -> _lowerpattern(x, as), ex.args)...)
   else
