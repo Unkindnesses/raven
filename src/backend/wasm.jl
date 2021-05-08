@@ -289,3 +289,9 @@ function code_typed(src, func = :_main)
   inf = Inference(mod)
   Dict{Any,IR}(sig => fr.ir for (sig, fr) in inf.frames if sigmatch(sig, func))
 end
+
+function code_lowered(src, func = :_main)
+  mod = loadwasm(src)
+  wasm_primitives!(mod)
+  return Dict(meth.pattern => meth.func for meth in mod.methods[func])
+end
