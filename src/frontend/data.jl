@@ -23,6 +23,9 @@ const rnothing = data(:Nothing)
 
 rtuple(xs...) = data(:Tuple, xs...)
 
+datacat(x) = x
+datacat(x, xs...) = data(x.parts..., reduce(vcat, collect.(parts.(xs)))...)
+
 # Abstract Types
 
 struct Bottom end

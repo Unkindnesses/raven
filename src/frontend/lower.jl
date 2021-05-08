@@ -90,7 +90,26 @@ function lower!(sc, ir::IR, ex::Operator)
 end
 
 function lower!(sc, ir::IR, ex::Call)
-  _push!(ir, Base.Expr(:call, lower!(sc, ir, ex.func), lower!.((sc,), (ir,), ex.args)...))
+  if any(x -> x isa Splat, ex.args)
+    args = collect(ex.args)
+    parts = []
+    while !isempty(args)
+      if first(args) isa Splat
+        push!(parts, lower!(sc, ir, popfirst!(args).expr))
+      else
+        as = []
+        while !(isempty(args) || first(args) isa Splat)
+          push!(as, lower!(sc, ir, popfirst!(args)))
+        end
+        push!(parts, _push!(ir, Base.Expr(:call, :tuple, as...)))
+      end
+    end
+    args = _push!(ir, Base.Expr(:call, :datacat, parts...))
+    _push!(ir, Base.Expr(:invoke, lower!(sc, ir, ex.func), args))
+  else
+    # Simpler path for funcs without splats or inout arguments
+    _push!(ir, Base.Expr(:call, lower!(sc, ir, ex.func), lower!.((sc,), (ir,), ex.args)...))
+  end
 end
 
 function lower!(sc, ir::IR, ex::Tuple)
