@@ -20,6 +20,6 @@ end
 
 passes(test) = parse(Bool, result(test))
 
-@testset for test in [:pow, :ptr, :relu, :complex, :structures]
+@testset for test in [:pow, :ptr, :relu, :complex, :structures, :splat]
   @test passes(test)
 end
