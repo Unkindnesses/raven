@@ -146,6 +146,8 @@ function step!(inf::Inference)
         block.ir[var] = Statement(block[var], type = union(st.type, T))
         push!(inf.queue, (frame, b, ip+1))
       end
+    else
+      error("Unknown expr type $(st.expr.head)")
     end
   else
     brs = openbranches(block)
