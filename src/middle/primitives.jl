@@ -11,6 +11,7 @@ function partial_part(data, i)
   else
     # TODO: HACK: we assume index != 0 when indexing dynamically.
     # Should instead have a seperate `index` function that enforces this.
+    # Implement both as partials
     reduce(union, data.parts[2:end])
   end
 end
@@ -22,6 +23,7 @@ function primitives!(mod)
   method!(mod, :data, RMethod(:data, lowerpattern(rvx"args")..., args -> data(args.parts[2:end]...), true))
   method!(mod, :part, RMethod(:part, lowerpattern(rvx"(data, i)")..., partial_part, true))
   method!(mod, :nparts, RMethod(:nparts, lowerpattern(rvx"(x,)")..., nparts, true))
+  method!(mod, :datacat, RMethod(:datacat, lowerpattern(rvx"args")..., args -> datacat(parts(args)...), true))
   # TODO: this is a hacky fallback
   method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(rvx"(x, T)")..., (x, T) -> Int32(tag(x) == T)))
 
