@@ -282,12 +282,14 @@ function _syntax(io; quasi = true)
 end
 
 # returns `nothing` if there is no valid input (EOF or only whitespace/comments)
-function parse(io::IO; quasi = true)
+function parse(io::LineNumberingReader; quasi = true)
   consume_ws(io); stmts(io)
   parseone(io, _syntax, expr; quasi)
 end
 
-parse(s::String) = parse(LineNumberingReader(IOBuffer(s)))
+parse(io::IO) = parse(LineNumberingReader(io))
+
+parse(s::String) = parse(IOBuffer(s))
 
 macro rvx_str(x)
   QuoteNode(parse(x))
