@@ -112,7 +112,7 @@ function dispatcher(inf, Ts)
 end
 
 function infercall!(inf, loc, block, ex)
-  # TODO only supports `invoke` with inferable arity.
+  # TODO only supports `apply` with inferable arity.
   Ts = isexpr(ex, :call) ?
     exprtype.((block.ir,), ex.args) :
     [exprtype(block.ir, ex.args[1]), parts(exprtype(block.ir, ex.args[2]))...]
@@ -143,7 +143,7 @@ function step!(inf::Inference)
     if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
       block.ir[var] = Statement(block[var], type = rvtype(st.expr.args[1].ret))
       push!(inf.queue, (frame, b, ip+1))
-    elseif isexpr(st.expr, :call, :invoke)
+    elseif isexpr(st.expr, :call, :apply)
       T = infercall!(inf, (frame, b, ip), block, st.expr)
       if T != ⊥
         block.ir[var] = Statement(block[var], type = union(st.type, T))

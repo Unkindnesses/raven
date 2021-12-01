@@ -105,7 +105,7 @@ function lower!(sc, ir::IR, ex::Call)
       end
     end
     args = _push!(ir, Base.Expr(:call, :datacat, parts...))
-    _push!(ir, Base.Expr(:invoke, lower!(sc, ir, ex.func), args))
+    _push!(ir, Base.Expr(:apply, lower!(sc, ir, ex.func), args))
   else
     # Simpler path for funcs without splats or inout arguments
     _push!(ir, Base.Expr(:call, lower!(sc, ir, ex.func), lower!.((sc,), (ir,), ex.args)...))
