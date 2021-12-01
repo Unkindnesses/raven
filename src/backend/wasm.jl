@@ -135,6 +135,21 @@ function lowerdata!(mod::WModule, ir, v)
                        type = layout(ir[v].type))
 end
 
+# TODO assumes tags are not present at runtime.
+function lowerdatacat!(mod::WModule, ir, v)
+  T, args = ir[v].expr.args[1][2], ir[v].expr.args[3:end]
+  parts = []
+  if nregisters(layout(T)) == 1
+    push!(parts, x)
+  else
+    for i = 1:nregisters(layout(T))
+      push!(parts, insert!(ir, v, Base.Expr(:ref, x, i)))
+    end
+  end
+  ir[v] = IRTools.stmt(length(parts) == 1 ? parts[1] : Base.Expr(:tuple, parts...),
+                       type = layout(ir[v].type))
+end
+
 ismethod(m, name) = m isa RMethod && m.name == name
 
 function lowerwasm!(mod::WModule, ir::IR)
@@ -157,6 +172,8 @@ function lowerwasm!(mod::WModule, ir::IR)
         ir[v] = IRTools.stmt(val, type = layout(T))
       elseif ismethod(Ts[1], :data) # TODO: should specifically check this is the fallback method
         lowerdata!(mod, ir, v)
+      elseif ismethod(Ts[1], :datacat)
+        lowerdatacat!(mod, ir, v)
       elseif ismethod(Ts[1], :part) # TODO: same
         x::Data, i = Ts[2:end]
         if i isa Int
