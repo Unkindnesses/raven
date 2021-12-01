@@ -122,15 +122,13 @@ function sigs!(ir::IR)
 end
 
 function lowerdata!(mod::WModule, ir, v)
-  Ts, args = ir[v].expr.args[1][2:end], ir[v].expr.args[3:end]
+  T, x = ir[v].expr.args[1][2], ir[v].expr.args[3]
   parts = []
-  for (T, x) in zip(Ts, args)
-    if nregisters(layout(T)) == 1
-      push!(parts, x)
-    else
-      for i = 1:nregisters(layout(T))
-        push!(parts, insert!(ir, v, Base.Expr(:ref, x, i)))
-      end
+  if nregisters(layout(T)) == 1
+    push!(parts, x)
+  else
+    for i = 1:nregisters(layout(T))
+      push!(parts, insert!(ir, v, Base.Expr(:ref, x, i)))
     end
   end
   ir[v] = IRTools.stmt(length(parts) == 1 ? parts[1] : Base.Expr(:tuple, parts...),
