@@ -115,8 +115,15 @@ WModule(inf) = WModule(inf, Dict(), [], Dict())
 
 function sigs!(ir::IR)
   for (v, st) in ir
-    st.expr.args[1] isa WIntrinsic && continue
-    ir[v] = Base.Expr(:call, exprtype.((ir,), st.expr.args), st.expr.args...)
+    if isexpr(st.expr, :call)
+      st.expr.args[1] isa WIntrinsic && continue
+      ir[v] = Base.Expr(:call, exprtype.((ir,), st.expr.args), st.expr.args...)
+    elseif isexpr(st.expr, :apply)
+      f, xs = exprtype.((ir,), st.expr.args)
+      ir[v] = Base.Expr(:call, [f, parts(xs)...], st.expr.args...)
+    else
+      error("unrecognised $(st.expr.head) expr")
+    end
   end
   return ir
 end
