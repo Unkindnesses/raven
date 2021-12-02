@@ -121,18 +121,10 @@ function sigs!(ir::IR)
   return ir
 end
 
+# Arguments are turned into a tuple when calling any function, so this is
+# basically just a cast.
 function lowerdata!(mod::WModule, ir, v)
-  T, x = ir[v].expr.args[1][2], ir[v].expr.args[3]
-  parts = []
-  if nregisters(layout(T)) == 1
-    push!(parts, x)
-  else
-    for i = 1:nregisters(layout(T))
-      push!(parts, insert!(ir, v, Base.Expr(:ref, x, i)))
-    end
-  end
-  ir[v] = IRTools.stmt(length(parts) == 1 ? parts[1] : Base.Expr(:tuple, parts...),
-                       type = layout(ir[v].type))
+  ir[v] = ir[v].expr.args[3]
 end
 
 # TODO assumes tags are not present at runtime.
