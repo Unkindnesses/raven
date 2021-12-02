@@ -1,0 +1,9 @@
+# Tests we can't compile yet
+
+fn add(args...) {
+  part(args, 1) + part(args, 2)
+}
+
+test = add(widen(2), widen(3)) == 5
+
+println(test)
