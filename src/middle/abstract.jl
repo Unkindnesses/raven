@@ -85,7 +85,7 @@ end
 function applicable(mod, Ts)
   args = rtuple(Ts[2:end]...)
   [meth for meth in reverse(mod.methods[Ts[1]])
-   if match(mod, meth.pattern, args) != nothing]
+   if ismatch(mod, meth.pattern, args)]
 end
 
 part_method = RMethod(:part, lowerpattern(rvx"(data, i)")..., part, true)
@@ -101,7 +101,9 @@ function dispatcher(inf, Ts)
   if (is = simple_match(inf.mod, meth.pattern, args)) != nothing
     args = argument!(ir)
     args = is == (:) ? [args] :
-      [push!(ir, Base.Expr(:call, part_method, args, i)) for i in is]
+      [i isa AbstractVector ?
+        push!(ir, Base.Expr(:call, :tuple, [Base.Expr(:call, part_method, args, i) for i in i]...)) :
+        push!(ir, Base.Expr(:call, part_method, args, i)) for i in is]
   else
     args = argument!(ir)
     args = push!(ir, Base.Expr(:call, :match, meth.pattern, args))
@@ -178,11 +180,12 @@ function infer!(inf::Inference)
   return inf
 end
 
-function Inference(mod::RModule; start = (startmethod(mod),))
+function Inference(mod::RModule; start = (startmethod(mod),), infer = true)
   q = WorkQueue{Any}()
   inf = Inference(mod, Dict(), q)
   frame!(inf, start)
-  infer!(inf)
+  infer && infer!(inf)
+  return inf
 end
 
 # Reflection / introspection utils

@@ -29,7 +29,12 @@ function _lowerpattern(ex, as)
     name in as || push!(as, name)
     bind(name, lowerisa(T, as))
   elseif ex isa Splat
-    data(:Repeat, _lowerpattern(ex.expr, as))
+    inner = _lowerpattern(ex.expr, as)
+    if tag(inner) == :Bind
+      data(:Bind, part(inner, 1), data(:Repeat, part(inner, 2)))
+    else
+      data(:Repeat, inner)
+    end
   elseif ex isa Call && ex.func == :data
     data(:Data, map(x -> _lowerpattern(x, as), ex.args)...)
   else

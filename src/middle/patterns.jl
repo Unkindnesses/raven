@@ -1,5 +1,10 @@
 # Pattern Matching
 
+# Right now there's some confusion over type-level vs value-level matching;
+# this code was originaly written for values and now sort-of works to produce
+# types in simple cases. We should clean up and make sure it's clear what
+# matches we're willing to shortcut this way.
+
 bindings(x) = Set()
 bindings(p::Data) =
   tag(p) == :Bind ? Set([part(p, 1)]) :
@@ -21,10 +26,9 @@ end
 function matchdata(mod, bs, pat, x)
   xs = collect(x.parts)
   for p in parts(pat)
-    if tag(p) == :Repeat
-      bss = map(x -> match(mod, phmap(), part(p, 1), x), xs)
-      any(==(nothing), bss) && return
-      return merge(bs, phmap(k => rtuple(map(bs -> bs[k], bss)...) for k in bindings(p)))
+    if tag(p) == :Bind && tag(part(p, 2)) == :Repeat
+      @assert part(part(p, 2), 1) == hole
+      return merge(bs, phmap(part(p, 1) => rtuple(xs...)))
     else
       isempty(xs) && return
       x = popfirst!(xs)
@@ -75,7 +79,10 @@ function simple_match(mod, p, x)
   is = []
   for i = 1:nparts(x)
     pi = p[i+1]
-    if tag(pi) == :Bind && ismatch(mod, pi, x[i])
+    if tag(pi) == :Bind && part(pi, 2) == data(:Repeat, hole)
+      push!(is, i:nparts(x))
+      break
+    elseif tag(pi) == :Bind && ismatch(mod, pi, x[i])
       push!(is, i)
     elseif tag(pi) == :Literal && pi[1] == x[i]
     else
