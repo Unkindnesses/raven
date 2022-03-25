@@ -102,7 +102,7 @@ function dispatcher(inf, Ts)
     args = argument!(ir)
     args = is == (:) ? [args] :
       [i isa AbstractVector ?
-        push!(ir, Base.Expr(:call, :tuple, [Base.Expr(:call, part_method, args, i) for i in i]...)) :
+        push!(ir, Base.Expr(:tuple, [Base.Expr(:call, part_method, args, i) for i in i]...)) :
         push!(ir, Base.Expr(:call, part_method, args, i)) for i in is]
   else
     args = argument!(ir)
@@ -114,8 +114,8 @@ function dispatcher(inf, Ts)
 end
 
 function infercall!(inf, loc, block, ex)
-  # TODO only supports `apply` with inferable arity.
-  Ts = isexpr(ex, :call) ?
+  # TODO only supports inferable arity.
+  Ts = ex.args[1] isa RMethod ?
     exprtype.((block.ir,), ex.args) :
     [exprtype(block.ir, ex.args[1]), parts(exprtype(block.ir, ex.args[2]))...]
   fr = frame!(inf, Ts)
@@ -145,12 +145,15 @@ function step!(inf::Inference)
     if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
       block.ir[var] = Statement(block[var], type = rvtype(st.expr.args[1].ret))
       push!(inf.queue, (frame, b, ip+1))
-    elseif isexpr(st.expr, :call, :apply)
+    elseif isexpr(st.expr, :call)
       T = infercall!(inf, (frame, b, ip), block, st.expr)
       if T != ⊥
         block.ir[var] = Statement(block[var], type = union(st.type, T))
         push!(inf.queue, (frame, b, ip+1))
       end
+    elseif isexpr(st.expr, :tuple)
+      block.ir[var] = Statement(block[var], type = rtuple(exprtype.((block.ir,), st.expr.args)...))
+      push!(inf.queue, (frame, b, ip+1))
     else
       error("Unknown expr type $(st.expr.head)")
     end

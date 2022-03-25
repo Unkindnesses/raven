@@ -90,7 +90,7 @@ function lower!(sc, ir::IR, ex::Operator)
     _push!(ir, :($(x) = $(lower!(sc, ir, ex.args[2]))))
     return x
   else
-    _push!(ir, Base.Expr(:call, ex.op, map(x -> lower!(sc, ir, x), ex.args)...))
+    _push!(ir, Base.Expr(:call, ex.op, Base.Expr(:tuple, map(x -> lower!(sc, ir, x), ex.args)...)))
   end
 end
 
@@ -105,18 +105,18 @@ function lower!(sc, ir::IR, ex::Call)
       while !(isempty(args) || first(args) isa Splat)
         push!(as, lower!(sc, ir, popfirst!(args)))
       end
-      push!(parts, _push!(ir, Base.Expr(:call, :data, :Tuple, as...)))
+      push!(parts, _push!(ir, Base.Expr(:tuple, as...)))
     end
   end
   args =
     isempty(parts) ? rtuple() :
     length(parts) == 1 ? parts[1] :
-    _push!(ir, Base.Expr(:call, :datacat, parts...))
-  _push!(ir, Base.Expr(:apply, lower!(sc, ir, ex.func), args))
+    _push!(ir, Base.Expr(:call, :datacat, Base.Expr(:tuple, parts...)))
+  _push!(ir, Base.Expr(:call, lower!(sc, ir, ex.func), args))
 end
 
 function lower!(sc, ir::IR, ex::Tuple)
-  _push!(ir, Base.Expr(:call, :tuple, lower!.((sc,), (ir,), ex.args)...))
+  _push!(ir, Base.Expr(:call, :tuple, Base.Expr(:tuple, lower!.((sc,), (ir,), ex.args)...)))
 end
 
 function lower!(sc, ir::IR, ex::Return)

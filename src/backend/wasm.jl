@@ -116,11 +116,14 @@ WModule(inf) = WModule(inf, Dict(), [], Dict())
 function sigs!(ir::IR)
   for (v, st) in ir
     if isexpr(st.expr, :call)
-      st.expr.args[1] isa WIntrinsic && continue
-      ir[v] = Base.Expr(:call, exprtype.((ir,), st.expr.args), st.expr.args...)
-    elseif isexpr(st.expr, :apply)
-      f, xs = exprtype.((ir,), st.expr.args)
-      ir[v] = Base.Expr(:call, [f, parts(xs)...], st.expr.args...)
+      if st.expr.args[1] isa WIntrinsic
+      elseif st.expr.args[1] isa RMethod || st.expr.args[1] == :cast
+        ir[v] = Base.Expr(:call, exprtype.((ir,), st.expr.args), st.expr.args...)
+      else
+        f, xs = exprtype.((ir,), st.expr.args)
+        ir[v] = Base.Expr(:call, [f, parts(xs)...], st.expr.args...)
+      end
+    elseif isexpr(st.expr, :tuple)
     else
       error("unrecognised $(st.expr.head) expr")
     end
@@ -148,6 +151,12 @@ function lowerwasm!(mod::WModule, ir::IR)
   for b in blocks(ir)
     IRTools.argtypes(b) .= layout.(IRTools.argtypes(b))
     for (v, st) in b
+      if isexpr(st.expr, :tuple)
+        # See note below about casting
+        args = filter(x -> x isa Variable, st.expr.args)
+        ir[v] = length(args) == 1 ? args[1] : Base.Expr(:tuple, args...)
+        continue
+      end
       Ts, args = st.expr.args[1], st.expr.args[2:end]
       if Ts isa WIntrinsic
         ex = Base.Expr(:call, st.expr.args[1].op, st.expr.args[2:end]...)
@@ -155,7 +164,7 @@ function lowerwasm!(mod::WModule, ir::IR)
       elseif ismethod(Ts[1], :widen)
         val = Ts[2] isa Integer ? Ts[2] : st.expr.args[3]
         ir[v] = IRTools.stmt(val, type = layout(st.type))
-      elseif Ts[1] == :cast
+      elseif Ts[1] == :cast # TODO make this an expr type
         _, T, val = Ts
         (val isa Number && T == typeof(val)) || error("unsupported cast")
         ir[v] = IRTools.stmt(val, type = layout(T))
