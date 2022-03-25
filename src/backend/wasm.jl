@@ -246,7 +246,7 @@ end
 # TODO hacky
 # Use a partial function here – if the type is a constant, use this method
 function wasm_primitives!(mod::RModule)
-  method!(mod, :tojs, RMethod(:tojs, lowerpattern(rvx"(s: PrimitiveString,)")..., _ -> data(:JSObject, Int32), true))
+  method!(mod, :tojs, RMethod(:tojs, lowerpattern(rvx"[s: PrimitiveString]")..., _ -> data(:JSObject, Int32), true))
 end
 
 function wasmmodule(mod::RModule)

@@ -75,10 +75,9 @@ _show(io::Ctx, x::Break) = print(io, "break")
 _show(io::Ctx, x::Continue) = print(io, "continue")
 
 function _show(io::Ctx, x::Tuple)
-  print(io, "(")
+  print(io, "[")
   join(io, repr.((io,), x.args), ", ")
-  length(x.args) == 1 && print(io, ',')
-  print(io, ")")
+  print(io, "]")
 end
 
 function _show(io::Ctx, x::Call)

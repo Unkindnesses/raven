@@ -203,6 +203,8 @@ function brackets(io, start = '(', stop = bracketmap[start])
   return xs
 end
 
+_tuple(io) = Tuple(@try(brackets(io, '[')))
+
 function _block(io)
   read(io) == '{' || return
   consume_ws(io)
@@ -217,21 +219,12 @@ function _block(io)
   return Block(args)
 end
 
-function _tuple(io)
+function grouping(io)
   read(io) == '(' || return
-  xs = []
-  while true
-    parse(char(')'), io) == nothing || break
-    x = parse(io)
-    if parse(exact("..."), io) != nothing
-      x = Splat(x)
-    end
-    push!(xs, x)
-    nt = read(io)
-    nt == ')' && (length(xs) == 1 && !(x isa Splat) ? (return xs[]) : break)
-    nt == ',' || error("Expected a delimiter at $(curstring(io))")
-  end
-  return Tuple(xs)
+  x = parse(io)
+  nt = read(io)
+  nt == ')' || error("Expected closing bracket at $(curstring(io))")
+  return x
 end
 
 function ret(io)
@@ -250,7 +243,7 @@ nop(io) = nothing
 function expr(io; quasi = true)
   consume_ws(io)
   quot = quasi ? quotation : nop
-  ex = parseone(io, ret, _break, symbol, string, number, op_token, quot, _tuple, _block)
+  ex = parseone(io, ret, _break, symbol, string, number, op_token, quot, grouping, _tuple, _block)
   ex == nothing && throw(ParseError("Unexpected character $(read(io))", loc(io)))
   while (args = tryparse(brackets, io)) != nothing
     ex = Call(ex, args)

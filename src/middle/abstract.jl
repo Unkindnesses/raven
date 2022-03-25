@@ -88,7 +88,7 @@ function applicable(mod, Ts)
    if ismatch(mod, meth.pattern, args)]
 end
 
-part_method = RMethod(:part, lowerpattern(rvx"(data, i)")..., part, true)
+part_method = RMethod(:part, lowerpattern(rvx"[data, i]")..., part, true)
 
 function dispatcher(inf, Ts)
   func::Symbol = Ts[1]
