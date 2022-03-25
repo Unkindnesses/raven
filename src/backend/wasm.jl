@@ -152,7 +152,7 @@ function lowerwasm!(mod::WModule, ir::IR)
     IRTools.argtypes(b) .= layout.(IRTools.argtypes(b))
     for (v, st) in b
       if isexpr(st.expr, :tuple)
-        # See note below about casting
+        # remove constants, which have zero width
         args = filter(x -> x isa Variable, st.expr.args)
         ir[v] = length(args) == 1 ? args[1] : Base.Expr(:tuple, args...)
         continue
@@ -184,8 +184,7 @@ function lowerwasm!(mod::WModule, ir::IR)
           ir[v] = IRTools.stmt(ex, type = layout(st.type))
         else
           func = partmethod!(mod, Ts[1], x, i)
-          # See note below on filter
-          ir[v] = Base.Expr(:call, WebAssembly.Call(func), filter(x -> x isa Variable, args[2:end])...)
+          ir[v] = Base.Expr(:call, WebAssembly.Call(func), args[2:end]...)
           ir[v] = IRTools.stmt(ir[v], type = layout(ir[v].type))
         end
       elseif ismethod(Ts[1], :nparts)
@@ -194,10 +193,7 @@ function lowerwasm!(mod::WModule, ir::IR)
         ir[v] = IRTools.stmt(Int32(stringid!(mod, Ts[2])), type = layout(st.type))
       else
         func = lowerwasm!(mod, rtuple(Ts...))
-        # Filter gets rid of constants
-        # TODO: this is a hack. Should use a cast to get the layout the
-        # function is expecting, then remove trivial args.
-        ir[v] = Base.Expr(:call, WebAssembly.Call(func), filter(x -> x isa Variable, args[2:end])...)
+        ir[v] = Base.Expr(:call, WebAssembly.Call(func), args[2:end]...)
         ir[v] = IRTools.stmt(ir[v], type = layout(ir[v].type))
       end
     end

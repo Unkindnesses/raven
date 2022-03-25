@@ -94,6 +94,8 @@ function lower!(sc, ir::IR, ex::Operator)
   end
 end
 
+# TODO: should possibly have a primitive `data(...)` expression
+# rather than special-casing `tuple`.
 function lower!(sc, ir::IR, ex::Call)
   args = collect(ex.args)
   parts = []
@@ -109,7 +111,7 @@ function lower!(sc, ir::IR, ex::Call)
     end
   end
   args =
-    isempty(parts) ? rtuple() :
+    isempty(parts) ? Base.Expr(:tuple) :
     length(parts) == 1 ? parts[1] :
     _push!(ir, Base.Expr(:call, :datacat, Base.Expr(:tuple, parts...)))
   _push!(ir, Base.Expr(:call, lower!(sc, ir, ex.func), args))
