@@ -34,13 +34,18 @@ const ⊥ = Bottom()
 Primitive = Union{Int64,Int32,Float64,Float32,Symbol,String}
 
 # Primitive Types
-for T in :[Int64, Int32, Float64, Float32, Symbol, String].args
+for T in :[Int64, Int32, Float64, Float32, Symbol].args
   @eval part(x::Union{$T,Type{$T}}, i::Integer) =
           i == 0 ? $(QuoteNode(T)) :
           i == 1 ? x :
           error("Tried to access part $i of 2")
   @eval nparts(x::$T) = 2
 end
+
+part(s::String, i::Integer) =
+  i == 0 ? :String :
+  i == 1 ? data(:JSObject, Int32) :
+  error("Tried to access part $i of 2")
 
 # Printing
 

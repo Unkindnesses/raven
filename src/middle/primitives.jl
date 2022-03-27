@@ -1,5 +1,4 @@
 # Primitives for type inference
-# Most of these should eventually end up in Raven itself, via partial functions
 
 isprimitive(x::T, ::Type{T}) where T = true
 isprimitive(::Type{T}, ::Type{T}) where T = true
@@ -36,7 +35,5 @@ function primitives!(mod)
     # TODO: hack
     method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(parse("[x, `$T`]"))..., x -> Int32(isprimitive(x, T))))
   end
-  mod[:PrimitiveString] = :PrimitiveString
-  method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(rvx"[x, `PrimitiveString`]")..., x -> Int32(x isa String)))
   return mod
 end

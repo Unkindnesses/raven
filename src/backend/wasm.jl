@@ -173,7 +173,11 @@ function lowerwasm!(mod::WModule, ir::IR)
       elseif ismethod(Ts[1], :datacat)
         lowerdatacat!(mod, ir, v)
       elseif ismethod(Ts[1], :part) # TODO: same
-        x::Data, i = Ts[2:end]
+        x::Union{String,Data}, i = Ts[2:end]
+        if x isa String && i == 1
+          ir[v] = IRTools.stmt(Int32(stringid!(mod, x)), type = layout(st.type))
+          continue
+        end
         if i isa Int
           xlayout = layout(x)
           part(i) = xlayout isa WTuple ? insert!(ir, v, Base.Expr(:ref, args[2], i)) : args[2]
@@ -189,8 +193,6 @@ function lowerwasm!(mod::WModule, ir::IR)
         end
       elseif ismethod(Ts[1], :nparts)
         ir[v] = nparts(Ts[2])
-      elseif ismethod(Ts[1], :tojs) && Ts[2] isa String
-        ir[v] = IRTools.stmt(Int32(stringid!(mod, Ts[2])), type = layout(st.type))
       else
         func = lowerwasm!(mod, rtuple(Ts...))
         ir[v] = Base.Expr(:call, WebAssembly.Call(func), args[2:end]...)
@@ -248,14 +250,7 @@ function wasmmodule(inf::Inference)
   return mod, strings
 end
 
-# TODO hacky
-# Use a partial function here – if the type is a constant, use this method
-function wasm_primitives!(mod::RModule)
-  method!(mod, :tojs, RMethod(:tojs, lowerpattern(rvx"[s: PrimitiveString]")..., _ -> data(:JSObject, Int32), true))
-end
-
 function wasmmodule(mod::RModule)
-  wasm_primitives!(mod)
   wasmmodule(Inference(mod))
 end
 
