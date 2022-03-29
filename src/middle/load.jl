@@ -53,8 +53,8 @@ end
 vload(cx::Source, x::Block) = foreach(x -> vload(cx, x), x.args)
 
 function vload(cx::Source, x::Operator)
-  if x.op == :(=) && x.args[1] isa Symbol && simpleconst(cx, x.args[2]) != nothing
-    cx.mod.defs[x.args[1]] = simpleconst(cx, x.args[2])
+  if x.op == :(=) && x.args[1] isa Symbol && (c = simpleconst(cx, x.args[2])) != nothing
+    cx.mod.defs[x.args[1]] = c
   else
     push!(cx.main, x)
   end
