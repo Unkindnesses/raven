@@ -40,7 +40,7 @@ function vload(cx::Inference, x::Operator)
   if x.op == :(=) && x.args[1] isa Symbol && (c = simpleconst(cx, x.args[2])) != nothing
     cx.mod.defs[x.args[1]] = c
   else
-    push!(cx.main, x)
+    load_expr(cx, x)
   end
 end
 
