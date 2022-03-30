@@ -3,6 +3,7 @@ using IRTools: WorkQueue
 _typeof(mod, x) = error("invalid constant $x::$(typeof(x))")
 _typeof(mod, x::Union{Number,String,Symbol,RMethod}) = x
 _typeof(mod, x::Quote) = x.expr
+_typeof(mod, x::Global) = mod[x.name]
 
 exprtype(mod, ir, x) = IRTools.exprtype(ir, x, typeof = x -> _typeof(mod, x))
 exprtype(mod, ir, xs::AbstractVector) = map(x -> exprtype(mod, ir, x), xs)

@@ -50,12 +50,13 @@ end
 
 # Expr -> IR lowering
 
-# TODO; should look things up in module scope, or represent globals
-# explicitly
+struct Global
+  name::Symbol
+end
 
 struct GlobalScope end
 
-Base.getindex(g::GlobalScope, x::Symbol) = x
+Base.getindex(g::GlobalScope, x::Symbol) = Global(x)
 
 struct Scope
   parent::Any
