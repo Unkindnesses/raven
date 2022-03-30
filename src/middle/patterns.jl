@@ -52,7 +52,7 @@ function match(mod, bs, p, x)
     quickcheck(p, x) || return
     return matchdata(mod, bs, p, x)
   elseif tag(p) == :Isa
-    return Bool(vinvoke(mod, Symbol("isa?"), x, mod[part(p, 1)])) ? bs : nothing
+    return tag(x) == mod[part(p, 1)] ? bs : nothing
   elseif tag(p) == :Or
     for i = 1:nparts(p)
       bs′ = match(mod, bs, part(p, i), x)

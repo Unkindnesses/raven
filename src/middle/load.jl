@@ -23,17 +23,8 @@ function load_expr(cx::Inference, x)
   push!(cx.main, x)
 end
 
-function static_if(cx::Inference, x)
-  if simpleconst(cx, x.args[1]) != nothing
-    Bool(simpleconst(cx, x.args[1])) && vload(cx, x.args[2])
-  else
-    load_expr(cx, x)
-  end
-end
-
 function vload(cx::Inference, x::Syntax)
   x.name == :import && return load_import(cx, x)
-  x.name == :if && return static_if(cx, x)
   x.name == :fn || return load_expr(cx, x)
   sig = x.args[1]
   f = sig isa Operator ? sig.op : sig.func
@@ -72,14 +63,13 @@ function loadfile(cx::Inference, io::IO)
   end
 end
 
-# TODO: The interpreter should really do its own loading.
-function loadfile(mod::RModule, f::String; infer = true)
+function loadfile(mod::RModule, f::String)
   cx = Inference(mod)
   open(io -> loadfile(cx, io), "$base/base.rv")
   open(io -> loadfile(cx, io), f)
   finish!(cx)
   frame!(cx, (startmethod(cx.mod),))
-  infer && infer!(cx)
+  infer!(cx)
   return cx
 end
 

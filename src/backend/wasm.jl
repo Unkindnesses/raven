@@ -268,7 +268,6 @@ end
 
 function loadwasm(file)
   m = RModule()
-  m[:__backendWasm] = Int32(1)
   return loadfile(m, file)
 end
 

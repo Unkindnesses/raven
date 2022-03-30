@@ -1,9 +1,5 @@
 # Primitives for type inference
 
-isprimitive(x::T, ::Type{T}) where T = true
-isprimitive(::Type{T}, ::Type{T}) where T = true
-isprimitive(x, ::Type) = false
-
 function partial_part(data, i)
   if i isa Integer
     return part(data, i)
@@ -18,13 +14,10 @@ end
 function primitives!(mod)
   mod[Symbol("false")] = Int32(0)
   mod[Symbol("true")] = Int32(1)
-  mod[:__backendWasm] = Int32(0)
   method!(mod, :data, RMethod(:data, lowerpattern(rvx"args")..., args -> data(parts(args)...), true))
   method!(mod, :part, RMethod(:part, lowerpattern(rvx"[data, i]")..., partial_part, true))
   method!(mod, :nparts, RMethod(:nparts, lowerpattern(rvx"[x]")..., nparts, true))
   method!(mod, :datacat, RMethod(:datacat, lowerpattern(rvx"args")..., args -> datacat(parts(args)...), true))
-  # TODO: this is a hacky fallback
-  method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(rvx"[x, T]")..., (x, T) -> Int32(tag(x) == T)))
 
   partial_widen(x::Primitive) = typeof(x)
   partial_widen(x) = x
@@ -32,8 +25,6 @@ function primitives!(mod)
 
   for T in [Int64, Int32, Float64, Float32]
     mod[Symbol(T)] = Symbol(T)
-    # TODO: hack
-    method!(mod, Symbol("isa?"), RMethod(Symbol("isa?"), lowerpattern(parse("[x, `$T`]"))..., x -> Int32(isprimitive(x, T))))
   end
   return mod
 end

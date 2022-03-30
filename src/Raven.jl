@@ -16,7 +16,6 @@ include("frontend/modules.jl")
 
 include("middle/primitives.jl")
 include("middle/patterns.jl")
-include("middle/interpreter.jl")
 include("middle/abstract.jl")
 include("middle/load.jl")
 

@@ -1,13 +1,13 @@
 List = `List`
 
 fn EmptyList() { data(`EmptyList`) }
-fn Prepend(xs: List, x) { data(`Prepend`, xs, x) }
+fn Prepend(xs, x) { data(`Prepend`, xs, x) }
 
-fn isa?(xs, `List`) { false }
-fn isa?(xs: Prepend | EmptyList, `List`) { true }
+# fn isa?(xs, `List`) { false }
+# fn isa?(xs: Prepend | EmptyList, `List`) { true }
 
-fn prepend(xs: List, x) { Prepend(xs, x) }
-fn prepend(xs: List, x, y) { prepend(prepend(xs, x), y) }
+fn prepend(xs, x) { Prepend(xs, x) }
+fn prepend(xs, x, y) { prepend(prepend(xs, x), y) }
 
 fn first(l: EmptyList) { panic("first: List is empty") }
 fn first(l: Prepend) { part(l, 2) }
@@ -27,45 +27,45 @@ fn empty?(xs: EmptyList) { true }
 fn length(xs: Prepend) { 1 + length(rest(xs)) }
 fn length(xs: EmptyList) { 0 }
 
-fn range(start, end) {
-  if (start > end) {
-    list()
-  } else {
-    prepend(range(start+one(start), end), start)
-  }
-}
-
-fn repeat(n, x) { prepend(repeat(n-1, x), x) }
-fn repeat(0, x) { list() }
-
-fn interleave(xs: List, ys: List) { list() }
-
-fn interleave(xs: Prepend, ys: Prepend) {
-  prepend(interleave(rest(xs), rest(ys)), first(ys), first(xs))
-}
-
-fn interpose(sep, xs) {
-  rest(interleave(repeat(length(xs), sep), xs))
-}
-
-fn interpose(sep, xs: EmptyList) { xs }
+# fn range(start, end) {
+#   if (start > end) {
+#     list()
+#   } else {
+#     prepend(range(start+one(start), end), start)
+#   }
+# }
+#
+# fn repeat(n, x) { prepend(repeat(n-1, x), x) }
+# fn repeat(0, x) { list() }
+#
+# fn interleave(xs: List, ys: List) { list() }
+#
+# fn interleave(xs: Prepend, ys: Prepend) {
+#   prepend(interleave(rest(xs), rest(ys)), first(ys), first(xs))
+# }
+#
+# fn interpose(sep, xs) {
+#   rest(interleave(repeat(length(xs), sep), xs))
+# }
+#
+# fn interpose(sep, xs: EmptyList) { xs }
 
 fn sum(xs: Prepend, s) { sum(rest(xs), s + first(xs)) }
 fn sum(xs: EmptyList, s) { s }
 
-fn sum(xs: List) { sum(xs, zero(first(xs))) }
+fn sum(xs) { sum(xs, zero(first(xs))) }
 
-fn map(f, xs: EmptyList) { xs }
-fn map(f, xs: Prepend) { prepend(map(f, rest(xs)), f(first(xs))) }
-
-fn foreach(f, _: EmptyList) { Nothing() }
-fn foreach(f, xs: Prepend) {
-  f(first(xs))
-  foreach(f, rest(xs))
-}
-
-fn print(xs: List) {
-  print("list(")
-  foreach(print, interpose(", ", xs))
-  print(")")
-}
+# fn map(f, xs: EmptyList) { xs }
+# fn map(f, xs: Prepend) { prepend(map(f, rest(xs)), f(first(xs))) }
+#
+# fn foreach(f, _: EmptyList) { Nothing() }
+# fn foreach(f, xs: Prepend) {
+#   f(first(xs))
+#   foreach(f, rest(xs))
+# }
+#
+# fn print(xs: List) {
+#   print("list(")
+#   foreach(print, interpose(", ", xs))
+#   print(")")
+# }
