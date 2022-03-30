@@ -83,6 +83,8 @@ lower!(sc, ir::IR, x::Symbol) = sc[x]
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? nothing : (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
 
+lower!(sc, ir::IR, x::Block) = lower!(sc, ir, x.args)
+
 function lower!(sc, ir::IR, ex::Operator)
   if ex.op == :(=)
     x = Slot(ex.args[1])
@@ -132,6 +134,7 @@ function lower!(sc, ir::IR, ex::Break)
 end
 
 function lowerwhile!(sc, ir::IR, ex)
+  sc = Scope(sc)
   header = IRTools.block!(ir)
   cond = lower!(sc, ir, ex.args[1])
   IRTools.block!(ir)
@@ -180,6 +183,7 @@ function If(b::Syntax)
 end
 
 function lowerif!(sc, ir::IR, ex::If, value = true)
+  sc = Scope(sc)
   b = blocks(ir)[end]
   ts = []
   vs = []
@@ -237,7 +241,7 @@ function lowerfn(ex, args)
     sc[arg] = Slot(arg)
     push!(ir, :($(Slot(arg)) = $(argument!(ir))))
   end
-  out = lower!(sc, ir, ex.args[2].args)
+  out = lower!(sc, ir, ex.args[2])
   out == nothing || IRTools.return!(ir, out)
   return ir |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
 end
