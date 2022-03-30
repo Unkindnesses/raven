@@ -113,14 +113,16 @@ end
 
 WModule(inf) = WModule(inf, Dict(), [], Dict())
 
-function sigs!(ir::IR)
+function sigs!(mod::RModule, ir::IR)
   for (v, st) in ir
     if isexpr(st.expr, :call)
       if st.expr.args[1] isa WIntrinsic
+      elseif st.expr.args[1] == :cast
+        ir[v] = Base.Expr(:call, [:cast, st.expr.args[2], exprtype(mod, ir, st.expr.args[3])], st.expr.args...)
       elseif st.expr.args[1] isa RMethod || st.expr.args[1] == :cast
-        ir[v] = Base.Expr(:call, exprtype.((ir,), st.expr.args), st.expr.args...)
+        ir[v] = Base.Expr(:call, exprtype(mod, ir, st.expr.args), st.expr.args...)
       else
-        f, xs = exprtype.((ir,), st.expr.args)
+        f, xs = exprtype(mod, ir, st.expr.args)
         ir[v] = Base.Expr(:call, [f, parts(xs)...], st.expr.args...)
       end
     elseif isexpr(st.expr, :tuple)
@@ -146,8 +148,8 @@ ismethod(m, name) = m isa RMethod && m.name == name
 
 function lowerwasm!(mod::WModule, ir::IR)
   prune!(ir)
-  casts!(ir)
-  sigs!(ir)
+  casts!(mod.inf.mod, ir)
+  sigs!(mod.inf.mod, ir)
   for b in blocks(ir)
     IRTools.argtypes(b) .= layout.(IRTools.argtypes(b))
     for (v, st) in b

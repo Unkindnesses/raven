@@ -11,8 +11,8 @@ using IRTools.Inner: Slot
 include("frontend/ast.jl")
 include("frontend/parse.jl")
 include("frontend/data.jl")
-include("frontend/lower.jl")
 include("frontend/modules.jl")
+include("frontend/lower.jl")
 
 include("middle/primitives.jl")
 include("middle/patterns.jl")

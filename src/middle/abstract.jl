@@ -1,8 +1,11 @@
 using IRTools: WorkQueue
 
-_typeof(x) = x
-_typeof(x::Quote) = x.expr
-exprtype(ir, x) = IRTools.exprtype(ir, x, typeof = _typeof)
+_typeof(mod, x) = error("invalid constant $x::$(typeof(x))")
+_typeof(mod, x::Union{Number,String,Symbol,RMethod}) = x
+_typeof(mod, x::Quote) = x.expr
+
+exprtype(mod, ir, x) = IRTools.exprtype(ir, x, typeof = x -> _typeof(mod, x))
+exprtype(mod, ir, xs::AbstractVector) = map(x -> exprtype(mod, ir, x), xs)
 
 union(x) = x
 union(x::Data, y::Data) = x == y ? x : error("Unions not supported")
@@ -119,19 +122,19 @@ end
 function infercall!(inf, loc, block, ex)
   # TODO only supports inferable arity.
   Ts = ex.args[1] isa RMethod ?
-    exprtype.((block.ir,), ex.args) :
-    [exprtype(block.ir, ex.args[1]), parts(exprtype(block.ir, ex.args[2]))...]
+    exprtype(inf.mod, block.ir, ex.args) :
+    [exprtype(inf.mod, block.ir, ex.args[1]), parts(exprtype(inf.mod, block.ir, ex.args[2]))...]
   fr = frame!(inf, Ts)
   fr isa Frame || return fr
   push!(fr.edges, loc)
   return fr.rettype
 end
 
-function openbranches(bl)
+function openbranches(inf, bl)
   brs = []
   for br in IRTools.branches(bl)
     br.condition == nothing && (push!(brs, br); break)
-    cond = exprtype(bl.ir, br.condition)
+    cond = exprtype(inf.mod, bl.ir, br.condition)
     cond == true && continue
     cond == false && (push!(brs, br); break)
     push!(brs, br)
@@ -155,21 +158,21 @@ function step!(inf::Inference)
         push!(inf.queue, (frame, b, ip+1))
       end
     elseif isexpr(st.expr, :tuple)
-      block.ir[var] = Statement(block[var], type = rtuple(exprtype.((block.ir,), st.expr.args)...))
+      block.ir[var] = Statement(block[var], type = rtuple(exprtype(inf.mod, block.ir, st.expr.args)...))
       push!(inf.queue, (frame, b, ip+1))
     else
       error("Unknown expr type $(st.expr.head)")
     end
   else
-    brs = openbranches(block)
+    brs = openbranches(inf, block)
     for br in brs
       if isreturn(br)
-        T = exprtype(block.ir, IRTools.returnvalue(block))
+        T = exprtype(inf.mod, block.ir, IRTools.returnvalue(block))
         issubtype(T, frame.rettype) && return
         frame.rettype = union(frame.rettype, T)
         foreach(loc -> push!(inf.queue, loc), frame.edges)
       else
-        args = exprtype.((block.ir,), arguments(br))
+        args = exprtype(inf.mod, block.ir, arguments(br))
         if blockargs!(IRTools.block(frame.ir, br.block), args)
           push!(inf.queue, (frame, br.block, 1))
         end
