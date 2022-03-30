@@ -250,10 +250,6 @@ function wasmmodule(inf::Inference)
   return mod, strings
 end
 
-function wasmmodule(mod::RModule)
-  wasmmodule(Inference(mod))
-end
-
 function binary(m::WebAssembly.Module, file; optimise = true)
   wat = tempname() * ".wat"
   WebAssembly.write_wat(wat, m)
@@ -266,13 +262,8 @@ function binary(m::WebAssembly.Module, file; optimise = true)
   return
 end
 
-function loadwasm(file)
-  m = RModule()
-  return loadfile(m, file)
-end
-
 function emitwasm(file, out)
-  mod, strings = wasmmodule(loadwasm(file))
+  mod, strings = wasmmodule(loadfile(file))
   binary(mod, out)
   return strings
 end
@@ -280,21 +271,17 @@ end
 sigmatch(sig, func) = sig[1] == func || ismethod(sig[1], func)
 
 function code_wasm(src, func = :_main)
-  mod = loadwasm(src)
-  wasm_primitives!(mod)
-  mod = wasm_ir(Inference(mod))
+  mod = loadfile(src)
+  mod = wasm_ir(mod)
   Dict{Any,IR}(sig => fr[2] for (sig, fr) in mod.funcs if sigmatch(sig, func))
 end
 
 function code_typed(src, func = :_main)
-  mod = loadwasm(src)
-  wasm_primitives!(mod)
-  inf = Inference(mod)
+  inf = loadfile(src)
   Dict{Any,IR}(sig => fr.ir for (sig, fr) in inf.frames if sigmatch(sig, func))
 end
 
 function code_lowered(src, func = :_main)
-  mod = loadwasm(src)
-  wasm_primitives!(mod)
-  return Dict(meth.pattern => meth.func for meth in mod.methods[func])
+  inf = loadfile(src)
+  return Dict(meth.pattern => meth.func for meth in inf.mod.methods[func])
 end
