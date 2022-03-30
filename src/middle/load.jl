@@ -1,13 +1,6 @@
-struct Source
-  mod::RModule
-  main::Vector{Any}
-end
-
-Source(mod::RModule) = Source(mod, [])
-
 base = joinpath(@__DIR__, "../../base")
 
-function simpleconst(cx::Source, x)
+function simpleconst(cx::Inference, x)
   x isa Symbol && return cx.mod.defs[x]
   x isa Primitive && return x
   x isa Quote && return x.expr
@@ -26,11 +19,11 @@ function load_import(cx, x)
   open(io -> loadfile(cx, io), "$base/$(importpath(x)).rv")
 end
 
-function load_expr(cx::Source, x)
+function load_expr(cx::Inference, x)
   push!(cx.main, x)
 end
 
-function static_if(cx::Source, x)
+function static_if(cx::Inference, x)
   if simpleconst(cx, x.args[1]) != nothing
     Bool(simpleconst(cx, x.args[1])) && vload(cx, x.args[2])
   else
@@ -38,7 +31,7 @@ function static_if(cx::Source, x)
   end
 end
 
-function vload(cx::Source, x::Syntax)
+function vload(cx::Inference, x::Syntax)
   x.name == :import && return load_import(cx, x)
   x.name == :if && return static_if(cx, x)
   x.name == :fn || return load_expr(cx, x)
@@ -50,9 +43,9 @@ function vload(cx::Source, x::Syntax)
   return f
 end
 
-vload(cx::Source, x::Block) = foreach(x -> vload(cx, x), x.args)
+vload(cx::Inference, x::Block) = foreach(x -> vload(cx, x), x.args)
 
-function vload(cx::Source, x::Operator)
+function vload(cx::Inference, x::Operator)
   if x.op == :(=) && x.args[1] isa Symbol && (c = simpleconst(cx, x.args[2])) != nothing
     cx.mod.defs[x.args[1]] = c
   else
@@ -60,16 +53,16 @@ function vload(cx::Source, x::Operator)
   end
 end
 
-vload(m::Source, x) = load_expr(m, x)
+vload(m::Inference, x) = load_expr(m, x)
 
-function finish!(cx::Source)
+function finish!(cx::Inference)
   fn = Syntax(:fn, [Call(:_main, []), Block(cx.main)])
   method!(cx.mod, :_main, RMethod(:_main, lowerpattern(Tuple([]))..., lowerfn(fn, [])))
   fn = Syntax(:fn, [Call(:_start, []), Block([Call(:_main, []), Call(:data, [Quote(:Nothing)])])])
   method!(cx.mod, :_start, RMethod(:_start, lowerpattern(Tuple([]))..., lowerfn(fn, [])))
 end
 
-function loadfile(cx::Source, io::IO)
+function loadfile(cx::Inference, io::IO)
   io = LineNumberingReader(io)
   out = rnothing
   stmts(io)
@@ -79,12 +72,15 @@ function loadfile(cx::Source, io::IO)
   end
 end
 
-function loadfile(mod::RModule, f::String)
-  cx = Source(mod)
+# TODO: The interpreter should really do its own loading.
+function loadfile(mod::RModule, f::String; infer = true)
+  cx = Inference(mod)
   open(io -> loadfile(cx, io), "$base/base.rv")
   open(io -> loadfile(cx, io), f)
   finish!(cx)
-  return cx.mod
+  frame!(cx, (startmethod(cx.mod),))
+  infer && infer!(cx)
+  return cx
 end
 
 loadfile(f::String) = loadfile(RModule(), f)

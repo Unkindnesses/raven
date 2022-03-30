@@ -56,8 +56,11 @@ end
 struct Inference
   mod::RModule
   frames::IdDict{Any,Frame}
+  main::Vector{Any}
   queue::WorkQueue{Any}
 end
+
+Inference(mod::RModule) = Inference(mod, Dict(), [], WorkQueue{Any}())
 
 function frame!(inf, T, ir, args...)
   haskey(inf.frames, T) && return inf.frames[T]
@@ -180,14 +183,6 @@ function infer!(inf::Inference)
   while !isempty(inf.queue)
     step!(inf)
   end
-  return inf
-end
-
-function Inference(mod::RModule; start = (startmethod(mod),), infer = true)
-  q = WorkQueue{Any}()
-  inf = Inference(mod, Dict(), q)
-  frame!(inf, start)
-  infer && infer!(inf)
   return inf
 end
 

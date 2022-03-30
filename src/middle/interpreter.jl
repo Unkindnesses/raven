@@ -84,7 +84,7 @@ interpret(mod, ir::IR, args...) = run!(Interpreter(mod, ir, args...))
 function interpret(file::String)
   m = RModule()
   interpreter_primitives!(m)
-  loadfile(m, file)
+  loadfile(m, file, infer = false)
   interpret(m, startmethod(m).func)
   return
 end
