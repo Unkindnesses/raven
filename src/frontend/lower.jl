@@ -54,13 +54,20 @@ struct Global
   name::Symbol
 end
 
-struct GlobalScope end
+struct GlobalScope
+  defs::Vector{Symbol}
+end
+
+GlobalScope() = GlobalScope([])
 
 Base.getindex(g::GlobalScope, x::Symbol) = Global(x)
+Base.haskey(sc::GlobalScope, x::Symbol) = x in sc.defs
+
+variable!(sc::GlobalScope, name) = Global(name)
 
 struct Scope
   parent::Any
-  env::Dict{Symbol,Any}
+  env::Dict{Symbol,Slot}
 end
 
 Scope(parent) = Scope(parent, Dict{Symbol,Any}())
@@ -69,6 +76,10 @@ Scope() = Scope(GlobalScope())
 @forward Scope.env Base.setindex!
 
 Base.getindex(sc::Scope, x::Symbol) = haskey(sc.env, x) ? sc.env[x] : sc.parent[x]
+Base.haskey(sc::Scope, x::Symbol) = haskey(sc.env, x) || haskey(sc.parent, x)
+
+variable!(sc::Scope, name::Symbol) =
+  haskey(sc, name) ? sc[name] : (sc[name] = Slot(gensym(name)))
 
 # don't continue lowering after return
 # e.g. `f(return 1)`
@@ -88,8 +99,7 @@ lower!(sc, ir::IR, x::Block) = lower!(sc, ir, x.args)
 
 function lower!(sc, ir::IR, ex::Operator)
   if ex.op == :(=)
-    x = Slot(ex.args[1])
-    sc[ex.args[1]] = x
+    x = variable!(sc, ex.args[1])
     _push!(ir, :($(x) = $(lower!(sc, ir, ex.args[2]))))
     return x
   else
@@ -249,6 +259,14 @@ end
 
 function lowerexpr(ex)
   sc = Scope()
+  ir = IR()
+  out = lower!(sc, ir, ex)
+  out == nothing || IRTools.return!(ir, out)
+  return ir |> IRTools.ssa! |> IRTools.prune!
+end
+
+function lower_toplevel(ex, defs = [])
+  sc = GlobalScope(defs)
   ir = IR()
   out = lower!(sc, ir, ex)
   out == nothing || IRTools.return!(ir, out)
