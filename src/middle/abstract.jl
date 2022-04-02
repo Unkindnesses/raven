@@ -161,6 +161,9 @@ function step!(inf::Inference)
     elseif isexpr(st.expr, :tuple)
       block.ir[var] = Statement(block[var], type = rtuple(exprtype(inf.mod, block.ir, st.expr.args)...))
       push!(inf.queue, (frame, b, ip+1))
+    elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global
+      delete!(frame.ir, var)
+      push!(inf.queue, (frame, b, ip+1))
     else
       error("Unknown expr type $(st.expr.head)")
     end

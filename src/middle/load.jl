@@ -47,8 +47,7 @@ end
 vload(m::Inference, x) = load_expr(m, x)
 
 function finish!(cx::Inference)
-  fn = Syntax(:fn, [Call(:_main, []), Block(cx.main)])
-  method!(cx.mod, :_main, RMethod(:_main, lowerpattern(Tuple([]))..., lowerfn(fn, [])))
+  method!(cx.mod, :_main, RMethod(:_main, lowerpattern(Tuple([]))..., lower_toplevel(Block(cx.main))))
   fn = Syntax(:fn, [Call(:_start, []), Block([Call(:_main, []), Call(:data, [Quote(:Nothing)])])])
   method!(cx.mod, :_start, RMethod(:_start, lowerpattern(Tuple([]))..., lowerfn(fn, [])))
 end

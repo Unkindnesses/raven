@@ -287,7 +287,7 @@ function lower_toplevel(ex, defs = [])
   sc = GlobalScope(defs)
   ir = IR()
   out = lower!(sc, ir, ex)
-  IRTools.return!(ir, rnothing)
+  IRTools.return!(ir, out)
   ir = rewrite_globals(ir)
   return ir |> IRTools.ssa! |> IRTools.prune!
 end
