@@ -44,6 +44,11 @@ layout(::Type{T}) where T = WebAssembly.WType(T)
 layout(x::Union{Primitive,Quote}) = WTuple()
 layout(x::Data) = cat_layout(layout.(x.parts)...)
 
+function tlayout(x)
+  l = layout(x)
+  return l isa WTuple ? l : WTuple(l)
+end
+
 nregisters(l::WType) = 1
 nregisters(l::WTuple) = length(l.parts)
 
@@ -96,6 +101,8 @@ struct WModule
   symbols::Dict{Symbol,Int}
   strings::Vector{String}
   funcs::Dict{Any,Base.Tuple{Symbol,IR}}
+  globals::Dict{Global,Vector{Int}}
+  gtypes::Vector{WType}
 end
 
 function name(mod::WModule, s::Symbol)
@@ -111,7 +118,16 @@ function stringid!(mod::WModule, s::String)
   return length(mod.strings)-1
 end
 
-WModule(inf) = WModule(inf, Dict(), [], Dict())
+function global!(mod::WModule, g::Global, T)
+  get!(mod.globals, g) do
+    start = sum([length(gs) for gs in values(mod.globals)])
+    l = tlayout(T).parts
+    append!(mod.gtypes, l)
+    collect(start:start+length(l)-1)
+  end
+end
+
+WModule(inf) = WModule(inf, Dict(), [], Dict(), Dict(), [])
 
 function sigs!(mod::RModule, ir::IR)
   for (v, st) in ir
@@ -125,9 +141,6 @@ function sigs!(mod::RModule, ir::IR)
         f, xs = exprtype(mod, ir, st.expr.args)
         ir[v] = Base.Expr(:call, [f, parts(xs)...], st.expr.args...)
       end
-    elseif isexpr(st.expr, :tuple)
-    else
-      error("unrecognised $(st.expr.head) expr")
     end
   end
   return ir
@@ -146,7 +159,31 @@ end
 
 ismethod(m, name) = m isa RMethod && m.name == name
 
+# Turn global references into explicit load instructions
+function globals(mod::RModule, ir::IR)
+  pr = IRTools.Pipe(ir)
+  transform(x, v = nothing) = x
+  function transform(x::Global, v = nothing)
+    length(tlayout(mod.defs[x.name]).parts) == 0 && return x
+    insert = v == nothing ? (x -> push!(pr, x)) : (x -> insert!(pr, v, x))
+    insert(IRTools.stmt(Base.Expr(:global, x.name), type = mod.defs[x.name]))
+  end
+  IRTools.branches(pr) do b
+    IRTools.Branch(b, args = [transform(x) for x in b.args])
+  end
+  for (v, st) in pr
+    ex = st.expr
+    if isexpr(ex, :(=))
+      pr[v] = Base.Expr(ex.head, ex.args[1], transform.(ex.args[2:end], (v,))...)
+    else
+      pr[v] = Base.Expr(ex.head, transform.(ex.args, (v,))...)
+    end
+  end
+  return IRTools.finish(pr)
+end
+
 function lowerwasm!(mod::WModule, ir::IR)
+  ir = globals(mod.inf.mod, ir)
   prune!(ir)
   casts!(mod.inf.mod, ir)
   sigs!(mod.inf.mod, ir)
@@ -158,6 +195,18 @@ function lowerwasm!(mod::WModule, ir::IR)
         args = filter(x -> x isa Variable, st.expr.args)
         ir[v] = length(args) == 1 ? args[1] : Base.Expr(:tuple, args...)
         continue
+      elseif isexpr(st.expr, :(=)) && (g = st.expr.args[1]) isa Global
+        l = global!(mod, g, st.type)
+        for i in 1:length(l)
+          p = st.expr.args[2]
+          layout(st.type) isa WTuple &&
+            (p = insert!(ir, v, Base.Expr(:ref, p, i)))
+          ir[v] = Base.Expr(:call, WebAssembly.SetGlobal(l[i]), p)
+          ir[v] = IRTools.stmt(ir[v], type = WTuple())
+        end
+        continue
+      elseif !isexpr(st.expr, :call)
+        error("unrecognised $(st.expr.head) expression")
       end
       Ts, args = st.expr.args[1], st.expr.args[2:end]
       if Ts isa WIntrinsic
@@ -248,6 +297,7 @@ function wasmmodule(inf::Inference)
     funcs = fs,
     imports = default_imports,
     exports = [WebAssembly.Export(:_start, Symbol("_start:method:1"), :func)],
+    globals = [WebAssembly.Global(t) for t in mod.gtypes],
     mems = [WebAssembly.Mem(0)])
   return mod, strings
 end
