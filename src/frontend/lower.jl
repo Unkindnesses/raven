@@ -265,10 +265,29 @@ function lowerexpr(ex)
   return ir |> IRTools.ssa! |> IRTools.prune!
 end
 
+function rewrite_globals(ir::IR)
+  gs = []
+  for (v, st) in ir
+    if isexpr(st.expr, :(=)) && (g = st.expr.args[1]) isa Global
+      g in gs || push!(gs, g)
+    end
+  end
+  slots = Dict(g => Slot(g.name) for g in gs)
+  ir = IRTools.prewalk(x -> get(slots, x, x), ir)
+  for g in reverse(gs)
+    pushfirst!(ir, :($(slots[g]) = $g))
+  end
+  for g in gs
+    push!(ir, :($g = $(slots[g])))
+  end
+  return ir
+end
+
 function lower_toplevel(ex, defs = [])
   sc = GlobalScope(defs)
   ir = IR()
   out = lower!(sc, ir, ex)
-  out == nothing || IRTools.return!(ir, out)
+  IRTools.return!(ir, rnothing)
+  ir = rewrite_globals(ir)
   return ir |> IRTools.ssa! |> IRTools.prune!
 end
