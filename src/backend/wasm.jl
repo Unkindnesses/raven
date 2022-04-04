@@ -195,15 +195,21 @@ function lowerwasm!(mod::WModule, ir::IR)
         args = filter(x -> x isa Variable, st.expr.args)
         ir[v] = length(args) == 1 ? args[1] : Base.Expr(:tuple, args...)
         continue
+      elseif isexpr(st.expr, :global)
+        g = Global(st.expr.args[1])
+        l = global!(mod, g, st.type)
+        ir[v] = Base.Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
+        continue
       elseif isexpr(st.expr, :(=)) && (g = st.expr.args[1]) isa Global
         l = global!(mod, g, st.type)
         for i in 1:length(l)
           p = st.expr.args[2]
           layout(st.type) isa WTuple &&
             (p = insert!(ir, v, Base.Expr(:ref, p, i)))
-          ir[v] = Base.Expr(:call, WebAssembly.SetGlobal(l[i]), p)
-          ir[v] = IRTools.stmt(ir[v], type = WTuple())
+          w = insert!(ir, v, Base.Expr(:call, WebAssembly.SetGlobal(l[i]), p))
+          ir[w] = IRTools.stmt(ir[w], type = WTuple())
         end
+        delete!(ir, v)
         continue
       elseif !isexpr(st.expr, :call)
         error("unrecognised $(st.expr.head) expression")

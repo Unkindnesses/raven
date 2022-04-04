@@ -20,7 +20,9 @@ function load_import(cx, x)
 end
 
 function load_expr(cx::Inference, x)
-  push!(cx.main, x)
+  fname = gensym(:main)
+  method!(cx.mod, fname, RMethod(fname, lowerpattern(Tuple([]))..., lower_toplevel(x)))
+  push!(cx.main, fname)
 end
 
 function vload(cx::Inference, x::Syntax)
@@ -47,9 +49,9 @@ end
 vload(m::Inference, x) = load_expr(m, x)
 
 function finish!(cx::Inference)
-  mainir = lower_toplevel(Block(cx.main), collect(keys(cx.mod.defs)))
-  method!(cx.mod, :_main, RMethod(:_main, lowerpattern(Tuple([]))..., mainir))
-  fn = Syntax(:fn, [Call(:_start, []), Block([Call(:_main, []), Call(:data, [Quote(:Nothing)])])])
+  fn = Syntax(:fn, [Call(:_start, []),
+              Block([[Call(f, []) for f in cx.main]...,
+                    Call(:data, [Quote(:Nothing)])])])
   method!(cx.mod, :_start, RMethod(:_start, lowerpattern(Tuple([]))..., lowerfn(fn, [])))
 end
 
