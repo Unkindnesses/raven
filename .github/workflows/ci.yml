@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+    tags: '*'
+
+jobs:
+  test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - '1'
+          - 'nightly'
+        os:
+          - ubuntu-latest
+        arch:
+          - x64
+        # include:
+        #   - os: windows-latest
+        #     version: '1'
+        #     arch: x64
+        #   - os: macOS-latest
+        #     version: '1'
+        #     arch: x64
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: ${{ matrix.version }}
+          arch: ${{ matrix.arch }}
+      - uses: actions/cache@v1
+        env:
+          cache-name: cache-artifacts
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-test-${{ env.cache-name }}-
+            ${{ runner.os }}-test-
+            ${{ runner.os }}-
+      - name: Install WABT
+        run: |
+          curl -OL https://github.com/WebAssembly/wabt/releases/download/1.0.27/wabt-1.0.27-ubuntu.tar.gz
+          tar -xf wabt-1.0.27-ubuntu.tar.gz
+          echo "$PWD/wabt-1.0.27/bin" >> $GITHUB_PATH
+      - name: Install Binaryen
+        run: |
+          curl -OL https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz
+          tar -xf binaryen-version_105-x86_64-linux.tar.gz
+          echo "$PWD/binaryen-version_105/bin" >> $GITHUB_PATH
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
