@@ -1,0 +1,7 @@
+n = widen(5)
+
+fn foo(m) { return n + m }
+
+result = foo(3) == 8
+
+println(result)
