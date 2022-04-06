@@ -1,3 +1,5 @@
+using LNR
+
 base = joinpath(@__DIR__, "../../base")
 
 function simpleconst(cx::Inference, x)
@@ -58,10 +60,10 @@ end
 function loadfile(cx::Inference, io::IO)
   io = LineNumberingReader(io)
   out = rnothing
-  stmts(io)
+  Parse.stmts(io)
   while (ex = parse(io)) != nothing
     out = vload(cx, ex)
-    stmts(io)
+    Parse.stmts(io)
   end
 end
 

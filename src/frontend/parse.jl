@@ -1,4 +1,8 @@
+module Parse
+
 using LNR
+using ..Raven: Expr, Return, Break, Continue, Tuple, Splat, Call,
+  Operator, Block, Syntax, Quote
 
 struct ParseError
   m
@@ -287,3 +291,7 @@ parse(s::String) = parse(IOBuffer(s))
 macro rvx_str(x)
   QuoteNode(parse(x))
 end
+
+end
+
+using .Parse: parse, @rvx_str
