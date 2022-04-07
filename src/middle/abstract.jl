@@ -10,7 +10,7 @@ exprtype(mod, ir, xs::AbstractVector) = map(x -> exprtype(mod, ir, x), xs)
 
 union(x) = x
 union(x::Data, y::Data) = x == y ? x : error("Unions not supported")
-union(::Bottom, xs...) = union(xs...)
+union(::Unreachable, xs...) = union(xs...)
 union(x::T, y::Type{T}) where T = T
 union(x::Type{T}, y::Type{T}) where T = T
 union(x::T, y::T) where T<:Primitive = x == y ? x : T

@@ -28,8 +28,10 @@ datacat(x, xs...) = data(x.parts..., reduce(vcat, collect.(parts.(xs)))...)
 
 # Abstract Types
 
-struct Bottom end
-const ⊥ = Bottom()
+struct Unreachable end
+const ⊥ = Unreachable()
+
+Base.show(io::IO, ::Unreachable) = print(io, "⊥")
 
 Primitive = Union{Int64,Int32,Float64,Float32,Symbol,String}
 
