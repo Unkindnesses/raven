@@ -29,11 +29,11 @@ end
 
 _assoc(bs, pair) = _merge(bs, Dict(pair))
 
-function partial_match(mod, pat::Hole, val)
+function partial_match(mod, pat::Hole, val, path)
   return Dict()
 end
 
-function partial_match(mod, pat::Literal, val)
+function partial_match(mod, pat::Literal, val, path)
   if isvalue(val)
     return pat.value == val ? Dict() : nothing
   else
@@ -41,18 +41,18 @@ function partial_match(mod, pat::Literal, val)
   end
 end
 
-function partial_match(mod, pat::Bind, val)
-  bs = @try partial_match(mod, pat.pattern, val)
-  return _assoc(bs, pat.name => val)
+function partial_match(mod, pat::Bind, val, path)
+  bs = @try partial_match(mod, pat.pattern, val, path)
+  return _assoc(bs, pat.name => (val, path))
 end
 
-function partial_match(mod, pat::Isa, val)
+function partial_match(mod, pat::Isa, val, path)
   (haskey(mod, pat.pattern) && isvalue(mod[pat.pattern])) || return missing
   # TODO remove the catchall
   return tag(val) == mod[pat.pattern] ? Dict() : nothing
 end
 
-function partial_match(mod, pat::Data, val)
+function partial_match(mod, pat::Data, val, path)
   val isa Data || return # TODO: could be wrong. Add `parts` for natives.
   nparts(pat) > nparts(val) && return
   bs = Dict()
@@ -61,16 +61,18 @@ function partial_match(mod, pat::Data, val)
     if pat[i] == Repeat(hole)
       break
     elseif pat[i] isa Bind && pat[i].pattern == Repeat(hole)
-      bs = @try _assoc(bs, pat[i].name => rtuple(parts(val)[i:end]...))
+      bs = @try _assoc(bs, pat[i].name => (rtuple(parts(val)[i:end]...), [path..., i:nparts(val)]))
       break
     elseif isrepeat(pat[i])
       return missing
     else
-      bs = @try _merge(bs, @try partial_match(mod, pat[i], val[i]))
+      bs = @try _merge(bs, @try partial_match(mod, pat[i], val[i], [path..., i]))
     end
   end
   return bs
 end
+
+partial_match(mod, pat, val) = partial_match(mod, pat, val, [])
 
 function partial_ismatch(mod, pat, val)
   result = partial_match(mod, pat, val)
