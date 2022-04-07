@@ -92,7 +92,7 @@ end
 function applicable(mod, Ts)
   args = rtuple(Ts[2:end]...)
   [meth for meth in reverse(mod.methods[Ts[1]])
-   if ismatch(mod, meth.pattern, args)]
+   if (partial_ismatch(mod, meth.pattern, args) !== false)]
 end
 
 part_method = RMethod(:part, lowerpattern(rvx"[data, i]")..., part, true)

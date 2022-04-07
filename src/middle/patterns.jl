@@ -1,90 +1,96 @@
 # Pattern Matching
 
-# Right now there's some confusion over type-level vs value-level matching;
-# this code was originaly written for values and now sort-of works to produce
-# types in simple cases. We should clean up and make sure it's clear what
-# matches we're willing to shortcut this way.
+isrepeat(x) = false
+isrepeat(x::Repeat) = true
+isrepeat(x::Bind) = isrepeat(x.pattern)
 
-bindings(x) = Set()
-bindings(p::Data) =
-  tag(p) == :Bind ? Set([part(p, 1)]) :
-  reduce(Base.union, map(bindings, parts(p)))
+# Match types (partial values inferred by the interpreter) against user-
+# specified patterns at compile time.
+# Returns either a dictionary (if the match is certain to succeed), `nothing`
+# (if the match is certain to fail) or `missing` (we can't handle the match
+# statically).
+#
+# The returned dictionary contains a mapping from binding names to (type, path)
+# pairs, where `path` tells the compiler where to find the matched value in the
+# original data. `path` is a list of indexes; the last index might be a
+# UnitRange, representing a splat.
 
-# Check for mismatched literals first
-# This lets us fail faster in some cases, and also avoids some cases becoming circular.
-function quickcheck(p, x)
-  nparts(p) == nparts(x) + 1 || return true
-  for i = 0:nparts(x)
-    pi = part(p, i+1)
-    if tag(pi) == :Literal && part(pi, 1) != part(x, i)
-      return false
-    end
+@eval macro $:try(x)
+  quote
+    local result = $(esc(x))
+    (result === nothing || result === missing) && return result
+    result
   end
-  return true
 end
 
-function matchdata(mod, bs, pat, x)
-  xs = collect(x.parts)
-  for p in parts(pat)
-    if tag(p) == :Bind && tag(part(p, 2)) == :Repeat
-      @assert part(part(p, 2), 1) == hole
-      return merge(bs, phmap(part(p, 1) => rtuple(xs...)))
-    else
-      isempty(xs) && return
-      x = popfirst!(xs)
-      bs = match(mod, bs, p, x)
-    end
-    bs == nothing && return
+function _merge(as, bs)
+  return merge(as, bs)
+end
+
+_assoc(bs, pair) = _merge(bs, Dict(pair))
+
+function partial_match(mod, pat::Hole, val)
+  return Dict()
+end
+
+function partial_match(mod, pat::Literal, val)
+  if isvalue(val)
+    return pat.value == val ? Dict() : nothing
+  else
+    return missing # could be more precise here
   end
-  isempty(xs) || return
+end
+
+function partial_match(mod, pat::Bind, val)
+  bs = @try partial_match(mod, pat.pattern, val)
+  return _assoc(bs, pat.name => val)
+end
+
+function partial_match(mod, pat::Isa, val)
+  (haskey(mod, pat.pattern) && isvalue(mod[pat.pattern])) || return missing
+  # TODO remove the catchall
+  return tag(val) == mod[pat.pattern] ? Dict() : nothing
+end
+
+function partial_match(mod, pat::Data, val)
+  val isa Data || return # TODO: could be wrong. Add `parts` for natives.
+  nparts(pat) > nparts(val) && return
+  bs = Dict()
+  for i = 1:nparts(val)
+    length(parts(pat)) >= i || return nothing
+    if pat[i] == Repeat(hole)
+      break
+    elseif pat[i] isa Bind && pat[i].pattern == Repeat(hole)
+      bs = @try _assoc(bs, pat[i].name => rtuple(parts(val)[i:end]...))
+      break
+    elseif isrepeat(pat[i])
+      return missing
+    else
+      bs = @try _merge(bs, @try partial_match(mod, pat[i], val[i]))
+    end
+  end
   return bs
 end
 
-function match(mod, bs, p, x)
-  if p isa Function
-    return p(x) ? bs : nothing
-  elseif p == hole
-    return bs
-  elseif tag(p) == :Literal
-    p = part(p, 1)
-    return p == x ? bs : nothing
-  elseif tag(p) == :Data
-    quickcheck(p, x) || return
-    return matchdata(mod, bs, p, x)
-  elseif tag(p) == :Isa
-    return tag(x) == mod[part(p, 1)] ? bs : nothing
-  elseif tag(p) == :Or
-    for i = 1:nparts(p)
-      bs′ = match(mod, bs, part(p, i), x)
-      bs′ == nothing || return bs′
-    end
-    return
-  elseif tag(p) == :Bind
-    bs = match(mod, bs, part(p, 2), x)
-    bs == nothing && return
-    # TODO handle duplicate names
-    assoc(bs, part(p, 1), x)
-  else
-    error("Invalid pattern $p")
-  end
+function partial_ismatch(mod, pat, val)
+  result = partial_match(mod, pat, val)
+  ismissing(result) && return missing
+  return result isa AbstractDict
 end
 
-match(mod, p, x) = match(mod, phmap(), p, x)
-
-ismatch(mod, p, x) = match(mod, p, x) != nothing
-
+# TODO remove
 function simple_match(mod, p, x)
-  tag(p) == :Bind && ismatch(mod, p, x) && return (:)
-  (tag(p) == :Data && part(p, 1) == data(:Literal, :Tuple)) || return
+  p isa Bind && (partial_ismatch(mod, p, x) === true) && return (:)
+  (p isa Data && part(p, 0) == Literal(:Tuple)) || return
   is = []
-  for i = 1:nparts(x)
-    pi = p[i+1]
-    if tag(pi) == :Bind && part(pi, 2) == data(:Repeat, hole)
+  for i = 0:nparts(x)
+    pi = p[i]
+    if pi isa Bind && pi.pattern == Repeat(hole)
       push!(is, i:nparts(x))
       break
-    elseif tag(pi) == :Bind && ismatch(mod, pi, x[i])
+    elseif pi isa Bind && (partial_ismatch(mod, pi, x[i]) === true)
       push!(is, i)
-    elseif tag(pi) == :Literal && pi[1] == x[i]
+    elseif pi isa Literal && pi.value == x[i]
     else
       return
     end

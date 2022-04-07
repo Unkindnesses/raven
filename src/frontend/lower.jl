@@ -1,15 +1,41 @@
 # Pattern Lowering
 
-const hole = data(:Hole)
-bind(name, pattern) = data(:Bind, name, pattern)
+struct Hole end
+
+const hole = Hole()
+
+struct Literal
+  value
+end
+
+struct Repeat
+  pattern
+end
+
+struct Bind
+  name::Symbol
+  pattern
+end
+
+struct Isa
+  pattern
+end
+
+struct Or
+  patterns::Vector{Any}
+end
+
+struct And
+  patterns::Vector{Any}
+end
 
 function lowerisa(ex, as)
   if ex isa Symbol
-    return data(:Isa, ex)
+    return Isa(ex)
   elseif ex isa Operator && ex.op == :(|)
-    data(:Or, map(x -> lowerisa(x, as), ex.args)...)
+    Or(map(x -> lowerisa(x, as), ex.args))
   elseif ex isa Operator && ex.op == :(&)
-    data(:And, map(x -> lowerisa(x, as), ex.args)...)
+    And(map(x -> lowerisa(x, as), ex.args))
   else
     _lowerpattern(ex, as)
   end
@@ -18,25 +44,25 @@ end
 function _lowerpattern(ex, as)
   if ex isa Symbol
     ex in as || push!(as, ex)
-    return bind(ex, hole)
+    return ex == :_ ? hole : Bind(ex, hole)
   elseif ex isa Union{Primitive,Quote}
     ex isa Quote && (ex = ex.expr)
-    return data(:Literal, ex)
+    return Literal(ex)
   elseif ex isa Tuple
-    data(:Data, data(:Literal, :Tuple), map(x -> _lowerpattern(x, as), ex.args)...)
+    data(Literal(:Tuple), map(x -> _lowerpattern(x, as), ex.args)...)
   elseif ex isa Operator && ex.op == :(:)
     name, T = ex.args
     name in as || push!(as, name)
-    bind(name, lowerisa(T, as))
+    Bind(name, lowerisa(T, as))
   elseif ex isa Splat
     inner = _lowerpattern(ex.expr, as)
-    if tag(inner) == :Bind
-      data(:Bind, part(inner, 1), data(:Repeat, part(inner, 2)))
+    if inner isa Bind
+      Bind(inner.name, Repeat(inner.pattern))
     else
-      data(:Repeat, inner)
+      Repeat(inner)
     end
   elseif ex isa Call && ex.func == :data
-    data(:Data, map(x -> _lowerpattern(x, as), ex.args)...)
+    data(map(x -> _lowerpattern(x, as), ex.args)...)
   else
     error("Invalid pattern syntax $(ex)")
   end
