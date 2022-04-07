@@ -89,34 +89,36 @@ function frame!(inf, Ts)
   return fr
 end
 
-function applicable(mod, Ts)
-  args = rtuple(Ts[2:end]...)
-  [meth for meth in reverse(mod.methods[Ts[1]])
-   if (partial_ismatch(mod, meth.pattern, args) !== false)]
-end
-
 part_method = RMethod(:part, lowerpattern(rvx"[data, i]")..., part, true)
+
+function indexer!(ir::IR, arg, path)
+  isempty(path) && return arg
+  (p, rest...) = path
+  arg = indexer!(ir, arg, rest)
+  if p isa AbstractVector
+    push!(ir, Base.Expr(:tuple, [Base.Expr(:call, part_method, arg, i) for i in p]...))
+  else
+    push!(ir, Base.Expr(:call, part_method, arg, p))
+  end
+end
 
 function dispatcher(inf, Ts)
   func::Symbol = Ts[1]
-  args = rtuple(Ts[2:end]...)
-  # TODO: just create the branch for each method, then elide later.
-  meths = applicable(inf.mod, Ts)
-  isempty(meths) && error("No method matching $func($(join(args.parts[2:end], ", ")))")
-  meth = first(meths)
+  argT = rtuple(Ts[2:end]...)
   ir = IR()
-  if (is = simple_match(inf.mod, meth.pattern, args)) != nothing
-    args = argument!(ir)
-    args = is == (:) ? [args] :
-      [i isa AbstractVector ?
-        push!(ir, Base.Expr(:tuple, [Base.Expr(:call, part_method, args, i) for i in i]...)) :
-        push!(ir, Base.Expr(:call, part_method, args, i)) for i in is]
-  else
-    args = argument!(ir)
-    args = push!(ir, Base.Expr(:call, :match, meth.pattern, args))
-    args = [push!(ir, Base.Expr(:call, part_method, args, i)) for i = 1:length(meth.args)]
+  args = argument!(ir)
+  for meth in reverse(inf.mod.methods[Ts[1]])
+    m = partial_match(inf.mod, meth.pattern, argT)
+    if m === nothing
+      continue
+    elseif m isa AbstractDict
+      return!(ir, push!(ir, Base.Expr(:call, meth, [indexer!(ir, args, m[x][2]) for x in meth.args]...)))
+      return ir
+    else
+      error("Runtime matching not yet supported")
+    end
   end
-  return!(ir, push!(ir, Base.Expr(:call, meth, args...)))
+  push!(ir, Base.Expr(:call, :panic, "No matching method"))
   return ir
 end
 

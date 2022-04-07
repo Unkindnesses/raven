@@ -90,23 +90,3 @@ function partial_ismatch(mod, pat, val)
   ismissing(result) && return missing
   return result isa AbstractDict
 end
-
-# TODO remove
-function simple_match(mod, p, x)
-  p isa Bind && (partial_ismatch(mod, p, x) === true) && return (:)
-  (p isa Data && part(p, 0) == Literal(:Tuple)) || return
-  is = []
-  for i = 0:nparts(x)
-    pi = p[i]
-    if pi isa Bind && pi.pattern == Repeat(hole)
-      push!(is, i:nparts(x))
-      break
-    elseif pi isa Bind && (partial_ismatch(mod, pi, x[i]) === true)
-      push!(is, i)
-    elseif pi isa Literal && pi.value == x[i]
-    else
-      return
-    end
-  end
-  return is
-end
