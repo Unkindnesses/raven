@@ -23,11 +23,22 @@ isrepeat(x::Bind) = isrepeat(x.pattern)
   end
 end
 
-function _merge(as, bs)
-  return merge(as, bs)
+function _assoc(as, (name, (val, path)))
+  haskey(as, name) || return merge(as, Dict(name => (val, path)))
+  val′ = as[name][1]
+  if isvalue(rtuple(val′, val))
+    return val′ == val ? as : nothing
+  else
+    return missing # could reject more cases here
+  end
 end
 
-_assoc(bs, pair) = _merge(bs, Dict(pair))
+function _merge(as, bs)
+  for b in bs
+    as = @try _assoc(as, b)
+  end
+  return as
+end
 
 function partial_match(mod, pat::Hole, val, path)
   return Dict()
@@ -37,7 +48,7 @@ function partial_match(mod, pat::Literal, val, path)
   if isvalue(val)
     return pat.value == val ? Dict() : nothing
   else
-    return missing # could be more precise here
+    return missing # could reject more cases here
   end
 end
 
