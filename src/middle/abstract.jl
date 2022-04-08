@@ -107,7 +107,7 @@ function dispatcher(inf, Ts)
   argT = rtuple(Ts[2:end]...)
   ir = IR()
   args = argument!(ir)
-  for meth in reverse(inf.mod.methods[Ts[1]])
+  for meth in reverse(inf.mod.methods[func])
     m = partial_match(inf.mod, meth.pattern, argT)
     if m === nothing
       continue

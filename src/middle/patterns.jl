@@ -75,20 +75,27 @@ end
 
 function partial_match(mod, pat::Data, val, path)
   val isa Data || return # TODO: could be wrong. Add `parts` for natives.
-  nparts(pat) > nparts(val) && return
   bs = Dict()
-  for i = 1:nparts(val)
-    length(parts(pat)) >= i || return nothing
+  i = 1
+  while true
+    i <= nparts(val) || break
+    i <= nparts(pat) || return nothing
     if pat[i] == Repeat(hole)
       break
     elseif pat[i] isa Bind && pat[i].pattern == Repeat(hole)
       bs = @try _assoc(bs, pat[i].name => (rtuple(parts(val)[i:end]...), [path..., i:nparts(val)]))
-      break
+      return bs
     elseif isrepeat(pat[i])
       return missing
     else
       bs = @try _merge(bs, @try partial_match(mod, pat[i], val[i], [path..., i]))
     end
+    i += 1
+  end
+  if nparts(pat) == i && isrepeat(pat[i])
+    bs = pat[i] isa Bind ? (@try _assoc(bs, pat[i].name => (rtuple(), [path..., i:0]))) : bs
+  elseif nparts(pat) > nparts(val)
+    return
   end
   return bs
 end
