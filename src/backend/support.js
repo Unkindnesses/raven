@@ -1,33 +1,21 @@
 const fs = require('fs').promises;
 
 let idcounter = 0;
-const references = {};
+const table = {};
 
 function createRef(obj) {
   const ref = idcounter++;
-  references[ref] = {count: 0, object: obj};
+  table[ref] = obj;
   return ref;
 }
 
 function fromRef(ref) {
-  return references[ref].object;
-}
-
-function retain(ref) {
-  references[ref].count += 1;
-}
-
-function release(ref) {
-  references[ref].count -= 1;
-  if (references[ref].count == 0) {
-    delete references[ref];
-  }
+  return table[ref];
 }
 
 function registerStrings(ss) {
   for (const s of ss) {
     const ref = createRef(s);
-    retain(ref);
   }
 }
 
@@ -60,7 +48,6 @@ function panic(obj) {
 }
 
 const support = {global, property, call,
-                 retain, release,
                  createRef, fromRef, panic};
 
 async function loadWasm(f) {

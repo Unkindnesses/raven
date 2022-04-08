@@ -284,8 +284,6 @@ default_imports = [
   WebAssembly.Import(:support, :call, :jscall0, :func, [i32, i32], [i32]),
   WebAssembly.Import(:support, :call, :jscall1, :func, [i32, i32, i32], [i32]),
   WebAssembly.Import(:support, :panic, :panic, :func, [i32], []),
-  WebAssembly.Import(:support, :retain, :retain, :func, [i32], []),
-  WebAssembly.Import(:support, :release, :release, :func, [i32], []),
   WebAssembly.Import(:support, :createRef, :jsbox, :func, [f64], [i32]),
   WebAssembly.Import(:support, :fromRef, :jsunbox, :func, [i32], [f64])]
 

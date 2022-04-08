@@ -4,16 +4,6 @@ fn jsref(x) { jsref(tojs(x)) }
 
 fn jsref(obj: JSObject) { part(obj, 1) }
 
-fn retain(obj: JSObject) {
-  ref = jsref(obj)
-  wasm { call(`retain`, ref: i32) }
-}
-
-fn release(obj: JSObject) {
-  ref = jsref(obj)
-  wasm { call(`release`, ref: i32) }
-}
-
 fn global() {
   ref = (wasm { call(`jsglobal`): i32 })
   return JSObject(ref)
