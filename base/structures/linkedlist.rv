@@ -16,10 +16,7 @@ fn rest(l: Empty)  { panic("rest: List is empty") }
 fn rest(l: Prepend) { part(l, 1) }
 
 fn list() { Empty() }
-# fn list(x, xs...) { prepend(x, list(xs...)) }
-fn list(x) { prepend(list(), x) }
-fn list(x, y) { prepend(list(y), x) }
-fn list(x, y, z) { prepend(list(y, z), x) }
+fn list(x, xs...) { prepend(list(xs...), x) }
 
 fn empty?(xs: Prepend) { false }
 fn empty?(xs: Empty) { true }
