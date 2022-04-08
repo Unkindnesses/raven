@@ -63,6 +63,16 @@ function partial_match(mod, pat::Isa, val, path)
   return tag(val) == mod[pat.pattern] ? Dict() : nothing
 end
 
+function partial_match(mod, pat::Or, val, path)
+  for p in pat.patterns
+    m = partial_match(mod, p, val, path)
+    isnothing(m) && continue
+    ismissing(m) && return missing
+    return m
+  end
+  return
+end
+
 function partial_match(mod, pat::Data, val, path)
   val isa Data || return # TODO: could be wrong. Add `parts` for natives.
   nparts(pat) > nparts(val) && return
