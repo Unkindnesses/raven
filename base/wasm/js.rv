@@ -53,7 +53,7 @@ fn Float64(x: JSObject) {
 
 fn panic(s: String) {
   ref = jsref(s)
-  wasm { call(`panic`, ref: i32) }
+  wasm { call(`panic`, ref: i32): unreachable }
 }
 
 fn string(x: Int32) {

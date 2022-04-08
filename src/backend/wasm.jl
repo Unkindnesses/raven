@@ -2,6 +2,7 @@ using WebAssembly: WType, WTuple, i32, i64, f32, f64
 
 rvtype(x::WType) = WebAssembly.jltype(x)
 rvtype(x::WTuple) = data(:Tuple, map(rvtype, x.parts)...)
+rvtype(::typeof(⊥)) = ⊥
 
 struct WIntrinsic
   op
@@ -10,10 +11,10 @@ end
 
 function intrinsic(ex)
   if ex isa Operator && ex.op == :(:)
-    typ = WType(ex.args[2])
+    typ = ex.args[2] == :unreachable ? ⊥ : WType(ex.args[2])
     ex = ex.args[1]
   else
-    typ = WebAssembly.WTuple()
+    typ = WTuple()
   end
   op = ex.func
   if op == :call
@@ -41,7 +42,7 @@ function cat_layout(xs...; result = [])
 end
 
 layout(::Type{T}) where T = WebAssembly.WType(T)
-layout(x::Union{Primitive,Quote}) = WTuple()
+layout(x::Union{Primitive,Quote,Unreachable}) = WTuple()
 layout(x::Data) = cat_layout(layout.(x.parts)...)
 
 function tlayout(x)
@@ -139,7 +140,10 @@ function sigs!(mod::RModule, ir::IR)
         ir[v] = Base.Expr(:call, exprtype(mod, ir, st.expr.args), st.expr.args...)
       else
         f, xs = exprtype(mod, ir, st.expr.args)
-        ir[v] = Base.Expr(:call, [f, parts(xs)...], st.expr.args...)
+        # TODO should always deal with the tuple as a whole
+        # and probably fold this into lowering
+        ps = xs == ⊥ ? [xs] : parts(xs)
+        ir[v] = Base.Expr(:call, [f, ps...], st.expr.args...)
       end
     end
   end
@@ -217,7 +221,12 @@ function lowerwasm!(mod::WModule, ir::IR)
       Ts, args = st.expr.args[1], st.expr.args[2:end]
       if Ts isa WIntrinsic
         ex = Base.Expr(:call, st.expr.args[1].op, st.expr.args[2:end]...)
-        ir[v] = IRTools.stmt(st.expr, expr = ex, type = Ts.ret)
+        ir[v] = IRTools.stmt(st.expr, expr = ex, type = Ts.ret == ⊥ ? WTuple() : Ts.ret)
+        if Ts.ret == ⊥
+          IRTools.insertafter!(ir, v, IRTools.stmt(Base.Expr(:call, WebAssembly.unreachable), type = WTuple()))
+        end
+      elseif any(x -> x == ⊥, Ts)
+        ir[v] = IRTools.stmt(Base.Expr(:call, WebAssembly.unreachable), type = WTuple())
       elseif ismethod(Ts[1], :widen)
         val = Ts[2] isa Integer ? Ts[2] : st.expr.args[3]
         ir[v] = IRTools.stmt(val, type = layout(st.type))

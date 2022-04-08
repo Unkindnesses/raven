@@ -2,4 +2,4 @@ fn foo(a, b) {
   return a+b
 }
 
-foo(1, 2, 3)
+println(foo(1, 2, 3))
