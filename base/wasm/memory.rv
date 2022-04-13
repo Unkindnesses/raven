@@ -28,22 +28,3 @@ fn i32store(p: Ptr, x: Int32) {
   a = addr(p)
   wasm { (i32.store)(a: i32, x: i32) }
 }
-
-fn pages(bytes) {
-  ps = Int32(0)
-  while ((ps*Int32(2^16)) < bytes) {
-    ps = ps + Int32(1)
-  }
-  return ps
-}
-
-fn malloc(n: Int32) {
-  if memorySize() == Int32(0) {
-    ptr = Ptr(0)
-    size = Int32(0)
-  } else {
-    ptr = Ptr(i32load(Ptr(0)))
-    size = i32load(ptr-1)
-  }
-  memoryGrow(pages(n-size))
-}

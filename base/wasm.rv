@@ -1,3 +1,4 @@
 import { wasm.numeric }
 import { wasm.memory }
+import { wasm.malloc }
 import { wasm.js }
