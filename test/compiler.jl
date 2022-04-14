@@ -9,15 +9,19 @@ end
 
 passes(test) = parse(Bool, result(test))
 
+function result_code(test)
+  Raven.compile("raven/$test.rv", "compiled")
+  p = run(`node compiled/$test.js`, wait = false)
+  wait(p); p.exitcode
+end
+
+fails(test) = result_code(test) == 1
+
 @testset for test in [:pow, :ptr, :relu, :complex, :memory, :structures, :splat, :scope]
   @test passes(test)
 end
 
-for f in ["error-global", "methoderror"]
-  let
-    Raven.compile("raven/$f.rv", "compiled")
-    p = run(`node compiled/$f.js`, wait = false)
-    wait(p)
-    @test p.exitcode == 1
-  end
+# Test that the code compiles successfully, failing at runtime
+@testset for test in [:global, :method]
+  @test fails("error-$test")
 end
