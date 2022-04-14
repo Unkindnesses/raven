@@ -3,7 +3,7 @@ using IRTools: WorkQueue
 _typeof(mod, x) = error("invalid constant $x::$(typeof(x))")
 _typeof(mod, x::Union{Number,String,Symbol,RMethod}) = x
 _typeof(mod, x::Quote) = x.expr
-_typeof(mod, x::Global) = mod[x.name]
+_typeof(mod, x::Global) = get(mod, x.name, ⊥)
 
 exprtype(mod, ir, x) = IRTools.exprtype(ir, x, typeof = x -> _typeof(mod, x))
 exprtype(mod, ir, xs::AbstractVector) = map(x -> exprtype(mod, ir, x), xs)
@@ -162,8 +162,11 @@ function step!(inf::Inference)
         push!(inf.queue, (frame, b, ip+1))
       end
     elseif isexpr(st.expr, :tuple)
-      block.ir[var] = Statement(block[var], type = rtuple(exprtype(inf.mod, block.ir, st.expr.args)...))
-      push!(inf.queue, (frame, b, ip+1))
+      Ts = exprtype(inf.mod, block.ir, st.expr.args)
+      if !any(==(⊥), Ts)
+        block.ir[var] = Statement(block[var], type = rtuple(Ts...))
+        push!(inf.queue, (frame, b, ip+1))
+      end
     elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global
       x = st.expr.args[1].name
       T = exprtype(inf.mod, block.ir, st.expr.args[2])

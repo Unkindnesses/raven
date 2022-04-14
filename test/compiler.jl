@@ -13,9 +13,11 @@ passes(test) = parse(Bool, result(test))
   @test passes(test)
 end
 
-let
-  Raven.compile("raven/methoderror.rv", "compiled")
-  p = run(`node compiled/methoderror.js`, wait = false)
-  wait(p)
-  @test p.exitcode == 1
+for f in ["error-global", "methoderror"]
+  let
+    Raven.compile("raven/$f.rv", "compiled")
+    p = run(`node compiled/$f.js`, wait = false)
+    wait(p)
+    @test p.exitcode == 1
+  end
 end

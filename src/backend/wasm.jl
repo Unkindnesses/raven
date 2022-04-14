@@ -116,7 +116,7 @@ function stringid!(mod::WModule, s::String)
   i = findfirst(==(s), mod.strings)
   i === nothing || return i-1
   push!(mod.strings, s)
-  return length(mod.strings)-1
+  return Int32(length(mod.strings)-1)
 end
 
 function global!(mod::WModule, g::Global, T)
@@ -168,9 +168,10 @@ function globals(mod::RModule, ir::IR)
   pr = IRTools.Pipe(ir)
   transform(x, v = nothing) = x
   function transform(x::Global, v = nothing)
-    length(tlayout(mod.defs[x.name]).parts) == 0 && return x
+    T = get(mod, x.name, ⊥)
+    T != ⊥ && length(tlayout(T).parts) == 0 && return x
     insert = v == nothing ? (x -> push!(pr, x)) : (x -> insert!(pr, v, x))
-    insert(IRTools.stmt(Base.Expr(:global, x.name), type = mod.defs[x.name]))
+    insert(IRTools.stmt(Base.Expr(:global, x.name), type = T))
   end
   IRTools.branches(pr) do b
     IRTools.Branch(b, args = [transform(x) for x in b.args])
@@ -201,8 +202,13 @@ function lowerwasm!(mod::WModule, ir::IR)
         continue
       elseif isexpr(st.expr, :global)
         g = Global(st.expr.args[1])
-        l = global!(mod, g, st.type)
-        ir[v] = Base.Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
+        if st.type == ⊥
+          ir[v] = Base.Expr(:call, WebAssembly.Call(:panic), stringid!(mod, "$(g.name) is not defined"))
+          ir[v] = IRTools.stmt(ir[v], type = WTuple())
+        else
+          l = global!(mod, g, st.type)
+          ir[v] = Base.Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
+        end
         continue
       elseif isexpr(st.expr, :(=)) && (g = st.expr.args[1]) isa Global
         l = global!(mod, g, st.type)
@@ -241,7 +247,7 @@ function lowerwasm!(mod::WModule, ir::IR)
       elseif ismethod(Ts[1], :part) # TODO: same
         x::Union{String,Data}, i = Ts[2:end]
         if x isa String && i == 1
-          ir[v] = IRTools.stmt(Int32(stringid!(mod, x)), type = layout(st.type))
+          ir[v] = IRTools.stmt(stringid!(mod, x), type = layout(st.type))
           continue
         end
         if i isa Int

@@ -23,4 +23,4 @@ function method!(mod::RModule, name::Symbol, m::RMethod)
   return
 end
 
-@forward RModule.defs Base.getindex, Base.setindex!, Base.haskey
+@forward RModule.defs Base.getindex, Base.setindex!, Base.haskey, Base.get
