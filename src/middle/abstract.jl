@@ -128,6 +128,7 @@ function infercall!(inf, loc, block, ex)
   Ts = ex.args[1] isa RMethod ?
     exprtype(inf.mod, block.ir, ex.args) :
     [exprtype(inf.mod, block.ir, ex.args[1]), parts(exprtype(inf.mod, block.ir, ex.args[2]))...]
+  any(==(⊥), Ts) && return ⊥
   fr = frame!(inf, Ts)
   fr isa Frame || return fr
   push!(fr.edges, loc)
