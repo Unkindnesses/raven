@@ -55,13 +55,13 @@ fn findFreeBlock(n: Int32) {
     alloc = npages(needed)
     memoryGrow(alloc)
     size = size + alloc*pageSize
+    setBlockSize(ptr, size)
   }
   return [ptr, size]
 }
 
 fn trimBlock(ptr, size, newsize) {
   if (size <= (newsize + headerSize)) {
-    setBlockSize(ptr, size)
     return size
   }
   setBlockSize(ptr, newsize)
