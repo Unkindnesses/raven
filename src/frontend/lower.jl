@@ -221,7 +221,6 @@ end
 
 function lowerif!(sc, ir::IR, ex::If, value = true)
   sc = Scope(sc)
-  b = blocks(ir)[end]
   ts = []
   vs = []
   body!(ir, ex) =
@@ -231,18 +230,19 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
   for (cond, body) in zip(ex.cond, ex.body)
     if cond === true
       body!(ir, body.args)
-      push!(ts, b)
-      b = IRTools.block!(ir)
+      push!(ts, blocks(ir)[end])
+      IRTools.block!(ir)
       break
     end
     cond = lower!(sc, ir, cond)
+    c = blocks(ir)[end]
     t = IRTools.block!(ir)
-    push!(ts, t)
     body!(ir, body.args)
+    push!(ts, blocks(ir)[end])
     f = IRTools.block!(ir)
-    IRTools.branch!(b, f, unless = cond)
-    b = f
+    IRTools.branch!(c, f, unless = cond)
   end
+  b = blocks(ir)[end]
   for i = 1:length(ts)
     IRTools.canbranch(ts[i]) &&
       (value ?
