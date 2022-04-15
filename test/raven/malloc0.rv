@@ -1,0 +1,8 @@
+ptr1 = malloc(Int32(16))
+test1 = ptr1 == (Ptr(0) + headerSize)
+
+ptr2 = malloc(Int32(16))
+test2 = ptr2 == (Ptr(0) + headerSize + Int32(16) + headerSize)
+test3 = getBlockSize(ptr2 - headerSize) == Int32(16) + headerSize
+
+println(test1 & test2 & test3)

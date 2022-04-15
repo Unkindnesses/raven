@@ -1,18 +1,81 @@
-fn pages(bytes) {
+# Current layout:
+#
+# l l l l u u u u m m m ....
+# |       |       |
+# |       used    |
+# 32-bit size     user memory
+
+# Internally we work with a pointer to the header, and consider block sizes
+# to include the header. Pointers are shifted to point to user memory at the
+# interface.
+# (User) pointers are guaranteed to be 8-byte aligned, as long as all
+# allocations are a multiple of 8 bytes.
+
+pageSize = Int32(64*1024) # 64 KiB
+headerSize = Int32(8)
+
+fn getBlockSize(p: Ptr) { i32load(p) }
+fn setBlockSize(p: Ptr, sz: Int32) { i32store(p, sz) }
+
+fn getBlockUsed(p: Ptr) { i32load(p + Int32(4)) }
+fn setBlockUsed(p: Ptr, u: Int32) { i32store(p + Int32(4), u) }
+
+fn memorySize() {
+  memoryPages() * pageSize
+}
+
+fn npages(bytes: Int32) {
   ps = Int32(0)
-  while ((ps*Int32(2^16)) < bytes) {
+  while ((ps*pageSize) < bytes) {
     ps = ps + Int32(1)
   }
   return ps
 }
 
-fn malloc(n: Int32) {
-  if memorySize() == Int32(0) {
-    ptr = Ptr(0)
-    size = Int32(0)
-  } else {
-    ptr = Ptr(i32load(Ptr(0)))
-    size = i32load(ptr-1)
+fn isLastBlock(ptr, size) {
+  addr(ptr + size) == memorySize()
+}
+
+# Find a free block of size > n, creating it if necessary.
+fn findFreeBlock(n: Int32) {
+  ptr = Ptr(0)
+  size = if (memorySize() == Int32(0)) { Int32(0) } else { getBlockSize(ptr) }
+  while (isLastBlock(ptr, size) != true) {
+    ptr = ptr + size
+    size = getBlockSize(ptr)
   }
-  memoryGrow(pages(n-size))
+  if (size > Int32(0)) {
+    if getBlockUsed(ptr) {
+      ptr = ptr + size
+      size = Int32(0)
+    }
+  }
+  if (size < n) {
+    needed = n - size
+    alloc = npages(needed)
+    memoryGrow(alloc)
+    size = size + alloc*pageSize
+  }
+  return [ptr, size]
+}
+
+fn trimBlock(ptr, size, newsize) {
+  if (size <= (newsize + headerSize)) {
+    setBlockSize(ptr, size)
+    return size
+  }
+  setBlockSize(ptr, newsize)
+  newptr = ptr + newsize
+  setBlockSize(newptr, size-newsize)
+  return newsize
+}
+
+fn malloc(n: Int32) {
+  n = n + headerSize
+  ptrsize = findFreeBlock(n)
+  ptr = part(ptrsize, 1)
+  size = part(ptrsize, 2)
+  size = trimBlock(ptr, size, n)
+  setBlockUsed(ptr, true)
+  return ptr + headerSize
 }

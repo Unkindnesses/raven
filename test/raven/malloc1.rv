@@ -1,0 +1,9 @@
+# Normally the last (free) block is split by an allocation, so the last block
+# on the heap will be free. Sometimes the block is not split, though, so we
+# have to check.
+
+ptr1 = malloc(pageSize - headerSize)
+
+ptr2 = malloc(Int32(16))
+
+println(ptr1 != ptr2)

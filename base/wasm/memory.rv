@@ -3,12 +3,21 @@ fn Ptr(x: Int64) { Ptr(Int32(x)) }
 
 fn addr(x: Ptr) { part(x, 1) }
 
+fn print(x: Ptr) {
+  print("Ptr@")
+  print(addr(x))
+}
+
 fn ((p: Ptr) + x) {
   Ptr(addr(p) + Int32(x))
 }
 
 fn ((p: Ptr) - x) {
   Ptr(addr(p) - Int32(x))
+}
+
+fn ((p: Ptr) == (q: Ptr)) {
+  addr(p) == addr(q)
 }
 
 fn memoryPages() {
