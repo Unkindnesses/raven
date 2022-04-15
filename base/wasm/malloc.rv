@@ -20,6 +20,10 @@ fn setBlockSize(p: Ptr, sz: Int32) { i32store(p, sz) }
 fn getBlockUsed(p: Ptr) { i32load(p + Int32(4)) }
 fn setBlockUsed(p: Ptr, u: Int32) { i32store(p + Int32(4), u) }
 
+# Initialise first block
+memoryGrow(Int32(1))
+setBlockSize(Ptr(0), pageSize)
+
 fn memorySize() {
   memoryPages() * pageSize
 }
@@ -39,16 +43,14 @@ fn isLastBlock(ptr, size) {
 # Find a free block of size >= n, creating it if necessary.
 fn findFreeBlock(n: Int32) {
   ptr = Ptr(0)
-  size = if (memorySize() == Int32(0)) { Int32(0) } else { getBlockSize(ptr) }
+  size = getBlockSize(ptr)
   while (isLastBlock(ptr, size) != true) {
     ptr = ptr + size
     size = getBlockSize(ptr)
   }
-  if (size > Int32(0)) {
-    if getBlockUsed(ptr) {
-      ptr = ptr + size
-      size = Int32(0)
-    }
+  if getBlockUsed(ptr) {
+    ptr = ptr + size
+    size = Int32(0)
   }
   if (size < n) {
     needed = n - size
