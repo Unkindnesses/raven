@@ -17,7 +17,7 @@ end
 
 fails(test) = result_code(test) == 1
 
-@testset for test in [:pow, :ptr, :relu, :complex, :memory, :structures,
+@testset for test in [:pow, :ptr, :relu, :complex, :structures,
                       :splat, :scope, :malloc0, :malloc1]
   @test passes(test)
 end
