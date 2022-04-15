@@ -101,7 +101,7 @@ struct WModule
   inf::Inference
   symbols::Dict{Symbol,Int}
   strings::Vector{String}
-  funcs::Dict{Any,Base.Tuple{Symbol,IR}}
+  funcs::IdDict{Any,Base.Tuple{Symbol,IR}}
   globals::Dict{Global,Vector{Int}}
   gtypes::Vector{WType}
 end
@@ -343,15 +343,15 @@ sigmatch(sig, func) = sig[1] == func || ismethod(sig[1], func)
 
 function code_wasm(cx::Inference, func = :_main)
   mod = wasm_ir(cx)
-  Dict{Any,IR}(sig => fr[2] for (sig, fr) in mod.funcs if sigmatch(sig, func))
+  IdDict{Any,IR}(sig => fr[2] for (sig, fr) in mod.funcs if sigmatch(sig, func))
 end
 
 function code_typed(cx::Inference, func = :_main)
-  Dict{Any,IR}(sig => fr.ir for (sig, fr) in cx.frames if sigmatch(sig, func))
+  IdDict{Any,IR}(sig => fr.ir for (sig, fr) in cx.frames if sigmatch(sig, func))
 end
 
 function code_lowered(cx::Inference, func = :_main)
-  return Dict(meth.pattern => meth.func for meth in cx.mod.methods[func])
+  return IdDict(meth.pattern => meth.func for meth in cx.mod.methods[func])
 end
 
 code_wasm(src::AbstractString, func = :_main) = code_wasm(loadfile(src), func)
