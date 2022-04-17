@@ -29,11 +29,7 @@ fn memorySize() {
 }
 
 fn npages(bytes: Int32) {
-  ps = Int32(0)
-  while ((ps*pageSize) < bytes) {
-    ps = ps + Int32(1)
-  }
-  return ps
+  div(bytes + pageSize - Int32(1), pageSize)
 }
 
 fn isLastBlock(ptr, size) {
@@ -44,7 +40,7 @@ fn isLastBlock(ptr, size) {
 fn findFreeBlock(n: Int32) {
   ptr = Ptr(0)
   size = getBlockSize(ptr)
-  while (isLastBlock(ptr, size) != true) {
+  while not(isLastBlock(ptr, size)) {
     ptr = ptr + size
     size = getBlockSize(ptr)
   }
