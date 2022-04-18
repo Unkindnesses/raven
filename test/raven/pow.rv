@@ -2,4 +2,18 @@ x = widen(2)
 n = widen(3)
 r = x^n
 
-println(r == 8)
+# TODO: const true should work
+# TODO: should be able to panic at the end
+fn pow(x, n: Int64) {
+  r = one(x)
+  while widen(true) {
+    if (n == 0) {
+      return r
+    }
+    n = n - one(n)
+    r = r * x
+  }
+  return -1
+}
+
+println((r == 8) & (pow(2, 3) == 8))
