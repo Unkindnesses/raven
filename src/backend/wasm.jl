@@ -102,7 +102,7 @@ struct WModule
   inf::Inference
   symbols::Dict{Symbol,Int}
   strings::Vector{String}
-  funcs::IdDict{Any,Base.Tuple{Symbol,IR}}
+  funcs::IdDict{Any,Base.Tuple{Symbol,Union{IR,Nothing}}}
   globals::Dict{Global,Vector{Int}}
   gtypes::Vector{WType}
 end
@@ -280,6 +280,7 @@ function lowerwasm!(mod::WModule, T)
   haskey(mod.funcs, T) && return mod.funcs[T][1]
   f = part(T, 1)::Union{Symbol,RMethod}
   id = name(mod, f isa Symbol ? f : Symbol(f.name, ":method"))
+  mod.funcs[T] = (id, nothing)
   ir = lowerwasm!(mod, mod.inf.frames[T].ir)
   mod.funcs[T] = (id, ir)
   return id
