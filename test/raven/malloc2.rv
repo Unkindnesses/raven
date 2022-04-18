@@ -1,0 +1,12 @@
+ptr1 = malloc(Int32(8))
+ptr2 = malloc(Int32(8))
+
+test1 = (ptr1 == Ptr(8)) & (ptr2 == Ptr(24))
+
+free(ptr1)
+free(ptr2)
+ptr3 = malloc(Int32(16))
+
+test2 = (ptr3 == Ptr(8))
+
+println(test1 & test2)
