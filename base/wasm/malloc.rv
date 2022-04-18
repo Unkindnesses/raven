@@ -41,7 +41,7 @@ fn coalesceBlock(ptr, size) {
   next = ptr + size
   if getBlockUsed(next) { return size }
   nextSize = getBlockSize(next)
-  # nextSize = coalesceBlock(next, nextSize)
+  nextSize = coalesceBlock(next, nextSize)
   size = size + nextSize
   setBlockSize(ptr, size)
   return size
