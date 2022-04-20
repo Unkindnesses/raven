@@ -6,4 +6,6 @@ ptr2 = malloc(Int32(16))
 test3 = ptr2 == (Ptr(0) + headerSize + Int32(16) + headerSize)
 test4 = getBlockSize(ptr2 - headerSize) == Int32(16) + headerSize
 
-println(test1 & test2 & test3 & test4)
+test5 = allocationCount() == 2
+
+println(test1 & test2 & test3 & test4 & test5)

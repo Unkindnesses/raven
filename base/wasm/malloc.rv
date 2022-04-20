@@ -52,7 +52,7 @@ fn findFreeBlock(n: Int32) {
   ptr = Ptr(0)
   size = getBlockSize(ptr)
   while not(isLastBlock(ptr, size)) {
-    if (getBlockUsed(ptr) != true) {
+    if not(getBlockUsed(ptr)) {
       size = coalesceBlock(ptr, size)
       if (size >= n) {
         return [ptr, size]
@@ -99,4 +99,16 @@ fn free(p: Ptr) {
   p = p - headerSize
   setBlockUsed(p, false)
   return
+}
+
+fn allocationCount() {
+  i = 0
+  ptr = Ptr(0)
+  while widen(true) {
+    if getBlockUsed(ptr) { i = i + 1 }
+    size = getBlockSize(ptr)
+    if isLastBlock(ptr, size) { break }
+    ptr = ptr + size
+  }
+  return i
 }
