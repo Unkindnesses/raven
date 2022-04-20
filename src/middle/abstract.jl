@@ -9,13 +9,30 @@ exprtype(mod, ir, x) = IRTools.exprtype(ir, x, typeof = x -> _typeof(mod, x))
 exprtype(mod, ir, xs::AbstractVector) = map(x -> exprtype(mod, ir, x), xs)
 
 union(x) = x
-union(x::Data, y::Data) = x == y ? x : error("Unions not supported")
 union(::Unreachable, x) = x
 union(x, ::Unreachable) = x
 union(x::T, y::Type{T}) where T = T
 union(x::Type{T}, y::Type{T}) where T = T
 union(x::T, y::T) where T<:Primitive = x == y ? x : T
 union(x::Type{T}, y::T) where T = T
+
+partial_eltype(x::Data) = reduce(union, parts(x), init = ⊥)
+partial_eltype(x::VData) = x.parts
+
+function union(x::Data, y::Data)
+  x == y && return x
+  if nparts(x) == nparts(y)
+    error("unimplemented union")
+  else
+    tag(x) == tag(y) || error("unimplemented union")
+    return VData(tag(x), union(partial_eltype(x), partial_eltype(y)))
+  end
+end
+
+function union(x::Data, y::VData)
+  tag(x) == tag(y) || error("unimplemented union")
+  VData(tag(x), union(partial_eltype(x), partial_eltype(y)))
+end
 
 issubtype(x::Union{T,Type{T}}, y::Type{T}) where T = true
 issubtype(x, y) = x == y

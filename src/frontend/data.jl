@@ -19,12 +19,23 @@ Base.hash(x::Data, h::UInt) = hash((Data, x.parts), h)
 
 tag(x) = part(x, 0)
 
+struct VData # variable width
+  tag::Any
+  parts::Any
+end
+
+tag(x::VData) = x.tag
+
 const rnothing = data(:Nothing)
 
 rtuple(xs...) = data(:Tuple, xs...)
 
 datacat(x) = x
-datacat(x, xs...) = data(x.parts..., reduce(vcat, collect.(parts.(xs)))...)
+datacat(x::Data, y::Data) = data(tag(x), parts(x)..., parts(y)...)
+datacat(x, y, z, zs...) = datacat(datacat(x, y), z, zs...)
+
+datacat(x::Union{VData,Data}, y::Union{VData,Data}) =
+  VData(tag(x), union(partial_eltype(x), partial_eltype(y)))
 
 # Abstract Types
 
