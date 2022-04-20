@@ -335,9 +335,9 @@ function binary(m::WebAssembly.Module, file; optimise = true)
   return
 end
 
-function emitwasm(file, out)
+function emitwasm(file, out; optimise = true)
   mod, strings = wasmmodule(loadfile(file))
-  binary(mod, out)
+  binary(mod, out; optimise)
   return strings
 end
 
