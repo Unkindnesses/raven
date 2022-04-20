@@ -14,7 +14,7 @@ struct Tuple <: Expr
   args::Vector{Any}
 end
 
-struct Splat
+struct Splat <: Expr
   expr::Any
 end
 
