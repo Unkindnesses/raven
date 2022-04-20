@@ -157,7 +157,7 @@ function lower!(sc, ir::IR, ex::Call)
 end
 
 function lower!(sc, ir::IR, ex::Tuple)
-  _push!(ir, Base.Expr(:call, :tuple, Base.Expr(:tuple, lower!.((sc,), (ir,), ex.args)...)))
+  lower!(sc, ir, Call(:tuple, ex.args))
 end
 
 function lower!(sc, ir::IR, ex::Return)
