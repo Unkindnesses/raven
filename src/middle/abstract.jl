@@ -258,13 +258,13 @@ end
 
 # Inference Loop
 
-function infer!(inf::Inference)
+function infer!(inf::Inference; partial = false)
   while !isempty(inf.queue)
     loc = pop!(inf.queue)
     try
       step!(inf, loc)
     catch e
-      rethrow(CompileError(e, stack(inf, loc[1])))
+      partial || rethrow(CompileError(e, stack(inf, loc[1])))
     end
   end
   return inf
