@@ -163,8 +163,8 @@ function openbranches(inf, bl)
   return brs
 end
 
-function step!(inf::Inference)
-  F, b, ip = pop!(inf.queue)
+function step!(inf::Inference, loc)
+  F, b, ip = loc
   frame = inf.frames[F]
   block, stmts = IRTools.block(frame.ir, b), frame.stmts[b]
   if ip <= length(stmts)
@@ -213,9 +213,29 @@ function step!(inf::Inference)
   return
 end
 
+# Virtual stack traces
+
+struct CompileError <: Exception
+  error
+  stack
+end
+
+function Base.showerror(io::IO, err::CompileError)
+  println(io, "Compiler error at")
+  println(io, err.stack)
+  Base.showerror(io, err.error)
+end
+
+# Inference Loop
+
 function infer!(inf::Inference)
   while !isempty(inf.queue)
-    step!(inf)
+    loc = pop!(inf.queue)
+    try
+      step!(inf, loc)
+    catch e
+      rethrow(CompileError(e, loc))
+    end
   end
   return inf
 end
