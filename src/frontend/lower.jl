@@ -198,7 +198,7 @@ function lowerwhile!(sc, ir::IR, ex)
   end
   IRTools.branch!(header, after, unless = cond)
   IRTools.branch!(body, header)
-  return rnothing
+  return lower!(sc, ir, Call(:Nothing, []))
 end
 
 struct If
@@ -224,7 +224,7 @@ function If(b::Syntax)
   end
   if cond[end] !== true
     push!(cond, true)
-    push!(body, Block([rnothing]))
+    push!(body, Call(:Nothing, []))
   end
   return If(cond, body)
 end

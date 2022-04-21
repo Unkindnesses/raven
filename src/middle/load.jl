@@ -59,10 +59,9 @@ end
 
 function loadfile(cx::Inference, io::IO)
   io = LineNumberingReader(io)
-  out = rnothing
   Parse.stmts(io)
   while (ex = parse(io)) != nothing
-    out = vload(cx, ex)
+    vload(cx, ex)
     Parse.stmts(io)
   end
 end

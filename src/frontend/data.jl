@@ -26,8 +26,6 @@ end
 
 tag(x::VData) = x.tag
 
-const rnothing = data(:Nothing)
-
 rtuple(xs...) = data(:Tuple, xs...)
 
 datacat(x) = x
