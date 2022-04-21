@@ -96,12 +96,11 @@ end
 
 function frame!(inf, meth::RMethod, Ts...)
   meth.partial && return meth.func(Ts...)
-  irframe!(inf, rtuple(meth, Ts...), meth.func, Ts...)
+  irframe!(inf, (meth, Ts...), meth.func, Ts...)
 end
 
 function frame!(inf, F, Ts)
-  Ts_ = [F, parts(Ts)...]
-  irframe!(inf, rtuple(Ts_...), dispatcher(inf, F, Ts), Ts)
+  irframe!(inf, (F, Ts), dispatcher(inf, F, Ts), Ts)
 end
 
 part_method = RMethod(:part, lowerpattern(rvx"[data, i]")..., part, true)

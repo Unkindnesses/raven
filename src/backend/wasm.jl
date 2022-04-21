@@ -138,13 +138,11 @@ function sigs!(mod::RModule, ir::IR)
       elseif st.expr.args[1] == :cast
         ir[v] = Base.Expr(:call, [:cast, st.expr.args[2], exprtype(mod, ir, st.expr.args[3])], st.expr.args...)
       elseif st.expr.args[1] isa RMethod || st.expr.args[1] == :cast
-        ir[v] = Base.Expr(:call, exprtype(mod, ir, st.expr.args), st.expr.args...)
+        ir[v] = Base.Expr(:call, (exprtype(mod, ir, st.expr.args)...,), st.expr.args...)
       else
         f, xs = exprtype(mod, ir, st.expr.args)
-        # TODO should always deal with the tuple as a whole
-        # and probably fold this into lowering
-        ps = xs == ⊥ ? [xs] : parts(xs)
-        ir[v] = Base.Expr(:call, [f, ps...], st.expr.args...)
+        # TODO should probably fold this into lowering
+        ir[v] = Base.Expr(:call, (f, xs), st.expr.args...)
       end
     end
   end
@@ -165,6 +163,8 @@ end
 ismethod(m, name) = m isa RMethod && m.name == name
 
 # Turn global references into explicit load instructions
+# TODO this function is horrendously complex for what it does.
+# Should be expressed as a prewalk in the new IRTools.
 function globals(mod::RModule, ir::IR)
   pr = IRTools.Pipe(ir)
   transform(x, v = nothing) = x
@@ -267,7 +267,7 @@ function lowerwasm!(mod::WModule, ir::IR)
       elseif ismethod(Ts[1], :nparts)
         ir[v] = nparts(Ts[2])
       else
-        func = lowerwasm!(mod, rtuple(Ts...))
+        func = lowerwasm!(mod, Ts)
         ir[v] = Base.Expr(:call, WebAssembly.Call(func), args[2:end]...)
         ir[v] = IRTools.stmt(ir[v], type = layout(ir[v].type))
       end
@@ -278,7 +278,7 @@ end
 
 function lowerwasm!(mod::WModule, T)
   haskey(mod.funcs, T) && return mod.funcs[T][1]
-  f = part(T, 1)::Union{Symbol,RMethod}
+  f = T[1]::Union{Symbol,RMethod}
   id = name(mod, f isa Symbol ? f : Symbol(f.name, ":method"))
   mod.funcs[T] = (id, nothing)
   ir = lowerwasm!(mod, mod.inf.frames[T].ir)
@@ -306,7 +306,7 @@ default_imports = [
 
 function wasm_ir(inf::Inference)
   mod = WModule(inf)
-  lowerwasm!(mod, rtuple(startmethod(inf.mod)))
+  lowerwasm!(mod, (startmethod(inf.mod),))
   return mod
 end
 
