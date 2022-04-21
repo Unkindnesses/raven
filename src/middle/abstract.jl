@@ -215,9 +215,39 @@ end
 
 # Virtual stack traces
 
+struct Stack
+  frames::Vector{Any}
+end
+
+Stack() = Stack([])
+
+Base.length(st::Stack) = length(st.frames)
+
+append(st::Stack, T) = Stack(Any[st.frames..., T])
+
+function stack(inf::Inference, T; cache = Dict())
+  haskey(cache, T) && return cache[T]
+  cache[T] = nothing # stop cycles
+  callers = unique([first(loc) for loc in inf.frames[T].edges])
+  callers = [stack(inf, S) for S in callers]
+  isempty(callers) && return (cache[T] = Stack([T]))
+  all(==(nothing), callers) && return (cache[T] = nothing) # hit a cycle
+  callers = filter(!=(nothing), callers)
+  _, i = findmin(length, callers)
+  return cache[T] = append(callers[i], T)
+end
+
+function Base.show(io::IO, stack::Stack)
+  println(io, "Virtual stack trace:")
+  for (f, Ts...) in stack.frames
+    print(io, f, ": ")
+    println(io, f isa RMethod ? Ts : Ts[1])
+  end
+end
+
 struct CompileError <: Exception
   error
-  stack
+  stack::Stack
 end
 
 function Base.showerror(io::IO, err::CompileError)
@@ -234,7 +264,7 @@ function infer!(inf::Inference)
     try
       step!(inf, loc)
     catch e
-      rethrow(CompileError(e, loc))
+      rethrow(CompileError(e, stack(inf, loc[1])))
     end
   end
   return inf
