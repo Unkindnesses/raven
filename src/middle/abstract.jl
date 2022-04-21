@@ -99,9 +99,9 @@ function frame!(inf, meth::RMethod, Ts...)
   irframe!(inf, rtuple(meth, Ts...), meth.func, Ts...)
 end
 
-function frame!(inf, Ts...)
-  T = rtuple(Ts...)
-  irframe!(inf, T, dispatcher(inf, Ts), rtuple(Ts[2:end]...))
+function frame!(inf, F, Ts)
+  Ts_ = [F, parts(Ts)...]
+  irframe!(inf, rtuple(Ts_...), dispatcher(inf, F, Ts), Ts)
 end
 
 part_method = RMethod(:part, lowerpattern(rvx"[data, i]")..., part, true)
@@ -117,13 +117,12 @@ function indexer!(ir::IR, arg, path)
   end
 end
 
-function dispatcher(inf, Ts)
-  func::Symbol = Ts[1]
-  argT = rtuple(Ts[2:end]...)
+function dispatcher(inf, F, Ts)
+  func::Symbol = F
   ir = IR()
   args = argument!(ir)
   for meth in reverse(inf.mod.methods[func])
-    m = partial_match(inf.mod, meth.pattern, argT)
+    m = partial_match(inf.mod, meth.pattern, Ts)
     if m === nothing
       continue
     elseif m isa AbstractDict
@@ -143,9 +142,8 @@ function infercall!(inf, loc, block, ex)
     F = ex.args[1]
     Ts = exprtype(inf.mod, block.ir, ex.args[2:end])
   else
-    # TODO only supports inferable arity.
-    F = exprtype(inf.mod, block.ir, ex.args[1])
-    Ts = parts(exprtype(inf.mod, block.ir, ex.args[2]))
+    Ts = exprtype(inf.mod, block.ir, ex.args)
+    F, Ts = Ts[1], (Ts[2],)
   end
   any(==(⊥), Ts) && return ⊥
   fr = frame!(inf, F, Ts...)
