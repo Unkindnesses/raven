@@ -84,7 +84,7 @@ end
 
 Inference(mod::RModule) = Inference(mod, Dict(), [], WorkQueue{Any}())
 
-function frame!(inf, T, ir, args...)
+function irframe!(inf, T, ir, args...)
   haskey(inf.frames, T) && return inf.frames[T]
   fr = frame(ir, args...)
   inf.frames[T] = fr
@@ -94,17 +94,14 @@ function frame!(inf, T, ir, args...)
   return fr
 end
 
-function frame!(inf, Ts)
-  if Ts[1] isa RMethod
-    meth = Ts[1]
-    Ts = Ts[2:end]
-    meth.partial && return meth.func(Ts...)
-    fr = frame!(inf, rtuple(meth, Ts...), meth.func, Ts...)
-  else
-    T = rtuple(Ts...)
-    fr = frame!(inf, T, dispatcher(inf, Ts), rtuple(Ts[2:end]...))
-  end
-  return fr
+function frame!(inf, meth::RMethod, Ts...)
+  meth.partial && return meth.func(Ts...)
+  irframe!(inf, rtuple(meth, Ts...), meth.func, Ts...)
+end
+
+function frame!(inf, Ts...)
+  T = rtuple(Ts...)
+  irframe!(inf, T, dispatcher(inf, Ts), rtuple(Ts[2:end]...))
 end
 
 part_method = RMethod(:part, lowerpattern(rvx"[data, i]")..., part, true)
@@ -142,12 +139,16 @@ function dispatcher(inf, Ts)
 end
 
 function infercall!(inf, loc, block, ex)
-  # TODO only supports inferable arity.
-  Ts = ex.args[1] isa RMethod ?
-    exprtype(inf.mod, block.ir, ex.args) :
-    [exprtype(inf.mod, block.ir, ex.args[1]), parts(exprtype(inf.mod, block.ir, ex.args[2]))...]
+  if ex.args[1] isa RMethod
+    F = ex.args[1]
+    Ts = exprtype(inf.mod, block.ir, ex.args[2:end])
+  else
+    # TODO only supports inferable arity.
+    F = exprtype(inf.mod, block.ir, ex.args[1])
+    Ts = parts(exprtype(inf.mod, block.ir, ex.args[2]))
+  end
   any(==(⊥), Ts) && return ⊥
-  fr = frame!(inf, Ts)
+  fr = frame!(inf, F, Ts...)
   fr isa Frame || return fr
   push!(fr.edges, loc)
   return fr.rettype

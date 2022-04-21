@@ -72,7 +72,7 @@ function loadfile(mod::RModule, f::String; infer = true)
   open(io -> loadfile(cx, io), "$base/base.rv")
   open(io -> loadfile(cx, io), f)
   finish!(cx)
-  frame!(cx, (startmethod(cx.mod),))
+  frame!(cx, startmethod(cx.mod))
   infer && infer!(cx)
   return cx
 end
