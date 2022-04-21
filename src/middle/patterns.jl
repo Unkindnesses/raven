@@ -74,7 +74,10 @@ function partial_match(mod, pat::Or, val, path)
 end
 
 function partial_match(mod, pat::Data, val, path)
-  val isa Data || return # TODO: could be wrong. Add `parts` for natives.
+  return # TODO: could be wrong. Add `parts` for natives.
+end
+
+function partial_match(mod, pat::Data, val::Data, path)
   bs = Dict()
   i = 1
   while true
@@ -98,6 +101,17 @@ function partial_match(mod, pat::Data, val, path)
     return
   end
   return bs
+end
+
+function partial_match(mod, pat::Data, val::VData, path)
+  bs = @try partial_match(mod, tag(pat), tag(val), [path..., 0])
+  (nparts(pat) == 1 && isrepeat(part(pat, 1))) || return missing
+  pat = part(pat, 1)
+  b, r = pat isa Bind ? (pat.name, pat.pattern) : (nothing, pat)
+  bs′ = partial_match(mod, r.pattern, val.parts, path)
+  isnothing(bs′) && return
+  isempty(bs′) || return missing # bindings in the Repeat are equality checks
+  return b == nothing ? bs : _assoc(bs, b => (val, path))
 end
 
 partial_match(mod, pat, val) = partial_match(mod, pat, val, [])

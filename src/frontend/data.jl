@@ -74,13 +74,22 @@ function vprint(io::IO, s::Data)
   print(io, ")")
 end
 
-vprint(io::IO, ::Type{T}) where T = print(io, "::$T")
+function vprint(io::IO, s::VData)
+  print(io, "data(")
+  vprint(io, s.tag)
+  print(io, ", ")
+  vprint(io, s.parts)
+  print(io, " ...)")
+end
+
+vprint(io::IO, ::Type{T}) where T = print(io, "_: $T")
 
 vprint(io::IO, x::Symbol) = print(io, "`", x, "`")
 
 vprint(io::IO, x::Expr) = print(io, "`", x, "`")
 
 Base.show(io::IO, d::Data) = vprint(io, d)
+Base.show(io::IO, d::VData) = vprint(io, d)
 
 # Show inside AST
 _show(io::Ctx, x::Data) = show(io.io, x)

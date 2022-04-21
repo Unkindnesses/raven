@@ -131,7 +131,7 @@ function dispatcher(inf, F, Ts)
       error("Runtime matching not yet supported")
     end
   end
-  v = push!(ir, Base.Expr(:call, :panic, Base.Expr(:tuple, "No matching method: $Ts")))
+  v = push!(ir, Base.Expr(:call, :panic, Base.Expr(:tuple, "No matching method: $F: $Ts")))
   return!(ir, v)
   return ir
 end
