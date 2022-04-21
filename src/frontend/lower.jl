@@ -157,7 +157,12 @@ function lower!(sc, ir::IR, ex::Call)
 end
 
 function lower!(sc, ir::IR, ex::Tuple)
-  lower!(sc, ir, Call(:tuple, ex.args))
+  v = lower!(sc, ir, Call(:tuple, ex.args))
+  # TODO: this is hacky, we should just use the `tuple` function.
+  # But it puts off the need for special argument inference.
+  v′ = ir[v].expr.args[2]
+  delete!(ir, v)
+  return v′
 end
 
 function lower!(sc, ir::IR, ex::Return)

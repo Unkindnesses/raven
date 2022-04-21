@@ -16,7 +16,7 @@ fn identity(x) { x }
 
 fn (x |> f) { f(x) }
 
-fn tuple(xs...) { data(`Tuple`, xs...) }
+# fn tuple(xs...) { data(`Tuple`, xs...) }
 
 fn Nothing() { data(`Nothing`) }
 
