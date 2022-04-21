@@ -185,7 +185,7 @@ function lowerwhile!(sc, ir::IR, ex)
   header = IRTools.block!(ir)
   cond = lower!(sc, ir, ex.args[1])
   IRTools.block!(ir)
-  lower!(sc, ir, ex.args[2].args)
+  _lower!(sc, ir, ex.args[2].args)
   body = blocks(ir)[end]
   after = IRTools.block!(ir)
   # Rewrite continue/break to the right block number
@@ -197,7 +197,7 @@ function lowerwhile!(sc, ir::IR, ex)
     end
   end
   IRTools.branch!(header, after, unless = cond)
-  IRTools.branch!(body, header)
+  IRTools.canbranch(body) && IRTools.branch!(body, header)
   return lower!(sc, ir, Call(:Nothing, []))
 end
 
@@ -298,7 +298,8 @@ function lowerexpr(ex)
   ir = IR()
   out = lower!(sc, ir, ex)
   out == nothing || IRTools.return!(ir, out)
-  return ir |> IRTools.ssa! |> IRTools.prune!
+  # return ir |> IRTools.ssa! |> IRTools.prune!
+  return ir
 end
 
 function rewrite_globals(ir::IR)
