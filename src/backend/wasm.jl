@@ -287,11 +287,11 @@ function lowerwasm!(mod::WModule, T)
 end
 
 function partmethod!(mod::WModule, m::RMethod, x, i)
-  T = rtuple(m, x, i)
+  T = (m, x, i)
   haskey(mod.funcs, T) && return mod.funcs[T][1]
   id = name(mod, Symbol("part:method"))
   ir = partir(x, i)
-  mod.funcs[rtuple(m, x, i)] = (id, ir)
+  mod.funcs[(m, x, i)] = (id, ir)
   return id
 end
 
