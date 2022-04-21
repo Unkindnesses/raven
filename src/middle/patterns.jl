@@ -79,7 +79,7 @@ end
 
 function partial_match(mod, pat::Data, val::Data, path)
   bs = Dict()
-  i = 1
+  i = 0
   while true
     i <= nparts(val) || break
     i <= nparts(pat) || return nothing
