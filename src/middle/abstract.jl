@@ -89,7 +89,7 @@ function irframe!(inf, T, ir, args...)
   fr = frame(ir, args...)
   inf.frames[T] = fr
   for bl in reverse(blocks(ir))
-    push!(inf.queue, (fr, bl.id, 1))
+    push!(inf.queue, (T, bl.id, 1))
   end
   return fr
 end
@@ -164,32 +164,33 @@ function openbranches(inf, bl)
 end
 
 function step!(inf::Inference)
-  frame, b, ip = pop!(inf.queue)
+  F, b, ip = pop!(inf.queue)
+  frame = inf.frames[F]
   block, stmts = IRTools.block(frame.ir, b), frame.stmts[b]
   if ip <= length(stmts)
     var = stmts[ip]
     st = block[var]
     if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
       block.ir[var] = Statement(block[var], type = rvtype(st.expr.args[1].ret))
-      push!(inf.queue, (frame, b, ip+1))
+      push!(inf.queue, (F, b, ip+1))
     elseif isexpr(st.expr, :call)
-      T = infercall!(inf, (frame, b, ip), block, st.expr)
+      T = infercall!(inf, (F, b, ip), block, st.expr)
       if T != ⊥
         block.ir[var] = Statement(block[var], type = union(st.type, T))
-        push!(inf.queue, (frame, b, ip+1))
+        push!(inf.queue, (F, b, ip+1))
       end
     elseif isexpr(st.expr, :tuple)
       Ts = exprtype(inf.mod, block.ir, st.expr.args)
       if !any(==(⊥), Ts)
         block.ir[var] = Statement(block[var], type = rtuple(Ts...))
-        push!(inf.queue, (frame, b, ip+1))
+        push!(inf.queue, (F, b, ip+1))
       end
     elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global
       x = st.expr.args[1].name
       T = exprtype(inf.mod, block.ir, st.expr.args[2])
       block.ir[var] = Statement(block[var], type = T)
       inf.mod.defs[x] = T
-      push!(inf.queue, (frame, b, ip+1))
+      push!(inf.queue, (F, b, ip+1))
     else
       error("Unknown expr type $(st.expr.head)")
     end
@@ -204,7 +205,7 @@ function step!(inf::Inference)
       else
         args = exprtype(inf.mod, block.ir, arguments(br))
         if blockargs!(IRTools.block(frame.ir, br.block), args)
-          push!(inf.queue, (frame, br.block, 1))
+          push!(inf.queue, (F, br.block, 1))
         end
       end
     end
