@@ -184,6 +184,7 @@ function lowerwhile!(sc, ir::IR, ex)
   sc = Scope(sc)
   header = IRTools.block!(ir)
   cond = lower!(sc, ir, ex.args[1])
+  cond = _push!(ir, Base.Expr(:call, :condition, Base.Expr(:tuple, cond)))
   IRTools.block!(ir)
   _lower!(sc, ir, ex.args[2].args)
   body = blocks(ir)[end]
@@ -245,6 +246,7 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
       break
     end
     cond = lower!(sc, ir, cond)
+    cond = _push!(ir, Base.Expr(:call, :condition, Base.Expr(:tuple, cond)))
     c = blocks(ir)[end]
     t = IRTools.block!(ir)
     body!(ir, body)

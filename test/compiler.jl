@@ -23,6 +23,6 @@ fails(test) = result_code(test) == 1
 end
 
 # Test that the code compiles successfully, failing at runtime
-@testset for test in [:global, :method]
+@testset for test in [:global, :method, :condition]
   @test fails("error-$test")
 end

@@ -170,12 +170,12 @@ function globals(mod::RModule, ir::IR)
   transform(x, v = nothing) = x
   function transform(x::Global, v = nothing)
     T = get(mod, x.name, ⊥)
-    T != ⊥ && length(tlayout(T).parts) == 0 && return x
     insert = v == nothing ? (x -> push!(pr, x)) : (x -> insert!(pr, v, x))
     insert(IRTools.stmt(Base.Expr(:global, x.name), type = T))
   end
   IRTools.branches(pr) do b
-    IRTools.Branch(b, args = [transform(x) for x in b.args])
+    IRTools.Branch(b, args = [transform(x) for x in b.args],
+                   condition = transform(b.condition))
   end
   for (v, st) in pr
     ex = st.expr
@@ -189,10 +189,10 @@ function globals(mod::RModule, ir::IR)
 end
 
 function lowerwasm!(mod::WModule, ir::IR)
-  ir = globals(mod.inf.mod, ir)
   prune!(ir)
   casts!(mod.inf.mod, ir)
   sigs!(mod.inf.mod, ir)
+  ir = globals(mod.inf.mod, ir)
   for b in blocks(ir)
     IRTools.argtypes(b) .= layout.(IRTools.argtypes(b))
     for (v, st) in b

@@ -18,6 +18,9 @@ fn (x |> f) { f(x) }
 
 # fn tuple(xs...) { data(`Tuple`, xs...) }
 
+fn condition(x) { panic("Non-boolean used as a condition") }
+fn condition(x: Int32) { widen(x) }
+
 fn Nothing() { data(`Nothing`) }
 
 nothing = Nothing()

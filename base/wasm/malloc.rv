@@ -100,7 +100,7 @@ fn free(p: Ptr) {
 fn allocationCount() {
   i = 0
   ptr = Ptr(0)
-  while widen(true) {
+  while true {
     getBlockUsed(ptr) && (i = i + 1)
     size = getBlockSize(ptr)
     isLastBlock(ptr, size) && break
