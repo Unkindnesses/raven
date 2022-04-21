@@ -123,15 +123,20 @@ lower!(sc, ir::IR, x::Vector) =
 
 lower!(sc, ir::IR, x::Block) = lower!(sc, ir, x.args)
 
-function lower!(sc, ir::IR, ex::Operator)
+function lower!(sc, ir::IR, ex::Operator, value = true)
   if ex.op == :(=)
     x = variable!(sc, ex.args[1])
     _push!(ir, :($(x) = $(lower!(sc, ir, ex.args[2]))))
     return x
+  elseif ex.op in (:(&&), :(||))
+    clauses = ex.op == :(&&) ? [ex.args[2], Int32(false)] : [true, ex.args[2]]
+    lowerif!(sc, ir, If([ex.args[1], true], clauses), value)
   else
     _push!(ir, Base.Expr(:call, ex.op, Base.Expr(:tuple, map(x -> lower!(sc, ir, x), ex.args)...)))
   end
 end
+
+_lower!(sc, ir::IR, ex::Operator) = lower!(sc, ir, ex, false)
 
 # TODO: should possibly have a primitive `data(...)` expression
 # rather than special-casing `tuple`.
@@ -234,7 +239,7 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
       _lower!(sc, ir, ex)
   for (cond, body) in zip(ex.cond, ex.body)
     if cond === true
-      body!(ir, body.args)
+      body!(ir, body)
       push!(ts, blocks(ir)[end])
       IRTools.block!(ir)
       break
@@ -242,7 +247,7 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
     cond = lower!(sc, ir, cond)
     c = blocks(ir)[end]
     t = IRTools.block!(ir)
-    body!(ir, body.args)
+    body!(ir, body)
     push!(ts, blocks(ir)[end])
     f = IRTools.block!(ir)
     IRTools.branch!(c, f, unless = cond)
