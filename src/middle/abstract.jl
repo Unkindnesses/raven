@@ -34,6 +34,11 @@ function union(x::Data, y::VData)
   VData(tag(x), union(partial_eltype(x), partial_eltype(y)))
 end
 
+function union(x::VData, y::VData)
+  tag(x) == tag(y) || error("unimplemented union")
+  return VData(tag(x), union(x.parts, y.parts))
+end
+
 issubtype(x::Union{T,Type{T}}, y::Type{T}) where T = true
 issubtype(x, y) = x == y
 
