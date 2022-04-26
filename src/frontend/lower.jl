@@ -32,7 +32,7 @@ end
 function lowerisa(ex, as)
   if ex isa Symbol
     return Isa(ex)
-  elseif ex isa Operator && ex.op == :(|)
+  elseif ex isa AST.Operator && ex.op == :(|)
     Or(map(x -> lowerisa(x, as), ex.args))
   elseif ex isa Operator && ex.op == :(&)
     And(map(x -> lowerisa(x, as), ex.args))
@@ -45,23 +45,23 @@ function _lowerpattern(ex, as)
   if ex isa Symbol
     ex in as || push!(as, ex)
     return ex == :_ ? hole : Bind(ex, hole)
-  elseif ex isa Union{Primitive,Quote}
-    ex isa Quote && (ex = ex.expr)
+  elseif ex isa Union{Primitive,AST.Quote}
+    ex isa AST.Quote && (ex = ex.expr)
     return Literal(ex)
-  elseif ex isa Tuple
+  elseif ex isa AST.Tuple
     data(Literal(:Tuple), map(x -> _lowerpattern(x, as), ex.args)...)
-  elseif ex isa Operator && ex.op == :(:)
+  elseif ex isa AST.Operator && ex.op == :(:)
     name, T = ex.args
     name in as || push!(as, name)
     Bind(name, lowerisa(T, as))
-  elseif ex isa Splat
+  elseif ex isa AST.Splat
     inner = _lowerpattern(ex.expr, as)
     if inner isa Bind
       Bind(inner.name, Repeat(inner.pattern))
     else
       Repeat(inner)
     end
-  elseif ex isa Call && ex.func == :data
+  elseif ex isa AST.Call && ex.func == :data
     data(map(x -> _lowerpattern(x, as), ex.args)...)
   else
     error("Invalid pattern syntax $(ex)")
@@ -116,14 +116,14 @@ _lower!(sc, ir, x) = lower!(sc, ir, x)
 
 isfn(x) = x isa Block && x.name == :fn
 
-lower!(sc, ir::IR, x::Union{Integer,String,Quote,Data}) = x
+lower!(sc, ir::IR, x::Union{Integer,String,AST.Quote,Data}) = x
 lower!(sc, ir::IR, x::Symbol) = sc[x]
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? nothing : (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
 
-lower!(sc, ir::IR, x::Block) = lower!(sc, ir, x.args)
+lower!(sc, ir::IR, x::AST.Block) = lower!(sc, ir, x.args)
 
-function lower!(sc, ir::IR, ex::Operator, value = true)
+function lower!(sc, ir::IR, ex::AST.Operator, value = true)
   if ex.op == :(=)
     x = variable!(sc, ex.args[1])
     _push!(ir, :($(x) = $(lower!(sc, ir, ex.args[2]))))
@@ -136,19 +136,19 @@ function lower!(sc, ir::IR, ex::Operator, value = true)
   end
 end
 
-_lower!(sc, ir::IR, ex::Operator) = lower!(sc, ir, ex, false)
+_lower!(sc, ir::IR, ex::AST.Operator) = lower!(sc, ir, ex, false)
 
 # TODO: should possibly have a primitive `data(...)` expression
 # rather than special-casing `tuple`.
-function lower!(sc, ir::IR, ex::Call)
+function lower!(sc, ir::IR, ex::AST.Call)
   args = collect(ex.args)
   parts = []
   while !isempty(args)
-    if first(args) isa Splat
+    if first(args) isa AST.Splat
       push!(parts, lower!(sc, ir, popfirst!(args).expr))
     else
       as = []
-      while !(isempty(args) || first(args) isa Splat)
+      while !(isempty(args) || first(args) isa AST.Splat)
         push!(as, lower!(sc, ir, popfirst!(args)))
       end
       push!(parts, _push!(ir, Base.Expr(:tuple, as...)))
@@ -161,8 +161,8 @@ function lower!(sc, ir::IR, ex::Call)
   _push!(ir, Base.Expr(:call, lower!(sc, ir, ex.func), args))
 end
 
-function lower!(sc, ir::IR, ex::Tuple)
-  v = lower!(sc, ir, Call(:tuple, ex.args))
+function lower!(sc, ir::IR, ex::AST.Tuple)
+  v = lower!(sc, ir, AST.Call(:tuple, ex.args))
   # TODO: this is hacky, we should just use the `tuple` function.
   # But it puts off the need for special argument inference.
   v′ = ir[v].expr.args[2]
@@ -170,12 +170,12 @@ function lower!(sc, ir::IR, ex::Tuple)
   return v′
 end
 
-function lower!(sc, ir::IR, ex::Return)
+function lower!(sc, ir::IR, ex::AST.Return)
   IRTools.return!(ir, lower!(sc, ir, ex.val))
   return
 end
 
-function lower!(sc, ir::IR, ex::Break)
+function lower!(sc, ir::IR, ex::AST.Break)
   IRTools.branch!(ir, -1)
   return
 end
@@ -199,7 +199,7 @@ function lowerwhile!(sc, ir::IR, ex)
   end
   IRTools.branch!(header, after, unless = cond)
   IRTools.canbranch(body) && IRTools.branch!(body, header)
-  return lower!(sc, ir, Call(:Nothing, []))
+  return lower!(sc, ir, AST.Call(:Nothing, []))
 end
 
 struct If
@@ -207,7 +207,7 @@ struct If
   body::Vector{Any}
 end
 
-function If(b::Syntax)
+function If(b::AST.Syntax)
   cond = []
   body = []
   push!(cond, b.args[1])
@@ -225,7 +225,7 @@ function If(b::Syntax)
   end
   if cond[end] !== true
     push!(cond, true)
-    push!(body, Call(:Nothing, []))
+    push!(body, AST.Call(:Nothing, []))
   end
   return If(cond, body)
 end
@@ -264,7 +264,7 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
   value && IRTools.argument!(b, insert = false)
 end
 
-function lower!(sc, ir::IR, ex::Syntax, value = true)
+function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
   if ex.name == :while
     lowerwhile!(sc, ir, ex)
   elseif ex.name == :if
@@ -281,7 +281,7 @@ function lower!(sc, ir::IR, ex::Syntax, value = true)
   end
 end
 
-_lower!(sc, ir::IR, ex::Syntax) = lower!(sc, ir, ex, false)
+_lower!(sc, ir::IR, ex::AST.Syntax) = lower!(sc, ir, ex, false)
 
 function lowerfn(ex, args)
   sc = Scope()

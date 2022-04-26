@@ -84,10 +84,10 @@ vprint(io::IO, ::Type{T}) where T = print(io, "_: $T")
 
 vprint(io::IO, x::Symbol) = print(io, "`", x, "`")
 
-vprint(io::IO, x::Expr) = print(io, "`", x, "`")
+vprint(io::IO, x::AST.Expr) = print(io, "`", x, "`")
 
 Base.show(io::IO, d::Data) = vprint(io, d)
 Base.show(io::IO, d::VData) = vprint(io, d)
 
 # Show inside AST
-_show(io::Ctx, x::Data) = show(io.io, x)
+AST._show(io::AST.Ctx, x::Data) = show(io.io, x)

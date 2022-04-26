@@ -1,7 +1,7 @@
 module Parse
 
 using LNR
-using ..Raven: Expr, Return, Break, Continue, Tuple, Splat, Call,
+using ..AST: Expr, Return, Break, Continue, Tuple, Splat, Call,
   Operator, Block, Syntax, Quote
 
 struct ParseError

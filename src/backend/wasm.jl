@@ -10,7 +10,7 @@ struct WIntrinsic
 end
 
 function intrinsic(ex)
-  if ex isa Operator && ex.op == :(:)
+  if ex isa AST.Operator && ex.op == :(:)
     typ = ex.args[2] == :unreachable ? ⊥ : WType(ex.args[2])
     ex = ex.args[1]
   else
@@ -21,15 +21,15 @@ function intrinsic(ex)
     WIntrinsic(WebAssembly.Call(ex.args[1].expr), typ)
   else
     namify(x::Symbol) = x
-    namify(x::Raven.Operator) = Symbol(join(namify.(x.args), x.op))
+    namify(x::AST.Operator) = Symbol(join(namify.(x.args), x.op))
     WIntrinsic(WebAssembly.Op(namify(op)), typ)
   end
 end
 
 function intrinsic_args(ex)
-  ex isa Operator && ex.op == :(:) && return intrinsic_args(ex.args[1])
-  args = filter(x -> x isa Operator && x.op == :(:), ex.args)
-  return map(x -> Call(:widen, [x.args[1]]), args)
+  ex isa AST.Operator && ex.op == :(:) && return intrinsic_args(ex.args[1])
+  args = filter(x -> x isa AST.Operator && x.op == :(:), ex.args)
+  return map(x -> AST.Call(:widen, [x.args[1]]), args)
 end
 
 WNum = Union{Int32,Int64,Float32,Float64}
@@ -42,7 +42,7 @@ function cat_layout(xs...; result = [])
 end
 
 layout(::Type{T}) where T = WebAssembly.WType(T)
-layout(x::Union{Primitive,Quote,Unreachable}) = WTuple()
+layout(x::Union{Primitive,AST.Quote,Unreachable}) = WTuple()
 layout(x::Data) = cat_layout(layout.(x.parts)...)
 
 function tlayout(x)

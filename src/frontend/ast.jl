@@ -1,5 +1,9 @@
 # AST Structure
 
+module AST
+
+using MacroTools: @forward
+
 abstract type Expr end
 
 struct Return <: Expr
@@ -124,3 +128,5 @@ function _show(io::Ctx, x::Syntax)
 end
 
 Base.show(io::IO, x::Expr) = _show(ShowContext(io), x)
+
+end
