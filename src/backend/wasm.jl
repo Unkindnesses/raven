@@ -135,15 +135,15 @@ function sigs!(mod::RModule, ir::IR)
   for (v, st) in ir
     if isexpr(st.expr, :call)
       if st.expr.args[1] isa WIntrinsic
-      elseif st.expr.args[1] == :cast
-        ir[v] = xcall([:cast, st.expr.args[2], exprtype(mod, ir, st.expr.args[3])], st.expr.args...)
-      elseif st.expr.args[1] isa RMethod || st.expr.args[1] == :cast
+      elseif st.expr.args[1] isa RMethod
         ir[v] = xcall((exprtype(mod, ir, st.expr.args)...,), st.expr.args...)
       else
         f, xs = exprtype(mod, ir, st.expr.args)
         # TODO should probably fold this into lowering
         ir[v] = xcall((f, xs), st.expr.args...)
       end
+    elseif isexpr(st.expr, :cast)
+      ir[v] = Expr(:cast, st.expr.args[1], exprtype(mod, ir, st.expr.args[2]), st.expr.args[2])
     end
   end
   return ir
@@ -201,6 +201,11 @@ function lowerwasm!(mod::WModule, ir::IR)
         args = filter(x -> x isa Variable, st.expr.args)
         ir[v] = length(args) == 1 ? args[1] : Expr(:tuple, args...)
         continue
+      elseif isexpr(st.expr, :cast)
+        T, val = st.expr.args
+        (val isa Number && T == typeof(val)) || error("unsupported cast")
+        ir[v] = IRTools.stmt(val, type = layout(T))
+        continue
       elseif isexpr(st.expr, :global)
         g = Global(st.expr.args[1])
         if st.type == ⊥
@@ -237,10 +242,6 @@ function lowerwasm!(mod::WModule, ir::IR)
       elseif ismethod(Ts[1], :widen)
         val = Ts[2] isa Integer ? Ts[2] : st.expr.args[3]
         ir[v] = IRTools.stmt(val, type = layout(st.type))
-      elseif Ts[1] == :cast # TODO make this an expr type
-        _, T, val = Ts
-        (val isa Number && T == typeof(val)) || error("unsupported cast")
-        ir[v] = IRTools.stmt(val, type = layout(T))
       elseif ismethod(Ts[1], :data) # TODO: should specifically check this is the fallback method
         lowerdata!(mod, ir, v)
       elseif ismethod(Ts[1], :datacat)
