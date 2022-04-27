@@ -132,7 +132,7 @@ function lower!(sc, ir::IR, ex::AST.Operator, value = true)
     clauses = ex.op == :(&&) ? [ex.args[2], Int32(false)] : [true, ex.args[2]]
     lowerif!(sc, ir, If([ex.args[1], true], clauses), value)
   else
-    _push!(ir, Base.Expr(:call, ex.op, Base.Expr(:tuple, map(x -> lower!(sc, ir, x), ex.args)...)))
+    _push!(ir, Expr(:call, ex.op, Expr(:tuple, map(x -> lower!(sc, ir, x), ex.args)...)))
   end
 end
 
@@ -151,14 +151,14 @@ function lower!(sc, ir::IR, ex::AST.Call)
       while !(isempty(args) || first(args) isa AST.Splat)
         push!(as, lower!(sc, ir, popfirst!(args)))
       end
-      push!(parts, _push!(ir, Base.Expr(:tuple, as...)))
+      push!(parts, _push!(ir, Expr(:tuple, as...)))
     end
   end
   args =
-    isempty(parts) ? Base.Expr(:tuple) :
+    isempty(parts) ? Expr(:tuple) :
     length(parts) == 1 ? parts[1] :
-    _push!(ir, Base.Expr(:call, :datacat, Base.Expr(:tuple, parts...)))
-  _push!(ir, Base.Expr(:call, lower!(sc, ir, ex.func), args))
+    _push!(ir, Expr(:call, :datacat, Expr(:tuple, parts...)))
+  _push!(ir, Expr(:call, lower!(sc, ir, ex.func), args))
 end
 
 function lower!(sc, ir::IR, ex::AST.Tuple)
@@ -184,7 +184,7 @@ function lowerwhile!(sc, ir::IR, ex)
   sc = Scope(sc)
   header = IRTools.block!(ir)
   cond = lower!(sc, ir, ex.args[1])
-  cond = _push!(ir, Base.Expr(:call, :condition, Base.Expr(:tuple, cond)))
+  cond = _push!(ir, Expr(:call, :condition, Expr(:tuple, cond)))
   IRTools.block!(ir)
   _lower!(sc, ir, ex.args[2].args)
   body = blocks(ir)[end]
@@ -246,7 +246,7 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
       break
     end
     cond = lower!(sc, ir, cond)
-    cond = _push!(ir, Base.Expr(:call, :condition, Base.Expr(:tuple, cond)))
+    cond = _push!(ir, Expr(:call, :condition, Expr(:tuple, cond)))
     c = blocks(ir)[end]
     t = IRTools.block!(ir)
     body!(ir, body)
@@ -273,9 +273,9 @@ function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
     ex = ex.args[1].args[1]
     op = intrinsic(ex)
     args = lower!.((sc,), (ir,), intrinsic_args(ex))
-    push!(ir, Base.Expr(:call, op, args...))
+    push!(ir, Expr(:call, op, args...))
   elseif ex.name == :import
-    push!(ir, Base.Expr(:import, importpath(ex)))
+    push!(ir, Expr(:import, importpath(ex)))
   else
     error("unrecognised block $(ex.name)")
   end
