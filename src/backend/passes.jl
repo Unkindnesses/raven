@@ -20,7 +20,7 @@ function casts!(mod::RModule, ir)
         T = blockargtype(mod, block(ir, br.block), i)
         S == T && continue
         arguments(br)[i] =
-          push!(bl, IRTools.stmt(Expr(:call, :cast, T, arguments(br)[i]),
+          push!(bl, IRTools.stmt(xcall(:cast, T, arguments(br)[i]),
                                  type = T))
       end
     end

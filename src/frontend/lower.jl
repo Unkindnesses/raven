@@ -76,6 +76,8 @@ end
 
 # Expr -> IR lowering
 
+xcall(args...) = Expr(:call, args...)
+
 struct Global
   name::Symbol
 end
@@ -132,7 +134,7 @@ function lower!(sc, ir::IR, ex::AST.Operator, value = true)
     clauses = ex.op == :(&&) ? [ex.args[2], Int32(false)] : [true, ex.args[2]]
     lowerif!(sc, ir, If([ex.args[1], true], clauses), value)
   else
-    _push!(ir, Expr(:call, ex.op, Expr(:tuple, map(x -> lower!(sc, ir, x), ex.args)...)))
+    _push!(ir, xcall(ex.op, Expr(:tuple, map(x -> lower!(sc, ir, x), ex.args)...)))
   end
 end
 
@@ -157,8 +159,8 @@ function lower!(sc, ir::IR, ex::AST.Call)
   args =
     isempty(parts) ? Expr(:tuple) :
     length(parts) == 1 ? parts[1] :
-    _push!(ir, Expr(:call, :datacat, Expr(:tuple, parts...)))
-  _push!(ir, Expr(:call, lower!(sc, ir, ex.func), args))
+    _push!(ir, xcall(:datacat, Expr(:tuple, parts...)))
+  _push!(ir, xcall(lower!(sc, ir, ex.func), args))
 end
 
 function lower!(sc, ir::IR, ex::AST.Tuple)
@@ -184,7 +186,7 @@ function lowerwhile!(sc, ir::IR, ex)
   sc = Scope(sc)
   header = IRTools.block!(ir)
   cond = lower!(sc, ir, ex.args[1])
-  cond = _push!(ir, Expr(:call, :condition, Expr(:tuple, cond)))
+  cond = _push!(ir, xcall(:condition, Expr(:tuple, cond)))
   IRTools.block!(ir)
   _lower!(sc, ir, ex.args[2].args)
   body = blocks(ir)[end]
@@ -246,7 +248,7 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
       break
     end
     cond = lower!(sc, ir, cond)
-    cond = _push!(ir, Expr(:call, :condition, Expr(:tuple, cond)))
+    cond = _push!(ir, xcall(:condition, Expr(:tuple, cond)))
     c = blocks(ir)[end]
     t = IRTools.block!(ir)
     body!(ir, body)
@@ -273,7 +275,7 @@ function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
     ex = ex.args[1].args[1]
     op = intrinsic(ex)
     args = lower!.((sc,), (ir,), intrinsic_args(ex))
-    push!(ir, Expr(:call, op, args...))
+    push!(ir, xcall(op, args...))
   elseif ex.name == :import
     push!(ir, Expr(:import, importpath(ex)))
   else

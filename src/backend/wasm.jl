@@ -77,7 +77,7 @@ function partir(x, i)
   xlayout = layout(x)
   part(i) = xlayout isa WTuple ? push!(ir, Expr(:ref, vx, i)) : vx
   for i = 1:nparts(x)
-    cond = push!(ir, IRTools.stmt(Expr(:call, i64.eq, i, vi), type = i32))
+    cond = push!(ir, IRTools.stmt(xcall(i64.eq, i, vi), type = i32))
     branch!(ir, length(ir.blocks) + 2, unless = cond)
     branch!(ir, length(ir.blocks) + 1)
     block!(ir)
@@ -136,13 +136,13 @@ function sigs!(mod::RModule, ir::IR)
     if isexpr(st.expr, :call)
       if st.expr.args[1] isa WIntrinsic
       elseif st.expr.args[1] == :cast
-        ir[v] = Expr(:call, [:cast, st.expr.args[2], exprtype(mod, ir, st.expr.args[3])], st.expr.args...)
+        ir[v] = xcall([:cast, st.expr.args[2], exprtype(mod, ir, st.expr.args[3])], st.expr.args...)
       elseif st.expr.args[1] isa RMethod || st.expr.args[1] == :cast
-        ir[v] = Expr(:call, (exprtype(mod, ir, st.expr.args)...,), st.expr.args...)
+        ir[v] = xcall((exprtype(mod, ir, st.expr.args)...,), st.expr.args...)
       else
         f, xs = exprtype(mod, ir, st.expr.args)
         # TODO should probably fold this into lowering
-        ir[v] = Expr(:call, (f, xs), st.expr.args...)
+        ir[v] = xcall((f, xs), st.expr.args...)
       end
     end
   end
@@ -204,7 +204,7 @@ function lowerwasm!(mod::WModule, ir::IR)
       elseif isexpr(st.expr, :global)
         g = Global(st.expr.args[1])
         if st.type == ⊥
-          ir[v] = Expr(:call, WebAssembly.Call(:panic), stringid!(mod, "$(g.name) is not defined"))
+          ir[v] = xcall(WebAssembly.Call(:panic), stringid!(mod, "$(g.name) is not defined"))
           ir[v] = IRTools.stmt(ir[v], type = WTuple())
         else
           l = global!(mod, g, st.type)
@@ -217,7 +217,7 @@ function lowerwasm!(mod::WModule, ir::IR)
           p = st.expr.args[2]
           layout(st.type) isa WTuple &&
             (p = insert!(ir, v, Expr(:ref, p, i)))
-          w = insert!(ir, v, Expr(:call, WebAssembly.SetGlobal(l[i]), p))
+          w = insert!(ir, v, xcall(WebAssembly.SetGlobal(l[i]), p))
           ir[w] = IRTools.stmt(ir[w], type = WTuple())
         end
         delete!(ir, v)
@@ -227,13 +227,13 @@ function lowerwasm!(mod::WModule, ir::IR)
       end
       Ts, args = st.expr.args[1], st.expr.args[2:end]
       if Ts isa WIntrinsic
-        ex = Expr(:call, st.expr.args[1].op, st.expr.args[2:end]...)
+        ex = xcall(st.expr.args[1].op, st.expr.args[2:end]...)
         ir[v] = IRTools.stmt(st.expr, expr = ex, type = Ts.ret == ⊥ ? WTuple() : Ts.ret)
         if Ts.ret == ⊥
-          IRTools.insertafter!(ir, v, IRTools.stmt(Expr(:call, WebAssembly.unreachable), type = WTuple()))
+          IRTools.insertafter!(ir, v, IRTools.stmt(xcall(WebAssembly.unreachable), type = WTuple()))
         end
       elseif any(x -> x == ⊥, Ts)
-        ir[v] = IRTools.stmt(Expr(:call, WebAssembly.unreachable), type = WTuple())
+        ir[v] = IRTools.stmt(xcall(WebAssembly.unreachable), type = WTuple())
       elseif ismethod(Ts[1], :widen)
         val = Ts[2] isa Integer ? Ts[2] : st.expr.args[3]
         ir[v] = IRTools.stmt(val, type = layout(st.type))
@@ -261,14 +261,14 @@ function lowerwasm!(mod::WModule, ir::IR)
           ir[v] = IRTools.stmt(ex, type = layout(st.type))
         else
           func = partmethod!(mod, Ts[1], x, i)
-          ir[v] = Expr(:call, WebAssembly.Call(func), args[2:end]...)
+          ir[v] = xcall(WebAssembly.Call(func), args[2:end]...)
           ir[v] = IRTools.stmt(ir[v], type = layout(ir[v].type))
         end
       elseif ismethod(Ts[1], :nparts)
         ir[v] = nparts(Ts[2])
       else
         func = lowerwasm!(mod, Ts)
-        ir[v] = Expr(:call, WebAssembly.Call(func), args[2:end]...)
+        ir[v] = xcall(WebAssembly.Call(func), args[2:end]...)
         ir[v] = IRTools.stmt(ir[v], type = layout(ir[v].type))
       end
     end

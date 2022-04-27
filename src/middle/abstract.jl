@@ -115,9 +115,9 @@ function indexer!(ir::IR, arg, path)
   (p, rest...) = path
   arg = indexer!(ir, arg, rest)
   if p isa AbstractVector
-    push!(ir, Expr(:tuple, [Expr(:call, part_method, arg, i) for i in p]...))
+    push!(ir, Expr(:tuple, [xcall(part_method, arg, i) for i in p]...))
   else
-    push!(ir, Expr(:call, part_method, arg, p))
+    push!(ir, xcall(part_method, arg, p))
   end
 end
 
@@ -130,13 +130,13 @@ function dispatcher(inf, F, Ts)
     if m === nothing
       continue
     elseif m isa AbstractDict
-      return!(ir, push!(ir, Expr(:call, meth, [indexer!(ir, args, m[x][2]) for x in meth.args]...)))
+      return!(ir, push!(ir, xcall(meth, [indexer!(ir, args, m[x][2]) for x in meth.args]...)))
       return ir
     else
       error("Runtime matching not yet supported")
     end
   end
-  v = push!(ir, Expr(:call, :panic, Expr(:tuple, "No matching method: $F: $Ts")))
+  v = push!(ir, xcall(:panic, Expr(:tuple, "No matching method: $F: $Ts")))
   return!(ir, v)
   return ir
 end
