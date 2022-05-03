@@ -182,7 +182,7 @@ function lower!(sc, ir::IR, ex::AST.Break)
   return
 end
 
-function lowerwhile!(sc, ir::IR, ex)
+function lowerwhile!(sc, ir::IR, ex, value = true)
   sc = Scope(sc)
   header = IRTools.block!(ir)
   cond = lower!(sc, ir, ex.args[1])
@@ -201,7 +201,7 @@ function lowerwhile!(sc, ir::IR, ex)
   end
   IRTools.branch!(header, after, unless = cond)
   IRTools.canbranch(body) && IRTools.branch!(body, header)
-  return lower!(sc, ir, AST.Call(:Nothing, []))
+  return value ? lower!(sc, ir, AST.Call(:Nothing, [])) : nothing
 end
 
 struct If
@@ -268,7 +268,7 @@ end
 
 function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
   if ex.name == :while
-    lowerwhile!(sc, ir, ex)
+    lowerwhile!(sc, ir, ex, value)
   elseif ex.name == :if
     lowerif!(sc, ir, If(ex), value)
   elseif ex.name == :wasm
