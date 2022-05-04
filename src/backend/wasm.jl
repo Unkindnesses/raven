@@ -164,16 +164,6 @@ function cast!(mod::WModule, ir, v)
   end
 end
 
-# Arguments are turned into a tuple when calling any function, so this is
-# basically just a cast.
-function lowerdata!(mod::WModule, ir, v)
-  ir[v] = ir[v].expr.args[3]
-end
-
-function lowerdatacat!(mod::WModule, ir, v)
-  ir[v] = ir[v].expr.args[3]
-end
-
 # Turn global references into explicit load instructions
 # TODO this function is horrendously complex for what it does.
 # Should be expressed as a prewalk in the new IRTools.
@@ -250,10 +240,6 @@ function lowerwasm!(mod::WModule, ir::IR)
         end
       elseif any(x -> x == ⊥, Ts)
         ir[v] = IRTools.stmt(xcall(WebAssembly.unreachable), type = WTuple())
-      elseif ismethod(Ts[1], :data) # TODO: should specifically check this is the fallback method
-        lowerdata!(mod, ir, v)
-      elseif ismethod(Ts[1], :datacat)
-        lowerdatacat!(mod, ir, v)
       elseif ismethod(Ts[1], :part) # TODO: same
         x::Union{String,Data}, i = Ts[2:end]
         if x isa String && i == 1

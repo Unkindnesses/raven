@@ -34,6 +34,12 @@ function lowerir(mod, ir)
         T = exprtype(mod, ir, st.expr.args[2])
         val = T isa Integer ? T : st.expr.args[2]
         pr[v] = val
+      elseif ismethod(F, :data)
+        # Arguments are turned into a tuple when calling any function, so this
+        # is just a cast.
+        pr[v] = st.expr.args[2]
+      elseif ismethod(F, :datacat)
+        pr[v] = st.expr.args[2]
       end
     end
   end
