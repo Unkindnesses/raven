@@ -63,6 +63,19 @@ function isreachable(bl)
   return true
 end
 
+function cast!(ir, from, to)
+  if from isa Number && to == typeof(from)
+    push!(ir, IRTools.stmt(from, type = to))
+  elseif from == rtuple() && to isa VData
+    sz = push!(ir, IRTools.stmt(0, type = Int32))
+    margs = push!(ir, IRTools.stmt(Expr(:tuple, Int32(0)), type = rtuple(Int32)))
+    ptr = push!(ir, IRTools.stmt(xcall(Global(:malloc), margs), type = Int32))
+    push!(ir, IRTools.stmt(Expr(:tuple, sz, ptr), type = layout(to)))
+  else
+    error("unsupported cast: $from -> $to")
+  end
+end
+
 function casts!(mod::RModule, ir)
   for bl in blocks(ir)
     if !isreachable(bl)
@@ -75,9 +88,7 @@ function casts!(mod::RModule, ir)
         S = exprtype(mod, ir, arguments(br)[i])
         T = blockargtype(mod, block(ir, br.block), i)
         S == T && continue
-        arguments(br)[i] =
-          push!(bl, IRTools.stmt(Expr(:cast, T, arguments(br)[i]),
-                                 type = T))
+        arguments(br)[i] = cast!(bl, S, T)
       end
     end
   end

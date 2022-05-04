@@ -143,25 +143,9 @@ function sigs!(mod::RModule, ir::IR)
         # TODO should probably fold this into lowering
         ir[v] = xcall((f, xs), st.expr.args...)
       end
-    elseif isexpr(st.expr, :cast)
-      ir[v] = Expr(:cast, st.expr.args[1], exprtype(mod, ir, st.expr.args[2]), st.expr.args[2])
     end
   end
   return ir
-end
-
-function cast!(mod::WModule, ir, v)
-  to, from, x = ir[v].expr.args
-  if from isa Number && to == typeof(from)
-    ir[v] = IRTools.stmt(from, type = layout(to))
-  elseif from == rtuple() && to isa VData
-    sz = insert!(ir, v, IRTools.stmt(0, type = i32))
-    malloc = lowerwasm!(mod, (:malloc, rtuple(Int32)))
-    ptr = insert!(ir, v, IRTools.stmt(xcall(WebAssembly.Call(malloc), Int32(0)), type = i32))
-    ir[v] = IRTools.stmt(Expr(:tuple, sz, ptr), type = layout(to))
-  else
-    error("unsupported cast: $from -> $to")
-  end
 end
 
 # Turn global references into explicit load instructions
@@ -201,9 +185,6 @@ function lowerwasm!(mod::WModule, ir::IR)
         continue
       elseif isexpr(st.expr, :tuple)
         length(st.expr.args) == 1 && (ir[v] = st.expr.args[1])
-        continue
-      elseif isexpr(st.expr, :cast)
-        cast!(mod, ir, v)
         continue
       elseif isexpr(st.expr, :global)
         g = Global(st.expr.args[1])
