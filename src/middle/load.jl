@@ -66,7 +66,8 @@ function loadfile(cx::Inference, io::IO)
   end
 end
 
-function loadfile(mod::RModule, f::String; infer = true, partial = false)
+function loadfile(f::String; infer = true, partial = false)
+  mod = RModule()
   cx = Inference(mod)
   open(io -> loadfile(cx, io), "$base/base.rv")
   open(io -> loadfile(cx, io), f)
@@ -77,7 +78,5 @@ function loadfile(mod::RModule, f::String; infer = true, partial = false)
   infer && infer!(cx; partial)
   return cx
 end
-
-loadfile(f::String; infer = true, partial = false) = loadfile(RModule(), f; infer, partial)
 
 startmethod(mod) = mod.methods[:_start][1]
