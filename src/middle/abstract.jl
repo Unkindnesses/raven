@@ -109,8 +109,6 @@ function frame!(inf, F, Ts)
   irframe!(inf, (F, Ts), dispatcher(inf, F, Ts), Ts)
 end
 
-part_method = RMethod(:part, lowerpattern(rvx"[data, i]")..., part, true)
-
 function indexer!(ir::IR, arg, path)
   isempty(path) && return arg
   (p, rest...) = path

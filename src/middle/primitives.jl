@@ -11,11 +11,13 @@ function partial_part(data, i)
   end
 end
 
+part_method = RMethod(:part, lowerpattern(rvx"[data, i]")..., partial_part, true)
+
 function primitives!(mod)
   mod[Symbol("false")] = Int32(0)
   mod[Symbol("true")] = Int32(1)
   method!(mod, :data, RMethod(:data, lowerpattern(rvx"args")..., args -> data(parts(args)...), true))
-  method!(mod, :part, RMethod(:part, lowerpattern(rvx"[data, i]")..., partial_part, true))
+  method!(mod, :part, part_method)
   method!(mod, :nparts, RMethod(:nparts, lowerpattern(rvx"[x]")..., nparts, true))
   method!(mod, :datacat, RMethod(:datacat, lowerpattern(rvx"args")..., args -> datacat(parts(args)...), true))
 

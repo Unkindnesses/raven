@@ -238,7 +238,7 @@ function lowerwasm!(mod::WModule, ir::IR)
         end
       elseif any(x -> x == ⊥, Ts)
         ir[v] = IRTools.stmt(xcall(WebAssembly.unreachable), type = WTuple())
-      elseif ismethod(Ts[1], :part) # TODO: same
+      elseif Ts[1] == part_method
         x::Union{String,Data}, i = Ts[2:end]
         if x isa String && i == 1
           ir[v] = IRTools.stmt(stringid!(mod, x), type = layout(st.type))
