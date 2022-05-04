@@ -174,8 +174,6 @@ function lowerdatacat!(mod::WModule, ir, v)
   ir[v] = ir[v].expr.args[3]
 end
 
-ismethod(m, name) = m isa RMethod && m.name == name
-
 # Turn global references into explicit load instructions
 # TODO this function is horrendously complex for what it does.
 # Should be expressed as a prewalk in the new IRTools.
@@ -195,7 +193,7 @@ function globals(mod::RModule, ir::IR)
     ex = st.expr
     if isexpr(ex, :(=))
       pr[v] = Expr(ex.head, ex.args[1], transform.(ex.args[2:end], (v,))...)
-    else
+    elseif isexpr(ex)
       pr[v] = Expr(ex.head, transform.(ex.args, (v,))...)
     end
   end
@@ -210,7 +208,10 @@ function lowerwasm!(mod::WModule, ir::IR)
   for b in blocks(ir)
     IRTools.argtypes(b) .= layout.(IRTools.argtypes(b))
     for (v, st) in b
-      if isexpr(st.expr, :tuple)
+      if !isexpr(st.expr)
+        ir[v] = IRTools.stmt(st.expr, type = layout(st.type))
+        continue
+      elseif isexpr(st.expr, :tuple)
         length(st.expr.args) == 1 && (ir[v] = st.expr.args[1])
         continue
       elseif isexpr(st.expr, :cast)
@@ -249,9 +250,6 @@ function lowerwasm!(mod::WModule, ir::IR)
         end
       elseif any(x -> x == ⊥, Ts)
         ir[v] = IRTools.stmt(xcall(WebAssembly.unreachable), type = WTuple())
-      elseif ismethod(Ts[1], :widen)
-        val = Ts[2] isa Integer ? Ts[2] : st.expr.args[3]
-        ir[v] = IRTools.stmt(val, type = layout(st.type))
       elseif ismethod(Ts[1], :data) # TODO: should specifically check this is the fallback method
         lowerdata!(mod, ir, v)
       elseif ismethod(Ts[1], :datacat)

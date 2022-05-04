@@ -10,6 +10,9 @@
 # After this lowering all code works with primitive values and does explicit
 # memory management, so the job of the backend code generator is simple.
 
+# TODO: check for specific methods here, not just a method of the right name.
+ismethod(m, name) = m isa RMethod && m.name == name
+
 struct Compilation
   mod::RModule
   frames::IdDict{Any,IR}
@@ -17,13 +20,21 @@ end
 
 Compilation(mod::RModule) = Compilation(mod, IdDict{Any,IR}())
 
-function lowerdata(ir)
+function lowerir(mod, ir)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     if isexpr(st.expr, :data)
       # remove constants, which have zero width
       args = filter(x -> x isa Union{Variable,Global}, st.expr.args)
       pr[v] = Expr(:tuple, args...)
+    elseif isexpr(st.expr, :call)
+      st.expr.args[1] isa WIntrinsic && continue
+      F = exprtype(mod, ir, st.expr.args[1])
+      if ismethod(F, :widen)
+        T = exprtype(mod, ir, st.expr.args[2])
+        val = T isa Integer ? T : st.expr.args[2]
+        pr[v] = val
+      end
     end
   end
   return IRTools.finish(pr)
@@ -32,7 +43,7 @@ end
 function lowerir(inf::Inference)
   comp = Compilation(inf.mod)
   for (k, fr) in inf.frames
-    comp.frames[k] = lowerdata(fr.ir)
+    comp.frames[k] = lowerir(inf.mod, fr.ir)
   end
   return comp
 end
