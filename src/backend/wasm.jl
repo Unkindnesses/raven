@@ -100,7 +100,7 @@ function partir(x, i)
 end
 
 struct WModule
-  inf::Inference
+  inf::Compilation
   symbols::Dict{Symbol,Int}
   strings::Vector{String}
   funcs::IdDict{Any,Tuple{Symbol,Union{IR,Nothing}}}
@@ -294,7 +294,7 @@ function lowerwasm!(mod::WModule, T)
   f = T[1]::Union{Symbol,RMethod}
   id = name(mod, f isa Symbol ? f : Symbol(f.name, ":method"))
   mod.funcs[T] = (id, nothing)
-  ir = lowerwasm!(mod, mod.inf.frames[T].ir)
+  ir = lowerwasm!(mod, mod.inf.frames[T])
   mod.funcs[T] = (id, ir)
   return id
 end
@@ -317,13 +317,13 @@ default_imports = [
   WebAssembly.Import(:support, :createRef, :jsbox, :func, [f64], [i32]),
   WebAssembly.Import(:support, :fromRef, :jsunbox, :func, [i32], [f64])]
 
-function wasm_ir(inf::Inference)
+function wasm_ir(inf::Compilation)
   mod = WModule(inf)
   lowerwasm!(mod, (startmethod(inf.mod),))
   return mod
 end
 
-function wasmmodule(inf::Inference)
+function wasmmodule(inf::Compilation)
   mod = wasm_ir(inf)
   strings = mod.strings
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
@@ -356,13 +356,13 @@ end
 
 sigmatch(sig, func) = sig[1] == func || ismethod(sig[1], func)
 
-function code_wasm(cx::Inference, func = :_main)
+function code_wasm(cx::Compilation, func = :_main)
   mod = wasm_ir(cx)
   IdDict{Any,IR}(sig => fr[2] for (sig, fr) in mod.funcs if sigmatch(sig, func))
 end
 
-function code_typed(cx::Inference, func = :_main)
-  IdDict{Any,IR}(sig => fr.ir for (sig, fr) in cx.frames if sigmatch(sig, func))
+function code_typed(cx::Compilation, func = :_main)
+  IdDict{Any,IR}(sig => ir for (sig, ir) in cx.frames if sigmatch(sig, func))
 end
 
 function code_lowered(cx::Inference, func = :_main)
@@ -371,4 +371,4 @@ end
 
 code_wasm(src::AbstractString, func = :_main) = code_wasm(loadfile(src), func)
 code_typed(src::AbstractString, func = :_main) = code_typed(loadfile(src), func)
-code_lowered(src::AbstractString, func = :_main) = code_lowered(loadfile(src), func)
+code_lowered(src::AbstractString, func = :_main) = code_lowered(loadfile(src, infer = false), func)
