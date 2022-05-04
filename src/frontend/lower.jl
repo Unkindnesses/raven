@@ -79,9 +79,23 @@ end
 xcall(args...) = Expr(:call, args...)
 xdata(args...) = Expr(:data, args...)
 
+function IRTools.Inner.print_stmt(io::IO, ::Val{:data}, ex)
+  if ex.args[1] == :Tuple
+    print(io, "[")
+    join(io, [sprint(vprint, x) for x in ex.args[2:end]], ", ")
+    print(io, "]")
+  else
+    print(io, "data[")
+    join(io, [sprint(vprint, x) for x in ex.args], ", ")
+    print(io, "]")
+  end
+end
+
 struct Global
   name::Symbol
 end
+
+Base.show(io::IO, g::Global) = print(io, g.name)
 
 struct GlobalScope
   defs::Vector{Symbol}
