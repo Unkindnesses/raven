@@ -71,6 +71,8 @@ function loadfile(mod::RModule, f::String; infer = true, partial = false)
   open(io -> loadfile(cx, io), "$base/base.rv")
   open(io -> loadfile(cx, io), f)
   finish!(cx)
+  frame!(cx, :malloc, rtuple(Int32))
+  frame!(cx, :free, rtuple(data(:Ptr, Int32)))
   frame!(cx, startmethod(cx.mod))
   infer && infer!(cx; partial)
   return cx

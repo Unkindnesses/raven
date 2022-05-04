@@ -44,6 +44,7 @@ end
 layout(::Type{T}) where T = WebAssembly.WType(T)
 layout(x::Union{Primitive,AST.Quote,Unreachable}) = WTuple()
 layout(x::Data) = cat_layout(layout.(x.parts)...)
+layout(x::VData) = WTuple([i32, i32]) # size, pointer
 
 function tlayout(x)
   l = layout(x)
@@ -149,13 +150,26 @@ function sigs!(mod::RModule, ir::IR)
   return ir
 end
 
+function cast!(mod::WModule, ir, v)
+  to, from, x = ir[v].expr.args
+  if from isa Number && to == typeof(from)
+    ir[v] = IRTools.stmt(from, type = layout(to))
+  elseif from == rtuple() && to isa VData
+    sz = insert!(ir, v, IRTools.stmt(0, type = i32))
+    malloc = lowerwasm!(mod, (:malloc, rtuple(Int32)))
+    ptr = insert!(ir, v, IRTools.stmt(xcall(WebAssembly.Call(malloc), Int32(0)), type = i32))
+    ir[v] = IRTools.stmt(Expr(:tuple, sz, ptr), type = layout(to))
+  else
+    error("unsupported cast: $from -> $to")
+  end
+end
+
 # Arguments are turned into a tuple when calling any function, so this is
 # basically just a cast.
 function lowerdata!(mod::WModule, ir, v)
   ir[v] = ir[v].expr.args[3]
 end
 
-# TODO assumes tags are not present at runtime.
 function lowerdatacat!(mod::WModule, ir, v)
   ir[v] = ir[v].expr.args[3]
 end
@@ -202,9 +216,7 @@ function lowerwasm!(mod::WModule, ir::IR)
         ir[v] = length(args) == 1 ? args[1] : Expr(:tuple, args...)
         continue
       elseif isexpr(st.expr, :cast)
-        T, val = st.expr.args
-        (val isa Number && T == typeof(val)) || error("unsupported cast")
-        ir[v] = IRTools.stmt(val, type = layout(T))
+        cast!(mod, ir, v)
         continue
       elseif isexpr(st.expr, :global)
         g = Global(st.expr.args[1])
