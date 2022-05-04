@@ -17,10 +17,22 @@ end
 
 Compilation(mod::RModule) = Compilation(mod, IdDict{Any,IR}())
 
+function lowerdata(ir)
+  pr = IRTools.Pipe(ir)
+  for (v, st) in pr
+    if isexpr(st.expr, :data)
+      # remove constants, which have zero width
+      args = filter(x -> x isa Union{Variable,Global}, st.expr.args)
+      pr[v] = Expr(:tuple, args...)
+    end
+  end
+  return IRTools.finish(pr)
+end
+
 function lowerir(inf::Inference)
   comp = Compilation(inf.mod)
   for (k, fr) in inf.frames
-    comp.frames[k] = fr.ir
+    comp.frames[k] = lowerdata(fr.ir)
   end
   return comp
 end

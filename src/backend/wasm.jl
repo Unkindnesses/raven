@@ -210,10 +210,8 @@ function lowerwasm!(mod::WModule, ir::IR)
   for b in blocks(ir)
     IRTools.argtypes(b) .= layout.(IRTools.argtypes(b))
     for (v, st) in b
-      if isexpr(st.expr, :data)
-        # remove constants, which have zero width
-        args = filter(x -> x isa Variable, st.expr.args)
-        ir[v] = length(args) == 1 ? args[1] : Expr(:tuple, args...)
+      if isexpr(st.expr, :tuple)
+        length(st.expr.args) == 1 && (ir[v] = st.expr.args[1])
         continue
       elseif isexpr(st.expr, :cast)
         cast!(mod, ir, v)
