@@ -44,6 +44,8 @@ function lowerdata(mod, ir)
         pr[v] = st.expr.args[2]
       elseif ismethod(F, :datacat)
         pr[v] = st.expr.args[2]
+      elseif ismethod(F, :nparts)
+        pr[v] = nparts(exprtype(mod, ir, st.expr.args[2]))
       end
     end
   end

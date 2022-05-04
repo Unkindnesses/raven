@@ -257,8 +257,6 @@ function lowerwasm!(mod::WModule, ir::IR)
           ir[v] = xcall(WebAssembly.Call(func), args[2:end]...)
           ir[v] = IRTools.stmt(ir[v], type = layout(ir[v].type))
         end
-      elseif ismethod(Ts[1], :nparts)
-        ir[v] = nparts(Ts[2])
       else
         func = lowerwasm!(mod, Ts)
         ir[v] = xcall(WebAssembly.Call(func), args[2:end]...)
