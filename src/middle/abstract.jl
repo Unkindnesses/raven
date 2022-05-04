@@ -116,7 +116,7 @@ function indexer!(ir::IR, arg, path)
   (p, rest...) = path
   arg = indexer!(ir, arg, rest)
   if p isa AbstractVector
-    push!(ir, Expr(:tuple, [xcall(part_method, arg, i) for i in p]...))
+    push!(ir, xdata(:Tuple, [xcall(part_method, arg, i) for i in p]...))
   else
     push!(ir, xcall(part_method, arg, p))
   end
@@ -137,7 +137,7 @@ function dispatcher(inf, F, Ts)
       error("Runtime matching not yet supported")
     end
   end
-  v = push!(ir, xcall(:panic, Expr(:tuple, "No matching method: $F: $Ts")))
+  v = push!(ir, xcall(:panic, xdata(:Tuple, "No matching method: $F: $Ts")))
   return!(ir, v)
   return ir
 end
@@ -185,10 +185,10 @@ function step!(inf::Inference, loc)
         block.ir[var] = Statement(block[var], type = union(st.type, T))
         push!(inf.queue, (F, b, ip+1))
       end
-    elseif isexpr(st.expr, :tuple)
+    elseif isexpr(st.expr, :data)
       Ts = exprtype(inf.mod, block.ir, st.expr.args)
       if !any(==(⊥), Ts)
-        block.ir[var] = Statement(block[var], type = rtuple(Ts...))
+        block.ir[var] = Statement(block[var], type = data(Ts...))
         push!(inf.queue, (F, b, ip+1))
       end
     elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global
