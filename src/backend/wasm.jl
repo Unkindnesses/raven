@@ -191,8 +191,6 @@ function globals(mod::RModule, ir::IR)
 end
 
 function lowerwasm!(mod::WModule, ir::IR)
-  prune!(ir)
-  casts!(mod.inf.mod, ir)
   sigs!(mod.inf.mod, ir)
   ir = globals(mod.inf.mod, ir)
   for b in blocks(ir)

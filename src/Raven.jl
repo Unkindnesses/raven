@@ -20,7 +20,6 @@ include("middle/abstract.jl")
 include("middle/lower.jl")
 include("middle/load.jl")
 
-include("backend/passes.jl")
 include("backend/wasm.jl")
 include("backend/js.jl")
 

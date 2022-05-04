@@ -20,11 +20,15 @@ end
 
 Compilation(mod::RModule) = Compilation(mod, IdDict{Any,IR}())
 
-function lowerir(mod, ir)
+# Data primitives
+
+function lowerdata(mod, ir)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     if isexpr(st.expr, :data)
       # remove constants, which have zero width
+      # TODO: better to do this based on type, even though it doesn't come up
+      # yet
       args = filter(x -> x isa Union{Variable,Global}, st.expr.args)
       pr[v] = Expr(:tuple, args...)
     elseif isexpr(st.expr, :call)
@@ -44,6 +48,43 @@ function lowerir(mod, ir)
     end
   end
   return IRTools.finish(pr)
+end
+
+# Casts
+
+blockargtype(mod::RModule, bl, i) = exprtype(mod, bl.ir, arguments(bl)[i])
+
+function isreachable(bl)
+  for (v, st) in bl
+    st.type == ⊥ && return false
+  end
+  return true
+end
+
+function casts!(mod::RModule, ir)
+  for bl in blocks(ir)
+    if !isreachable(bl)
+      empty!(branches(bl))
+      continue
+    end
+    for br in branches(bl)
+      isreturn(br) && continue # TODO: handle multiple returns
+      for i = 1:length(arguments(br))
+        S = exprtype(mod, ir, arguments(br)[i])
+        T = blockargtype(mod, block(ir, br.block), i)
+        S == T && continue
+        arguments(br)[i] =
+          push!(bl, IRTools.stmt(Expr(:cast, T, arguments(br)[i]),
+                                 type = T))
+      end
+    end
+  end
+  return ir
+end
+
+function lowerir(mod, ir)
+  # Inference expands block args, so prune them here
+  casts!(mod, prune!(lowerdata(mod, ir)))
 end
 
 function lowerir(inf::Inference)
