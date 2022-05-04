@@ -105,6 +105,7 @@ function frame!(inf, meth::RMethod, Ts...)
 end
 
 function frame!(inf, F, Ts)
+  haskey(inf.frames, (F, Ts)) && return inf.frames[(F, Ts)]
   irframe!(inf, (F, Ts), dispatcher(inf, F, Ts), Ts)
 end
 
