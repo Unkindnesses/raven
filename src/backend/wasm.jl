@@ -184,7 +184,6 @@ function lowerwasm!(mod::WModule, ir::IR)
         ir[v] = IRTools.stmt(st.expr, type = layout(st.type))
         continue
       elseif isexpr(st.expr, :tuple)
-        length(st.expr.args) == 1 && (ir[v] = st.expr.args[1])
         continue
       elseif isexpr(st.expr, :global)
         g = Global(st.expr.args[1])
