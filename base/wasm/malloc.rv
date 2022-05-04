@@ -81,6 +81,8 @@ fn trimBlock(ptr, size, newsize) {
   return newsize
 }
 
+# Public interface
+
 fn malloc(n: Int32) {
   n = n + headerSize
   ptrsize = findFreeBlock(n)
@@ -95,6 +97,10 @@ fn free(p: Ptr) {
   p = p - headerSize
   setBlockUsed(p, false)
   return
+}
+
+fn blockSize(p: Ptr) {
+  getBlockSize(p - headerSize) - headerSize
 }
 
 fn allocationCount() {
