@@ -6,7 +6,6 @@ function partial_part(data, i)
   else
     # TODO: HACK: we assume index != 0 when indexing dynamically.
     # Should instead have a seperate `index` function that enforces this.
-    # Implement both as partials
     reduce(union, parts(data))
   end
 end
