@@ -307,26 +307,7 @@ function binary(m::WebAssembly.Module, file; optimise = true)
 end
 
 function emitwasm(file, out; optimise = true)
-  mod, strings = wasmmodule(loadfile(file))
+  mod, strings = wasmmodule(lowerir(loadfile(file)))
   binary(mod, out; optimise)
   return strings
 end
-
-sigmatch(sig, func) = sig[1] == func || ismethod(sig[1], func)
-
-function code_wasm(cx::Compilation, func = :_main)
-  mod = wasm_ir(cx)
-  IdDict{Any,IR}(sig => fr[2] for (sig, fr) in mod.funcs if sigmatch(sig, func))
-end
-
-function code_typed(cx::Compilation, func = :_main)
-  IdDict{Any,IR}(sig => ir for (sig, ir) in cx.frames if sigmatch(sig, func))
-end
-
-function code_lowered(cx::Inference, func = :_main)
-  return IdDict(meth.pattern => meth.func for meth in cx.mod.methods[func])
-end
-
-code_wasm(src::AbstractString, func = :_main) = code_wasm(loadfile(src), func)
-code_typed(src::AbstractString, func = :_main) = code_typed(loadfile(src), func)
-code_lowered(src::AbstractString, func = :_main) = code_lowered(loadfile(src, infer = false), func)

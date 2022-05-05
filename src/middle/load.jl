@@ -77,7 +77,7 @@ function loadfile(f::String; infer = true, partial = false)
   frame!(cx, :free, rtuple(data(:Ptr, Int32)))
   frame!(cx, startmethod(cx.mod))
   infer && infer!(cx; partial)
-  return lowerir(cx)
+  return cx
 end
 
 startmethod(mod) = mod.methods[:_start][1]

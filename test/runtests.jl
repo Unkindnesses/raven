@@ -10,4 +10,8 @@ end
   include("compiler.jl")
 end
 
+@testset "Reflection" begin
+  include("reflection.jl")
+end
+
 end

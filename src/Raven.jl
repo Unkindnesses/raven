@@ -23,4 +23,6 @@ include("middle/load.jl")
 include("backend/wasm.jl")
 include("backend/js.jl")
 
+include("reflection.jl")
+
 end # module
