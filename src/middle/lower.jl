@@ -128,11 +128,10 @@ function lowerdata(cx, ir)
         T = exprtype(cx.mod, ir, st.expr.args[2])
         val = T isa Integer ? T : st.expr.args[2]
         pr[v] = val
-      elseif ismethod(F, :data)
+      elseif ismethod(F, :data) || ismethod(F, :datacat)
         # Arguments are turned into a tuple when calling any function, so this
         # is just a cast.
-        pr[v] = st.expr.args[2]
-      elseif ismethod(F, :datacat)
+        @assert layout(st.type) == layout(exprtype(cx.mod, ir, st.expr.args[2]))
         pr[v] = st.expr.args[2]
       elseif ismethod(F, :nparts)
         pr[v] = nparts(exprtype(mod, ir, st.expr.args[2]))
