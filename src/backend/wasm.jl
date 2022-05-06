@@ -93,35 +93,8 @@ function sigs!(mod::RModule, ir::IR)
   return ir
 end
 
-# Turn global references into explicit load instructions
-# TODO this function is horrendously complex for what it does.
-# Should be expressed as a prewalk in the new IRTools.
-function globals(mod::RModule, ir::IR)
-  pr = IRTools.Pipe(ir)
-  transform(x, v = nothing) = x
-  function transform(x::Global, v = nothing)
-    T = get(mod, x.name, ⊥)
-    insert = v == nothing ? (x -> push!(pr, x)) : (x -> insert!(pr, v, x))
-    insert(IRTools.stmt(Expr(:global, x.name), type = T))
-  end
-  IRTools.branches(pr) do b
-    IRTools.Branch(b, args = [transform(x) for x in b.args],
-                   condition = transform(b.condition))
-  end
-  for (v, st) in pr
-    ex = st.expr
-    if isexpr(ex, :(=))
-      pr[v] = Expr(ex.head, ex.args[1], transform.(ex.args[2:end], (v,))...)
-    elseif isexpr(ex)
-      pr[v] = Expr(ex.head, transform.(ex.args, (v,))...)
-    end
-  end
-  return IRTools.finish(pr)
-end
-
 function lowerwasm!(mod::WModule, ir::IR)
   sigs!(mod.inf.mod, ir)
-  ir = globals(mod.inf.mod, ir)
   for b in blocks(ir)
     IRTools.argtypes(b) .= wlayout.(IRTools.argtypes(b))
     for (v, st) in b

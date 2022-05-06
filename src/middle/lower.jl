@@ -21,6 +21,34 @@ end
 
 Compilation(mod::RModule) = Compilation(mod, IdDict{Any,IR}())
 
+# Global variables
+
+# Turn global references into explicit load instructions
+# TODO this function is horrendously complex for what it does.
+# Should be expressed as a prewalk in the new IRTools.
+function globals(mod::RModule, ir::IR)
+  pr = IRTools.Pipe(ir)
+  transform(x, v = nothing) = x
+  function transform(x::Global, v = nothing)
+    T = get(mod, x.name, ⊥)
+    insert = v == nothing ? (x -> push!(pr, x)) : (x -> insert!(pr, v, x))
+    insert(IRTools.stmt(Expr(:global, x.name), type = T))
+  end
+  IRTools.branches(pr) do b
+    IRTools.Branch(b, args = [transform(x) for x in b.args],
+                   condition = transform(b.condition))
+  end
+  for (v, st) in pr
+    ex = st.expr
+    if isexpr(ex, :(=))
+      pr[v] = Expr(ex.head, ex.args[1], transform.(ex.args[2:end], (v,))...)
+    elseif isexpr(ex)
+      pr[v] = Expr(ex.head, transform.(ex.args, (v,))...)
+    end
+  end
+  return IRTools.finish(pr)
+end
+
 # Data primitives
 
 function cat_layout(xs...)
@@ -119,7 +147,7 @@ function lowerdata(cx, ir)
       # remove constants, which have zero width
       # TODO: better to do this based on type, even though it doesn't come up
       # yet
-      args = filter(x -> x isa Union{Variable,Global}, st.expr.args)
+      args = filter(x -> x isa Variable, st.expr.args)
       pr[v] = Expr(:tuple, args...)
     elseif isexpr(st.expr, :call)
       st.expr.args[1] isa WIntrinsic && continue
@@ -190,7 +218,11 @@ end
 
 function lowerir(cx, ir)
   # Inference expands block args, so prune them here
-  casts!(cx.mod, prune!(lowerdata(cx, ir)))
+  ir = prune!(copy(ir))
+  ir = globals(cx.mod, ir)
+  ir = lowerdata(cx, ir)
+  ir = casts!(cx.mod, ir)
+  return ir
 end
 
 function lowerir(inf::Inference)
