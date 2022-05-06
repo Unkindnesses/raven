@@ -34,11 +34,12 @@ end
 
 WNum = Union{Int32,Int64,Float32,Float64}
 
-function cat_layout(xs...; result = [])
+function cat_layout(xs...)
+  result = WType[]
   for x in xs
-    x isa WTuple ? cat_layout(x.parts..., result = result) : push!(result, x)
+    x isa WTuple ? append!(result, x.parts) : push!(result, x)
   end
-  return length(result) == 1 ? result[1] : WTuple(result)
+  return WTuple(result)
 end
 
 layout(::Type{T}) where T = WebAssembly.WType(T)
@@ -64,39 +65,6 @@ end
 function wparts(x)
   ly = layout(x)
   return ly isa WTuple ? ly.parts : [ly]
-end
-
-# Create a `part` method to dynamically index tuples allocated as registers.
-# TODO: should make sure this comes out as a switch / branch table.
-function partir(x, i)
-  i <: Int64 || error("Only i64 indexes are supported.")
-  T = partial_part(x, i)
-  ir = IR()
-  _ = argument!(ir, type = WTuple())
-  vx = argument!(ir, type = layout(x))
-  vi = argument!(ir, type = layout(i))
-  xlayout = layout(x)
-  part(i) = xlayout isa WTuple ? push!(ir, Expr(:ref, vx, i)) : vx
-  for i = 1:nparts(x)
-    cond = push!(ir, IRTools.stmt(xcall(i64.eq, i, vi), type = i32))
-    branch!(ir, length(ir.blocks) + 2, unless = cond)
-    branch!(ir, length(ir.blocks) + 1)
-    block!(ir)
-    range = sublayout(x, i)
-    T′ = partial_part(x, i)
-    ex = layout(T′) isa WTuple ?
-      Expr(:tuple, part.(range)...) :
-      part(range[1])
-    y = push!(ir, IRTools.stmt(ex, type = layout(T′)))
-    if T′ != T
-      T′ isa Number && T == typeof(T′) || error("unsupported cast")
-      y = push!(ir, IRTools.stmt(T′, type = layout(T)))
-    end
-    return!(ir, y)
-    block!(ir)
-  end
-  push!(ir, WebAssembly.unreachable)
-  return ir
 end
 
 struct WModule
@@ -183,7 +151,10 @@ function lowerwasm!(mod::WModule, ir::IR)
       if !isexpr(st.expr)
         ir[v] = IRTools.stmt(st.expr, type = layout(st.type))
         continue
-      elseif isexpr(st.expr, :tuple)
+      elseif isexpr(st.expr, :ref) && st.expr.args[1] isa String
+        ir[v] = stringid!(mod, st.expr.args[1])
+        continue
+      elseif isexpr(st.expr, :tuple, :ref)
         continue
       elseif isexpr(st.expr, :global)
         g = Global(st.expr.args[1])
@@ -218,25 +189,6 @@ function lowerwasm!(mod::WModule, ir::IR)
         end
       elseif any(x -> x == ⊥, Ts)
         ir[v] = IRTools.stmt(xcall(WebAssembly.unreachable), type = WTuple())
-      elseif Ts[1] == part_method
-        x::Union{String,Data}, i = Ts[2:end]
-        if x isa String && i == 1
-          ir[v] = IRTools.stmt(stringid!(mod, x), type = layout(st.type))
-          continue
-        end
-        if i isa Int
-          xlayout = layout(x)
-          part(i) = xlayout isa WTuple ? insert!(ir, v, Expr(:ref, args[2], i)) : args[2]
-          range = sublayout(x, i)
-          ex = layout(st.type) isa WTuple ?
-            Expr(:tuple, part.(range)...) :
-            part(range[1])
-          ir[v] = IRTools.stmt(ex, type = layout(st.type))
-        else
-          func = partmethod!(mod, Ts[1], x, i)
-          ir[v] = xcall(WebAssembly.Call(func), args[2:end]...)
-          ir[v] = IRTools.stmt(ir[v], type = layout(ir[v].type))
-        end
       else
         func = lowerwasm!(mod, Ts)
         ir[v] = xcall(WebAssembly.Call(func), args[2:end]...)
@@ -254,15 +206,6 @@ function lowerwasm!(mod::WModule, T)
   mod.funcs[T] = (id, nothing)
   ir = lowerwasm!(mod, mod.inf.frames[T])
   mod.funcs[T] = (id, ir)
-  return id
-end
-
-function partmethod!(mod::WModule, m::RMethod, x, i)
-  T = (m, x, i)
-  haskey(mod.funcs, T) && return mod.funcs[T][1]
-  id = name(mod, Symbol("part:method"))
-  ir = partir(x, i)
-  mod.funcs[(m, x, i)] = (id, ir)
   return id
 end
 

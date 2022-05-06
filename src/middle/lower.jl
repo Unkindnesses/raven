@@ -7,8 +7,9 @@
 # code duplication and so that casting can be recursive. And they can still
 # participate in optimisations (mainly inlining).
 #
-# After this lowering all code works with primitive values and does explicit
-# memory management, so the job of the backend code generator is simple.
+# After this lowering all code works with primitive values (or flat tuples of
+# primitives) and does explicit memory management, so the job of the backend
+# code generator is simple.
 
 # TODO: check for specific methods here, not just a method of the right name.
 ismethod(m, name) = m isa RMethod && m.name == name
@@ -22,7 +23,70 @@ Compilation(mod::RModule) = Compilation(mod, IdDict{Any,IR}())
 
 # Data primitives
 
-function lowerdata(mod, ir)
+# Create a `part` method to dynamically index tuples allocated as registers.
+# TODO: should make sure this comes out as a switch / branch table.
+# TODO: we call WASM functions here, which is not backend-agnostic, but
+# the functions we need might not have been inferred. Once the compiler is
+# incremental, later stages can request work from earlier ones.
+function partir(x, i)
+  i <: Int64 || error("Only Int64 indexes are supported.")
+  T = partial_part(x, i)
+  ir = IR()
+  vx = argument!(ir, type = x)
+  vi = argument!(ir, type = i)
+  xlayout = layout(x)
+  part(i) = xlayout isa WTuple ? push!(ir, Expr(:ref, vx, i)) : vx
+  for i = 1:nparts(x)
+    cond = push!(ir, IRTools.stmt(xcall(WIntrinsic(i64.eq, i32), i, vi), type = Int32))
+    branch!(ir, length(ir.blocks) + 2, unless = cond)
+    branch!(ir, length(ir.blocks) + 1)
+    block!(ir)
+    # TODO: recurse to `indexer` here, let casting happen later
+    range = sublayout(x, i)
+    T′ = partial_part(x, i)
+    ex = layout(T′) isa WTuple ?
+      Expr(:tuple, part.(range)...) :
+      part(range[1])
+    y = push!(ir, IRTools.stmt(ex, type = T′))
+    if T′ != T
+      T′ isa Number && T == typeof(T′) || error("unsupported cast")
+      y = push!(ir, IRTools.stmt(T′, type = T))
+    end
+    return!(ir, y)
+    block!(ir)
+  end
+  push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
+                  Expr(:ref, "Invalid index for $x")))
+  return ir
+end
+
+function partmethod!(cx::Compilation, x, i)
+  T = (part_method, x, i)
+  haskey(cx.frames, T) && return cx.frames[T][1]
+  ir = partir(x, i)
+  cx.frames[T] = ir
+  return
+end
+
+function indexer(cx, ir, v, s::String, i::Int, _, _)
+  @assert i == 1
+  # Punt to the backend to decide how strings get IDd
+  ir[v] = Expr(:ref, s)
+end
+
+# TODO move layout to middle end
+function indexer(cx, ir, v, T::Data, i::Int, x, _)
+  xlayout = layout(T)
+  _part(i) = insert!(ir, v, Expr(:ref, x, i))
+  range = sublayout(T, i)
+  ir[v] = Expr(:tuple, _part.(range)...)
+end
+
+function indexer(cx, ir, v, T::Data, i::Type{Int}, _, _)
+  partmethod!(cx, T, i)
+end
+
+function lowerdata(cx, ir)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     if isexpr(st.expr, :data)
@@ -33,9 +97,9 @@ function lowerdata(mod, ir)
       pr[v] = Expr(:tuple, args...)
     elseif isexpr(st.expr, :call)
       st.expr.args[1] isa WIntrinsic && continue
-      F = exprtype(mod, ir, st.expr.args[1])
+      F = exprtype(cx.mod, ir, st.expr.args[1])
       if ismethod(F, :widen)
-        T = exprtype(mod, ir, st.expr.args[2])
+        T = exprtype(cx.mod, ir, st.expr.args[2])
         val = T isa Integer ? T : st.expr.args[2]
         pr[v] = val
       elseif ismethod(F, :data)
@@ -46,6 +110,10 @@ function lowerdata(mod, ir)
         pr[v] = st.expr.args[2]
       elseif ismethod(F, :nparts)
         pr[v] = nparts(exprtype(mod, ir, st.expr.args[2]))
+      elseif F == part_method
+        x, i = st.expr.args[2:end]
+        T, I = exprtype(cx.mod, ir, st.expr.args[2:end])
+        indexer(cx, pr, v, T, I, x, i)
       end
     end
   end
@@ -56,6 +124,7 @@ end
 
 blockargtype(mod::RModule, bl, i) = exprtype(mod, bl.ir, arguments(bl)[i])
 
+# TODO should have a separate pass that prunes unreachable code.
 function isreachable(bl)
   for (v, st) in bl
     st.type == ⊥ && return false
@@ -94,15 +163,15 @@ function casts!(mod::RModule, ir)
   return ir
 end
 
-function lowerir(mod, ir)
+function lowerir(cx, ir)
   # Inference expands block args, so prune them here
-  casts!(mod, prune!(lowerdata(mod, ir)))
+  casts!(cx.mod, prune!(lowerdata(cx, ir)))
 end
 
 function lowerir(inf::Inference)
   comp = Compilation(inf.mod)
   for (k, fr) in inf.frames
-    comp.frames[k] = lowerir(inf.mod, fr.ir)
+    comp.frames[k] = lowerir(comp, fr.ir)
   end
   return comp
 end
