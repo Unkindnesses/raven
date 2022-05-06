@@ -34,36 +34,18 @@ end
 
 WNum = Union{Int32,Int64,Float32,Float64}
 
-function cat_layout(xs...)
-  result = WType[]
-  for x in xs
-    x isa WTuple ? append!(result, x.parts) : push!(result, x)
-  end
-  return WTuple(result)
+function wlayout(x)
+  l = layout(x)
+  l isa Tuple ? WTuple(collect(WType.(l))) : WType(l)
 end
 
-layout(::Type{T}) where T = WebAssembly.WType(T)
-layout(x::Union{Primitive,AST.Quote,Unreachable}) = WTuple()
-layout(x::Data) = cat_layout(layout.(x.parts)...)
-layout(x::VData) = WTuple([i32, i32]) # size, pointer
-
 function tlayout(x)
-  l = layout(x)
+  l = wlayout(x)
   return l isa WTuple ? l : WTuple(l)
 end
 
-nregisters(l::WType) = 1
-nregisters(l::WTuple) = length(l.parts)
-
-function sublayout(T, i)
-  before = data(T.parts[1:i]...)
-  offset = nregisters(layout(before))
-  length = nregisters(layout(T.parts[i+1]))
-  offset .+ (1:length)
-end
-
 function wparts(x)
-  ly = layout(x)
+  ly = wlayout(x)
   return ly isa WTuple ? ly.parts : [ly]
 end
 
@@ -146,10 +128,10 @@ function lowerwasm!(mod::WModule, ir::IR)
   sigs!(mod.inf.mod, ir)
   ir = globals(mod.inf.mod, ir)
   for b in blocks(ir)
-    IRTools.argtypes(b) .= layout.(IRTools.argtypes(b))
+    IRTools.argtypes(b) .= wlayout.(IRTools.argtypes(b))
     for (v, st) in b
       if !isexpr(st.expr)
-        ir[v] = IRTools.stmt(st.expr, type = layout(st.type))
+        ir[v] = IRTools.stmt(st.expr, type = wlayout(st.type))
         continue
       elseif isexpr(st.expr, :ref) && st.expr.args[1] isa String
         ir[v] = stringid!(mod, st.expr.args[1])
@@ -170,7 +152,7 @@ function lowerwasm!(mod::WModule, ir::IR)
         l = global!(mod, g, st.type)
         for i in 1:length(l)
           p = st.expr.args[2]
-          layout(st.type) isa WTuple &&
+          wlayout(st.type) isa WTuple &&
             (p = insert!(ir, v, Expr(:ref, p, i)))
           w = insert!(ir, v, xcall(WebAssembly.SetGlobal(l[i]), p))
           ir[w] = IRTools.stmt(ir[w], type = WTuple())
@@ -192,7 +174,7 @@ function lowerwasm!(mod::WModule, ir::IR)
       else
         func = lowerwasm!(mod, Ts)
         ir[v] = xcall(WebAssembly.Call(func), args[2:end]...)
-        ir[v] = IRTools.stmt(ir[v], type = layout(ir[v].type))
+        ir[v] = IRTools.stmt(ir[v], type = wlayout(ir[v].type))
       end
     end
   end

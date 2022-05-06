@@ -23,6 +23,34 @@ Compilation(mod::RModule) = Compilation(mod, IdDict{Any,IR}())
 
 # Data primitives
 
+function cat_layout(xs...)
+  result = ()
+  for x in xs
+    x isa WTuple ? append!(result, x.parts) : push!(result, x)
+  end
+  return WTuple(result)
+end
+
+cat_layout() = ()
+cat_layout(x) = (x,)
+cat_layout(x::Tuple) = x
+cat_layout(x, xs...) = (cat_layout(x)..., cat_layout(xs...)...)
+
+layout(::Type{T}) where T = T
+layout(x::Union{Primitive,AST.Quote,Unreachable}) = ()
+layout(x::Data) = cat_layout(layout.(x.parts)...)
+layout(x::VData) = (Int32, Int32) # size, pointer
+
+nregisters(l::Type) = 1
+nregisters(l::Tuple) = length(l)
+
+function sublayout(T, i)
+  before = data(T.parts[1:i]...)
+  offset = nregisters(layout(before))
+  length = nregisters(layout(T.parts[i+1]))
+  offset .+ (1:length)
+end
+
 # Create a `part` method to dynamically index tuples allocated as registers.
 # TODO: should make sure this comes out as a switch / branch table.
 # TODO: we call WASM functions here, which is not backend-agnostic, but
@@ -35,7 +63,7 @@ function partir(x, i)
   vx = argument!(ir, type = x)
   vi = argument!(ir, type = i)
   xlayout = layout(x)
-  part(i) = xlayout isa WTuple ? push!(ir, Expr(:ref, vx, i)) : vx
+  part(i) = xlayout isa Tuple ? push!(ir, Expr(:ref, vx, i)) : vx
   for i = 1:nparts(x)
     cond = push!(ir, IRTools.stmt(xcall(WIntrinsic(i64.eq, i32), i, vi), type = Int32))
     branch!(ir, length(ir.blocks) + 2, unless = cond)
@@ -44,7 +72,7 @@ function partir(x, i)
     # TODO: recurse to `indexer` here, let casting happen later
     range = sublayout(x, i)
     T′ = partial_part(x, i)
-    ex = layout(T′) isa WTuple ?
+    ex = layout(T′) isa Tuple ?
       Expr(:tuple, part.(range)...) :
       part(range[1])
     y = push!(ir, IRTools.stmt(ex, type = T′))
@@ -74,9 +102,7 @@ function indexer(cx, ir, v, s::String, i::Int, _, _)
   ir[v] = Expr(:ref, s)
 end
 
-# TODO move layout to middle end
 function indexer(cx, ir, v, T::Data, i::Int, x, _)
-  xlayout = layout(T)
   _part(i) = insert!(ir, v, Expr(:ref, x, i))
   range = sublayout(T, i)
   ir[v] = Expr(:tuple, _part.(range)...)
