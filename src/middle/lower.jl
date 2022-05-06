@@ -11,9 +11,6 @@
 # primitives) and does explicit memory management, so the job of the backend
 # code generator is simple.
 
-# TODO: check for specific methods here, not just a method of the right name.
-ismethod(m, name) = m isa RMethod && m.name == name
-
 struct Compilation
   mod::RModule
   frames::IdDict{Any,IR}
@@ -157,16 +154,16 @@ function lowerdata(cx, ir)
     elseif isexpr(st.expr, :call)
       st.expr.args[1] isa WIntrinsic && continue
       F = exprtype(cx.mod, ir, st.expr.args[1])
-      if ismethod(F, :widen)
+      if F == widen_method
         T = exprtype(cx.mod, ir, st.expr.args[2])
         val = T isa Integer ? T : st.expr.args[2]
         pr[v] = val
-      elseif ismethod(F, :data) || ismethod(F, :datacat)
+      elseif F == data_method || F == datacat_method
         # Arguments are turned into a tuple when calling any function, so this
         # is just a cast.
         @assert layout(st.type) == layout(exprtype(cx.mod, ir, st.expr.args[2]))
         pr[v] = st.expr.args[2]
-      elseif ismethod(F, :nparts)
+      elseif F == nparts_method
         pr[v] = nparts(exprtype(mod, ir, st.expr.args[2]))
       elseif F == part_method
         x, i = st.expr.args[2:end]

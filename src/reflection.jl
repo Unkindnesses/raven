@@ -1,3 +1,4 @@
+ismethod(m, name) = m isa RMethod && m.name == name
 sigmatch(sig, func) = sig[1] == func || ismethod(sig[1], func)
 
 function code_lowered(cx::Inference, func)
