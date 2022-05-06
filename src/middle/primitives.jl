@@ -1,14 +1,12 @@
 # Primitives for type inference
 
-function partial_part(data, i)
-  if i isa Integer
-    return part(data, i)
-  else
-    # TODO: HACK: we assume index != 0 when indexing dynamically.
-    # Should instead have a seperate `index` function that enforces this.
-    reduce(union, parts(data))
-  end
-end
+partial_part(data::Union{Data,Primitive}, i::Integer) =
+  0 <= i <= nparts(data) ? part(data, i) : ⊥
+
+# TODO: HACK: we assume index != 0 when indexing dynamically.
+# Should instead have a seperate `index` function that enforces this.
+partial_part(data::Data, i::Type{<:Integer}) =
+  reduce(union, parts(data))
 
 partial_widen(x::Primitive) = typeof(x)
 partial_widen(x) = x

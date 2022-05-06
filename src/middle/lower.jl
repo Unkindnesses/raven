@@ -133,9 +133,14 @@ function indexer(cx, ir, v, s::String, i::Int, _, _)
 end
 
 function indexer(cx, ir, v, T::Data, i::Int, x, _)
-  _part(i) = insert!(ir, v, Expr(:ref, x, i))
-  range = sublayout(T, i)
-  ir[v] = Expr(:tuple, _part.(range)...)
+  if 0 <= i <= nparts(T)
+    _part(i) = insert!(ir, v, Expr(:ref, x, i))
+    range = sublayout(T, i)
+    ir[v] = Expr(:tuple, _part.(range)...)
+  else
+    s = insert!(ir, v, Expr(:ref, "Invalid index $i for $T"))
+    ir[v] = xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s)
+  end
 end
 
 function indexer(cx, ir, v, T::Data, i::Type{Int}, _, _)

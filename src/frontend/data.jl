@@ -58,6 +58,8 @@ part(s::String, i::Integer) =
   i == 1 ? data(:JSObject, Int32) :
   error("Tried to access part $i of 2")
 
+nparts(s::String) = 1
+
 isvalue(x) = false
 isvalue(x::Primitive) = true
 isvalue(xs::Data) = all(isvalue, parts(xs))

@@ -1,0 +1,2 @@
+xs = [3, 5, 7]
+println(part(xs, 5))
