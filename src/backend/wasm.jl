@@ -32,8 +32,6 @@ function intrinsic_args(ex)
   return map(x -> AST.Call(:widen, [x.args[1]]), args)
 end
 
-WNum = Union{Int32,Int64,Float32,Float64}
-
 function wlayout(x)
   l = layout(x)
   l isa Tuple ? WTuple(collect(WType.(l))) : WType(l)
@@ -85,7 +83,6 @@ function sigs!(mod::RModule, ir::IR)
         ir[v] = xcall((exprtype(mod, ir, st.expr.args)...,), st.expr.args...)
       else
         f, xs = exprtype(mod, ir, st.expr.args)
-        # TODO should probably fold this into lowering
         ir[v] = xcall((f, xs), st.expr.args...)
       end
     end
@@ -93,6 +90,7 @@ function sigs!(mod::RModule, ir::IR)
   return ir
 end
 
+# TODO: rewrite this to use a pipe, and avoid `sigs!`.
 function lowerwasm!(mod::WModule, ir::IR)
   sigs!(mod.inf.mod, ir)
   for b in blocks(ir)
