@@ -32,7 +32,12 @@ function globals(mod::RModule, ir::IR)
   function transform(x::Global, v = nothing)
     T = get(mod, x.name, ⊥)
     insert = v == nothing ? (x -> push!(pr, x)) : (x -> insert!(pr, v, x))
-    insert(IRTools.stmt(Expr(:global, x.name), type = T))
+    if T == ⊥
+      insert(xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
+                   Expr(:ref, "$(x.name) is not defined")))
+    else
+      insert(IRTools.stmt(Expr(:global, x.name), type = T))
+    end
   end
   IRTools.branches(pr) do b
     IRTools.Branch(b, args = [transform(x) for x in b.args],

@@ -108,13 +108,8 @@ function lowerwasm!(mod::WModule, ir::IR)
         continue
       elseif isexpr(st.expr, :global)
         g = Global(st.expr.args[1])
-        if st.type == ⊥
-          ir[v] = xcall(WebAssembly.Call(:panic), stringid!(mod, "$(g.name) is not defined"))
-          ir[v] = IRTools.stmt(ir[v], type = WTuple())
-        else
-          l = global!(mod, g, st.type)
-          ir[v] = Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
-        end
+        l = global!(mod, g, st.type)
+        ir[v] = Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
         continue
       elseif isexpr(st.expr, :(=)) && (g = st.expr.args[1]) isa Global
         l = global!(mod, g, st.type)
