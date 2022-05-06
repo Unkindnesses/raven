@@ -39,11 +39,6 @@ function wlayout(x)
   l isa Tuple ? WTuple(collect(WType.(l))) : WType(l)
 end
 
-function tlayout(x)
-  l = wlayout(x)
-  return l isa WTuple ? l : WTuple(l)
-end
-
 function wparts(x)
   ly = wlayout(x)
   return ly isa WTuple ? ly.parts : [ly]
@@ -74,7 +69,7 @@ end
 function global!(mod::WModule, g::Global, T)
   get!(mod.globals, g) do
     start = sum([length(gs) for gs in values(mod.globals)])
-    l = tlayout(T).parts
+    l = wparts(T)
     append!(mod.gtypes, l)
     collect(start:start+length(l)-1)
   end
