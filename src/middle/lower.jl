@@ -201,7 +201,14 @@ function lowerdata(cx, ir)
           datacat_method!(cx, S)
         end
       elseif F == nparts_method
-        pr[v] = nparts(exprtype(mod, ir, st.expr.args[2]))
+        x = st.expr.args[2]
+        T = exprtype(cx.mod, ir, x)
+        if T isa VData
+          sz = insert!(pr, v, Expr(:ref, x, 1))
+          pr[v] = xcall(WIntrinsic(i64.extend_i32_s, i64), sz)
+        else
+          pr[v] = nparts(T)
+        end
       elseif F == part_method
         x, i = st.expr.args[2:end]
         T, I = exprtype(cx.mod, ir, st.expr.args[2:end])

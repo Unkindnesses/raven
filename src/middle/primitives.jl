@@ -8,12 +8,15 @@ partial_part(data::Union{Data,Primitive}, i::Integer) =
 partial_part(data::Data, i::Type{<:Integer}) =
   reduce(union, parts(data))
 
+partial_nparts(x::Data) = nparts(x)
+partial_nparts(::VData) = Int64
+
 partial_widen(x::Primitive) = typeof(x)
 partial_widen(x) = x
 
 data_method = RMethod(:data, lowerpattern(rvx"args")..., args -> data(parts(args)...), true)
 part_method = RMethod(:part, lowerpattern(rvx"[data, i]")..., partial_part, true)
-nparts_method = RMethod(:nparts, lowerpattern(rvx"[x]")..., nparts, true)
+nparts_method = RMethod(:nparts, lowerpattern(rvx"[x]")..., partial_nparts, true)
 datacat_method = RMethod(:datacat, lowerpattern(rvx"args")..., args -> datacat(parts(args)...), true)
 widen_method = RMethod(:widen, lowerpattern(rvx"[x]")..., partial_widen, true)
 
