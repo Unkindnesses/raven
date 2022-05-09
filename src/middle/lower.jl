@@ -147,6 +147,28 @@ function indexer(cx, ir, v, T::Data, i::Type{Int}, _, _)
   partmethod!(cx, T, i)
 end
 
+function datacat_ir(T::Data)
+  ir = IR()
+  x = argument!(ir, type = T)
+  margs = push!(ir, IRTools.stmt(Expr(:tuple, Int32(0)), type = rtuple(Int32)))
+  ptr = push!(ir, IRTools.stmt(xcall(Global(:malloc), margs), type = Int32))
+
+  s = push!(ir, Expr(:ref, "`datacat` not implemented"))
+  push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s))
+  
+  result = push!(ir, IRTools.stmt(Expr(:tuple, Int32(0), ptr), type = datacat(parts(T))))
+  return!(ir, result)
+  return ir
+end
+
+function datacat_method!(cx::Compilation, T)
+  S = (datacat_method, T)
+  haskey(cx.frames, S) && return cx.frames[S][1]
+  ir = datacat_ir(T)
+  cx.frames[S] = ir
+  return
+end
+
 function lowerdata(cx, ir)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
@@ -163,11 +185,21 @@ function lowerdata(cx, ir)
         T = exprtype(cx.mod, ir, st.expr.args[2])
         val = T isa Integer ? T : st.expr.args[2]
         pr[v] = val
-      elseif F == data_method || F == datacat_method
+      elseif F == data_method
         # Arguments are turned into a tuple when calling any function, so this
         # is just a cast.
         @assert layout(st.type) == layout(exprtype(cx.mod, ir, st.expr.args[2]))
         pr[v] = st.expr.args[2]
+      elseif F == datacat_method
+        x = st.expr.args[2]
+        S = exprtype(cx.mod, ir, x)
+        T = st.type
+        if S isa Data && T isa Data
+          @assert layout(S) == layout(T)
+          pr[v] = x
+        else
+          datacat_method!(cx, S)
+        end
       elseif F == nparts_method
         pr[v] = nparts(exprtype(mod, ir, st.expr.args[2]))
       elseif F == part_method
