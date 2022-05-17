@@ -1,11 +1,9 @@
 ptr1 = malloc(Int32(16))
-test1 = ptr1 == (Ptr(0) + headerSize)
-test2 = blockSize(ptr1) == Int32(16)
+println(ptr1 == (Ptr(0) + headerSize))
+println(blockSize(ptr1) == Int32(16))
 
 ptr2 = malloc(Int32(16))
-test3 = ptr2 == (Ptr(0) + headerSize + Int32(16) + headerSize)
-test4 = blockSize(ptr2) == Int32(16)
+println(ptr2 == (Ptr(0) + headerSize + Int32(16) + headerSize))
+println(blockSize(ptr2) == Int32(16))
 
-test5 = allocationCount() == 2
-
-println(test1 & test2 & test3 & test4 & test5)
+println(allocationCount() == 2)

@@ -2,6 +2,8 @@ x = widen(2)
 n = widen(3)
 r = x^n
 
+println(r == 8)
+
 # TODO: should be able to panic at the end
 fn pow(x, n: Int64) {
   r = one(x)
@@ -15,4 +17,4 @@ fn pow(x, n: Int64) {
   return -1
 }
 
-println((r == 8) & (pow(2, 3) == 8))
+println(pow(2, 3) == 8)

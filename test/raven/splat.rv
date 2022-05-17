@@ -2,13 +2,11 @@ fn add1(a, b) {
   a + b
 }
 
-test1 = add1([widen(2), widen(3)]...) == 5
-test2 = add1([widen(2)]..., [widen(3)]...) == 5
+println(add1([widen(2), widen(3)]...) == 5)
+println(add1([widen(2)]..., [widen(3)]...) == 5)
 
 fn add2(args...) {
   part(args, 1) + part(args, 2)
 }
 
-test3 = add2(widen(5), widen(3)) == 8
-
-println(test1 & test2 & test3)
+println(add2(widen(5), widen(3)) == 8)

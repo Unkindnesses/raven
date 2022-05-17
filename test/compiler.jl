@@ -2,10 +2,12 @@ using Raven, Test
 
 cd(@__DIR__)
 
-function result(test)
+function output(test)
   Raven.compile("raven/$test.rv", "compiled")
   String(read(`node compiled/$test.js`))
 end
+
+result(test) = parse.(Bool, split(output(test)))
 
 passes(test) = parse(Bool, result(test))
 
@@ -19,7 +21,9 @@ fails(test) = result_code(test) == 1
 
 @testset for test in [:pow, :ptr, :relu, :complex, :structures,
                       :splat, :scope, :malloc0, :malloc1, :malloc2]
-  @test passes(test)
+  for r in result(test)
+    @test r
+  end
 end
 
 # Test that the code compiles successfully, failing at runtime
