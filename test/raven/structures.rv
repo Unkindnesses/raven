@@ -4,4 +4,17 @@ test1 = sum(xs) == 6
 ys = [4, widen(5)]
 test2 = (part(ys, widen(1)) + part(ys, widen(2))) == 4+5
 
-println(test1 & test2)
+fn range(n) {
+  xs = []
+  i = 1
+  while (i <= n) {
+    xs = [xs..., i]
+    i = i + 1
+  }
+  return xs
+}
+
+zs = range(10)
+test3 = nparts(zs) == 10
+
+println(test1 & test2 & test3)

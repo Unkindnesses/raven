@@ -144,15 +144,20 @@ function indexer!(ir, T::Data, i::Int, x)
 end
 
 function datacat_ir(T::Data)
+  T′ = datacat(parts(T)...)
+  @assert T′.parts == Int64
   ir = IR()
   x = argument!(ir, type = T)
-  margs = push!(ir, IRTools.stmt(Expr(:tuple, Int32(0)), type = rtuple(Int32)))
+  ls = [nparts!(ir, part(T, i), indexer!(ir, T, i, x)) for i in 1:nparts(T)]
+  size = popfirst!(ls)
+  for l in ls
+    size = push!(ir, xcall(WIntrinsic(i64.add, i64), size, l))
+  end
+  size = push!(ir, xcall(WIntrinsic(i32.wrap_i64, i32), size))
+  bytes = push!(ir, xcall(WIntrinsic(i32.mul, i32), size, Int32(8)))
+  margs = push!(ir, IRTools.stmt(Expr(:tuple, bytes), type = rtuple(Int32)))
   ptr = push!(ir, IRTools.stmt(xcall(Global(:malloc), margs), type = Int32))
-
-  s = push!(ir, Expr(:ref, "`datacat` not implemented"))
-  push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s))
-  
-  result = push!(ir, IRTools.stmt(Expr(:tuple, Int32(0), ptr), type = datacat(parts(T))))
+  result = push!(ir, IRTools.stmt(Expr(:tuple, size, ptr), type = datacat(parts(T))))
   return!(ir, result)
   return ir
 end
