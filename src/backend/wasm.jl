@@ -97,7 +97,7 @@ function lowerwasm!(mod::WModule, ir::IR)
     IRTools.argtypes(b) .= wlayout.(IRTools.argtypes(b))
     for (v, st) in b
       if !isexpr(st.expr)
-        ir[v] = IRTools.stmt(st.expr, type = wlayout(st.type))
+        ir[v] = stmt(st.expr, type = wlayout(st.type))
         continue
       elseif isexpr(st.expr, :ref) && st.expr.args[1] isa String
         ir[v] = stringid!(mod, st.expr.args[1])
@@ -116,7 +116,7 @@ function lowerwasm!(mod::WModule, ir::IR)
           wlayout(st.type) isa WTuple &&
             (p = insert!(ir, v, Expr(:ref, p, i)))
           w = insert!(ir, v, xcall(WebAssembly.SetGlobal(l[i]), p))
-          ir[w] = IRTools.stmt(ir[w], type = WTuple())
+          ir[w] = stmt(ir[w], type = WTuple())
         end
         delete!(ir, v)
         continue
@@ -126,16 +126,16 @@ function lowerwasm!(mod::WModule, ir::IR)
       Ts, args = st.expr.args[1], st.expr.args[2:end]
       if Ts isa WIntrinsic
         ex = xcall(st.expr.args[1].op, st.expr.args[2:end]...)
-        ir[v] = IRTools.stmt(st.expr, expr = ex, type = Ts.ret == ⊥ ? WTuple() : Ts.ret)
+        ir[v] = stmt(st.expr, expr = ex, type = Ts.ret == ⊥ ? WTuple() : Ts.ret)
         if Ts.ret == ⊥
-          IRTools.insertafter!(ir, v, IRTools.stmt(xcall(WebAssembly.unreachable), type = WTuple()))
+          IRTools.insertafter!(ir, v, stmt(xcall(WebAssembly.unreachable), type = WTuple()))
         end
       elseif any(x -> x == ⊥, Ts)
-        ir[v] = IRTools.stmt(xcall(WebAssembly.unreachable), type = WTuple())
+        ir[v] = stmt(xcall(WebAssembly.unreachable), type = WTuple())
       else
         func = lowerwasm!(mod, Ts)
         ir[v] = xcall(WebAssembly.Call(func), args[2:end]...)
-        ir[v] = IRTools.stmt(ir[v], type = wlayout(ir[v].type))
+        ir[v] = stmt(ir[v], type = wlayout(ir[v].type))
       end
     end
   end

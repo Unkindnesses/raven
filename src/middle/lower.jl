@@ -33,7 +33,7 @@ function globals(mod::RModule, ir::IR)
       insert(xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
                    Expr(:ref, "$(x.name) is not defined")))
     else
-      insert(IRTools.stmt(Expr(:global, x.name), type = T))
+      insert(stmt(Expr(:global, x.name), type = T))
     end
   end
   IRTools.branches(pr) do b
@@ -95,7 +95,7 @@ function partir(x, i)
   xlayout = layout(x)
   part(i) = xlayout isa Tuple ? push!(ir, Expr(:ref, vx, i)) : vx
   for i = 1:nparts(x)
-    cond = push!(ir, IRTools.stmt(xcall(WIntrinsic(i64.eq, i32), i, vi), type = Int32))
+    cond = push!(ir, stmt(xcall(WIntrinsic(i64.eq, i32), i, vi), type = Int32))
     branch!(ir, length(ir.blocks) + 2, unless = cond)
     branch!(ir, length(ir.blocks) + 1)
     block!(ir)
@@ -105,10 +105,10 @@ function partir(x, i)
     ex = layout(T′) isa Tuple ?
       Expr(:tuple, part.(range)...) :
       part(range[1])
-    y = push!(ir, IRTools.stmt(ex, type = T′))
+    y = push!(ir, stmt(ex, type = T′))
     if T′ != T
       T′ isa Number && T == typeof(T′) || error("unsupported cast")
-      y = push!(ir, IRTools.stmt(T′, type = T))
+      y = push!(ir, stmt(T′, type = T))
     end
     return!(ir, y)
     block!(ir)
@@ -136,7 +136,7 @@ function indexer!(ir, T::Data, i::Int, x)
   if 0 <= i <= nparts(T)
     _part(i) = push!(ir, Expr(:ref, x, i))
     range = sublayout(T, i)
-    push!(ir, IRTools.stmt(Expr(:tuple, _part.(range)...), type = part(T, i)))
+    push!(ir, stmt(Expr(:tuple, _part.(range)...), type = part(T, i)))
   else
     s = push!(ir, Expr(:ref, "Invalid index $i for $T"))
     push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s))
@@ -155,9 +155,9 @@ function datacat_ir(T::Data)
   end
   size = push!(ir, xcall(WIntrinsic(i32.wrap_i64, i32), size))
   bytes = push!(ir, xcall(WIntrinsic(i32.mul, i32), size, Int32(8)))
-  margs = push!(ir, IRTools.stmt(Expr(:tuple, bytes), type = rtuple(Int32)))
-  ptr = push!(ir, IRTools.stmt(xcall(Global(:malloc), margs), type = Int32))
-  result = push!(ir, IRTools.stmt(Expr(:tuple, size, ptr), type = datacat(parts(T))))
+  margs = push!(ir, stmt(Expr(:tuple, bytes), type = rtuple(Int32)))
+  ptr = push!(ir, stmt(xcall(Global(:malloc), margs), type = Int32))
+  result = push!(ir, stmt(Expr(:tuple, size, ptr), type = datacat(parts(T))))
   return!(ir, result)
   return ir
 end
@@ -246,9 +246,9 @@ function cast!(ir, from, to)
   if from isa Number && to == typeof(from)
     from
   elseif from == rtuple() && to isa VData
-    margs = push!(ir, IRTools.stmt(Expr(:tuple, Int32(0)), type = rtuple(Int32)))
-    ptr = push!(ir, IRTools.stmt(xcall(Global(:malloc), margs), type = Int32))
-    push!(ir, IRTools.stmt(Expr(:tuple, Int32(0), ptr), type = to))
+    margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rtuple(Int32)))
+    ptr = push!(ir, stmt(xcall(Global(:malloc), margs), type = Int32))
+    push!(ir, stmt(Expr(:tuple, Int32(0), ptr), type = to))
   else
     error("unsupported cast: $from -> $to")
   end

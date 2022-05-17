@@ -47,7 +47,7 @@ function prepare_ir!(ir)
   for b in ir.blocks
     b.argtypes .= (⊥,)
     for i in 1:length(b.stmts)
-      b.stmts[i] = IRTools.stmt(b.stmts[i], type = ⊥)
+      b.stmts[i] = stmt(b.stmts[i], type = ⊥)
     end
   end
   return ir
