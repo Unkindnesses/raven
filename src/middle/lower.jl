@@ -126,25 +126,21 @@ function partmethod!(cx::Compilation, x, i)
   return
 end
 
-function indexer(cx, ir, v, s::String, i::Int, _, _)
+function indexer!(ir, s::String, i::Int, _)
   @assert i == 1
   # Punt to the backend to decide how strings get IDd
-  ir[v] = Expr(:ref, s)
+  push!(ir, Expr(:ref, s))
 end
 
-function indexer(cx, ir, v, T::Data, i::Int, x, _)
+function indexer!(ir, T::Data, i::Int, x)
   if 0 <= i <= nparts(T)
-    _part(i) = insert!(ir, v, Expr(:ref, x, i))
+    _part(i) = push!(ir, Expr(:ref, x, i))
     range = sublayout(T, i)
-    ir[v] = Expr(:tuple, _part.(range)...)
+    push!(ir, IRTools.stmt(Expr(:tuple, _part.(range)...), type = part(T, i)))
   else
-    s = insert!(ir, v, Expr(:ref, "Invalid index $i for $T"))
-    ir[v] = xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s)
+    s = push!(ir, Expr(:ref, "Invalid index $i for $T"))
+    push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s))
   end
-end
-
-function indexer(cx, ir, v, T::Data, i::Type{Int}, _, _)
-  partmethod!(cx, T, i)
 end
 
 function datacat_ir(T::Data)
@@ -217,7 +213,12 @@ function lowerdata(cx, ir)
       elseif F == part_method
         x, i = st.expr.args[2:end]
         T, I = exprtype(cx.mod, ir, st.expr.args[2:end])
-        indexer(cx, pr, v, T, I, x, i)
+        if T isa Data && I isa Type{<:Integer}
+          partmethod!(cx, T, I)
+        else
+          delete!(pr, v)
+          replace!(pr, v, indexer!(pr, T, I, x))
+        end
       end
     end
   end
