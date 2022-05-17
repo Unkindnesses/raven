@@ -14,6 +14,7 @@ include("frontend/data.jl")
 include("frontend/modules.jl")
 include("frontend/lower.jl")
 
+include("middle/utils.jl")
 include("middle/primitives.jl")
 include("middle/patterns.jl")
 include("middle/abstract.jl")

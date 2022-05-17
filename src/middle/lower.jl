@@ -169,6 +169,15 @@ function datacat_method!(cx::Compilation, T)
   return
 end
 
+function nparts!(ir, T::Data, x)
+  return nparts(T)
+end
+
+function nparts!(ir, T::VData, x)
+  sz = push!(ir, Expr(:ref, x, 1))
+  push!(ir, xcall(WIntrinsic(i64.extend_i32_s, i64), sz))
+end
+
 function lowerdata(cx, ir)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
@@ -203,12 +212,8 @@ function lowerdata(cx, ir)
       elseif F == nparts_method
         x = st.expr.args[2]
         T = exprtype(cx.mod, ir, x)
-        if T isa VData
-          sz = insert!(pr, v, Expr(:ref, x, 1))
-          pr[v] = xcall(WIntrinsic(i64.extend_i32_s, i64), sz)
-        else
-          pr[v] = nparts(T)
-        end
+        delete!(pr, v)
+        replace!(pr, v, nparts!(pr, T, x))
       elseif F == part_method
         x, i = st.expr.args[2:end]
         T, I = exprtype(cx.mod, ir, st.expr.args[2:end])
