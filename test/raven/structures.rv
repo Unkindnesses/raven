@@ -16,3 +16,7 @@ fn range(n) {
 
 zs = range(10)
 println(nparts(zs) == 10)
+# Loads are correct, but `datacat` isn't.
+println(part(zs, 1) == 0)
+println(part(zs, widen(1)) == 0)
+println(part(zs, widen(0)) != 0)

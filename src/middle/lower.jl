@@ -126,13 +126,13 @@ function partmethod!(cx::Compilation, x, i)
   return
 end
 
-function indexer!(ir, s::String, i::Int, _)
+function indexer!(ir, s::String, i::Int, _, _)
   @assert i == 1
   # Punt to the backend to decide how strings get IDd
   push!(ir, Expr(:ref, s))
 end
 
-function indexer!(ir, T::Data, i::Int, x)
+function indexer!(ir, T::Data, i::Int, x, _)
   if 0 <= i <= nparts(T)
     _part(i) = push!(ir, Expr(:ref, x, i))
     range = sublayout(T, i)
@@ -143,12 +143,29 @@ function indexer!(ir, T::Data, i::Int, x)
   end
 end
 
+function indexer!(ir, T::VData, I::Union{Int,Type{Int64}}, x, i)
+  I == 0 && return push!(ir, Expr(:tuple))
+  @assert T.parts == Int64
+  if I isa Int
+    i = Int32((I-1)*8)
+  else
+    i = push!(ir, xcall(WIntrinsic(i32.wrap_i64, i32), i))
+    i = push!(ir, xcall(WIntrinsic(i32.sub, i32), i, Int32(1)))
+    i = push!(ir, xcall(WIntrinsic(i32.mul, i32), i, Int32(8)))
+  end
+  # TODO bounds check
+  p = push!(ir, Expr(:ref, x, 2))
+  p = push!(ir, xcall(WIntrinsic(i32.add, i32), p, i))
+  v = push!(ir, xcall(WIntrinsic(i64.load, i64), p))
+  return v
+end
+
 function datacat_ir(T::Data)
   T′ = datacat(parts(T)...)
   @assert T′.parts == Int64
   ir = IR()
   x = argument!(ir, type = T)
-  ls = [nparts!(ir, part(T, i), indexer!(ir, T, i, x)) for i in 1:nparts(T)]
+  ls = [nparts!(ir, part(T, i), indexer!(ir, T, i, x, i)) for i in 1:nparts(T)]
   size = popfirst!(ls)
   for l in ls
     size = push!(ir, xcall(WIntrinsic(i64.add, i64), size, l))
@@ -222,7 +239,7 @@ function lowerdata(cx, ir)
           partmethod!(cx, T, I)
         else
           delete!(pr, v)
-          replace!(pr, v, indexer!(pr, T, I, x))
+          replace!(pr, v, indexer!(pr, T, I, x, i))
         end
       end
     end

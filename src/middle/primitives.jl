@@ -8,6 +8,9 @@ partial_part(data::Union{Data,Primitive}, i::Integer) =
 partial_part(data::Data, i::Type{<:Integer}) =
   reduce(union, parts(data))
 
+partial_part(data::VData, i::Union{Int,Type{<:Integer}}) =
+  i == 0 ? data.tag : data.parts
+
 partial_nparts(x::Data) = nparts(x)
 partial_nparts(::VData) = Int64
 
