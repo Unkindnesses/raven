@@ -7,3 +7,6 @@ ptr1 = malloc(pageSize - headerSize)
 ptr2 = malloc(Int32(16))
 
 println(ptr1 != ptr2)
+
+free(ptr1)
+free(ptr2)

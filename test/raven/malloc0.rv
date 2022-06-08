@@ -7,3 +7,6 @@ println(ptr2 == (Ptr(0) + headerSize + Int32(16) + headerSize))
 println(blockSize(ptr2) == Int32(16))
 
 println(allocationCount() == 2)
+
+free(ptr1)
+free(ptr2)
