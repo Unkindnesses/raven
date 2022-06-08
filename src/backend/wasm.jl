@@ -185,7 +185,7 @@ function binary(m::WebAssembly.Module, file; optimise = true)
   WebAssembly.write_wat(wat, m)
   try
     run(`wat2wasm $wat -o $file`)
-    optimise && run(`wasm-opt --enable-multivalue $file -O4 -o $file`)
+    optimise && run(`wasm-opt --enable-multivalue --enable-bulk-memory $file -O4 -o $file`)
   finally
     rm(wat)
   end

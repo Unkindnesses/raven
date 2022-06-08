@@ -191,8 +191,9 @@ function datacat_ir(T::Data)
                         Expr(:ref, "unsupported")))
       end
       sz = push!(ir, Expr(:ref, ps[i], 1))
+      src = push!(ir, Expr(:ref, ps[i], 2))
       ln = push!(ir, xcall(WIntrinsic(i32.mul, i32), sz, Int32(8)))
-      # TODO memcpy
+      push!(ir, xcall(WIntrinsic(WebAssembly.Op(Symbol("memory.copy")), WTuple()), pos, src, ln))
       pos = push!(ir, xcall(WIntrinsic(i32.add, i32), pos, ln))
     else
       error("unsupported")
