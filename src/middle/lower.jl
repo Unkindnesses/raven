@@ -164,8 +164,9 @@ function datacat_ir(T::Data)
   T′ = datacat(parts(T)...)
   @assert T′.parts == Int64
   ir = IR()
-  x = argument!(ir, type = T)
-  ls = [nparts!(ir, part(T, i), indexer!(ir, T, i, x, i)) for i in 1:nparts(T)]
+  xs = argument!(ir, type = T)
+  ps = [indexer!(ir, T, i, xs, i) for i in 1:nparts(T)]
+  ls = [nparts!(ir, part(T, i), ps[i]) for i in 1:nparts(T)]
   size = popfirst!(ls)
   for l in ls
     size = push!(ir, xcall(WIntrinsic(i64.add, i64), size, l))
@@ -174,6 +175,29 @@ function datacat_ir(T::Data)
   bytes = push!(ir, xcall(WIntrinsic(i32.mul, i32), size, Int32(8)))
   margs = push!(ir, stmt(Expr(:tuple, bytes), type = rtuple(Int32)))
   ptr = push!(ir, stmt(xcall(Global(:malloc), margs), type = Int32))
+  pos = ptr
+  for i in 1:nparts(T)
+    P = part(T, i)
+    if P isa Data
+      for j in 1:nparts(P)
+        @assert part(P, j) == Int64
+        x = indexer!(ir, P, j, ps[i], j)
+        push!(ir, xcall(WIntrinsic(i64.store, WTuple()), pos, x))
+        pos = push!(ir, xcall(WIntrinsic(i32.add, i32), pos, Int32(8)))
+      end
+    elseif P isa VData
+      if P.parts != Int64
+        push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
+                        Expr(:ref, "unsupported")))
+      end
+      sz = push!(ir, Expr(:ref, ps[i], 1))
+      ln = push!(ir, xcall(WIntrinsic(i32.mul, i32), sz, Int32(8)))
+      # TODO memcpy
+      pos = push!(ir, xcall(WIntrinsic(i32.add, i32), pos, ln))
+    else
+      error("unsupported")
+    end
+  end
   result = push!(ir, stmt(Expr(:tuple, size, ptr), type = datacat(parts(T))))
   return!(ir, result)
   return ir
