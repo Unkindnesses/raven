@@ -59,17 +59,35 @@ function liveness(ir)
   return result
 end
 
+isreftype(::Union{Primitive,Type{<:Primitive}}) = false
+isreftype(xs::Data) = any(isreftype, xs.parts)
+isreftype(::VData) = true
+
+function retain(f, T::VData, x)
+  ptr = f(stmt(Expr(:ref, x, 2), type = Int32))
+  f(stmt(xcall(:retain, ptr), type = data(:Nothing)))
+end
+
+function release(f, T::VData, x)
+  ptr = f(stmt(Expr(:ref, x, 2), type = Int32))
+  f(stmt(xcall(:release, ptr), type = data(:Nothing)))
+end
+
 function refcounts!(ir)
-  pr = IRTools.Pipe(ir)
   lv = liveness(ir)
+  isref(v) = isreftype(IRTools.exprtype(ir, v))
+  # Would be better to do this as part of the pipe – fix this in IRTools2.
   for b in IRTools.blocks(ir)
+    # Could pushfirst! to free earlier, but this causes issues with multiple
+    # statements.
+    rel(x) = isref(x) && release(ex -> push!(b, ex), IRTools.exprtype(ir, x), x)
     # unused block arguments
-    foreach(x -> pushfirst!(b, xcall(:release, x)), filter(x -> !(x in lv[b.id]), arguments(b)))
+    foreach(rel, filter(x -> !(x in lv[b.id]), arguments(b)))
     # conditionally dropped variables
     dropped = [setdiff(liveness_after(c, lv), lv[b.id]) for c in predecessors(b)]
     if !isempty(dropped)
       @assert all(xs -> xs == dropped[1], dropped) # condition mentioned above
-      foreach(x -> pushfirst!(b, xcall(:release, x)), dropped[1])
+      foreach(rel, dropped[1])
     end
     lafter = liveness_after(b, lv)
     for br in branches(b)
@@ -77,14 +95,15 @@ function refcounts!(ir)
       @assert !any(x -> x in lafter, arguments(br))
     end
   end
+  pr = IRTools.Pipe(ir)
   for (v, st) in pr
     haskey(lv, v) || continue
     # dropped variable
-    v in lv[v] || push!(pr, xcall(:release, v))
+    isref(v) && (v in lv[v] || release(ex -> push!(pr, ex), IRTools.exprtype(ir, v), v))
     # reused argument
     for x in st.expr.args
-      x isa Variable || continue
-      x in lv[v] && insert!(pr, v, xcall(:retain, x))
+      x isa Variable && isref(x) || continue
+      x in lv[v] && retain(ex -> insert!(pr, v, ex), IRTools.exprtype(ir, x), x)
     end
   end
   ir = IRTools.finish(pr)
