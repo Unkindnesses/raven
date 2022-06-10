@@ -103,6 +103,24 @@ fn blockSize(p: Ptr) {
   getBlockSize(p - headerSize) - headerSize
 }
 
+fn blockCount(p: Ptr) {
+  Int64(getBlockUsed(p - headerSize))
+}
+
+fn retain(p: Ptr) {
+  p = p - headerSize
+  n = getBlockUsed(p)
+  setBlockUsed(p, n+Int32(1))
+  return
+}
+
+fn release(p: Ptr) {
+  p = p - headerSize
+  n = getBlockUsed(p)
+  # Setting to 0 equates to freeing
+  setBlockUsed(p, n-Int32(1))
+}
+
 fn allocationCount() {
   i = 0
   ptr = Ptr(0)
