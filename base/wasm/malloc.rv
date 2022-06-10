@@ -117,6 +117,9 @@ fn retain(p: Ptr) {
 fn release(p: Ptr) {
   p = p - headerSize
   n = getBlockUsed(p)
+  if (n == Int32(0)) {
+    panic("Memory management fault")
+  }
   # Setting to 0 equates to freeing
   setBlockUsed(p, n-Int32(1))
 }
@@ -131,10 +134,4 @@ fn allocationCount() {
     ptr = ptr + size
   }
   return i
-}
-
-fn checkAllocations() {
-  if (allocationCount() != 0) {
-    panic("Memory management fault")
-  }
 }

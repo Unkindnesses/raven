@@ -53,7 +53,6 @@ vload(m::Inference, x) = load_expr(m, x)
 function finish!(cx::Inference)
   fn = AST.Syntax(:fn, [AST.Call(:_start, []),
                   AST.Block([[AST.Call(f, []) for f in cx.main]...,
-                             # AST.Call(:checkAllocations, []), # TODO refcounting
                              AST.Call(:data, [AST.Quote(:Nothing)])])])
   method!(cx.mod, :_start, RMethod(:_start, lowerpattern(AST.Tuple([]))..., lowerfn(fn, [])))
 end

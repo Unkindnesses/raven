@@ -194,12 +194,13 @@ function datacat_ir(T::Data)
       src = push!(ir, Expr(:ref, ps[i], 2))
       ln = push!(ir, xcall(WIntrinsic(i32.mul, i32), sz, Int32(8)))
       push!(ir, xcall(WIntrinsic(WebAssembly.Op(Symbol("memory.copy")), WTuple()), pos, src, ln))
+      push!(ir, Expr(:release, ps[i]))
       pos = push!(ir, xcall(WIntrinsic(i32.add, i32), pos, ln))
     else
       error("unsupported")
     end
   end
-  result = push!(ir, stmt(Expr(:tuple, size, ptr), type = datacat(parts(T))))
+  result = push!(ir, stmt(Expr(:tuple, size, ptr), type = datacat(parts(T)...)))
   return!(ir, result)
   return ir
 end
@@ -257,6 +258,7 @@ function lowerdata(cx, ir)
         T = exprtype(cx.mod, ir, x)
         delete!(pr, v)
         replace!(pr, v, nparts!(pr, T, x))
+        push!(pr, Expr(:release, x))
       elseif F == part_method
         x, i = st.expr.args[2:end]
         T, I = exprtype(cx.mod, ir, st.expr.args[2:end])
@@ -329,5 +331,5 @@ function lowerir(inf::Inference)
   for (k, fr) in inf.frames
     comp.frames[k] = lowerir(comp, fr.ir)
   end
-  return comp
+  return refcounts(comp)
 end

@@ -59,17 +59,17 @@ function liveness(ir)
   return result
 end
 
-isreftype(::Union{Primitive,Type{<:Primitive}}) = false
+isreftype(::Union{Primitive,Type,Unreachable}) = false
 isreftype(xs::Data) = any(isreftype, xs.parts)
 isreftype(::VData) = true
 
 function retain(f, T::VData, x)
-  ptr = f(stmt(Expr(:ref, x, 2), type = Int32))
+  ptr = f(stmt(Expr(:ref, x, 2), type = rtuple(data(:Ptr, Int32))))
   f(stmt(xcall(:retain, ptr), type = data(:Nothing)))
 end
 
 function release(f, T::VData, x)
-  ptr = f(stmt(Expr(:ref, x, 2), type = Int32))
+  ptr = f(stmt(Expr(:ref, x, 2), type = rtuple(data(:Ptr, Int32))))
   f(stmt(xcall(:release, ptr), type = data(:Nothing)))
 end
 
@@ -84,7 +84,7 @@ function refcounts!(ir)
     # unused block arguments
     foreach(rel, filter(x -> !(x in lv[b.id]), arguments(b)))
     # conditionally dropped variables
-    dropped = [setdiff(liveness_after(c, lv), lv[b.id]) for c in predecessors(b)]
+    dropped = [filter(isref, setdiff(liveness_after(c, lv), lv[b.id])) for c in predecessors(b)]
     if !isempty(dropped)
       @assert all(xs -> xs == dropped[1], dropped) # condition mentioned above
       foreach(rel, dropped[1])
@@ -92,11 +92,19 @@ function refcounts!(ir)
     lafter = liveness_after(b, lv)
     for br in branches(b)
       # reused branch args
-      @assert !any(x -> x in lafter, arguments(br))
+      @assert !any(x -> x in lafter, filter(isref, arguments(br)))
     end
   end
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
+    if isexpr(st.expr, :release)
+      delete!(pr, v)
+      x = st.expr.args[1]
+      isref(x) || continue
+      release(ex -> push!(pr, ex), IRTools.exprtype(ir, x), x)
+      continue
+    end
+    isexpr(st.expr, :call, :tuple) || continue
     haskey(lv, v) || continue
     # dropped variable
     isref(v) && (v in lv[v] || release(ex -> push!(pr, ex), IRTools.exprtype(ir, v), v))
@@ -108,4 +116,12 @@ function refcounts!(ir)
   end
   ir = IRTools.finish(pr)
   return ir
+end
+
+function refcounts(c::Compilation)
+  comp = Compilation(c.mod)
+  for (k, ir) in c.frames
+    comp.frames[k] = refcounts!(copy(ir))
+  end
+  return comp
 end
