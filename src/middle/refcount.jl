@@ -25,16 +25,23 @@
 # that the block only sometimes releases a preceding variable. For now this case
 # is an error.
 
+function liveness_after(block, lv)
+  live = Set{Variable}()
+  for b in successors(block)
+    union!(live, setdiff(lv[b.id], arguments(b)))
+  end
+  return live
+end
+
 # Variables needed before each block is run, and after each statement is run.
-# Liveness after a block is the union of the liveness of successors.
+# Block variables include their arguments.
 function liveness(ir)
   result = Dict(v => Set{Variable}() for v in keys(ir))
   result = merge(result, Dict(b.id => Set{Variable}() for b in blocks(ir)))
   queue = WorkQueue(1:length(blocks(ir)))
   while !isempty(queue)
     b = block(ir, pop!(queue))
-    live = Set{Variable}()
-    foreach(b -> union!(live, result[b.id]), IRTools.successors(b))
+    live = liveness_after(b, result)
     for br in branches(b)
       foreach(x -> x isa Variable && push!(live, x), arguments(br))
       br.condition isa Variable && push!(live, br.condition)
@@ -44,11 +51,42 @@ function liveness(ir)
       delete!(live, v)
       IRTools.Inner.varmap(x -> push!(live, x), b[v])
     end
-    setdiff!(live, arguments(b))
     if !isempty(setdiff(live, result[b.id]))
       union!(result[b.id], live)
-      foreach(b -> push!(queue, b.id), IRTools.predecessors(b))
+      foreach(b -> push!(queue, b.id), predecessors(b))
     end
   end
   return result
+end
+
+function refcounts!(ir)
+  pr = IRTools.Pipe(ir)
+  lv = liveness(ir)
+  for b in IRTools.blocks(ir)
+    # unused block arguments
+    foreach(x -> pushfirst!(b, xcall(:release, x)), filter(x -> !(x in lv[b.id]), arguments(b)))
+    # conditionally dropped variables
+    dropped = [setdiff(liveness_after(c, lv), lv[b.id]) for c in predecessors(b)]
+    if !isempty(dropped)
+      @assert all(xs -> xs == dropped[1], dropped) # condition mentioned above
+      foreach(x -> pushfirst!(b, xcall(:release, x)), dropped[1])
+    end
+    lafter = liveness_after(b, lv)
+    for br in branches(b)
+      # reused branch args
+      @assert !any(x -> x in lafter, arguments(br))
+    end
+  end
+  for (v, st) in pr
+    haskey(lv, v) || continue
+    # dropped variable
+    v in lv[v] || push!(pr, xcall(:release, v))
+    # reused argument
+    for x in st.expr.args
+      x isa Variable || continue
+      x in lv[v] && insert!(pr, v, xcall(:retain, x))
+    end
+  end
+  ir = IRTools.finish(pr)
+  return ir
 end
