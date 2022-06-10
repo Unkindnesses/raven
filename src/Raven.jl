@@ -19,6 +19,7 @@ include("middle/primitives.jl")
 include("middle/patterns.jl")
 include("middle/abstract.jl")
 include("middle/lower.jl")
+include("middle/refcount.jl")
 include("middle/load.jl")
 
 include("backend/wasm.jl")

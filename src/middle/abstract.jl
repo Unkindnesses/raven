@@ -43,7 +43,7 @@ issubtype(x::Union{T,Type{T}}, y::Type{T}) where T = true
 issubtype(x, y) = x == y
 
 function prepare_ir!(ir)
-  IRTools.expand!(ir)
+  IRTools.expand!(ir) # TODO can we avoid this?
   for b in ir.blocks
     b.argtypes .= (⊥,)
     for i in 1:length(b.stmts)
