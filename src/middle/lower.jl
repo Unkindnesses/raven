@@ -142,7 +142,11 @@ function _indexer!(f, T::Data, i::Int, x)
   if 0 <= i <= nparts(T)
     _part(i) = f(Expr(:ref, x, i))
     range = sublayout(T, i)
-    f(stmt(Expr(:tuple, _part.(range)...), type = part(T, i)))
+    if layout(part(T, i)) isa Type
+      f(stmt(Expr(:ref, x, range[1]), type = part(T, i)))
+    else
+      f(stmt(Expr(:tuple, _part.(range)...), type = part(T, i)))
+    end
   else
     s = f(Expr(:ref, "Invalid index $i for $T"))
     f(xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s))
