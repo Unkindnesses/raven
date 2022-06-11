@@ -73,6 +73,14 @@ function release(f, T::VData, x)
   f(stmt(xcall(:release, ptr), type = data(:Nothing)))
 end
 
+function release(f, T::Data, x)
+  for i = 0:nparts(T)
+    isreftype(part(T, i)) || continue
+    p = _indexer!(f, T, i, x)
+    release(f, part(T, i), p)
+  end
+end
+
 function refcounts!(ir)
   lv = liveness(ir)
   isref(v) = isreftype(IRTools.exprtype(ir, v))
@@ -100,18 +108,21 @@ function refcounts!(ir)
     if isexpr(st.expr, :release)
       delete!(pr, v)
       x = st.expr.args[1]
-      isref(x) || continue
+      isref(x) && !(x in lv[v]) || continue
       release(ex -> push!(pr, ex), IRTools.exprtype(ir, x), x)
-      continue
-    end
-    isexpr(st.expr, :call, :tuple) || continue
-    haskey(lv, v) || continue
-    # dropped variable
-    isref(v) && (v in lv[v] || release(ex -> push!(pr, ex), IRTools.exprtype(ir, v), v))
-    # reused argument
-    for x in st.expr.args
-      x isa Variable && isref(x) || continue
-      x in lv[v] && retain(ex -> insert!(pr, v, ex), IRTools.exprtype(ir, x), x)
+    elseif isexpr(st.expr, :retain)
+      delete!(pr, v)
+      x = st.expr.args[1]
+      isref(x) || continue
+      retain(ex -> push!(pr, ex), IRTools.exprtype(ir, x), x)
+    elseif isexpr(st.expr, :call, :tuple) && haskey(lv, v)
+      # dropped variable
+      isref(v) && (v in lv[v] || release(ex -> push!(pr, ex), IRTools.exprtype(ir, v), v))
+      # reused argument
+      for x in st.expr.args
+        x isa Variable && isref(x) || continue
+        x in lv[v] && retain(ex -> insert!(pr, v, ex), IRTools.exprtype(ir, x), x)
+      end
     end
   end
   ir = IRTools.finish(pr)

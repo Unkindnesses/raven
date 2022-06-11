@@ -45,5 +45,4 @@ fn testRangeReverse() {
 
 testRangeReverse()
 
-# TODO get this to 0, currently `part` leaks.
-println(allocationCount() == 2)
+println(allocationCount() == 0)

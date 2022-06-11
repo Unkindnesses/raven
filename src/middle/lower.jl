@@ -10,6 +10,12 @@
 # After this lowering all code works with primitive values (or flat tuples of
 # primitives) and does explicit memory management, so the job of the backend
 # code generator is simple.
+#
+# We also insert primitive retain/release instructions here. The RC algorithm
+# will only release just after a variable is created, and then only if there are
+# no uses. The `release` expression tells it to try again, and is ignored if the
+# variable is used later; it should be used liberally by any code that works
+# with internals. `retain` is mainly used by indexing.
 
 struct Compilation
   mod::RModule
@@ -132,15 +138,19 @@ function indexer!(ir, s::String, i::Int, _, _)
   push!(ir, Expr(:ref, s))
 end
 
-function indexer!(ir, T::Data, i::Int, x, _)
+function _indexer!(f, T::Data, i::Int, x)
   if 0 <= i <= nparts(T)
-    _part(i) = push!(ir, Expr(:ref, x, i))
+    _part(i) = f(Expr(:ref, x, i))
     range = sublayout(T, i)
-    push!(ir, stmt(Expr(:tuple, _part.(range)...), type = part(T, i)))
+    f(stmt(Expr(:tuple, _part.(range)...), type = part(T, i)))
   else
-    s = push!(ir, Expr(:ref, "Invalid index $i for $T"))
-    push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s))
+    s = f(Expr(:ref, "Invalid index $i for $T"))
+    f(xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s))
   end
+end
+
+function indexer!(ir, T::Data, i::Int, x, _)
+  _indexer!(ex -> push!(ir, ex), T, i, x)
 end
 
 function indexer!(ir, T::VData, I::Union{Int,Type{Int64}}, x, i)
@@ -258,7 +268,7 @@ function lowerdata(cx, ir)
         T = exprtype(cx.mod, ir, x)
         delete!(pr, v)
         replace!(pr, v, nparts!(pr, T, x))
-        push!(pr, Expr(:release, x))
+        isreftype(T) && push!(pr, Expr(:release, x))
       elseif F == part_method
         x, i = st.expr.args[2:end]
         T, I = exprtype(cx.mod, ir, st.expr.args[2:end])
@@ -266,7 +276,10 @@ function lowerdata(cx, ir)
           partmethod!(cx, T, I)
         else
           delete!(pr, v)
-          replace!(pr, v, indexer!(pr, T, I, x, i))
+          y = indexer!(pr, T, I, x, i)
+          replace!(pr, v, y)
+          isreftype(exprtype(cx.mod, ir, v)) && push!(pr, Expr(:retain, y))
+          isreftype(T) && push!(pr, Expr(:release, x))
         end
       end
     end
