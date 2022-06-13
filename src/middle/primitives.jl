@@ -17,11 +17,11 @@ partial_nparts(::VData) = Int64
 partial_widen(x::Primitive) = typeof(x)
 partial_widen(x) = x
 
-data_method = RMethod(:data, lowerpattern(rvx"args")..., args -> data(parts(args)...), true)
-part_method = RMethod(:part, lowerpattern(rvx"[data, i]")..., partial_part, true)
-nparts_method = RMethod(:nparts, lowerpattern(rvx"[x]")..., partial_nparts, true)
-datacat_method = RMethod(:datacat, lowerpattern(rvx"args")..., args -> datacat(parts(args)...), true)
-widen_method = RMethod(:widen, lowerpattern(rvx"[x]")..., partial_widen, true)
+data_method = RMethod(:data, lowerpattern(rvx"args"), args -> data(parts(args)...), true)
+part_method = RMethod(:part, lowerpattern(rvx"[data, i]"), partial_part, true)
+nparts_method = RMethod(:nparts, lowerpattern(rvx"[x]"), partial_nparts, true)
+datacat_method = RMethod(:datacat, lowerpattern(rvx"args"), args -> datacat(parts(args)...), true)
+widen_method = RMethod(:widen, lowerpattern(rvx"[x]"), partial_widen, true)
 
 function primitives!(mod)
   mod[Symbol("false")] = Int32(0)

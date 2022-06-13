@@ -23,7 +23,7 @@ end
 
 function load_expr(cx::Inference, x)
   fname = gensym(:main)
-  method!(cx.mod, fname, RMethod(fname, lowerpattern(AST.Tuple([]))..., lower_toplevel(x)))
+  method!(cx.mod, fname, RMethod(fname, lowerpattern(AST.Tuple([])), lower_toplevel(x)))
   push!(cx.main, fname)
 end
 
@@ -33,8 +33,8 @@ function vload(cx::Inference, x::AST.Syntax)
   sig = x.args[1]
   f = sig isa AST.Operator ? sig.op : sig.func
   args = AST.Tuple(x.args[1].args)
-  pat, args = lowerpattern(args)
-  method!(cx.mod, f, RMethod(f, pat, args, lowerfn(x, args)))
+  sig = lowerpattern(args)
+  method!(cx.mod, f, RMethod(f, sig, lowerfn(x, sig.args)))
   return f
 end
 
@@ -54,7 +54,7 @@ function finish!(cx::Inference)
   fn = AST.Syntax(:fn, [AST.Call(:_start, []),
                   AST.Block([[AST.Call(f, []) for f in cx.main]...,
                              AST.Call(:data, [AST.Quote(:Nil)])])])
-  method!(cx.mod, :_start, RMethod(:_start, lowerpattern(AST.Tuple([]))..., lowerfn(fn, [])))
+  method!(cx.mod, :_start, RMethod(:_start, lowerpattern(AST.Tuple([])), lowerfn(fn, [])))
 end
 
 function loadfile(cx::Inference, io::IO)

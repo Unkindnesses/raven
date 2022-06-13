@@ -125,11 +125,11 @@ function dispatcher(inf, F, Ts)
   ir = IR()
   args = argument!(ir)
   for meth in reverse(inf.mod.methods[func])
-    m = partial_match(inf.mod, meth.pattern, Ts)
+    m = partial_match(inf.mod, meth.pattern.pattern, Ts)
     if m === nothing
       continue
     elseif m isa AbstractDict
-      return!(ir, push!(ir, xcall(meth, [indexer!(ir, args, m[x][2]) for x in meth.args]...)))
+      return!(ir, push!(ir, xcall(meth, [indexer!(ir, args, m[x][2]) for x in meth.pattern.args]...)))
       return ir
     else
       error("Runtime matching not yet supported")

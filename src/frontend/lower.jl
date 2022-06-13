@@ -71,7 +71,7 @@ end
 function lowerpattern(ex)
   as = []
   p = _lowerpattern(ex, as)
-  return p, as
+  return Signature(p, as)
 end
 
 # Expr -> IR lowering

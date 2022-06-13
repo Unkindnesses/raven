@@ -1,12 +1,16 @@
+struct Signature
+  pattern
+  args::Vector{Symbol}
+end
+
 struct RMethod
   name::Symbol
-  pattern
-  args
+  pattern::Signature
   func
   partial::Bool
 end
 
-RMethod(name, pat, args, func) = RMethod(name, pat, args, func, false)
+RMethod(name, pat, func) = RMethod(name, pat, func, false)
 
 Base.show(io::IO, meth::RMethod) = print(io, "RMethod($(meth.name))")
 
