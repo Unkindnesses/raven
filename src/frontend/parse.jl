@@ -2,7 +2,7 @@ module Parse
 
 using LNR
 using ..AST: Expr, Return, Break, Continue, Tuple, Splat, Call,
-  Operator, Block, Syntax, Quote
+  Operator, Block, Syntax, Quote, Swap
 
 struct ParseError
   m
@@ -126,6 +126,14 @@ function symbol(io)
   return Symbol(Base.read(sym))
 end
 
+function swap(io)
+  c = read(io)
+  c == '&' || return
+  name = symbol(io)
+  name == nothing && return
+  return Swap(name)
+end
+
 operators = ["=", "==", "!=", "+", "-", "*", "/", "^", ">", "<", ">=", "<=",
              ":", ".", "&", "|", "|>", "&&", "||"]
 opchars = unique(reduce(*, operators))
@@ -247,7 +255,7 @@ nop(io) = nothing
 function expr(io; quasi = true)
   consume_ws(io)
   quot = quasi ? quotation : nop
-  ex = parseone(io, ret, _break, symbol, string, number, op_token, quot, grouping, _tuple, _block)
+  ex = parseone(io, ret, _break, symbol, swap, string, number, op_token, quot, grouping, _tuple, _block)
   ex == nothing && throw(ParseError("Unexpected character $(read(io))", loc(io)))
   while (args = tryparse(brackets, io)) != nothing
     ex = Call(ex, args)

@@ -32,6 +32,10 @@ struct Operator <: Expr
   args::Vector{Any}
 end
 
+struct Swap <: Expr
+  op
+end
+
 struct Block <: Expr
   args::Vector{Any}
 end
@@ -100,6 +104,11 @@ function _show(io::Ctx, x::Operator)
   print(io, "(")
   join(io, repr.((io,), x.args), " $(x.op) ")
   print(io, ")")
+end
+
+function _show(io::Ctx, x::Swap)
+  print(io, "&")
+  _show(io, x.op)
 end
 
 function _show(io::Ctx, x::Quote)
