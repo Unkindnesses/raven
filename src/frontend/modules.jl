@@ -1,6 +1,7 @@
 struct Signature
   pattern
   args::Vector{Symbol}
+  swap::Dict{Int,Symbol}
 end
 
 struct RMethod

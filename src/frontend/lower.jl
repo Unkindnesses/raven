@@ -29,6 +29,10 @@ struct And
   patterns::Vector{Any}
 end
 
+struct Swap
+  pattern
+end
+
 function lowerisa(ex, as)
   if ex isa Symbol
     return Isa(ex)
@@ -68,10 +72,27 @@ function _lowerpattern(ex, as)
   end
 end
 
+# At the top level, &x is allowed.
+# TODO: swap should be part of the pattern, so we can reject swaps that mismatch
+# the signature.
+function _lowersig(ex, as, swaps)
+  ex isa AST.Tuple || return _lowerpattern(ex, as)
+  args = map(enumerate(ex.args)) do (i, x)
+    if x isa AST.Swap
+      swaps[i] = x.op
+      Bind(x.op, Hole())
+    else
+      _lowerpattern(x, as)
+    end
+  end
+  data(Literal(:Tuple), args...)
+end
+
 function lowerpattern(ex)
   as = []
-  p = _lowerpattern(ex, as)
-  return Signature(p, as)
+  swaps = Dict{Int,Symbol}()
+  p = _lowersig(ex, as, swaps)
+  return Signature(p, as, swaps)
 end
 
 # Expr -> IR lowering
