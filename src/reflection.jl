@@ -2,7 +2,7 @@ ismethod(m, name) = m isa RMethod && m.name == name
 sigmatch(sig, func) = sig[1] == func || ismethod(sig[1], func)
 
 function code_lowered(cx::Inference, func)
-  return IdDict(meth.pattern => meth.func for meth in cx.mod.methods[func])
+  return IdDict(meth.sig.pattern => meth.func for meth in cx.mod.methods[func])
 end
 
 function code_typed(cx::Inference, func)

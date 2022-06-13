@@ -5,7 +5,7 @@ end
 
 struct RMethod
   name::Symbol
-  pattern::Signature
+  sig::Signature
   func
   partial::Bool
 end
