@@ -55,7 +55,7 @@ fn sum(xs) { sum(xs, zero(first(xs))) }
 fn map(f, xs: Empty) { xs }
 fn map(f, xs: Prepend) { prepend(map(f, rest(xs)), f(first(xs))) }
 
-fn foreach(f, _: Empty) { nothing }
+fn foreach(f, _: Empty) { nil }
 fn foreach(f, xs: Prepend) {
   f(first(xs))
   foreach(f, rest(xs))

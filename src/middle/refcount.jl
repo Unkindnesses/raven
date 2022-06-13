@@ -65,12 +65,12 @@ isreftype(::VData) = true
 
 function retain(f, T::VData, x)
   ptr = f(stmt(Expr(:ref, x, 2), type = rtuple(data(:Ptr, Int32))))
-  f(stmt(xcall(:retain, ptr), type = data(:Nothing)))
+  f(stmt(xcall(:retain, ptr), type = data(:Nil)))
 end
 
 function release(f, T::VData, x)
   ptr = f(stmt(Expr(:ref, x, 2), type = rtuple(data(:Ptr, Int32))))
-  f(stmt(xcall(:release, ptr), type = data(:Nothing)))
+  f(stmt(xcall(:release, ptr), type = data(:Nil)))
 end
 
 function release(f, T::Data, x)

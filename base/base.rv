@@ -21,9 +21,9 @@ fn (x |> f) { f(x) }
 fn condition(x) { panic("Non-boolean used as a condition") }
 fn condition(x: Int32) { widen(x) }
 
-fn Nothing() { data(`Nothing`) }
+fn Nil() { data(`Nil`) }
 
-nothing = Nothing()
+nil = Nil()
 
 import { print }
 import { wasm }
