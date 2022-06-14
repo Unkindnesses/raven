@@ -34,7 +34,7 @@ function vload(cx::Inference, x::AST.Syntax)
   f = sig isa AST.Operator ? sig.op : sig.func
   args = AST.Tuple(x.args[1].args)
   sig = lowerpattern(args)
-  method!(cx.mod, f, RMethod(f, sig, lowerfn(x, sig.args)))
+  method!(cx.mod, f, RMethod(f, sig, lowerfn(x, sig)))
   return f
 end
 
@@ -54,7 +54,8 @@ function finish!(cx::Inference)
   fn = AST.Syntax(:fn, [AST.Call(:_start, []),
                   AST.Block([[AST.Call(f, []) for f in cx.main]...,
                              AST.Call(:data, [AST.Quote(:Nil)])])])
-  method!(cx.mod, :_start, RMethod(:_start, lowerpattern(AST.Tuple([])), lowerfn(fn, [])))
+  sig = lowerpattern(AST.Tuple([]))
+  method!(cx.mod, :_start, RMethod(:_start, sig, lowerfn(fn, sig)))
 end
 
 function loadfile(cx::Inference, io::IO)

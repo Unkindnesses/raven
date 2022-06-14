@@ -130,13 +130,16 @@ Base.haskey(sc::GlobalScope, x::Symbol) = x in sc.defs
 
 variable!(sc::GlobalScope, name) = Global(name)
 
+swaps(sc::GlobalScope) = nothing
+
 struct Scope
   parent::Any
   env::Dict{Symbol,Slot}
+  swap::Union{Dict{Int,Symbol},Nothing} # slight hack; store for `return` lowering
 end
 
-Scope(parent) = Scope(parent, Dict{Symbol,Any}())
-Scope() = Scope(GlobalScope())
+Scope(parent; swap = nothing) = Scope(parent, Dict{Symbol,Any}(), swap)
+Scope(; swap = nothing) = Scope(GlobalScope(); swap)
 
 @forward Scope.env Base.setindex!
 
@@ -145,6 +148,8 @@ Base.haskey(sc::Scope, x::Symbol) = haskey(sc.env, x) || haskey(sc.parent, x)
 
 variable!(sc::Scope, name::Symbol) =
   haskey(sc, name) ? sc[name] : (sc[name] = Slot(gensym(name)))
+
+swaps(sc::Scope) = sc.swap == nothing ? swaps(sc.parent) : sc.swap
 
 # don't continue lowering after return
 # e.g. `f(return 1)`
@@ -209,8 +214,19 @@ function lower!(sc, ir::IR, ex::AST.Tuple)
   return v′
 end
 
+function swapreturn!(ir::IR, val, swaps)
+  if swaps != nothing && !isempty(swaps)
+    args = maximum(keys(swaps))
+    ret = push!(ir, xdata(:Tuple, val, map(i -> haskey(swaps, i) ? Slot(swaps[i]) : Global(:nil), 1:args)...))
+    return!(ir, ret)
+  else
+    return!(ir, val)
+  end
+end
+
 function lower!(sc, ir::IR, ex::AST.Return)
-  IRTools.return!(ir, lower!(sc, ir, ex.val))
+  result = lower!(sc, ir, ex.val)
+  swapreturn!(ir, result, swaps(sc))
   return
 end
 
@@ -322,15 +338,15 @@ end
 
 _lower!(sc, ir::IR, ex::AST.Syntax) = lower!(sc, ir, ex, false)
 
-function lowerfn(ex, args)
-  sc = Scope()
+function lowerfn(ex, sig)
+  sc = Scope(swap = sig.swap)
   ir = IR()
-  for arg in args
+  for arg in sig.args
     sc[arg] = Slot(arg)
     push!(ir, :($(Slot(arg)) = $(argument!(ir))))
   end
   out = lower!(sc, ir, ex.args[2])
-  out == nothing || IRTools.return!(ir, out)
+  out == nothing || swapreturn!(ir, out, sig.swap)
   return ir |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
 end
 

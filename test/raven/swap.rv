@@ -1,10 +1,28 @@
-fn swap(&x, &y) {
+fn swap1(&x, &y) {
   tmp = x
   x = y
   y = tmp
+  x+y
 }
 
 a = widen(3)
 b = widen(5)
 
-println(swap(a, b) == 3)
+out1 = swap1(a, b)
+
+println(part(out1, 1) == 8)
+println(part(out1, 2) == 5)
+println(part(out1, 3) == 3)
+
+fn swap2(x, &y) {
+  tmp = x
+  x = y
+  y = tmp
+  x+y
+}
+
+out2 = swap2(a, b)
+
+println(part(out2, 1) == 8)
+println(part(out2, 2) == nil)
+println(part(out2, 3) == 3)

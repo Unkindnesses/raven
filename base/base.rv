@@ -14,6 +14,8 @@ fn tag(x) { part(x, 0) }
 
 fn identity(x) { x }
 
+fn (a == b) { false }
+
 fn (x |> f) { f(x) }
 
 # fn tuple(xs...) { data(`Tuple`, xs...) }
@@ -24,6 +26,8 @@ fn condition(x: Int32) { widen(x) }
 fn Nil() { data(`Nil`) }
 
 nil = Nil()
+
+fn (_: Nil) == (_: Nil) { true }
 
 import { print }
 import { wasm }
