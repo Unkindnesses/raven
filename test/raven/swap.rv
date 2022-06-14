@@ -1,0 +1,10 @@
+fn swap(&x, &y) {
+  tmp = x
+  x = y
+  y = tmp
+}
+
+a = widen(3)
+b = widen(5)
+
+println(swap(a, b) == 3)

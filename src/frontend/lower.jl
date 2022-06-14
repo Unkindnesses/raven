@@ -80,6 +80,7 @@ function _lowersig(ex, as, swaps)
   args = map(enumerate(ex.args)) do (i, x)
     if x isa AST.Swap
       swaps[i] = x.op
+      x.op in as || push!(as, x.op)
       Bind(x.op, Hole())
     else
       _lowerpattern(x, as)
