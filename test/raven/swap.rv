@@ -11,3 +11,16 @@ b = widen(5)
 println(swap(&a, &b) == 8)
 println(a == 5)
 println(b == 3)
+
+fn copy(x, &y) {
+  y = x
+  return
+}
+
+let {
+  a = 3
+  b = 5
+  copy(&a, &b) # TODO disallow this
+  println(a == nil)
+  println(b == 3)
+}
