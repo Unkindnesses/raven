@@ -406,8 +406,8 @@ end
 function lower_toplevel(ex, defs = [])
   sc = GlobalScope(defs)
   ir = IR()
-  out = lower!(sc, ir, ex)
-  IRTools.return!(ir, out)
+  _lower!(sc, ir, ex)
+  IRTools.return!(ir, Global(:nil))
   ir = rewrite_globals(ir)
   return ir |> IRTools.ssa! |> IRTools.prune!
 end
