@@ -271,7 +271,7 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
   end
   IRTools.branch!(header, after, unless = cond)
   IRTools.canbranch(body) && IRTools.branch!(body, header)
-  return value ? lower!(sc, ir, AST.Call(:Nil, [])) : nothing
+  return value ? Global(:nil) : nothing
 end
 
 struct If
@@ -297,7 +297,7 @@ function If(b::AST.Syntax)
   end
   if cond[end] !== true
     push!(cond, true)
-    push!(body, AST.Call(:Nil, []))
+    push!(body, AST.Call(:data, [AST.Quote(:Nil)]))
   end
   return If(cond, body)
 end
