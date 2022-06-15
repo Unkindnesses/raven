@@ -10,3 +10,8 @@ fn print(x: Tuple) {
   }
   print("]")
 }
+
+fn push(&xs, x) {
+  xs = [xs..., x]
+  return xs
+}

@@ -8,4 +8,6 @@ fn swap(&x, &y) {
 a = widen(3)
 b = widen(5)
 
-println(swap(a, b) == 8)
+println(swap(&a, &b) == 8)
+println(a == 5)
+println(b == 3)

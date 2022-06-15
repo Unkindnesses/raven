@@ -8,7 +8,7 @@ fn range(n) {
   xs = []
   i = 1
   while (i <= n) {
-    xs = [xs..., i]
+    push(&xs, i)
     i = i + 1
   }
   return xs

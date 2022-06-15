@@ -185,14 +185,24 @@ _lower!(sc, ir::IR, ex::AST.Operator) = lower!(sc, ir, ex, false)
 
 function argtuple!(sc, ir::IR, args)
   args = collect(args)
+  swaps = []
   parts = []
+  idx = 1
+  splat = false
   while !isempty(args)
     if first(args) isa AST.Splat
       push!(parts, lower!(sc, ir, popfirst!(args).expr))
+      splat = true
     else
       as = []
       while !(isempty(args) || first(args) isa AST.Splat)
-        push!(as, lower!(sc, ir, popfirst!(args)))
+        arg = popfirst!(args)
+        if arg isa AST.Swap && !splat
+          arg = arg.op
+          push!(swaps, arg => idx)
+        end
+        push!(as, lower!(sc, ir, arg))
+        idx += 1
       end
       push!(parts, _push!(ir, xdata(:Tuple, as...)))
     end
@@ -201,18 +211,23 @@ function argtuple!(sc, ir::IR, args)
     isempty(parts) ? xdata(:Tuple) :
     length(parts) == 1 ? parts[1] :
     _push!(ir, xcall(datacat_method, xdata(:Tuple, parts...)))
+  return args, swaps
 end
 
 function lower!(sc, ir::IR, ex::AST.Call)
-  args = argtuple!(sc, ir, ex.args)
+  args, swaps = argtuple!(sc, ir, ex.args)
   result = _push!(ir, xcall(lower!(sc, ir, ex.func), args))
-  _push!(ir, xcall(part_method, result, 1))
+  val = _push!(ir, xcall(part_method, result, 1))
+  for (x, i) in swaps
+    _push!(ir, Expr(:(=), variable!(sc, x), xcall(part_method, result, i+1)))
+  end
+  return val
 end
 
 function lower!(sc, ir::IR, ex::AST.Tuple)
   # TODO: should use the `tuple` function.
   # But this puts off the need for special argument inference.
-  argtuple!(sc, ir, ex.args)
+  argtuple!(sc, ir, ex.args)[1]
 end
 
 function swapreturn!(ir::IR, val, swaps)
