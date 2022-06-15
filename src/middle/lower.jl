@@ -36,8 +36,8 @@ function globals(mod::RModule, ir::IR)
     T = get(mod, x.name, ⊥)
     insert = v == nothing ? (x -> push!(pr, x)) : (x -> insert!(pr, v, x))
     if T == ⊥
-      insert(xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
-                   Expr(:ref, "$(x.name) is not defined")))
+      insert(stmt(xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
+                        Expr(:ref, "$(x.name) is not defined")), type = ⊥))
     else
       insert(stmt(Expr(:global, x.name), type = T))
     end

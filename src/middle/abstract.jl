@@ -150,7 +150,7 @@ function infercall!(inf, loc, block, ex)
     Ts = exprtype(inf.mod, block.ir, ex.args)
     F, Ts = Ts[1], (Ts[2],)
   end
-  any(==(⊥), Ts) && return ⊥
+  (F == ⊥ || any(==(⊥), Ts)) && return ⊥
   fr = frame!(inf, F, Ts...)
   fr isa Frame || return fr
   push!(fr.edges, loc)
