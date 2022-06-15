@@ -14,16 +14,13 @@ fn range(n) {
   return xs
 }
 
-# TODO let
-fn testRange() {
+let {
   xs = range(10)
   println(nparts(xs) == 10)
   println(part(xs, 1) == 1)
   println(part(xs, 10) == 10)
   println(part(xs, widen(5)) == 5)
 }
-
-testRange()
 
 fn rangeReverse(n) {
   xs = []
@@ -35,14 +32,12 @@ fn rangeReverse(n) {
   return xs
 }
 
-fn testRangeReverse() {
+let {
   xs = rangeReverse(10)
   println(nparts(xs) == 10)
   println(part(xs, 1) == 10)
   println(part(xs, 10) == 1)
   println(part(xs, widen(5)) == 6)
 }
-
-testRangeReverse()
 
 println(allocationCount() == 0)

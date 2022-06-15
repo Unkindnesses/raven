@@ -337,6 +337,12 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
   value && IRTools.argument!(b, insert = false)
 end
 
+function lowerlet!(sc, ir::IR, ex, value = true)
+  sc = Scope(sc)
+  @assert length(ex.args) == 1
+  (value ? lower! : _lower!)(sc, ir, ex.args[1])
+end
+
 function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
   if ex.name == :while
     lowerwhile!(sc, ir, ex, value)
@@ -349,6 +355,8 @@ function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
     push!(ir, xcall(op, args...))
   elseif ex.name == :import
     push!(ir, Expr(:import, importpath(ex)))
+  elseif ex.name == :let
+    lowerlet!(sc, ir, ex, value)
   else
     error("unrecognised block $(ex.name)")
   end
