@@ -36,7 +36,7 @@ fn isLastBlock(ptr, size) {
   addr(ptr + size) == memorySize()
 }
 
-fn coalesceBlock(ptr, size) {
+fn coalesceBlock(ptr, &size) {
   isLastBlock(ptr, size) && return size
   next = ptr + size
   getBlockUsed(next) && return size
@@ -53,7 +53,7 @@ fn findFreeBlock(n: Int32) {
   size = getBlockSize(ptr)
   while not(isLastBlock(ptr, size)) {
     if not(getBlockUsed(ptr)) {
-      size = coalesceBlock(ptr, size)
+      coalesceBlock(ptr, &size)
       (size >= n) && return [ptr, size]
     }
     ptr = ptr + size
@@ -73,12 +73,13 @@ fn findFreeBlock(n: Int32) {
   return [ptr, size]
 }
 
-fn trimBlock(ptr, size, newsize) {
+fn trimBlock(ptr, &size, newsize) {
   (size <= (newsize + headerSize)) && return size
   setBlockSize(ptr, newsize)
   newptr = ptr + newsize
   setBlockSize(newptr, size-newsize)
-  return newsize
+  size = newsize
+  return size
 }
 
 # Public interface
@@ -88,7 +89,7 @@ fn malloc(n: Int32) {
   ptrsize = findFreeBlock(n)
   ptr = part(ptrsize, 1)
   size = part(ptrsize, 2)
-  size = trimBlock(ptr, size, n)
+  trimBlock(ptr, &size, n)
   setBlockUsed(ptr, true)
   return ptr + headerSize
 }
