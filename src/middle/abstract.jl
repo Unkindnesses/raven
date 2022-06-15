@@ -21,10 +21,10 @@ partial_eltype(x::VData) = x.parts
 
 function union(x::Data, y::Data)
   x == y && return x
+  tag(x) == tag(y) || error("unimplemented union")
   if nparts(x) == nparts(y)
-    error("unimplemented union")
+    data(tag(x), [union(part(x, i), part(y, i)) for i = 1:nparts(x)]...)
   else
-    tag(x) == tag(y) || error("unimplemented union")
     return VData(tag(x), union(partial_eltype(x), partial_eltype(y)))
   end
 end
@@ -129,7 +129,9 @@ function dispatcher(inf, F, Ts)
     if m === nothing
       continue
     elseif m isa AbstractDict
-      return!(ir, push!(ir, xcall(meth, [indexer!(ir, args, m[x][2]) for x in meth.sig.args]...)))
+      result = push!(ir, xcall(meth, [indexer!(ir, args, m[x][2]) for x in meth.sig.args]...))
+      isempty(meth.sig.swap) && (result = push!(ir, xdata(:Tuple, result)))
+      return!(ir, result)
       return ir
     else
       error("Runtime matching not yet supported")

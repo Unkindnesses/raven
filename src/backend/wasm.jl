@@ -104,6 +104,10 @@ function lowerwasm!(mod::WModule, ir::IR)
         continue
       elseif isexpr(st.expr, :tuple, :ref)
         continue
+      elseif isexpr(st.expr, :cast)
+        @assert layout(st.type) == layout(exprtype(mod, ir, st.expr.args[1]))
+        ir[v] = st.expr.args[1]
+        continue
       elseif isexpr(st.expr, :global)
         g = Global(st.expr.args[1])
         l = global!(mod, g, st.type)

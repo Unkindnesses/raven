@@ -1,4 +1,5 @@
 # HACK: belongs in IRTools.
+# Also, could be written as `pr[x] = y`
 function Base.replace!(pr::IRTools.Pipe, x, y)
   IRTools.substitute!(pr, x, IRTools.substitute(pr, y))
 end

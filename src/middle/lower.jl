@@ -263,7 +263,7 @@ function lowerdata(cx, ir)
         T = st.type
         if S isa Data && T isa Data
           @assert layout(S) == layout(T)
-          pr[v] = x
+          pr[v] = Expr(:cast, x)
         else
           datacat_method!(cx, S)
         end
@@ -276,6 +276,7 @@ function lowerdata(cx, ir)
       elseif F == part_method
         x, i = st.expr.args[2:end]
         T, I = exprtype(cx.mod, ir, st.expr.args[2:end])
+        T == ⊥ && continue # TODO strip unreachable code earlier
         if T isa Data && I isa Type{<:Integer}
           partmethod!(cx, T, I)
         else

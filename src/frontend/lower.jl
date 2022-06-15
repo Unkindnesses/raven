@@ -176,16 +176,15 @@ function lower!(sc, ir::IR, ex::AST.Operator, value = true)
     clauses = ex.op == :(&&) ? [ex.args[2], Int32(false)] : [true, ex.args[2]]
     lowerif!(sc, ir, If([ex.args[1], true], clauses), value)
   else
-    _push!(ir, xcall(ex.op, xdata(:Tuple, map(x -> lower!(sc, ir, x), ex.args)...)))
+    r = _push!(ir, xcall(ex.op, xdata(:Tuple, map(x -> lower!(sc, ir, x), ex.args)...)))
+    _push!(ir, xcall(part_method, r, 1))
   end
 end
 
 _lower!(sc, ir::IR, ex::AST.Operator) = lower!(sc, ir, ex, false)
 
-# TODO: should possibly have a primitive `data(...)` expression
-# rather than special-casing `tuple`.
-function lower!(sc, ir::IR, ex::AST.Call)
-  args = collect(ex.args)
+function argtuple!(sc, ir::IR, args)
+  args = collect(args)
   parts = []
   while !isempty(args)
     if first(args) isa AST.Splat
@@ -201,17 +200,19 @@ function lower!(sc, ir::IR, ex::AST.Call)
   args =
     isempty(parts) ? xdata(:Tuple) :
     length(parts) == 1 ? parts[1] :
-    _push!(ir, xcall(:datacat, xdata(:Tuple, parts...)))
-  _push!(ir, xcall(lower!(sc, ir, ex.func), args))
+    _push!(ir, xcall(datacat_method, xdata(:Tuple, parts...)))
+end
+
+function lower!(sc, ir::IR, ex::AST.Call)
+  args = argtuple!(sc, ir, ex.args)
+  result = _push!(ir, xcall(lower!(sc, ir, ex.func), args))
+  _push!(ir, xcall(part_method, result, 1))
 end
 
 function lower!(sc, ir::IR, ex::AST.Tuple)
-  v = lower!(sc, ir, AST.Call(:tuple, ex.args))
-  # TODO: this is hacky, we should just use the `tuple` function.
-  # But it puts off the need for special argument inference.
-  v′ = ir[v].expr.args[2]
-  delete!(ir, v)
-  return v′
+  # TODO: should use the `tuple` function.
+  # But this puts off the need for special argument inference.
+  argtuple!(sc, ir, ex.args)
 end
 
 function swapreturn!(ir::IR, val, swaps)
@@ -240,6 +241,7 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
   header = IRTools.block!(ir)
   cond = lower!(sc, ir, ex.args[1])
   cond = _push!(ir, xcall(:condition, xdata(:Tuple, cond)))
+  cond = _push!(ir, xcall(part_method, cond, 1))
   IRTools.block!(ir)
   _lower!(sc, ir, ex.args[2].args)
   body = blocks(ir)[end]
@@ -302,6 +304,7 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
     end
     cond = lower!(sc, ir, cond)
     cond = _push!(ir, xcall(:condition, xdata(:Tuple, cond)))
+    cond = _push!(ir, xcall(part_method, cond, 1))
     c = blocks(ir)[end]
     t = IRTools.block!(ir)
     body!(ir, body)
