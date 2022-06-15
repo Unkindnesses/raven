@@ -1,27 +1,27 @@
-ptr1 = malloc(Int32(16))
+ptr1 = malloc!(Int32(16))
 println(ptr1 == (Ptr(0) + headerSize))
 println(blockSize(ptr1) == Int32(16))
 
-ptr2 = malloc(Int32(16))
+ptr2 = malloc!(Int32(16))
 println(ptr2 == (Ptr(0) + headerSize + Int32(16) + headerSize))
 println(blockSize(ptr2) == Int32(16))
 
 println(allocationCount() == 2)
 
-free(ptr1)
-free(ptr2)
+free!(ptr1)
+free!(ptr2)
 
-# Retain / release
+# retain / release
 
-ptr3 = malloc(Int32(16))
+ptr3 = malloc!(Int32(16))
 println(allocationCount() == 1)
 println(blockCount(ptr3) == 1)
 
-retain(ptr3)
+retain!(ptr3)
 println(blockCount(ptr3) == 2)
 
-release(ptr3)
+release!(ptr3)
 println(blockCount(ptr3) == 1)
 
-release(ptr3)
+release!(ptr3)
 println(allocationCount() == 0)

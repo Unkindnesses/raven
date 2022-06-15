@@ -84,7 +84,7 @@ fn trimBlock(ptr, &size, newsize) {
 
 # Public interface
 
-fn malloc(n: Int32) {
+fn malloc!(n: Int32) {
   n = n + headerSize
   ptrsize = findFreeBlock(n)
   ptr = part(ptrsize, 1)
@@ -94,7 +94,7 @@ fn malloc(n: Int32) {
   return ptr + headerSize
 }
 
-fn free(p: Ptr) {
+fn free!(p: Ptr) {
   p = p - headerSize
   setBlockUsed!(p, false)
   return
@@ -108,14 +108,14 @@ fn blockCount(p: Ptr) {
   Int64(getBlockUsed(p - headerSize))
 }
 
-fn retain(p: Ptr) {
+fn retain!(p: Ptr) {
   p = p - headerSize
   n = getBlockUsed(p)
   setBlockUsed!(p, n+Int32(1))
   return
 }
 
-fn release(p: Ptr) {
+fn release!(p: Ptr) {
   p = p - headerSize
   n = getBlockUsed(p)
   if (n == Int32(0)) {

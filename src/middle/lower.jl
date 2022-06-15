@@ -188,7 +188,7 @@ function datacat_ir(T::Data)
   size = push!(ir, xcall(WIntrinsic(i32.wrap_i64, i32), size))
   bytes = push!(ir, xcall(WIntrinsic(i32.mul, i32), size, Int32(8)))
   margs = push!(ir, stmt(Expr(:tuple, bytes), type = rtuple(Int32)))
-  ptr = push!(ir, stmt(xcall(Global(:malloc), margs), type = Int32))
+  ptr = push!(ir, stmt(xcall(Global(:malloc!), margs), type = Int32))
   pos = ptr
   for i in 1:nparts(T)
     P = part(T, i)
@@ -309,7 +309,7 @@ function cast!(ir, from, to)
     from
   elseif from == rtuple() && to isa VData
     margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rtuple(Int32)))
-    ptr = push!(ir, stmt(xcall(Global(:malloc), margs), type = Int32))
+    ptr = push!(ir, stmt(xcall(Global(:malloc!), margs), type = Int32))
     push!(ir, stmt(Expr(:tuple, Int32(0), ptr), type = to))
   else
     error("unsupported cast: $from -> $to")

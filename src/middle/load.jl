@@ -74,10 +74,9 @@ function loadfile(f::String; infer = true, partial = false)
   open(io -> loadfile(cx, io), f)
   finish!(cx)
   infer || return cx
-  frame!(cx, :malloc, rtuple(Int32))
-  frame!(cx, :free, rtuple(data(:Ptr, Int32)))
-  frame!(cx, :retain, rtuple(data(:Ptr, Int32)))
-  frame!(cx, :release, rtuple(data(:Ptr, Int32)))
+  frame!(cx, :malloc!, rtuple(Int32))
+  frame!(cx, :retain!, rtuple(data(:Ptr, Int32)))
+  frame!(cx, :release!, rtuple(data(:Ptr, Int32)))
   frame!(cx, startmethod(cx.mod))
   infer && infer!(cx; partial)
   return cx

@@ -2,11 +2,11 @@
 # on the heap will be free. Sometimes the block is not split, though, so we
 # have to check.
 
-ptr1 = malloc(pageSize - headerSize)
+ptr1 = malloc!(pageSize - headerSize)
 
-ptr2 = malloc(Int32(16))
+ptr2 = malloc!(Int32(16))
 
 println(ptr1 != ptr2)
 
-free(ptr1)
-free(ptr2)
+free!(ptr1)
+free!(ptr2)
