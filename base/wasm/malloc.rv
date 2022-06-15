@@ -15,14 +15,14 @@ pageSize = Int32(64*1024) # 64 KiB
 headerSize = Int32(8)
 
 fn getBlockSize(p: Ptr) { i32load(p) }
-fn setBlockSize(p: Ptr, sz: Int32) { i32store(p, sz) }
+fn setBlockSize!(p: Ptr, sz: Int32) { i32store!(p, sz) }
 
 fn getBlockUsed(p: Ptr) { i32load(p + Int32(4)) }
-fn setBlockUsed(p: Ptr, u: Int32) { i32store(p + Int32(4), u) }
+fn setBlockUsed!(p: Ptr, u: Int32) { i32store!(p + Int32(4), u) }
 
 # Initialise first block
-memoryGrow(Int32(1))
-setBlockSize(Ptr(0), pageSize)
+memoryGrow!(Int32(1))
+setBlockSize!(Ptr(0), pageSize)
 
 fn memorySize() {
   memoryPages() * pageSize
@@ -43,7 +43,7 @@ fn coalesceBlock(ptr, &size) {
   nextSize = getBlockSize(next)
   nextSize = coalesceBlock(next, nextSize)
   size = size + nextSize
-  setBlockSize(ptr, size)
+  setBlockSize!(ptr, size)
   return size
 }
 
@@ -66,18 +66,18 @@ fn findFreeBlock(n: Int32) {
   if (size < n) {
     needed = n - size
     alloc = npages(needed)
-    memoryGrow(alloc)
+    memoryGrow!(alloc)
     size = size + alloc*pageSize
-    setBlockSize(ptr, size)
+    setBlockSize!(ptr, size)
   }
   return [ptr, size]
 }
 
 fn trimBlock(ptr, &size, newsize) {
   (size <= (newsize + headerSize)) && return size
-  setBlockSize(ptr, newsize)
+  setBlockSize!(ptr, newsize)
   newptr = ptr + newsize
-  setBlockSize(newptr, size-newsize)
+  setBlockSize!(newptr, size-newsize)
   size = newsize
   return size
 }
@@ -90,13 +90,13 @@ fn malloc(n: Int32) {
   ptr = part(ptrsize, 1)
   size = part(ptrsize, 2)
   trimBlock(ptr, &size, n)
-  setBlockUsed(ptr, true)
+  setBlockUsed!(ptr, true)
   return ptr + headerSize
 }
 
 fn free(p: Ptr) {
   p = p - headerSize
-  setBlockUsed(p, false)
+  setBlockUsed!(p, false)
   return
 }
 
@@ -111,7 +111,7 @@ fn blockCount(p: Ptr) {
 fn retain(p: Ptr) {
   p = p - headerSize
   n = getBlockUsed(p)
-  setBlockUsed(p, n+Int32(1))
+  setBlockUsed!(p, n+Int32(1))
   return
 }
 
@@ -122,7 +122,7 @@ fn release(p: Ptr) {
     panic("Memory management fault")
   }
   # Setting to 0 equates to freeing
-  setBlockUsed(p, n-Int32(1))
+  setBlockUsed!(p, n-Int32(1))
 }
 
 fn allocationCount() {
