@@ -5,3 +5,11 @@ fn foo(m) { return n + m }
 result = foo(3) == 8
 
 println(result)
+
+x = 1
+
+let {
+  x = 2
+}
+
+println(x == 2)

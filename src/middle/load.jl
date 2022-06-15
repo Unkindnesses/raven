@@ -23,7 +23,8 @@ end
 
 function load_expr(cx::Inference, x)
   fname = gensym(:main)
-  method!(cx.mod, fname, RMethod(fname, lowerpattern(AST.Tuple([])), lower_toplevel(x)))
+  defs = collect(keys(cx.mod.defs))
+  method!(cx.mod, fname, RMethod(fname, lowerpattern(AST.Tuple([])), lower_toplevel(x, defs)))
   push!(cx.main, fname)
 end
 
