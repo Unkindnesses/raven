@@ -4,7 +4,7 @@ jsstring(s) = Base.string('"', escape_string(s), '"')
 
 function emitjs(path, wasm, strings)
   open(path, "w") do io
-    println(io, "// This file is auto-generated.\n")
+    println(io, "// This file contains generated code.\n")
     write(io, Base.read(support))
     println(io)
     println(io, "const wasmFile = '$wasm';")
