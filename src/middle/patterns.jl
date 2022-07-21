@@ -1,9 +1,5 @@
 # Pattern Matching
 
-isrepeat(x) = false
-isrepeat(x::Repeat) = true
-isrepeat(x::Bind) = isrepeat(x.pattern)
-
 # Match types (partial values inferred by the interpreter) against user-
 # specified patterns at compile time.
 # Returns either a dictionary (if the match is certain to succeed), `nothing`
@@ -77,6 +73,8 @@ function partial_match(mod, pat::Data, val, path)
   return # TODO: could be wrong. Add `parts` for natives.
 end
 
+isslurp(x) = x isa Repeat && x.pattern isa Bind && x.pattern.pattern == hole
+
 function partial_match(mod, pat::Data, val::Data, path)
   bs = Dict()
   i = 0
@@ -85,18 +83,18 @@ function partial_match(mod, pat::Data, val::Data, path)
     i <= nparts(pat) || return nothing
     if pat[i] == Repeat(hole)
       break
-    elseif pat[i] isa Bind && pat[i].pattern == Repeat(hole)
-      bs = @try _assoc(bs, pat[i].name => (rtuple(parts(val)[i:end]...), [path..., i:nparts(val)]))
+  elseif isslurp(pat[i])
+      bs = @try _assoc(bs, pat[i].pattern.name => (rtuple(parts(val)[i:end]...), [path..., i:nparts(val)]))
       return bs
-    elseif isrepeat(pat[i])
+    elseif pat[i] isa Repeat
       return missing
     else
       bs = @try _merge(bs, @try partial_match(mod, pat[i], val[i], [path..., i]))
     end
     i += 1
   end
-  if nparts(pat) == i && isrepeat(pat[i])
-    bs = pat[i] isa Bind ? (@try _assoc(bs, pat[i].name => (rtuple(), [path..., i:0]))) : bs
+  if nparts(pat) == i && isslurp(pat[i])
+    bs = @try _assoc(bs, pat[i].pattern.name => (rtuple(), [path..., i:0]))
   elseif nparts(pat) > nparts(val)
     return
   end
@@ -105,7 +103,7 @@ end
 
 function partial_match(mod, pat::Data, val::VData, path)
   bs = @try partial_match(mod, tag(pat), tag(val), [path..., 0])
-  (nparts(pat) == 1 && isrepeat(part(pat, 1))) || return missing
+  (nparts(pat) == 1 && part(pat, 1) isa Repeat) || return missing
   pat = part(pat, 1)
   b, r = pat isa Bind ? (pat.name, pat.pattern) : (nothing, pat)
   bs′ = partial_match(mod, r.pattern, val.parts, path)

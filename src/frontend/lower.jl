@@ -59,12 +59,7 @@ function _lowerpattern(ex, as)
     name in as || push!(as, name)
     Bind(name, lowerisa(T, as))
   elseif ex isa AST.Splat
-    inner = _lowerpattern(ex.expr, as)
-    if inner isa Bind
-      Bind(inner.name, Repeat(inner.pattern))
-    else
-      Repeat(inner)
-    end
+    Repeat(_lowerpattern(ex.expr, as))
   elseif ex isa AST.Call && ex.func == :data
     data(map(x -> _lowerpattern(x, as), ex.args)...)
   else
