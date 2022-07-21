@@ -14,4 +14,8 @@ end
   include("reflection.jl")
 end
 
+@testset "Matching" begin
+  include("match.jl")
+end
+
 end
