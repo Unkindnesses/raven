@@ -63,16 +63,22 @@ function blockargs!(b, args)
   return changed
 end
 
+struct Loc
+  sig::Tuple
+  block::Integer
+  ip::Integer
+end
+
 mutable struct Frame
   ir::IR
-  edges::Vector{Any}
+  edges::Vector{Loc}
   stmts::Vector{Vector{Variable}}
   rettype
 end
 
 Base.show(io::IO, ::Frame) = print(io, "Frame(...)")
 
-Frame(ir::IR) = Frame(ir, [], keys.(blocks(ir)), ⊥)
+Frame(ir::IR) = Frame(ir, Loc[], keys.(blocks(ir)), ⊥)
 
 function frame(ir::IR, args...)
   ir = prepare_ir!(copy(ir))
@@ -84,17 +90,17 @@ struct Inference
   mod::RModule
   frames::IdDict{Any,Frame}
   main::Vector{Any}
-  queue::WorkQueue{Any}
+  queue::WorkQueue{Loc}
 end
 
-Inference(mod::RModule) = Inference(mod, Dict(), [], WorkQueue{Any}())
+Inference(mod::RModule) = Inference(mod, Dict(), [], WorkQueue{Loc}())
 
 function irframe!(inf, T, ir, args...)
   haskey(inf.frames, T) && return inf.frames[T]
   fr = frame(ir, args...)
   inf.frames[T] = fr
   for bl in reverse(blocks(ir))
-    push!(inf.queue, (T, bl.id, 1))
+    push!(inf.queue, Loc(T, bl.id, 1))
   end
   return fr
 end
@@ -170,7 +176,7 @@ function openbranches(inf, bl)
 end
 
 function step!(inf::Inference, loc)
-  F, b, ip = loc
+  F, b, ip = loc.sig, loc.block, loc.ip
   frame = inf.frames[F]
   block, stmts = IRTools.block(frame.ir, b), frame.stmts[b]
   if ip <= length(stmts)
@@ -178,25 +184,25 @@ function step!(inf::Inference, loc)
     st = block[var]
     if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
       block.ir[var] = Statement(block[var], type = rvtype(st.expr.args[1].ret))
-      push!(inf.queue, (F, b, ip+1))
+      push!(inf.queue, Loc(F, b, ip+1))
     elseif isexpr(st.expr, :call)
-      T = infercall!(inf, (F, b, ip), block, st.expr)
+      T = infercall!(inf, Loc(F, b, ip), block, st.expr)
       if T != ⊥
         block.ir[var] = Statement(block[var], type = union(st.type, T))
-        push!(inf.queue, (F, b, ip+1))
+        push!(inf.queue, Loc(F, b, ip+1))
       end
     elseif isexpr(st.expr, :data)
       Ts = exprtype(inf.mod, block.ir, st.expr.args)
       if !any(==(⊥), Ts)
         block.ir[var] = Statement(block[var], type = data(Ts...))
-        push!(inf.queue, (F, b, ip+1))
+        push!(inf.queue, Loc(F, b, ip+1))
       end
     elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global
       x = st.expr.args[1].name
       T = exprtype(inf.mod, block.ir, st.expr.args[2])
       block.ir[var] = Statement(block[var], type = T)
       inf.mod.defs[x] = T
-      push!(inf.queue, (F, b, ip+1))
+      push!(inf.queue, Loc(F, b, ip+1))
     else
       error("Unknown expr type $(st.expr.head)")
     end
@@ -211,7 +217,7 @@ function step!(inf::Inference, loc)
       else
         args = exprtype(inf.mod, block.ir, arguments(br))
         if blockargs!(IRTools.block(frame.ir, br.block), args)
-          push!(inf.queue, (F, br.block, 1))
+          push!(inf.queue, Loc(F, br.block, 1))
         end
       end
     end
@@ -234,7 +240,7 @@ append(st::Stack, T) = Stack(Any[st.frames..., T])
 function stack(inf::Inference, T; cache = Dict())
   haskey(cache, T) && return cache[T]
   cache[T] = nothing # stop cycles
-  callers = unique([first(loc) for loc in inf.frames[T].edges])
+  callers = unique([loc.sig for loc in inf.frames[T].edges])
   callers = [stack(inf, S) for S in callers]
   isempty(callers) && return (cache[T] = Stack([T]))
   all(==(nothing), callers) && return (cache[T] = nothing) # hit a cycle
@@ -270,7 +276,7 @@ function infer!(inf::Inference; partial = false)
     try
       step!(inf, loc)
     catch e
-      partial || rethrow(CompileError(e, stack(inf, loc[1])))
+      partial || rethrow(CompileError(e, stack(inf, loc.sig)))
     end
   end
   return inf
