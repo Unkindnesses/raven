@@ -71,14 +71,14 @@ end
 
 mutable struct Frame
   ir::IR
-  edges::Vector{Loc}
+  edges::Set{Loc}
   stmts::Vector{Vector{Variable}}
   rettype
 end
 
 Base.show(io::IO, ::Frame) = print(io, "Frame(...)")
 
-Frame(ir::IR) = Frame(ir, Loc[], keys.(blocks(ir)), ⊥)
+Frame(ir::IR) = Frame(ir, Set{Loc}(), keys.(blocks(ir)), ⊥)
 
 function frame(ir::IR, args...)
   ir = prepare_ir!(copy(ir))
