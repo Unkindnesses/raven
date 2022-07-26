@@ -48,13 +48,13 @@ jobs:
             ${{ runner.os }}-
       - name: Install WABT
         run: |
-          curl -OL https://github.com/WebAssembly/wabt/releases/download/1.0.27/wabt-1.0.27-ubuntu.tar.gz
-          tar -xf wabt-1.0.27-ubuntu.tar.gz
-          echo "$PWD/wabt-1.0.27/bin" >> $GITHUB_PATH
+          curl -OL https://github.com/WebAssembly/wabt/releases/download/1.0.29/wabt-1.0.29-ubuntu.tar.gz
+          tar -xf wabt-1.0.29-ubuntu.tar.gz
+          echo "$PWD/wabt-1.0.29/bin" >> $GITHUB_PATH
       - name: Install Binaryen
         run: |
-          curl -OL https://github.com/WebAssembly/binaryen/releases/download/version_105/binaryen-version_105-x86_64-linux.tar.gz
-          tar -xf binaryen-version_105-x86_64-linux.tar.gz
-          echo "$PWD/binaryen-version_105/bin" >> $GITHUB_PATH
+          curl -OL https://github.com/WebAssembly/binaryen/releases/download/version_109/binaryen-version_109-x86_64-linux.tar.gz
+          tar -xf binaryen-version_109-x86_64-linux.tar.gz
+          echo "$PWD/binaryen-version_109/bin" >> $GITHUB_PATH
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
