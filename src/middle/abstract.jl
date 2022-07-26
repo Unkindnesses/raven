@@ -126,8 +126,7 @@ function indexer!(ir::IR, arg, path)
   end
 end
 
-function dispatcher(inf, F, Ts)
-  func::Symbol = F
+function dispatcher(inf, func::Symbol, Ts)
   ir = IR()
   args = argument!(ir)
   for meth in reverse(inf.mod.methods[func])
@@ -143,7 +142,7 @@ function dispatcher(inf, F, Ts)
       error("Runtime matching not yet supported")
     end
   end
-  v = push!(ir, xcall(:panic, xdata(:Tuple, "No matching method: $F: $Ts")))
+  v = push!(ir, xcall(:panic, xdata(:Tuple, "No matching method: $func: $Ts")))
   return!(ir, v)
   return ir
 end

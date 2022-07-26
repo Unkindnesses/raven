@@ -1,5 +1,7 @@
 fn JSObject(ref: Int32) { data(`JSObject`, ref) }
 
+fn isa(data(`JSObject`, _), `JSObject`) { true }
+
 fn jsref(x) { jsref(tojs(x)) }
 
 fn jsref(obj: JSObject) { part(obj, 1) }

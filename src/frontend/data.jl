@@ -9,6 +9,7 @@ data(x...) = Data((x...,))
 nparts(x::Data) = length(x.parts)-1
 part(x::Data, i) = x.parts[i+1]
 parts(x) = x.parts[2:end]
+allparts(x::Data) = x.parts
 
 Base.getindex(x::Data, i::Integer) = x.parts[i+1]
 Base.getindex(x::Data, i::AbstractVector) = data(x.parts[i.+1]...)
@@ -49,14 +50,17 @@ for T in :[Int64, Int32, Float64, Float32, Symbol].args
   @eval part(x::Union{$T,Type{$T}}, i::Integer) =
           i == 0 ? $(QuoteNode(T)) :
           i == 1 ? x :
-          error("Tried to access part $i of 2")
-  @eval nparts(x::$T) = 2
+          error("Tried to access part $i of 1")
+  @eval nparts(x::Union{$T,Type{$T}}) = 1
+  @eval allparts(x::Union{$T,Type{$T}}) = ($(QuoteNode(T)),x)
 end
 
 part(s::String, i::Integer) =
   i == 0 ? :String :
   i == 1 ? data(:JSObject, Int32) :
-  error("Tried to access part $i of 2")
+  error("Tried to access part $i of 1")
+
+allparts(s::String) = (:String, data(:JSObject, Int32))
 
 nparts(s::String) = 1
 

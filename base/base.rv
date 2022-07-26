@@ -3,10 +3,6 @@
 # |     \/      \\  \/ /|   ___|     \| |
 # |__|\__\___/\__\\___/ |______|__/\____|
 
-Int32   = `Int32`
-Int64   = `Int64`
-Float32 = `Float32`
-Float64 = `Float64`
 Symbol  = `Symbol`
 Tuple   = `Tuple`
 
@@ -14,7 +10,8 @@ fn tag(x) { part(x, 0) }
 
 fn identity(x) { x }
 
-fn (a == b) { false }
+fn (_ == _) { false }
+fn isa(_, _) { false }
 
 fn (x |> f) { f(x) }
 
@@ -24,6 +21,8 @@ fn condition(x) { panic("Non-boolean used as a condition") }
 fn condition(x: Int32) { widen(x) }
 
 fn Nil() { data(`Nil`) }
+
+fn isa(data(`Nil`), `Nil`) { true }
 
 nil = Nil()
 

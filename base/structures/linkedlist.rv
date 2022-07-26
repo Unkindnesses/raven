@@ -3,8 +3,9 @@ List = `List`
 fn Empty() { data(`Empty`) }
 fn Prepend(xs, x) { data(`Prepend`, xs, x) }
 
-fn isa(xs, `List`) { false }
-fn isa(xs: Prepend | Empty, `List`) { true }
+fn isa(data(`Empty`), `Empty`) { true }
+fn isa(data(`Prepend`, _, _), `Prepend`) { true }
+fn isa(_: Prepend | Empty, `List`) { true }
 
 fn prepend(xs, x) { Prepend(xs, x) }
 fn prepend(xs, x, y) { prepend(prepend(xs, x), y) }

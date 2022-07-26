@@ -47,7 +47,7 @@ end
 
 function _lowerpattern(ex, as)
   if ex isa Symbol
-    ex in as || push!(as, ex)
+    ex == :_ || ex in as || push!(as, ex)
     return ex == :_ ? hole : Bind(ex, hole)
   elseif ex isa Union{Primitive,AST.Quote}
     ex isa AST.Quote && (ex = ex.expr)

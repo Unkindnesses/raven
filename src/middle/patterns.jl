@@ -1,4 +1,4 @@
-# Pattern Matching
+# Partial Pattern Matching
 
 # Match types (partial values inferred by the interpreter) against user-
 # specified patterns at compile time.
@@ -10,6 +10,17 @@
 # pairs, where `path` tells the compiler where to find the matched value in the
 # original data. `path` is a list of indexes; the last index might be a
 # UnitRange, representing a splat.
+#
+# Ideally we'd think of dispatchers as a simple list of `if` clauses: for each
+# method, check the arg list against the signature via `match(sig, args)`, and
+# if the match succeeds call the method. Then we do type inference and remove
+# redundant checks using the usual, generic optimisations.
+#
+# However, `match` is not available until it's defined in the stdlib, for which
+# we need function calls (and thus dispatchers, and thus `match`) to work. To
+# break the cycle we take a shortcut in some simple cases; if an input obviously
+# matches the signature, we'll generate code for the dispatcher that behaves
+# like `match`.
 
 @eval macro $:try(x)
   quote
@@ -55,8 +66,9 @@ end
 
 function partial_match(mod, pat::Isa, val, path)
   (haskey(mod, pat.pattern) && isvalue(mod[pat.pattern])) || return missing
-  # TODO remove the catchall
-  return tag(val) == mod[pat.pattern] ? Dict() : nothing
+  T = mod[pat.pattern]
+  r = trivial_isa(mod, val, pat.pattern)
+  r === true ? Dict() : r === false ? nothing : missing
 end
 
 function partial_match(mod, pat::Or, val, path)
@@ -69,27 +81,33 @@ function partial_match(mod, pat::Or, val, path)
   return
 end
 
-function partial_match(mod, pat::Data, val, path)
-  return # TODO: could be wrong. Add `parts` for natives.
-end
-
 isslurp(x) = x isa Repeat && x.pattern isa Bind && x.pattern.pattern == hole
 
-function partial_match(mod, pat::Data, val::Data, path)
+# Redundant, but this check prevents some `trivial_isa` cases becoming circular.
+function shortcut_literals(pat::Data, val)
+  any(x -> x isa Repeat, allparts(pat)) && return false
+  nparts(pat) == nparts(val) || return true
+  return any(zip(allparts(pat), allparts(val))) do (a, b)
+    a isa Literal && isvalue(b) && a.value != b
+  end
+end
+
+function partial_match(mod, pat::Data, val, path)
   bs = Dict()
   i = 0
+  shortcut_literals(pat, val) && return nothing
   while true
     i <= nparts(val) || break
     i <= nparts(pat) || return nothing
     if pat[i] == Repeat(hole)
       break
-  elseif isslurp(pat[i])
+    elseif isslurp(pat[i])
       bs = @try _assoc(bs, pat[i].pattern.name => (rtuple(parts(val)[i:end]...), [path..., i:nparts(val)]))
       return bs
     elseif pat[i] isa Repeat
       return missing
     else
-      bs = @try _merge(bs, @try partial_match(mod, pat[i], val[i], [path..., i]))
+      bs = @try _merge(bs, @try partial_match(mod, part(pat, i), part(val, i), [path..., i]))
     end
     i += 1
   end
@@ -118,4 +136,29 @@ function partial_ismatch(mod, pat, val)
   result = partial_match(mod, pat, val)
   ismissing(result) && return missing
   return result isa AbstractDict
+end
+
+function trivial_method(mod, func::Symbol, Ts)
+  for meth in reverse(mod.methods[func])
+    m = partial_match(mod, meth.sig.pattern, Ts)
+    if m === nothing
+      continue
+    elseif m isa AbstractDict
+      return meth
+    else
+      return nothing
+    end
+  end
+end
+
+function trivial_isa(mod, val, T)
+  meth = trivial_method(mod, :isa, rtuple(val, T))
+  meth == nothing && return missing
+  ir = meth.func
+  (length(ir) == 0 && length(blocks(ir)) == 1) || return missing
+  ret = IRTools.returnvalue(block(ir, 1))
+  ret isa Global || return missing
+  ret = mod.defs[ret.name]
+  ret isa Int32 || return missing
+  return Bool(ret)
 end
