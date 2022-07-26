@@ -118,7 +118,7 @@ function symbol(io)
   while !eof(io)
     p = position(io)
     c = read(io)
-    isletter(c) || c in ('?','!','_') || c in ('0':'9') ||
+    isletter(c) || c in ('!','_') || c in ('0':'9') ||
       (seek(io, p); break)
     write(sym, c)
   end

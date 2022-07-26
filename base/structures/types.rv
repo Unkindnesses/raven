@@ -18,16 +18,16 @@ data Pattern {
   Hole()
   Literal(_: Number | String | Symbol)
   Bind(name: Symbol, pat: Pattern)
-  IsA?(type: Symbol)
+  IsA(type: Symbol)
   Repeat(_: Pattern)
   Data(_: Pattern...)
   And(_: Pattern...)
   Or(_: Pattern...)
 }
 
-fn constant?(_: Pattern) { false }
-fn constant?(Data(parts...)) { all?(constant?, parts) }
-fn constant?(Literal(_)) { true }
+fn constant(_: Pattern) { false }
+fn constant(Data(parts...)) { all(constant, parts) }
+fn constant(Literal(_)) { true }
 
 fn value(Literal(x)) { x }
 fn value(Data(parts...)) { data(map(value, parts)...) }

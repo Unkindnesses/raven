@@ -19,8 +19,8 @@ fn rest(l: Prepend) { part(l, 1) }
 fn list() { Empty() }
 fn list(x, xs...) { prepend(list(xs...), x) }
 
-fn empty?(xs: Prepend) { false }
-fn empty?(xs: Empty) { true }
+fn empty(xs: Prepend) { false }
+fn empty(xs: Empty) { true }
 
 fn length(xs: Prepend) { 1 + length(rest(xs)) }
 fn length(xs: Empty) { 0 }
