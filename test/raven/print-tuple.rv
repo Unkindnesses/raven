@@ -1,0 +1,12 @@
+fn range(n) {
+  xs = []
+  i = 1
+  while (i <= n) {
+    push(&xs, i)
+    i = i + 1
+  }
+  return xs
+}
+
+xs = range(10)
+print(xs)

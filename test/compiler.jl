@@ -30,3 +30,6 @@ end
 @testset for test in [:global, :function, :method, :condition, :index]
   @test fails("error-$test")
 end
+
+# Test `println` output
+@test output("print-tuple") == string([1:10...])
