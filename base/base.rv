@@ -13,6 +13,9 @@ fn identity(x) { x }
 fn (_ == _) { false }
 fn isa(_, _) { false }
 
+fn isa(data(`Tuple`, _...), `Tuple`) { true }
+fn isa(data(`Symbol`, _), `Symbol`) { true }
+
 fn (x |> f) { f(x) }
 
 # fn tuple(xs...) { data(`Tuple`, xs...) }
