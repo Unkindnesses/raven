@@ -21,11 +21,14 @@ partial_eltype(x::VData) = x.parts
 
 function union(x::Data, y::Data)
   x == y && return x
-  tag(x) == tag(y) || error("unimplemented union")
-  if nparts(x) == nparts(y)
-    data(tag(x), [union(part(x, i), part(y, i)) for i = 1:nparts(x)]...)
+  if tag(x) == tag(y)
+    if nparts(x) == nparts(y)
+      data(tag(x), [union(part(x, i), part(y, i)) for i = 1:nparts(x)]...)
+    else
+      return VData(tag(x), union(partial_eltype(x), partial_eltype(y)))
+    end
   else
-    return VData(tag(x), union(partial_eltype(x), partial_eltype(y)))
+    return Or([x, y])
   end
 end
 
@@ -37,6 +40,11 @@ end
 function union(x::VData, y::VData)
   tag(x) == tag(y) || error("unimplemented union")
   return VData(tag(x), union(x.parts, y.parts))
+end
+
+function union(x, y::Or)
+  any(y -> x == y, y.patterns) && return y
+  error("unimplemented union")
 end
 
 issubtype(x::Union{T,Type{T}}, y::Type{T}) where T = true

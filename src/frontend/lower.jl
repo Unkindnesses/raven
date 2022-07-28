@@ -33,6 +33,13 @@ struct Swap
   pattern
 end
 
+function Base.show(io::IO, or::Or)
+  for i = 1:length(or.patterns)
+    i == 1 || print(io, " | ")
+    show(io, or.patterns[i])
+  end
+end
+
 function lowerisa(ex, as)
   if ex isa Symbol
     return Isa(ex)
