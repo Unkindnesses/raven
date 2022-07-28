@@ -42,13 +42,18 @@ function call(obj, meth, ...args) {
   return createRef(obj[meth].call(obj, ...args));
 }
 
+function equal(a, b) {
+  return fromRef(a) === fromRef(b);
+}
+
 function panic(obj) {
   obj = fromRef(obj);
   throw new Error(obj);
 }
 
 const support = {global, property, call,
-                 createRef, fromRef, panic};
+                 createRef, fromRef, panic,
+                 equal};
 
 async function loadWasm(f) {
   let imports = {support};

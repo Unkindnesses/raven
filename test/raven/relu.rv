@@ -9,3 +9,16 @@ fn relu(x) {
 result = (relu(widen(5)) == 5) & (relu(widen(-5)) == 0)
 
 println(result)
+
+# Return-value casting
+fn test(c) {
+  if c {
+    return "true"
+  } else {
+    return "false"
+  }
+}
+
+println(test(widen(true)) == "true")
+println(test(widen(true)) != "false")
+println(test(widen(false)) == "false")

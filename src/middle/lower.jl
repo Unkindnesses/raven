@@ -317,43 +317,50 @@ function cast!(ir, from, to)
     margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rtuple(Int32)))
     ptr = push!(ir, stmt(xcall(Global(:malloc!), margs), type = Int32))
     push!(ir, stmt(Expr(:tuple, Int32(0), ptr), type = to))
+  elseif from isa String && to == String
+    indexer!(ir, from, 1, nothing, nothing)
   else
-    error("unsupported cast: $from -> $to")
+    error("unsupported cast: $(repr(from)) -> $to")
   end
 end
 
-function casts!(mod::RModule, ir)
+function casts!(mod::RModule, ir, ret)
   for bl in blocks(ir)
     if !isreachable(bl)
       empty!(branches(bl))
       continue
     end
     for br in branches(bl)
-      isreturn(br) && continue # TODO: handle multiple returns
-      for i = 1:length(arguments(br))
-        S = exprtype(mod, ir, arguments(br)[i])
-        T = blockargtype(mod, block(ir, br.block), i)
-        S == T && continue
-        arguments(br)[i] = cast!(bl, S, T)
+      if isreturn(br)
+        S = exprtype(mod, ir, arguments(br)[1])
+        S == ret && continue
+        arguments(br)[1] = cast!(bl, S, ret)
+      else
+        for i = 1:length(arguments(br))
+          S = exprtype(mod, ir, arguments(br)[i])
+          T = blockargtype(mod, block(ir, br.block), i)
+          S == T && continue
+          arguments(br)[i] = cast!(bl, S, T)
+        end
       end
     end
   end
   return ir
 end
 
-function lowerir(cx, ir)
+function lowerir(cx, ir, ret)
   # Inference expands block args, so prune them here
   ir = prune!(copy(ir))
   ir = globals(cx.mod, ir)
   ir = lowerdata(cx, ir)
-  ir = casts!(cx.mod, ir)
+  ir = casts!(cx.mod, ir, ret)
   return ir
 end
 
 function lowerir(inf::Inference)
   comp = Compilation(inf.mod)
   for (k, fr) in inf.frames
-    comp.frames[k] = lowerir(comp, fr.ir)
+    comp.frames[k] = lowerir(comp, fr.ir, fr.rettype)
   end
   return refcounts(comp)
 end

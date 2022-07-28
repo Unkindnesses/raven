@@ -59,7 +59,7 @@ end
 
 function stringid!(mod::WModule, s::String)
   i = findfirst(==(s), mod.strings)
-  i === nothing || return i-1
+  i === nothing || return Int32(i-1)
   push!(mod.strings, s)
   return Int32(length(mod.strings)-1)
 end
@@ -163,7 +163,8 @@ default_imports = [
   WebAssembly.Import(:support, :call, :jscall1, :func, [i32, i32, i32], [i32]),
   WebAssembly.Import(:support, :panic, :panic, :func, [i32], []),
   WebAssembly.Import(:support, :createRef, :jsbox, :func, [f64], [i32]),
-  WebAssembly.Import(:support, :fromRef, :jsunbox, :func, [i32], [f64])]
+  WebAssembly.Import(:support, :fromRef, :jsunbox, :func, [i32], [f64]),
+  WebAssembly.Import(:support, :equal, :jseq, :func, [i32, i32], [i32])]
 
 function wasm_ir(inf::Compilation)
   mod = WModule(inf)

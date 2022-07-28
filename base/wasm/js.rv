@@ -33,6 +33,12 @@ fn call(obj, meth, x) {
   return JSObject(ref)
 }
 
+fn equal(a: JSObject, b: JSObject) {
+  a = jsref(a)
+  b = jsref(b)
+  wasm { call(`jseq`, a: i32, b: i32): i32 }
+}
+
 fn new(T) {
   Object = property(global(), "Object")
   this = call(Object, "create", property(T, "prototype"))
