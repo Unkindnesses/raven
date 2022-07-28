@@ -6,9 +6,18 @@ fn relu(x) {
   }
 }
 
-result = (relu(widen(5)) == 5) & (relu(widen(-5)) == 0)
+println(relu(widen(5)) == 5)
+println(relu(widen(-5)) == 0)
 
-println(result)
+fn fib(n) {
+  if (n <= 1) {
+    return n
+  } else {
+    return fib(n-1) + fib(n-2)
+  }
+}
+
+println(fib(20) == 6765)
 
 # Return-value casting
 fn test(c) {
