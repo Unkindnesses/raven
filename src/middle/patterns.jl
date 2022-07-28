@@ -81,7 +81,10 @@ function partial_match(mod, pat::Or, val, path)
   return
 end
 
-isslurp(x) = x isa Repeat && x.pattern isa Bind && x.pattern.pattern == hole
+isslurp(x) =
+  x isa Repeat &&
+  (x.pattern == hole ||
+   (x.pattern isa Bind && x.pattern.pattern == hole))
 
 # Redundant, but this check prevents some `trivial_isa` cases becoming circular.
 function shortcut_literals(pat::Data, val)
@@ -112,7 +115,9 @@ function partial_match(mod, pat::Data, val, path)
     i += 1
   end
   if nparts(pat) == i && isslurp(pat[i])
-    bs = @try _assoc(bs, pat[i].pattern.name => (rtuple(), [path..., i:0]))
+    if pat[i].pattern != hole
+      bs = @try _assoc(bs, pat[i].pattern.name => (rtuple(), [path..., i:0]))
+    end
   elseif nparts(pat) > nparts(val)
     return
   end
