@@ -55,14 +55,14 @@ for T in :[Int64, Int32, Float64, Float32, Symbol].args
   @eval allparts(x::Union{$T,Type{$T}}) = ($(QuoteNode(T)),x)
 end
 
-part(s::String, i::Integer) =
+part(s::Union{String,Type{String}}, i::Integer) =
   i == 0 ? :String :
   i == 1 ? data(:JSObject, Int32) :
   error("Tried to access part $i of 1")
 
-allparts(s::String) = (:String, data(:JSObject, Int32))
+allparts(s::Union{String,Type{String}}) = (:String, data(:JSObject, Int32))
 
-nparts(s::String) = 1
+nparts(s::Union{String,Type{String}}) = 1
 
 isvalue(x) = false
 isvalue(x::Primitive) = true

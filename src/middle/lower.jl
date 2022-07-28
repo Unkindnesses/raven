@@ -72,7 +72,8 @@ cat_layout(x) = (x,)
 cat_layout(x::Tuple) = x
 cat_layout(x, xs...) = (cat_layout(x)..., cat_layout(xs...)...)
 
-layout(::Type{T}) where T = T
+layout(T::Type{<:Primitive}) = T
+layout(::Type{String}) = layout(data(:String, data(:JSObject, Int32)))
 layout(x::Union{Primitive,AST.Quote,Unreachable}) = ()
 layout(x::Data) = cat_layout(layout.(x.parts)...)
 layout(x::VData) = (Int32, Int32) # size, pointer
@@ -136,6 +137,11 @@ function indexer!(ir, s::String, i::Int, _, _)
   @assert i == 1
   # Punt to the backend to decide how strings get IDd
   push!(ir, Expr(:ref, s))
+end
+
+function indexer!(ir, ::Type{String}, i::Int, s, _)
+  @assert i == 1
+  push!(ir, Expr(:ref, s, 1))
 end
 
 function _indexer!(f, T::Data, i::Int, x)

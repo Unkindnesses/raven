@@ -1,6 +1,6 @@
 # Primitives for type inference
 
-partial_part(data::Union{Data,Primitive}, i::Integer) =
+partial_part(data::Union{Data,Primitive,Type{<:Primitive}}, i::Integer) =
   0 <= i <= nparts(data) ? part(data, i) : ⊥
 
 # TODO: HACK: we assume index != 0 when indexing dynamically.
