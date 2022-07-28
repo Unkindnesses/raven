@@ -359,6 +359,19 @@ end
 
 _lower!(sc, ir::IR, ex::AST.Syntax) = lower!(sc, ir, ex, false)
 
+reachable(b::IRTools.Block) =
+  reduce(Base.union, [Set(b.id), [reachable(c) for c in successors(b) if c.id > b.id]...])
+
+reachable(ir::IR) = reachable(block(ir, 1))
+
+function pruneblocks!(ir::IR)
+  bs = reachable(ir)
+  for i = length(blocks(ir)):-1:2
+    i in bs || IRTools.deleteblock!(ir, i)
+  end
+  return ir
+end
+
 function lowerfn(ex, sig)
   sc = Scope(swap = sig.swap)
   ir = IR()
@@ -368,7 +381,7 @@ function lowerfn(ex, sig)
   end
   out = lower!(sc, ir, ex.args[2])
   out == nothing || swapreturn!(ir, out, sig.swap)
-  return ir |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
+  return ir |> pruneblocks! |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
 end
 
 function lowerexpr(ex)
