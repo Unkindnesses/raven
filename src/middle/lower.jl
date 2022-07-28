@@ -333,8 +333,11 @@ function casts!(mod::RModule, ir, ret)
     for br in branches(bl)
       if isreturn(br)
         S = exprtype(mod, ir, arguments(br)[1])
-        S == ret && continue
-        arguments(br)[1] = cast!(bl, S, ret)
+        if S != ret
+          arguments(br)[1] = cast!(bl, S, ret)
+        elseif !(arguments(br)[1] isa Variable)
+          arguments(br)[1] = push!(bl, Expr(:tuple))
+        end
       else
         for i = 1:length(arguments(br))
           S = exprtype(mod, ir, arguments(br)[i])
