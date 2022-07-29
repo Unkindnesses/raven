@@ -60,6 +60,7 @@ function liveness(ir)
 end
 
 isreftype(::Union{Primitive,Type,Unreachable}) = false
+isreftype(xs::Or) = any(isreftype, xs.patterns)
 isreftype(xs::Data) = any(isreftype, xs.parts)
 isreftype(::VData) = true
 

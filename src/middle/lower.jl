@@ -77,6 +77,7 @@ layout(::Type{String}) = layout(data(:String, data(:JSObject, Int32)))
 layout(x::Union{Primitive,AST.Quote,Unreachable}) = ()
 layout(x::Data) = cat_layout(layout.(x.parts)...)
 layout(x::VData) = (Int32, Int32) # size, pointer
+layout(xs::Or) = (Int32, cat_layout(layout.(xs.patterns)...)...)
 
 nregisters(l::Type) = 1
 nregisters(l::Tuple) = length(l)
