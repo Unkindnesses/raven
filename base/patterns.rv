@@ -14,8 +14,8 @@ fn match(data(`Literal`, pat), val) {
   }
 }
 
-fn match(pat: Data, val) {
-  if (ismatch(part(pat, 1), part(val, 0)) && ismatch(part(pat, 2), part(val, 1))) {
+fn match(data(`Data`, a, b), data(x, y)) {
+  if (ismatch(a, x) && ismatch(b, y)) {
     return []
   } else {
     return nil

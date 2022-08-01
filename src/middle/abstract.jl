@@ -127,12 +127,12 @@ end
 function indexer!(ir::IR, arg, path)
   isempty(path) && return arg
   (p, rest...) = path
-  arg = indexer!(ir, arg, rest)
   if p isa AbstractVector
-    push!(ir, xdata(:Tuple, [xcall(part_method, arg, i) for i in p]...))
+    arg = push!(ir, xdata(:Tuple, [xcall(part_method, arg, i) for i in p]...))
   else
-    push!(ir, xcall(part_method, arg, p))
+    arg = push!(ir, xcall(part_method, arg, p))
   end
+  arg = indexer!(ir, arg, rest)
 end
 
 function dispatcher(inf, func::Symbol, Ts)
