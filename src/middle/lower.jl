@@ -293,6 +293,15 @@ function lowerdata(cx, ir)
           isreftype(exprtype(cx.mod, ir, v)) && push!(pr, Expr(:retain, y))
           isreftype(T) && push!(pr, Expr(:release, x))
         end
+      elseif F == isnil_method
+        x = st.expr.args[2]
+        T = exprtype(cx.mod, ir, x)
+        if st.type isa Int32
+          pr[v] = st.type
+        else
+          i = findfirst(==(data(:Nil)), T.patterns)
+          pr[v] = xcall(WIntrinsic(i32.eq, i32), x, Int32(i))
+        end
       end
     end
   end

@@ -11,10 +11,11 @@ exprtype(mod, ir, xs::AbstractVector) = map(x -> exprtype(mod, ir, x), xs)
 union(x) = x
 union(::Unreachable, x) = x
 union(x, ::Unreachable) = x
-union(x::T, y::Type{T}) where T = T
-union(x::Type{T}, y::Type{T}) where T = T
+
 union(x::T, y::T) where T<:Primitive = x == y ? x : T
-union(x::Type{T}, y::T) where T = T
+union(x::T, y::Type{T}) where T<:Primitive = T
+union(x::Type{T}, y::T) where T<:Primitive = T
+union(x::Type{T}, y::Type{T}) where T<:Primitive = T
 
 partial_eltype(x::Data) = reduce(union, parts(x), init = ⊥)
 partial_eltype(x::VData) = x.parts
@@ -42,8 +43,8 @@ function union(x::VData, y::VData)
   return VData(tag(x), union(x.parts, y.parts))
 end
 
-function union(x, y::Or)
-  any(y -> x == y, y.patterns) && return y
+function union(x::Union{Primitive,Type{<:Primitive},Data,VData}, y::Or)
+  any(==(x), y.patterns) && return y
   error("unimplemented union")
 end
 
