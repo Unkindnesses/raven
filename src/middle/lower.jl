@@ -320,6 +320,11 @@ function cast!(ir, from, to)
     push!(ir, stmt(Expr(:tuple, Int32(0), ptr), type = to))
   elseif from isa String && to == String
     indexer!(ir, from, 1, nothing, nothing)
+  elseif to isa Or
+    @assert layout(to) == (Int32,)
+    i = findfirst(==(from), to.patterns)
+    @assert i != nothing
+    return push!(ir, Expr(:tuple, Int32(i)))
   else
     error("unsupported cast: $(repr(from)) -> $to")
   end
