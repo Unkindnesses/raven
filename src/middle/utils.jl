@@ -26,3 +26,38 @@ function tuplecse(ir)
   end
   return IRTools.finish(pr)
 end
+
+reachable(b::IRTools.Block) =
+  any(((v, st),) -> st.type == ⊥, b) ? Set(b.id) :
+    reduce(Base.union, [Set(b.id), [reachable(c) for c in successors(b) if c.id > b.id]...])
+
+reachable(ir::IR) = reachable(block(ir, 1))
+
+function pruneblocks!(ir::IR)
+  bs = reachable(ir)
+  for i = length(blocks(ir)):-1:2
+    i in bs || IRTools.deleteblock!(ir, i)
+  end
+  return ir
+end
+
+function trim_unreachable!(ir)
+  ir = pruneblocks!(ir)
+  pr = IRTools.Pipe(ir)
+  flag = false
+  IRTools.branches(pr) do br
+    flag ? nothing : br
+  end
+  for (v, st) in pr
+    if v == first(IRTools.block(ir, v))[1]
+      flag = false
+    end
+    if flag
+      delete!(pr, v)
+      replace!(pr, v, nothing) # slight kludge, pipes should support this
+    elseif st.type == ⊥
+      flag = true
+    end
+  end
+  return IRTools.finish(pr)
+end

@@ -372,6 +372,7 @@ end
 function lowerir(cx, ir, ret)
   # Inference expands block args, so prune them here
   ir = prune!(copy(ir))
+  ir = trim_unreachable!(ir)
   ir = globals(cx.mod, ir)
   ir = lowerdata(cx, ir)
   ir = casts!(cx.mod, ir, ret)
