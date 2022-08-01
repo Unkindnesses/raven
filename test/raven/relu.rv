@@ -9,15 +9,21 @@ fn relu(x) {
 println(relu(widen(5)) == 5)
 println(relu(widen(-5)) == 0)
 
-fn fib(n) {
+fn fib1(n) {
   if (n <= 1) {
     return n
   } else {
-    return fib(n-1) + fib(n-2)
+    return fib1(n-1) + fib1(n-2)
   }
 }
 
-println(fib(20) == 6765)
+println(fib1(20) == 6765)
+
+fn fib2(n) { fib2(n-1) + fib2(n-2) }
+fn fib2(0) { 0 }
+fn fib2(1) { 1 }
+
+println(fib2(20) == 6765)
 
 # Return-value casting
 fn test(c) {

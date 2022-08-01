@@ -1,4 +1,4 @@
-# Pattern Lowering
+# Pattern types
 
 struct Hole end
 
@@ -39,6 +39,14 @@ function Base.show(io::IO, or::Or)
     show(io, or.patterns[i])
   end
 end
+
+# Raven versions
+
+rvpattern(x::Primitive) = x
+rvpattern(x::Literal) = data(:Literal, x.value)
+rvpattern(xs::Data) = data(:Data, rvpattern.(xs.parts)...)
+
+# Pattern lowering
 
 function lowerisa(ex, as)
   if ex isa Symbol

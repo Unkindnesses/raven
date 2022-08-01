@@ -2,10 +2,26 @@ fn Literal(x) { data(`Literal`, x) }
 
 fn isa(data(`Literal`, _), `Literal`) { true }
 
+fn Data(xs...) { data(`Data`, xs...) }
+
+fn isa(data(`Data`, _...), `Data`) { true }
+
 fn match(data(`Literal`, pat), val) {
   if (pat == val) {
     return []
   } else {
     return nil
   }
+}
+
+fn match(pat: Data, val) {
+  if (ismatch(part(pat, 1), part(val, 0)) && ismatch(part(pat, 2), part(val, 1))) {
+    return []
+  } else {
+    return nil
+  }
+}
+
+fn ismatch(pat, val) {
+  not(isnil(match(pat, val)))
 }

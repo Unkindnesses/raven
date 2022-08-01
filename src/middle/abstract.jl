@@ -1,7 +1,7 @@
 using IRTools: WorkQueue
 
 _typeof(mod, x) = error("invalid constant $x::$(typeof(x))")
-_typeof(mod, x::Union{Number,String,Symbol,RMethod}) = x
+_typeof(mod, x::Union{Number,String,Symbol,RMethod,Data}) = x
 _typeof(mod, x::AST.Quote) = x.expr
 _typeof(mod, x::Global) = get(mod, x.name, ⊥)
 
@@ -147,6 +147,16 @@ function dispatcher(inf, func::Symbol, Ts)
       isempty(meth.sig.swap) && (result = push!(ir, xdata(:Tuple, result)))
       return!(ir, result)
       return ir
+    elseif isempty(meth.sig.args)
+      margs = push!(ir, Expr(:data, :Tuple, rvpattern(meth.sig.pattern), args))
+      cond = push!(ir, Expr(:call, :ismatch, margs))
+      cond = push!(ir, xcall(part_method, cond, 1))
+      branch!(ir, length(blocks(ir))+2; unless = cond)
+      block!(ir)
+      result = push!(ir, xcall(meth))
+      isempty(meth.sig.swap) && (result = push!(ir, xdata(:Tuple, result)))
+      return!(ir, result)
+      block!(ir)
     else
       error("Runtime matching not yet supported")
     end
