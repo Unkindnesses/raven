@@ -1,14 +1,2 @@
-fn Literal(x) { data(`Literal`, x) }
-
-fn isa(data(`Literal`, _), `Literal`) { true }
-
-fn match(data(`Literal`, pat), val) {
-  if (pat == val) {
-    return []
-  } else {
-    return nil
-  }
-}
-
 println(not(isnil(match(Literal(1), widen(1)))))
 println(isnil(match(Literal(1), widen(2))))

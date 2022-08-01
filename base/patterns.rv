@@ -1,0 +1,11 @@
+fn Literal(x) { data(`Literal`, x) }
+
+fn isa(data(`Literal`, _), `Literal`) { true }
+
+fn match(data(`Literal`, pat), val) {
+  if (pat == val) {
+    return []
+  } else {
+    return nil
+  }
+}
