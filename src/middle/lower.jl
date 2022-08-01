@@ -323,9 +323,15 @@ function isreachable(bl)
   return true
 end
 
-function cast!(ir, from, to)
+function cast!(ir, from, to, x)
+  (to == ⊥ || from == to) && return x
   if from isa Number && to == typeof(from)
     from
+  elseif from isa Data && to isa Data
+    @assert nparts(from) == nparts(to)
+    parts = [indexer!(ir, from, i, x, nothing) for i = 0:nparts(from)]
+    parts = [cast!(ir, part(from, i), part(to, i), parts[i+1]) for i = 0:nparts(from)]
+    push!(ir, Expr(:tuple, parts...))
   elseif from == rtuple() && to isa VData
     margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rtuple(Int32)))
     ptr = push!(ir, stmt(xcall(Global(:malloc!), margs), type = Int32))
@@ -338,7 +344,7 @@ function cast!(ir, from, to)
     @assert i != nothing
     return push!(ir, Expr(:tuple, Int32(i)))
   else
-    error("unsupported cast: $(repr(from)) -> $to")
+    error("unsupported cast: $(repr(from)) -> $(repr(to))")
   end
 end
 
@@ -352,7 +358,7 @@ function casts!(mod::RModule, ir, ret)
       if isreturn(br)
         S = exprtype(mod, ir, arguments(br)[1])
         if S != ret
-          arguments(br)[1] = cast!(bl, S, ret)
+          arguments(br)[1] = cast!(bl, S, ret, arguments(br)[1])
         elseif !(arguments(br)[1] isa Variable)
           arguments(br)[1] = push!(bl, Expr(:tuple))
         end
@@ -361,7 +367,7 @@ function casts!(mod::RModule, ir, ret)
           S = exprtype(mod, ir, arguments(br)[i])
           T = blockargtype(mod, block(ir, br.block), i)
           S == T && continue
-          arguments(br)[i] = cast!(bl, S, T)
+          arguments(br)[i] = cast!(bl, S, T, arguments(br)[i])
         end
       end
     end
