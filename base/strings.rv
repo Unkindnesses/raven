@@ -11,3 +11,11 @@ fn concat(a: String, b: String) {
 fn (a: String) == (b: String) {
   equal(tojs(a), tojs(b))
 }
+
+fn string(x: Symbol) {
+  symstring(x)
+}
+
+fn (a: Symbol) == (b: Symbol) {
+  string(a) == string(b)
+}

@@ -23,12 +23,15 @@ partial_isnil(x::Union{Primitive,Type{<:Primitive}}) = Int32(0)
 partial_isnil(x::Data) = Int32(x == data(:Nil))
 partial_isnil(x::Or) = any(==(data(:Nil)), x.patterns) ? Int32 : Int32(0)
 
+partial_symstring(x::Symbol) = String(x)
+
 data_method = RMethod(:data, lowerpattern(rvx"args"), args -> data(parts(args)...), true)
 part_method = RMethod(:part, lowerpattern(rvx"[data, i]"), partial_part, true)
 nparts_method = RMethod(:nparts, lowerpattern(rvx"[x]"), partial_nparts, true)
 datacat_method = RMethod(:datacat, lowerpattern(rvx"args"), args -> datacat(parts(args)...), true)
 widen_method = RMethod(:widen, lowerpattern(rvx"[x]"), partial_widen, true)
 isnil_method = RMethod(:isnil, lowerpattern(rvx"[x]"), partial_isnil, true)
+symstring_method = RMethod(:symstring, lowerpattern(rvx"[x: Symbol]"), partial_symstring, true)
 
 function primitives!(mod)
   mod[Symbol("false")] = Int32(0)
@@ -39,5 +42,6 @@ function primitives!(mod)
   method!(mod, :datacat, datacat_method)
   method!(mod, :widen, widen_method)
   method!(mod, :isnil, isnil_method)
+  method!(mod, :symstring, symstring_method)
   return mod
 end

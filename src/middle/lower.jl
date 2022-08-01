@@ -302,6 +302,9 @@ function lowerdata(cx, ir)
           i = findfirst(==(data(:Nil)), T.patterns)
           pr[v] = xcall(WIntrinsic(i32.eq, i32), x, Int32(i))
         end
+      elseif F == symstring_method
+        @assert st.type isa String
+        pr[v] = Expr(:tuple)
       end
     end
   end

@@ -31,3 +31,6 @@ fn test(c) {
 println(test(widen(true)) == "true")
 println(test(widen(true)) != "false")
 println(test(widen(false)) == "false")
+
+println(`foo` == `foo`)
+println(`foo` != `bar`)
