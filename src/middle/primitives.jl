@@ -31,9 +31,5 @@ function primitives!(mod)
   method!(mod, :nparts, nparts_method)
   method!(mod, :datacat, datacat_method)
   method!(mod, :widen, widen_method)
-
-  for T in [Int64, Int32, Float64, Float32]
-    mod[Symbol(T)] = Symbol(T)
-  end
   return mod
 end
