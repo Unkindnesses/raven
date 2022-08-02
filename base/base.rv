@@ -3,9 +3,6 @@
 # |     \/      \\  \/ /|   ___|     \| |
 # |__|\__\___/\__\\___/ |______|__/\____|
 
-Symbol = `Symbol`
-Tuple  = `Tuple`
-
 fn tag(x) { part(x, 0) }
 
 fn identity(x) { x }
@@ -13,12 +10,11 @@ fn identity(x) { x }
 fn (_ == _) { false }
 fn isa(_, _) { false }
 
-fn isa(data(`Tuple`, _...), `Tuple`) { true }
+Symbol = `Symbol`
+
 fn isa(data(`Symbol`, _), `Symbol`) { true }
 
 fn (x |> f) { f(x) }
-
-# fn tuple(xs...) { data(`Tuple`, xs...) }
 
 fn condition(x) { panic("Non-boolean used as a condition") }
 fn condition(x: Int32) { widen(x) }
