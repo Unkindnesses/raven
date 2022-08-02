@@ -1,10 +1,6 @@
-fn Literal(x) { data(`Literal`, x) }
+data { Literal(x) }
 
-fn isa(data(`Literal`, _), `Literal`) { true }
-
-fn Data(xs...) { data(`Data`, xs...) }
-
-fn isa(data(`Data`, _...), `Data`) { true }
+data { Data(xs...) }
 
 fn match(data(`Literal`, pat), val) {
   if (pat == val) {

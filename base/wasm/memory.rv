@@ -1,7 +1,6 @@
-fn Ptr(x: Int32) { data(`Ptr`, x) }
-fn Ptr(x: Int64) { Ptr(Int32(x)) }
+data { Ptr(x: Int32) }
 
-fn isa(data(`Ptr`, _), `Ptr`) { true }
+fn Ptr(x: Int64) { Ptr(Int32(x)) }
 
 fn addr(x: Ptr) { part(x, 1) }
 

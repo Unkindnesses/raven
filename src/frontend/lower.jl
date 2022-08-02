@@ -105,6 +105,25 @@ function lowerpattern(ex)
   return Signature(p, as, swaps)
 end
 
+# Built-in macros
+
+namify(x::Symbol) = x
+namify(ex::AST.Operator) = namify(ex.args[1])
+namify(ex::AST.Splat) = AST.Splat(namify(ex.expr))
+
+function datamacro(ex)
+  spec = ex.args[1].args[1]
+  name = spec.func
+  args = spec.args
+  AST.Block([
+    AST.Syntax(:fn, [spec,
+                     AST.Block([
+                       AST.Call(:data, [AST.Quote(name), namify.(args)...])])]),
+    AST.Syntax(:fn, [AST.Call(:isa, [AST.Call(:data, [AST.Quote(name), args...]),
+                                     AST.Quote(name)]),
+                     AST.Block([Symbol("true")])])])
+end
+
 # Expr -> IR lowering
 
 xcall(args...) = Expr(:call, args...)
@@ -166,8 +185,6 @@ _push!(ir::IR, x) = IRTools.canbranch(blocks(ir)[end]) && push!(ir, x)
 
 # lower while ignoring return value (if applicable)
 _lower!(sc, ir, x) = lower!(sc, ir, x)
-
-isfn(x) = x isa Block && x.name == :fn
 
 lower!(sc, ir::IR, x::Union{Integer,String,AST.Quote,Data}) = x
 lower!(sc, ir::IR, x::Symbol) = sc[x]
@@ -373,7 +390,9 @@ end
 
 _lower!(sc, ir::IR, ex::AST.Syntax) = lower!(sc, ir, ex, false)
 
-function lowerfn(ex, sig)
+fnsig(ex) = lowerpattern(AST.Tuple(ex.args[1].args[1].args))
+
+function lowerfn(ex, sig = fnsig(ex))
   sc = Scope(swap = sig.swap)
   ir = IR()
   for arg in sig.args

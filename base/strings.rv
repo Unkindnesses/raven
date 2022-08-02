@@ -1,6 +1,4 @@
-fn String(obj: JSObject) { data(`String`, obj) }
-
-fn isa(data(`String`, _), `String`) { true }
+data { String(obj: JSObject) }
 
 fn tojs(s: String) { part(s, 1) }
 

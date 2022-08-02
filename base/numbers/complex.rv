@@ -1,6 +1,4 @@
-fn Complex(re, im) { data(`Complex`, re, im) }
-
-fn isa(data(`Complex`, _, _), `Complex`) { true }
+data { Complex(re, im) }
 
 fn real(z: Complex) { part(z, 1) }
 fn imag(z: Complex) { part(z, 2) }

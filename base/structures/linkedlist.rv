@@ -1,10 +1,8 @@
 List = `List`
 
-fn Empty() { data(`Empty`) }
-fn Prepend(xs, x) { data(`Prepend`, xs, x) }
+data { Empty() }
+data { Prepend(xs, x) }
 
-fn isa(data(`Empty`), `Empty`) { true }
-fn isa(data(`Prepend`, _, _), `Prepend`) { true }
 fn isa(_: Prepend | Empty, `List`) { true }
 
 fn prepend(xs: List, x) { Prepend(xs, x) }
