@@ -283,7 +283,6 @@ function lowerdata(cx, ir)
       elseif F == part_method
         x, i = st.expr.args[2:end]
         T, I = exprtype(cx.mod, ir, st.expr.args[2:end])
-        T == ⊥ && continue # TODO strip unreachable code earlier
         if T isa Data && I isa Type{<:Integer}
           partmethod!(cx, T, I)
         else
@@ -315,14 +314,6 @@ end
 
 blockargtype(mod::RModule, bl, i) = exprtype(mod, bl.ir, arguments(bl)[i])
 
-# TODO should have a separate pass that prunes unreachable code.
-function isreachable(bl)
-  for (v, st) in bl
-    st.type == ⊥ && return false
-  end
-  return true
-end
-
 function cast!(ir, from, to, x)
   (to == ⊥ || from == to) && return x
   if from isa Number && to == typeof(from)
@@ -350,10 +341,6 @@ end
 
 function casts!(mod::RModule, ir, ret)
   for bl in blocks(ir)
-    if !isreachable(bl)
-      empty!(branches(bl))
-      continue
-    end
     for br in branches(bl)
       if isreturn(br)
         S = exprtype(mod, ir, arguments(br)[1])
