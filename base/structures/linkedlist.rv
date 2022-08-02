@@ -1,9 +1,4 @@
-List = `List`
-
-data { Empty() }
-data { Prepend(xs, x) }
-
-fn isa(_: Prepend | Empty, `List`) { true }
+data List { Prepend(xs, x) | Empty() }
 
 fn prepend(xs: List, x) { Prepend(xs, x) }
 fn prepend(xs: List, x, y) { prepend(prepend(xs, x), y) }

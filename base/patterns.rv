@@ -1,6 +1,7 @@
-data { Literal(x) }
-
-data { Data(xs...) }
+data Pattern {
+  Literal(x)
+  Data(xs...)
+}
 
 fn match(data(`Literal`, pat), val) {
   if (pat == val) {

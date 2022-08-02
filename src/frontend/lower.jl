@@ -111,17 +111,34 @@ namify(x::Symbol) = x
 namify(ex::AST.Operator) = namify(ex.args[1])
 namify(ex::AST.Splat) = AST.Splat(namify(ex.expr))
 
+allspecs(ex) = [ex]
+allspecs(ex::AST.Block) = reduce(vcat, allspecs.(ex.args))
+allspecs(ex::AST.Operator) =
+  ex.op == :| ? reduce(vcat, allspecs.(ex.args)) : [ex]
+
 function datamacro(ex)
-  spec = ex.args[1].args[1]
-  name = spec.func
-  args = spec.args
-  AST.Block([
-    AST.Syntax(:fn, [spec,
-                     AST.Block([
-                       AST.Call(:data, [AST.Quote(name), namify.(args)...])])]),
-    AST.Syntax(:fn, [AST.Call(:isa, [AST.Call(:data, [AST.Quote(name), args...]),
-                                     AST.Quote(name)]),
-                     AST.Block([Symbol("true")])])])
+  super, specs = length(ex.args) == 1 ? (nothing, ex.args[1]) : (ex.args[1], ex.args[2])
+  specs = allspecs(specs)
+  names = []
+  body = []
+  for spec in specs
+    name = spec.func
+    push!(names, name)
+    args = spec.args
+    push!(body, AST.Syntax(:fn, [spec,
+                                 AST.Block([
+                                   AST.Call(:data, [AST.Quote(name), namify.(args)...])])]))
+    push!(body, AST.Syntax(:fn, [AST.Call(:isa, [AST.Call(:data, [AST.Quote(name), args...]),
+                                                 AST.Quote(name)]),
+                                 AST.Block([Symbol("true")])]))
+  end
+  if super != nothing
+    push!(body, AST.Operator(:(=), [super, AST.Quote(super)]))
+    push!(body, AST.Syntax(:fn, [AST.Call(:isa, [AST.Operator(:(:), [:_, AST.Operator(:|, names)]),
+                                                 AST.Quote(super)]),
+                                 AST.Block([Symbol("true")])]))
+  end
+  return AST.Block(body)
 end
 
 # Expr -> IR lowering
