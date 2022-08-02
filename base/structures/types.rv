@@ -17,7 +17,7 @@ data Expr {
 data Pattern {
   Hole()
   Literal(_: Number | String | Symbol)
-  Bind(name: Symbol, pat: Pattern)
+  Bind(name: Symbol)
   IsA(type: Symbol)
   Repeat(_: Pattern)
   Data(_: Pattern...)

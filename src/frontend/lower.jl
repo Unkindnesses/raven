@@ -14,7 +14,6 @@ end
 
 struct Bind
   name::Symbol
-  pattern
 end
 
 struct Isa
@@ -63,7 +62,7 @@ end
 function _lowerpattern(ex, as)
   if ex isa Symbol
     ex == :_ || ex in as || push!(as, ex)
-    return ex == :_ ? hole : Bind(ex, hole)
+    return ex == :_ ? hole : Bind(ex)
   elseif ex isa Union{Primitive,AST.Quote}
     ex isa AST.Quote && (ex = ex.expr)
     return Literal(ex)
@@ -72,7 +71,7 @@ function _lowerpattern(ex, as)
   elseif ex isa AST.Operator && ex.op == :(:)
     name, T = ex.args
     name in as || push!(as, name)
-    Bind(name, lowerisa(T, as))
+    And([Bind(name), lowerisa(T, as)])
   elseif ex isa AST.Splat
     Repeat(_lowerpattern(ex.expr, as))
   elseif ex isa AST.Call && ex.func == :data
@@ -91,7 +90,7 @@ function _lowersig(ex, as, swaps)
     if x isa AST.Swap
       swaps[i] = x.op
       x.op in as || push!(as, x.op)
-      Bind(x.op, Hole())
+      Bind(x.op)
     else
       _lowerpattern(x, as)
     end

@@ -60,8 +60,7 @@ function partial_match(mod, pat::Literal, val, path)
 end
 
 function partial_match(mod, pat::Bind, val, path)
-  bs = @try partial_match(mod, pat.pattern, val, path)
-  return _assoc(bs, pat.name => (val, path))
+  return Dict(pat.name => (val, path))
 end
 
 function partial_match(mod, pat::Isa, val, path)
@@ -69,6 +68,14 @@ function partial_match(mod, pat::Isa, val, path)
   T = mod[pat.pattern]
   r = trivial_isa(mod, val, pat.pattern)
   r === true ? Dict() : r === false ? nothing : missing
+end
+
+function partial_match(mod, pat::And, val, path)
+  bs = Dict()
+  for p in pat.patterns
+    bs = @try _merge(bs, @try partial_match(mod, p, val, path))
+  end
+  return bs
 end
 
 function partial_match(mod, pat::Or, val, path)
@@ -81,10 +88,7 @@ function partial_match(mod, pat::Or, val, path)
   return
 end
 
-isslurp(x) =
-  x isa Repeat &&
-  (x.pattern == hole ||
-   (x.pattern isa Bind && x.pattern.pattern == hole))
+isslurp(x) = x isa Repeat && x.pattern isa Union{Hole,Bind}
 
 # Redundant, but this check prevents some `trivial_isa` cases becoming circular.
 function shortcut_literals(pat::Data, val)
