@@ -4,6 +4,7 @@ function Base.replace!(pr::IRTools.Pipe, x, y)
   IRTools.substitute!(pr, x, IRTools.substitute(pr, y))
 end
 
+# TODO not right if we assume tuples concatenate; need to check types
 function tuplecse(ir)
   pr = IRTools.Pipe(ir)
   env = Dict{Any,Variable}()

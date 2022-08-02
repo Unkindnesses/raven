@@ -18,7 +18,7 @@ fn empty(xs: Empty) { true }
 fn length(xs: Prepend) { 1 + length(rest(xs)) }
 fn length(xs: Empty) { 0 }
 
-fn range(start, end) {
+fn lrange(start, end) {
   if (start > end) {
     list()
   } else {

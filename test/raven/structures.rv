@@ -41,3 +41,17 @@ let {
 }
 
 println(allocationCount() == 0)
+
+let {
+  xs = range(5, 6)
+  itr = iterator(xs)
+
+  val = iterate(&itr)
+  println(not(isnil(val)))
+
+  val = iterate(&itr)
+  println(not(isnil(val)))
+
+  val = iterate(&itr)
+  println(isnil(val))
+}

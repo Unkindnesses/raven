@@ -39,6 +39,8 @@ function Base.show(io::IO, or::Or)
   end
 end
 
+Base.:(==)(a::Or, b::Or) = a.patterns == b.patterns
+
 # Raven versions
 
 rvpattern(x::Primitive) = x

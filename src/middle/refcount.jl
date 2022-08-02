@@ -133,7 +133,7 @@ end
 function refcounts(c::Compilation)
   comp = Compilation(c.mod)
   for (k, ir) in c.frames
-    comp.frames[k] = ir |> copy |> refcounts! |> tuplecse
+    comp.frames[k] = ir |> copy |> refcounts! #|> tuplecse
   end
   return comp
 end

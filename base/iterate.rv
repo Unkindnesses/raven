@@ -1,0 +1,24 @@
+data { IndexIterator(xs, i: Int64) }
+
+fn IndexIterator(xs) { IndexIterator(xs, 1) }
+
+fn iterate(&itr: data(`IndexIterator`, xs, i)) {
+  if (i > length(xs)) {
+    return nil
+  } else {
+    val = get(xs, i)
+    i = i + 1
+    itr = IndexIterator(xs, i)
+    return Some(val)
+  }
+}
+
+data { Range(start, stop) }
+
+fn range(start, stop) { Range(start, stop) }
+
+fn length(data(`Range`, start, stop)) { (stop-start)+1 }
+
+fn get(data(`Range`, start, stop), i) { (i - 1) + start }
+
+fn iterator(xs: Range) { IndexIterator(xs) }

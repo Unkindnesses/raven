@@ -30,6 +30,7 @@ nil = Nil()
 fn (_: Nil) == (_: Nil) { true }
 
 import { patterns }
+import { iterate }
 import { print }
 import { wasm }
 import { numbers }

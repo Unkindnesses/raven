@@ -48,6 +48,12 @@ function union(x::Union{Primitive,Type{<:Primitive},Data,VData}, y::Or)
   error("unimplemented union")
 end
 
+union(y::Or, x::Union{Primitive,Type{<:Primitive},Data,VData}) = union(x, y)
+
+function union(x::Or, y::Or)
+  x == y ? x : error("unimplemented union")
+end
+
 issubtype(x::Union{T,Type{T}}, y::Type{T}) where T = true
 issubtype(x, y) = x == y
 

@@ -299,7 +299,8 @@ function lowerdata(cx, ir)
           pr[v] = st.type
         else
           i = findfirst(==(data(:Nil)), T.patterns)
-          pr[v] = xcall(WIntrinsic(i32.eq, i32), x, Int32(i))
+          j = insert!(pr, v, Expr(:ref, x, 1))
+          pr[v] = xcall(WIntrinsic(i32.eq, i32), j, Int32(i))
         end
       elseif F == symstring_method
         @assert st.type isa String
@@ -330,10 +331,11 @@ function cast!(ir, from, to, x)
   elseif from isa String && to == String
     indexer!(ir, from, 1, nothing, nothing)
   elseif to isa Or
-    @assert layout(to) == (Int32,)
     i = findfirst(==(from), to.patterns)
     @assert i != nothing
-    return push!(ir, Expr(:tuple, Int32(i)))
+    return push!(ir, Expr(:tuple, Int32(i),
+                          reduce(vcat, [j == i ? [x] : collect(zero.(layout(p)))
+                                        for (j, p) in enumerate(to.patterns)])...))
   else
     error("unsupported cast: $(repr(from)) -> $(repr(to))")
   end
