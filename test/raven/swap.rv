@@ -12,7 +12,7 @@ println(swap(&a, &b) == 8)
 println(a == 5)
 println(b == 3)
 
-fn copy(x, &y) {
+fn copy(x: Int64, &y: Int64) {
   y = x
   return
 }

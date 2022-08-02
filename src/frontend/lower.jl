@@ -52,7 +52,7 @@ function lowerisa(ex, as)
     return Isa(ex)
   elseif ex isa AST.Operator && ex.op == :(|)
     Or(map(x -> lowerisa(x, as), ex.args))
-  elseif ex isa Operator && ex.op == :(&)
+  elseif ex isa AST.Operator && ex.op == :(&)
     And(map(x -> lowerisa(x, as), ex.args))
   else
     _lowerpattern(ex, as)
@@ -89,8 +89,10 @@ function _lowersig(ex, as, swaps)
   args = map(enumerate(ex.args)) do (i, x)
     if x isa AST.Swap
       swaps[i] = x.op
-      x.op in as || push!(as, x.op)
-      Bind(x.op)
+      _lowerpattern(x.op, as)
+    elseif x isa AST.Operator && x.op == :(:) && x.args[1] isa AST.Swap
+      swaps[i] = x.args[1].op
+      _lowerpattern(AST.Operator(:(:), [x.args[1].op, x.args[2:end]...]), as)
     else
       _lowerpattern(x, as)
     end
