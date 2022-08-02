@@ -3,8 +3,8 @@
 # |     \/      \\  \/ /|   ___|     \| |
 # |__|\__\___/\__\\___/ |______|__/\____|
 
-Symbol  = `Symbol`
-Tuple   = `Tuple`
+Symbol = `Symbol`
+Tuple  = `Tuple`
 
 fn tag(x) { part(x, 0) }
 
