@@ -134,6 +134,40 @@ function partmethod!(cx::Compilation, x, i)
   return
 end
 
+function union_downcast!(ir, T::Or, i::Integer, x)
+  offset = sum(length, layout.(T.patterns[1:i-1]), init = 0)+1
+  parts = [push!(ir, Expr(:ref, x, j+offset)) for j = 1:length(layout(T.patterns[i]))]
+  return layout(T.patterns[i]) isa Tuple ? push!(ir, Expr(:tuple, parts...)) : parts[1]
+end
+
+function union_partir(x::Or, i)
+  ir = IR()
+  T = partial_part(x, i)
+  vx = argument!(ir, type = x)
+  vi = argument!(ir, type = i)
+  j = push!(ir, Expr(:ref, vx, 1))
+  for (case, T) in enumerate(x.patterns)
+    cond = push!(ir, xcall(WIntrinsic(i32.eq, i32), j, Int32(case)))
+    branch!(ir, length(blocks(ir))+2, unless = cond)
+    block!(ir)
+    val = union_downcast!(ir, x, case, vx)
+    # TODO possibly insert `part_method` calls and redo lowering
+    ret = indexer!(ir, T, i, val, vi)
+    return!(ir, ret)
+    block!(ir)
+  end
+  push!(ir, xcall(WIntrinsic(WebAssembly.unreachable, ⊥), j, Int32(i)))
+  return ir
+end
+
+function union_partmethod!(cx::Compilation, x, i)
+  T = (part_method, x, i)
+  haskey(cx.frames, T) && return cx.frames[T][1]
+  ir = union_partir(x, i)
+  cx.frames[T] = ir
+  return
+end
+
 function indexer!(ir, s::String, i::Int, _, _)
   @assert i == 1
   # Punt to the backend to decide how strings get IDd
@@ -285,6 +319,8 @@ function lowerdata(cx, ir)
         T, I = exprtype(cx.mod, ir, st.expr.args[2:end])
         if T isa Data && I isa Type{<:Integer}
           partmethod!(cx, T, I)
+        elseif T isa Or
+          union_partmethod!(cx, T, I)
         else
           delete!(pr, v)
           y = indexer!(pr, T, I, x, i)

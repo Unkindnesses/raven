@@ -11,6 +11,9 @@ partial_part(data::Data, i::Type{<:Integer}) =
 partial_part(data::VData, i::Union{Int,Type{<:Integer}}) =
   i == 0 ? data.tag : data.parts
 
+partial_part(data::Or, i) =
+  reduce(union, partial_part.(data.patterns, (i,)))
+
 partial_nparts(x::Data) = nparts(x)
 partial_nparts(::VData) = Int64
 

@@ -48,9 +48,11 @@ let {
 
   val = iterate(&itr)
   println(not(isnil(val)))
+  println(part(val, 1) == 5)
 
   val = iterate(&itr)
   println(not(isnil(val)))
+  println(part(val, 1) == 6)
 
   val = iterate(&itr)
   println(isnil(val))
