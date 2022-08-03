@@ -145,6 +145,20 @@ function datamacro(ex)
   return AST.Block(body)
 end
 
+function formacro(ex)
+  x, xs, body = ex.args[1], ex.args[3], ex.args[4]
+  # TODO hygiene
+  AST.Block([
+    AST.Operator(:(=), [:_itr, AST.Call(:iterator, [xs])]),
+    AST.Syntax(:while, [Symbol("true"), AST.Block([
+      AST.Operator(:(=), [:_val, AST.Call(:iterate, [AST.Swap(:_itr)])]),
+      AST.Syntax(:if, [AST.Call(:isnil, [:_val]), AST.Block([AST.Break()])]),
+      AST.Operator(:(=), [x, AST.Call(:part, [:_val, 1])]),
+      body
+    ])])
+  ])
+end
+
 # Expr -> IR lowering
 
 xcall(args...) = Expr(:call, args...)
@@ -213,6 +227,7 @@ lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? nothing : (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
 
 lower!(sc, ir::IR, x::AST.Block) = lower!(sc, ir, x.args)
+_lower!(sc, ir::IR, x::AST.Block) = foreach(x -> _lower!(sc, ir, x), x.args)
 
 function lower!(sc, ir::IR, ex::AST.Operator, value = true)
   if ex.op == :(=)
@@ -404,6 +419,8 @@ function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
     push!(ir, Expr(:import, importpath(ex)))
   elseif ex.name == :let
     lowerlet!(sc, ir, ex, value)
+  elseif ex.name == :for
+    (value ? lower! : _lower!)(sc, ir, formacro(ex))
   else
     error("unrecognised block $(ex.name)")
   end

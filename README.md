@@ -13,10 +13,8 @@ julia --project
 ```rust
 fn range(n) {
   xs = []
-  i = 1
-  while (i <= n) {
+  for i in range(1, n) {
     push(&xs, i)
-    i = i + 1
   }
   return xs
 }
