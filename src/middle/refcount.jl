@@ -62,7 +62,7 @@ end
 isreftype(::Union{Primitive,Type,Unreachable}) = false
 isreftype(xs::Or) = any(isreftype, xs.patterns)
 isreftype(xs::Data) = any(isreftype, xs.parts)
-isreftype(::VData) = true
+isreftype(x::VData) = layout(x.parts) != ()
 
 function retain(f, T::VData, x)
   ptr = f(stmt(Expr(:ref, x, 2), type = rtuple(data(:Ptr, Int32))))

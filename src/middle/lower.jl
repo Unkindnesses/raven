@@ -199,7 +199,7 @@ function indexer!(ir, T::Data, i::Int, x, _)
 end
 
 function indexer!(ir, T::VData, I::Union{Int,Type{Int64}}, x, i)
-  I == 0 && return push!(ir, Expr(:tuple))
+  (I == 0 || layout(T.parts) == ()) && return push!(ir, Expr(:tuple))
   @assert T.parts == Int64
   if I isa Int
     i = Int32((I-1)*8)
@@ -217,9 +217,14 @@ end
 
 function datacat_ir(T::Data)
   T′ = datacat(parts(T)...)
-  @assert T′.parts == Int64
+  @assert layout(T′.parts) == () || T′.parts == Int64
   ir = IR()
   xs = argument!(ir, type = T)
+  if layout(T′.parts) == ()
+    push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
+                    Expr(:ref, "unsupported")))
+    return ir
+  end
   ps = [indexer!(ir, T, i, xs, i) for i in 1:nparts(T)]
   ls = [nparts!(ir, part(T, i), ps[i]) for i in 1:nparts(T)]
   size = popfirst!(ls)
