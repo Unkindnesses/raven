@@ -147,13 +147,13 @@ end
 
 function formacro(ex)
   x, xs, body = ex.args[1], ex.args[3], ex.args[4]
-  # TODO hygiene
+  itr, val = gensym.((:itr, :val))
   AST.Block([
-    AST.Operator(:(=), [:_itr, AST.Call(:iterator, [xs])]),
+    AST.Operator(:(=), [itr, AST.Call(:iterator, [xs])]),
     AST.Syntax(:while, [Symbol("true"), AST.Block([
-      AST.Operator(:(=), [:_val, AST.Call(:iterate, [AST.Swap(:_itr)])]),
-      AST.Syntax(:if, [AST.Call(:isnil, [:_val]), AST.Block([AST.Break()])]),
-      AST.Operator(:(=), [x, AST.Call(:part, [:_val, 1])]),
+      AST.Operator(:(=), [val, AST.Call(:iterate, [AST.Swap(itr)])]),
+      AST.Syntax(:if, [AST.Call(:isnil, [val]), AST.Block([AST.Break()])]),
+      AST.Operator(:(=), [x, AST.Call(:part, [val, 1])]),
       body
     ])])
   ])
