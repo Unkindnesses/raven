@@ -176,6 +176,7 @@ function wasmmodule(inf::Compilation)
   mod = wasm_ir(inf)
   strings = mod.strings
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
+  sort!(fs, by = f -> f.name)
   mod = WebAssembly.Module(
     funcs = fs,
     imports = default_imports,
