@@ -11,15 +11,19 @@ julia --project
 `test.rv`:
 
 ```rust
-fn squares(n) {
+fn fib(n) { fib(n-1) + fib(n-2) }
+fn fib(1) { 1 }
+fn fib(0) { 0 }
+
+fn fibSequence(n) {
   xs = []
   for i in range(1, n) {
-    push(&xs, i^2)
+    push(&xs, fib(i))
   }
   return xs
 }
 
-xs = squares(10)
+xs = fibSequence(10)
 println(xs)
 ```
 
@@ -27,5 +31,5 @@ println(xs)
 julia> using Raven
 
 julia> Raven.compile("test.rv"); run(`node test.js`);
-[1, 4, 9, 16, 25, 36, 49, 64, 81, 100]
+[1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
 ```
