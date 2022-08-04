@@ -8,6 +8,8 @@ brew install wabt binaryen node
 julia --project
 ```
 
+On Linux, download the Julia binaries and add `julia` to the path, then use `brew` to get the rest. On Windows, get WSL and then GOTO Linux.
+
 `test.rv`:
 
 ```rust
@@ -32,4 +34,21 @@ julia> using Raven
 
 julia> Raven.compile("test.rv"); run(`node test.js`);
 [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
+```
+
+## Editor Support
+
+For Atom:
+
+```bash
+ln -s $PWD/editor/language-raven ~/.atom/packages/
+```
+
+For VS Code:
+
+```bash
+cd editor/raven-language
+npm install
+npm run compile
+ln -s $PWD ~/.vscode/extensions
 ```
