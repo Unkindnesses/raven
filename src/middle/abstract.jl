@@ -11,6 +11,7 @@ exprtype(mod, ir, xs::AbstractVector) = map(x -> exprtype(mod, ir, x), xs)
 union(x) = x
 union(::Unreachable, x) = x
 union(x, ::Unreachable) = x
+union(::Unreachable, ::Unreachable) = ⊥
 
 union(x::T, y::T) where T<:Primitive = x == y ? x : T
 union(x::T, y::Type{T}) where T<:Primitive = T
@@ -104,11 +105,15 @@ end
 struct Inference
   mod::RModule
   frames::IdDict{Any,Frame}
+  globals::Dict{Symbol,Set{Loc}}
   main::Vector{Any}
   queue::WorkQueue{Loc}
 end
 
-Inference(mod::RModule) = Inference(mod, Dict(), [], WorkQueue{Loc}())
+Inference(mod::RModule) = Inference(mod, Dict(), Dict(), [], WorkQueue{Loc}())
+
+global_edges(inf::Inference, name::Symbol) =
+  get!(() -> Set{Loc}(), inf.globals, name)
 
 function irframe!(inf, T, ir, args...)
   haskey(inf.frames, T) && return inf.frames[T]
@@ -206,6 +211,9 @@ function step!(inf::Inference, loc)
   if ip <= length(stmts)
     var = stmts[ip]
     st = block[var]
+    for g in (isexpr(st.expr, :(=)) ? st.expr.args[2:end] : st.expr.args)
+      g isa Global && push!(global_edges(inf, g.name), loc)
+    end
     if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
       block.ir[var] = Statement(block[var], type = rvtype(st.expr.args[1].ret))
       push!(inf.queue, Loc(F, b, ip+1))
@@ -224,9 +232,13 @@ function step!(inf::Inference, loc)
     elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global
       x = st.expr.args[1].name
       T = exprtype(inf.mod, block.ir, st.expr.args[2])
+      T = union(get!(inf.mod.defs, x, ⊥), T)
       block.ir[var] = Statement(block[var], type = T)
-      inf.mod.defs[x] = T
       push!(inf.queue, Loc(F, b, ip+1))
+      if inf.mod.defs[x] != T
+        inf.mod.defs[x] = T
+        foreach(loc -> push!(inf.queue, loc), global_edges(inf, x))
+      end
     else
       error("Unknown expr type $(st.expr.head)")
     end
@@ -235,8 +247,9 @@ function step!(inf::Inference, loc)
     for br in brs
       if isreturn(br)
         T = exprtype(inf.mod, block.ir, IRTools.returnvalue(block))
-        issubtype(T, frame.rettype) && return
-        frame.rettype = union(frame.rettype, T)
+        T = union(frame.rettype, T)
+        T == frame.rettype && return
+        frame.rettype = T
         foreach(loc -> push!(inf.queue, loc), frame.edges)
       else
         args = exprtype(inf.mod, block.ir, arguments(br))
