@@ -119,9 +119,7 @@ function irframe!(inf, T, ir, args...)
   haskey(inf.frames, T) && return inf.frames[T]
   fr = frame(ir, args...)
   inf.frames[T] = fr
-  for bl in reverse(blocks(ir))
-    push!(inf.queue, Loc(T, bl.id, 1))
-  end
+  push!(inf.queue, Loc(T, 1, 1))
   return fr
 end
 
@@ -194,13 +192,15 @@ end
 
 function openbranches(inf, bl)
   brs = []
+  fallthrough = true
   for br in IRTools.branches(bl)
-    br.condition == nothing && (push!(brs, br); break)
+    br.condition == nothing && (fallthrough = false; push!(brs, br); break)
     cond = exprtype(inf.mod, bl.ir, br.condition)
     cond == true && continue
-    cond == false && (push!(brs, br); break)
+    cond == false && (fallthrough = false; push!(brs, br); break)
     push!(brs, br)
   end
+  fallthrough && push!(brs, IRTools.branch(bl.id+1))
   return brs
 end
 
@@ -253,7 +253,10 @@ function step!(inf::Inference, loc)
         foreach(loc -> push!(inf.queue, loc), frame.edges)
       else
         args = exprtype(inf.mod, block.ir, arguments(br))
-        if blockargs!(IRTools.block(frame.ir, br.block), args)
+        # TODO slightly inefficient – we only need to visit arg-less blocks once,
+        # after confirming they are reachable. Also has an infinite-loop edge
+        # case.
+        if isempty(args) || blockargs!(IRTools.block(frame.ir, br.block), args)
           push!(inf.queue, Loc(F, br.block, 1))
         end
       end
