@@ -1,0 +1,1 @@
+println(concat("a", "b") == "ab")
