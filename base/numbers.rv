@@ -8,6 +8,10 @@ fn isa(data(`Int64`, _), `Int64`) { true }
 fn isa(data(`Float32`, _), `Float32`) { true }
 fn isa(data(`Float64`, _), `Float64`) { true }
 
+Integer = `Integer`
+
+fn isa(_: Int32 | Int64, `Integer`) { true }
+
 import { numbers.complex }
 
 fn Int64(x: Int64) { x }
@@ -22,8 +26,7 @@ fn (a != b) {
   not(a == b)
 }
 
-# TODO: abstract integer type
-fn x ^ (n: Int64) {
+fn x ^ (n: Integer) {
   r = one(x)
   while n > 0 {
     n = n - one(n)
