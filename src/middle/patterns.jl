@@ -128,14 +128,21 @@ function partial_match(mod, pat::Data, val, path)
   return bs
 end
 
+function destruct_isa(p)
+  p isa Bind && return (p.name, And([]))
+  p isa And && p.patterns[1] isa Bind || return (nothing, p)
+  (p.patterns[1].name, length(p.patterns) == 2 ? p.patterns[2] : And(p.patterns[2:end]))
+end
+
 function partial_match(mod, pat::Data, val::VData, path)
   bs = @try partial_match(mod, tag(pat), tag(val), [path..., 0])
+  isempty(bs) || return missing
   (nparts(pat) == 1 && part(pat, 1) isa Repeat) || return missing
-  pat = part(pat, 1)
-  b, r = pat isa Bind ? (pat.name, pat.pattern) : (nothing, pat)
-  bs′ = partial_match(mod, r.pattern, val.parts, path)
+  pat = part(pat, 1).pattern
+  b, r = destruct_isa(pat)
+  bs′ = partial_match(mod, r, val.parts, path)
   isnothing(bs′) && return
-  isempty(bs′) || return missing # bindings in the Repeat are equality checks
+  isempty(bs′) || return missing
   return b == nothing ? bs : _assoc(bs, b => (val, path))
 end
 

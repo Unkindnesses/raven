@@ -1,11 +1,6 @@
-# TODO causes issues; can't statically match `xs...` against `VData`
-# data { Tuple(xs...) }
+data { Tuple(xs...) }
 
-Tuple = `Tuple`
-
-fn isa(data(`Tuple`, _...), `Tuple`) { true }
-
-# fn tuple(xs...) { data(`Tuple`, xs...) }
+fn tuple(xs...) { data(`Tuple`, xs...) }
 
 fn print(x: Tuple) {
   print("[")
