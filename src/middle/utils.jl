@@ -30,7 +30,10 @@ end
 
 reachable(b::IRTools.Block) =
   any(((v, st),) -> st.type == ⊥, b) ? Set(b.id) :
-    reduce(Base.union, [Set(b.id), [reachable(c) for c in successors(b) if c.id > b.id]...])
+    reduce(Base.union, [Set(b.id),
+                        [reachable(block(b.ir, br.block))
+                         for br in openbranches(nothing, b)
+                         if br.block > b.id]...])
 
 reachable(ir::IR) = reachable(block(ir, 1))
 
@@ -47,7 +50,23 @@ function trim_unreachable!(ir)
   pr = IRTools.Pipe(ir)
   flag = false
   IRTools.branches(pr) do br
-    flag ? nothing : br
+    if flag
+      br = nothing
+    elseif br.condition == nothing
+      flag = true
+    else
+      cond = exprtype(nothing, ir, br.condition)
+      if cond == true
+        br = nothing
+      elseif cond == false
+        flag = true
+        br = IRTools.branch(br.block)
+      end
+    end
+    return br
+  end
+  IRTools.blocks(pr) do b
+    flag = false
   end
   for (v, st) in pr
     if v == first(IRTools.block(ir, v))[1]

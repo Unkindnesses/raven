@@ -17,7 +17,7 @@ fn isa(data(`Symbol`, _), `Symbol`) { true }
 fn (x |> f) { f(x) }
 
 fn condition(x) { panic("Non-boolean used as a condition") }
-fn condition(x: Int32) { widen(x) }
+fn condition(x: Int32) { x }
 
 data Optional { Some(x) | Nil() }
 

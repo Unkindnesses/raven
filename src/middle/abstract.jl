@@ -190,12 +190,12 @@ function infercall!(inf, loc, block, ex)
   return fr.rettype
 end
 
-function openbranches(inf, bl)
+function openbranches(mod, bl)
   brs = []
   fallthrough = true
   for br in IRTools.branches(bl)
     br.condition == nothing && (fallthrough = false; push!(brs, br); break)
-    cond = exprtype(inf.mod, bl.ir, br.condition)
+    cond = exprtype(mod, bl.ir, br.condition)
     cond == true && continue
     cond == false && (fallthrough = false; push!(brs, br); break)
     push!(brs, br)
@@ -243,7 +243,7 @@ function step!(inf::Inference, loc)
       error("Unknown expr type $(st.expr.head)")
     end
   else
-    brs = openbranches(inf, block)
+    brs = openbranches(inf.mod, block)
     for br in brs
       if isreturn(br)
         T = exprtype(inf.mod, block.ir, IRTools.returnvalue(block))

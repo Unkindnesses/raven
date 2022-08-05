@@ -4,7 +4,6 @@ r = x^n
 
 println(r == 8)
 
-# TODO: should be able to panic at the end
 fn pow(x, n: Int64) {
   r = one(x)
   while true {
@@ -14,7 +13,6 @@ fn pow(x, n: Int64) {
     n = n - one(n)
     r = r * x
   }
-  return -1
 }
 
 println(pow(2, 3) == 8)
