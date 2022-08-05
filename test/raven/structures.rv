@@ -55,3 +55,13 @@ let {
   val = iterate(&itr)
   println(isnil(val))
 }
+
+let {
+  d = simpledict()
+  setkey(&d, `a`, 7)
+  setkey(&d, `b`, 5)
+  setkey(&d, `b`, "foo")
+  println(length(d) == 2)
+  println(getkey(d, `a`) == 7)
+  println(getkey(d, `b`) == "foo")
+}

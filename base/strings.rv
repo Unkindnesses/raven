@@ -15,5 +15,5 @@ fn string(x: Symbol) {
 }
 
 fn (a: Symbol) == (b: Symbol) {
-  string(a) == string(b)
+  shortcutEquals(a, b)
 }

@@ -1,0 +1,38 @@
+# Simple linked list of pairs, for pattern matching. The recursion makes it easy
+# to unroll everything.
+
+data { Pair(a, b) }
+
+fn print(data(`Pair`, a, b)) {
+  print(a)
+  print(" => ")
+  print(b)
+}
+
+fn simpledict() { list() }
+
+fn getkey(d: Empty, k: Symbol) {
+  panic(concat("No such key: ", string(k)))
+}
+
+fn getkey(d: Prepend, k: Symbol) {
+  p = first(d)
+  if (part(p, 1) == k) {
+    return part(p, 2)
+  } else {
+    return getkey(rest(d), k)
+  }
+}
+
+fn setkey(&d: Empty, k: Symbol, v) {
+  d = prepend(d, Pair(k, v))
+}
+
+fn setkey(&d: Prepend, k: Symbol, v) {
+  p = first(d)
+  if (part(p, 1) == k) {
+    d = prepend(rest(d), Pair(k, v))
+  } else {
+    d = prepend(setkey(rest(d), k, v), p)
+  }
+}

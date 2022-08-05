@@ -32,4 +32,5 @@ import { wasm }
 import { numbers }
 import { structures.tuple }
 import { structures.linkedlist }
+import { structures.simpledict }
 import { strings }
