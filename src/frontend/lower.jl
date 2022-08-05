@@ -235,7 +235,7 @@ function lower!(sc, ir::IR, ex::AST.Operator, value = true)
     _push!(ir, :($(x) = $(lower!(sc, ir, ex.args[2]))))
     return x
   elseif ex.op in (:(&&), :(||))
-    clauses = ex.op == :(&&) ? [ex.args[2], Int32(false)] : [true, ex.args[2]]
+    clauses = ex.op == :(&&) ? [ex.args[2], Int32(false)] : [Int32(true), ex.args[2]]
     lowerif!(sc, ir, If([ex.args[1], true], clauses), value)
   else
     r = _push!(ir, xcall(ex.op, xdata(:Tuple, map(x -> lower!(sc, ir, x), ex.args)...)))

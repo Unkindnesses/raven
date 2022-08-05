@@ -7,7 +7,7 @@ fn concat(a: String, b: String) {
 }
 
 fn (a: String) == (b: String) {
-  equal(tojs(a), tojs(b))
+  shortcutEquals(a, b) || equal(tojs(a), tojs(b))
 }
 
 fn string(x: Symbol) {
