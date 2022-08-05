@@ -333,6 +333,9 @@ function lowerdata(cx, ir)
           isreftype(exprtype(cx.mod, ir, v)) && push!(pr, Expr(:retain, y))
           isreftype(T) && push!(pr, Expr(:release, x))
         end
+      elseif F == shortcutEquals_method
+        @assert isvalue(st.type)
+        pr[v] = Expr(:tuple)
       elseif F == isnil_method
         x = st.expr.args[2]
         T = exprtype(cx.mod, ir, x)

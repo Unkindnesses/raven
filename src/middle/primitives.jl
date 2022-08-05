@@ -20,6 +20,11 @@ partial_nparts(::VData) = Int64
 partial_widen(x::Primitive) = typeof(x)
 partial_widen(x) = x
 
+# Fast, approximate equality check; basically a stand-in for pointer equality.
+# TODO extend to handle vdata
+partial_shortcutEquals(a, b) =
+  Int32(isvalue(a) && isvalue(b) && a == b)
+
 # Needed by dispatchers, since a user-defined method would need runtime matching
 # to deal with unions.
 partial_isnil(x::Union{Primitive,Type{<:Primitive}}) = Int32(0)
@@ -33,6 +38,8 @@ part_method = RMethod(:part, lowerpattern(rvx"[data, i]"), partial_part, true)
 nparts_method = RMethod(:nparts, lowerpattern(rvx"[x]"), partial_nparts, true)
 datacat_method = RMethod(:datacat, lowerpattern(rvx"args"), args -> datacat(parts(args)...), true)
 widen_method = RMethod(:widen, lowerpattern(rvx"[x]"), partial_widen, true)
+shortcutEquals_method = RMethod(:shortcutEquals, lowerpattern(rvx"[a, b]"), partial_shortcutEquals, true)
+
 isnil_method = RMethod(:isnil, lowerpattern(rvx"[x]"), partial_isnil, true)
 symstring_method = RMethod(:symstring, lowerpattern(rvx"[x: Symbol]"), partial_symstring, true)
 
@@ -44,7 +51,11 @@ function primitives!(mod)
   method!(mod, :nparts, nparts_method)
   method!(mod, :datacat, datacat_method)
   method!(mod, :widen, widen_method)
+  method!(mod, :shortcutEquals, shortcutEquals_method)
+
   method!(mod, :isnil, isnil_method)
   method!(mod, :symstring, symstring_method)
   return mod
 end
+
+# TODO handle primitive expansion by dispatch
