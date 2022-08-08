@@ -1,22 +1,29 @@
 data Pattern {
   Literal(x)
   Data(xs...)
+  Bind(name)
 }
 
 fn match(val, data(`Literal`, pat)) {
   if (pat == val) {
-    return []
+    return simpledict()
   } else {
     return nil
   }
 }
 
+fn match(val, data(`Bind`, name)) {
+  bs = simpledict()
+  setkey(&bs, name, val)
+  return bs
+}
+
 fn match(data(x, y), data(`Data`, a, b)) {
-  if (ismatch(x, a) && ismatch(y, b)) {
-    return []
-  } else {
-    return nil
-  }
+  bs = match(x, a)
+  isnil(bs) && return nil
+  cs = match(y, b)
+  isnil(cs) && return nil
+  return merge(notnil(bs), notnil(cs))
 }
 
 fn ismatch(val, pat) {
