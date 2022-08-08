@@ -109,7 +109,7 @@ function partial_match(mod, pat::Data, val, path)
     if pat[i] == Repeat(hole)
       break
     elseif isslurp(pat[i])
-      bs = @try _assoc(bs, pat[i].pattern.name => (rtuple(parts(val)[i:end]...), [path..., i:nparts(val)]))
+      bs = @try _assoc(bs, pat[i].pattern.name => (rtuple(allparts(val)[i+1:end]...), [path..., i:nparts(val)]))
       return bs
     elseif pat[i] isa Repeat
       return missing

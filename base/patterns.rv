@@ -2,6 +2,7 @@ data Pattern {
   Literal(x)
   Data(xs...)
   Bind(name)
+  Constructor(name, args...)
 }
 
 fn match(val, data(`Literal`, pat)) {
@@ -18,12 +19,18 @@ fn match(val, data(`Bind`, name)) {
   return bs
 }
 
-fn match(data(x, y), data(`Data`, a, b)) {
-  bs = match(x, a)
-  isnil(bs) && return nil
-  cs = match(y, b)
+fn match(data(), data(`Data`)) { simpledict() }
+
+fn match(data(x, xs...), data(`Data`, p, ps...)) {
+  bs = match(x, p)
+  isnil(bs) && return
+  cs = match(data(xs...), Data(ps...))
   isnil(cs) && return nil
-  return merge(notnil(bs), notnil(cs))
+  merge(notnil(bs), notnil(cs))
+}
+
+fn match(val, data(`Constructor`, name, args...)) {
+  match(val, constructorPattern(name, args...))
 }
 
 fn ismatch(val, pat) {
