@@ -3,7 +3,7 @@ data Pattern {
   Data(xs...)
 }
 
-fn match(data(`Literal`, pat), val) {
+fn match(val, data(`Literal`, pat)) {
   if (pat == val) {
     return []
   } else {
@@ -11,14 +11,14 @@ fn match(data(`Literal`, pat), val) {
   }
 }
 
-fn match(data(`Data`, a, b), data(x, y)) {
-  if (ismatch(a, x) && ismatch(b, y)) {
+fn match(data(x, y), data(`Data`, a, b)) {
+  if (ismatch(x, a) && ismatch(y, b)) {
     return []
   } else {
     return nil
   }
 }
 
-fn ismatch(pat, val) {
-  not(isnil(match(pat, val)))
+fn ismatch(val, pat) {
+  not(isnil(match(val, pat)))
 }

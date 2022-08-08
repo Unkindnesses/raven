@@ -1,2 +1,2 @@
-println(not(isnil(match(Literal(1), widen(1)))))
-println(isnil(match(Literal(1), widen(2))))
+println(not(isnil(match(widen(1), Literal(1)))))
+println(isnil(match(widen(2), Literal(1))))

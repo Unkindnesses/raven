@@ -157,7 +157,7 @@ function dispatcher(inf, func::Symbol, Ts)
       return!(ir, result)
       return ir
     elseif isempty(meth.sig.args)
-      margs = push!(ir, Expr(:data, :Tuple, rvpattern(meth.sig.pattern), args))
+      margs = push!(ir, Expr(:data, :Tuple, args, rvpattern(meth.sig.pattern)))
       cond = push!(ir, Expr(:call, :ismatch, margs))
       cond = push!(ir, xcall(part_method, cond, 1))
       branch!(ir, length(blocks(ir))+2; unless = cond)
@@ -167,7 +167,7 @@ function dispatcher(inf, func::Symbol, Ts)
       return!(ir, result)
       block!(ir)
     else
-      error("Runtime matching not yet supported")
+      error("Runtime matching: $func: $Ts")
     end
   end
   v = push!(ir, xcall(:panic, xdata(:Tuple, "No matching method: $func: $Ts")))
