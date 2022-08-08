@@ -72,7 +72,35 @@ isvalue(xs::Data) = all(isvalue, parts(xs))
 
 vprint(io::IO, x) = show(io, x)
 
+const printers = Dict{Symbol,Any}()
+
+printers[:Tuple] = function (io::IO, s::Data)
+  print(io, "[")
+  join(io, [sprint(vprint, x) for x in parts(s)], ", ")
+  print(io, "]")
+end
+
+function printList(io::IO, s::Data)
+  print(io, "list(")
+  while tag(s) == :Prepend
+    vprint(io, part(s, 2))
+    tag(part(s, 1)) == :Prepend && print(io, ", ")
+    s = part(s, 1)
+  end
+  print(io, ")")
+end
+
+printers[:Prepend] = printList
+printers[:Empty] = printList
+
+printers[:Pair] = function (io, s)
+  vprint(io, part(s, 1))
+  print(io, " => ")
+  vprint(io, part(s, 2))
+end
+
 function vprint(io::IO, s::Data)
+  haskey(printers, tag(s)) && return printers[tag(s)](io, s)
   print(io, "data(")
   join(io, [sprint(vprint, x) for x in s.parts], ", ")
   print(io, ")")
