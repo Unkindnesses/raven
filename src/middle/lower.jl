@@ -353,7 +353,7 @@ function lowerdata(cx, ir)
           pr[v] = x
         else
           @assert T isa Or && !(st.type isa Or)
-          pr[v] = Expr(:tuple, [push!(pr, Expr(:ref, x, i)) for i = 2:length(layout(T))]...)
+          pr[v] = Expr(:tuple, [insert!(pr, v, Expr(:ref, x, i)) for i = 2:length(layout(T))]...)
         end
       elseif F == symstring_method
         @assert st.type isa String
