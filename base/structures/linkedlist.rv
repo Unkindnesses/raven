@@ -55,8 +55,25 @@ fn foreach(f, xs: Prepend) {
   foreach(f, rest(xs))
 }
 
+# fn print(xs: List) {
+#   print("list(")
+#   foreach(print, interpose(", ", xs))
+#   print(")")
+# }
+
+fn printList(xs: Empty) {
+  print(")")
+}
+
+fn printList(xs: Prepend) {
+  print(first(xs))
+  if not(isa(rest(xs), Empty)) {
+    print(", ")
+  }
+  printList(rest(xs))
+}
+
 fn print(xs: List) {
   print("list(")
-  foreach(print, interpose(", ", xs))
-  print(")")
+  printList(xs)
 }

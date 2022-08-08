@@ -34,3 +34,4 @@ end
 
 # Test `println` output
 @test output("print-tuple") == string([1:10...])
+@test output("print-list") == "list(1, 2, 3)"
