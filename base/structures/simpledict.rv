@@ -61,3 +61,14 @@ fn merge(&d: Prepend, k: Symbol, v) {
     }
   }
 }
+
+# Returns nil when there is a clash; intended for pattern matching
+fn merge(&d, e: Empty) { d }
+
+fn merge(&d, e: Prepend) {
+  p = first(e)
+  merge(&d, part(p, 1), part(p, 2))
+  if isnil(d) { return d = nil }
+  d = notnil(d)
+  return merge(&d, rest(e))
+}

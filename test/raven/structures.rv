@@ -76,3 +76,13 @@ let {
   println(not(isnil(merge(d, `a`, widen(7)))))
   println(isnil(merge(d, `a`, widen(8))))
 }
+
+let {
+  b1 = list(Pair(`a`, 1), Pair(`b`, 2))
+  b2 = list(Pair(`b`, widen(2)), Pair(`d`, 3))
+  println(not(isnil(merge(&b1, b2))))
+
+  b1 = list(Pair(`a`, 1), Pair(`b`, 2))
+  b2 = list(Pair(`b`, widen(3)), Pair(`d`, 3))
+  println(isnil(merge(&b1, b2)))
+}
