@@ -346,6 +346,15 @@ function lowerdata(cx, ir)
           j = insert!(pr, v, Expr(:ref, x, 1))
           pr[v] = xcall(WIntrinsic(i32.eq, i32), j, Int32(i))
         end
+      elseif F == notnil_method
+        x = st.expr.args[2]
+        T = exprtype(cx.mod, ir, x)
+        if T == st.type
+          pr[v] = x
+        else
+          @assert T isa Or && !(st.type isa Or)
+          pr[v] = Expr(:tuple, [push!(pr, Expr(:ref, x, i)) for i = 2:length(layout(T))]...)
+        end
       elseif F == symstring_method
         @assert st.type isa String
         pr[v] = Expr(:tuple)

@@ -11,6 +11,9 @@ fn print(data(`Pair`, a, b)) {
 
 fn simpledict() { list() }
 
+fn haskey(d: Empty, k: Symbol) { false }
+fn haskey(d: Prepend, k: Symbol) { (part(first(d), 1) == k) || haskey(rest(d), k) }
+
 fn getkey(d: Empty, k: Symbol) {
   panic(concat("No such key: ", string(k)))
 }
@@ -34,5 +37,27 @@ fn setkey(&d: Prepend, k: Symbol, v) {
     d = prepend(rest(d), Pair(k, v))
   } else {
     d = prepend(setkey(rest(d), k, v), p)
+  }
+}
+
+fn merge(&d: Empty, k: Symbol, v) {
+  d = prepend(d, Pair(k, v))
+}
+
+fn merge(&d: Prepend, k: Symbol, v) {
+  p = first(d)
+  if (part(p, 1) == k) {
+    if (part(p, 2) == v) {
+      return d
+    } else {
+      d = nil
+    }
+  } else {
+    e = merge(rest(d), k, v)
+    if isnil(e) {
+      d = nil
+    } else {
+      d = prepend(notnil(e), p)
+    }
   }
 }

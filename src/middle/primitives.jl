@@ -31,6 +31,14 @@ partial_isnil(x::Union{Primitive,Type{<:Primitive}}) = Int32(0)
 partial_isnil(x::Data) = Int32(x == data(:Nil))
 partial_isnil(x::Or) = any(==(data(:Nil)), x.patterns) ? Int32 : Int32(0)
 
+# Duct tape until the thatcher algorithm works.
+partial_notnil(x::Data) = tag(x) == :Nil ? ⊥ : x
+
+function partial_notnil(x::Or)
+  ps = filter(x -> tag(x) != :Nil, x.patterns)
+  return length(ps) == 1 ? ps[1] : Or(ps)
+end
+
 partial_symstring(x::Symbol) = String(x)
 
 data_method = RMethod(:data, lowerpattern(rvx"args"), args -> data(parts(args)...), true)
@@ -41,6 +49,7 @@ widen_method = RMethod(:widen, lowerpattern(rvx"[x]"), partial_widen, true)
 shortcutEquals_method = RMethod(:shortcutEquals, lowerpattern(rvx"[a, b]"), partial_shortcutEquals, true)
 
 isnil_method = RMethod(:isnil, lowerpattern(rvx"[x]"), partial_isnil, true)
+notnil_method = RMethod(:notnil, lowerpattern(rvx"[x]"), partial_notnil, true)
 symstring_method = RMethod(:symstring, lowerpattern(rvx"[x: Symbol]"), partial_symstring, true)
 
 function primitives!(mod)
@@ -54,6 +63,7 @@ function primitives!(mod)
   method!(mod, :shortcutEquals, shortcutEquals_method)
 
   method!(mod, :isnil, isnil_method)
+  method!(mod, :notnil, notnil_method)
   method!(mod, :symstring, symstring_method)
   return mod
 end

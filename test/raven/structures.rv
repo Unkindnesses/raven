@@ -61,7 +61,18 @@ let {
   setkey(&d, `a`, 7)
   setkey(&d, `b`, 5)
   setkey(&d, `b`, "foo")
+
   println(length(d) == 2)
+
   println(getkey(d, `a`) == 7)
   println(getkey(d, `b`) == "foo")
+  println(haskey(d, `b`))
+  println(not(haskey(d, `c`)))
+
+  println(not(isnil(merge(d, `b`, "foo"))))
+  println(isnil(merge(d, `b`, "bar")))
+  println(not(isnil(merge(d, `c`, 9))))
+
+  println(not(isnil(merge(d, `a`, widen(7)))))
+  println(isnil(merge(d, `a`, widen(8))))
 }
