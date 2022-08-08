@@ -89,6 +89,16 @@ function sublayout(T, i)
   offset .+ (1:length)
 end
 
+lowerPrimitive[data_method] = function (cx, pr, ir, v)
+  # Arguments are turned into a tuple when calling any function, so this
+  # is just a cast.
+  @assert layout(ir[v].type) == layout(exprtype(cx.mod, ir, ir[v].expr.args[2]))
+  pr[v] = ir[v].expr.args[2]
+end
+
+# part
+# ====
+
 # Create a `part` method to dynamically index tuples allocated as registers.
 # TODO: should make sure this comes out as a switch / branch table.
 # TODO: we call WASM functions here, which is not backend-agnostic, but
@@ -215,6 +225,25 @@ function indexer!(ir, T::VData, I::Union{Int,Type{Int64}}, x, i)
   return v
 end
 
+lowerPrimitive[part_method] = function (cx, pr, ir, v)
+  x, i = ir[v].expr.args[2:end]
+  T, I = exprtype(cx.mod, ir, ir[v].expr.args[2:end])
+  if T isa Data && I isa Type{<:Integer}
+    partmethod!(cx, T, I)
+  elseif T isa Or
+    union_partmethod!(cx, T, I)
+  else
+    delete!(pr, v)
+    y = indexer!(pr, T, I, x, i)
+    replace!(pr, v, y)
+    isreftype(exprtype(cx.mod, ir, v)) && push!(pr, Expr(:retain, y))
+    isreftype(T) && push!(pr, Expr(:release, x))
+  end
+end
+
+# datacat
+# =======
+
 function datacat_ir(T::Data)
   T′ = datacat(parts(T)...)
   @assert layout(T′.parts) == () || T′.parts == Int64
@@ -273,6 +302,21 @@ function datacat_method!(cx::Compilation, T)
   return
 end
 
+lowerPrimitive[datacat_method] = function (cx, pr, ir, v)
+  x = ir[v].expr.args[2]
+  S = exprtype(cx.mod, ir, x)
+  T = ir[v].type
+  if S isa Data && T isa Data
+    @assert layout(S) == layout(T)
+    pr[v] = Expr(:cast, x)
+  else
+    datacat_method!(cx, S)
+  end
+end
+
+# nparts
+# ======
+
 function nparts!(ir, T::Data, x)
   return nparts(T)
 end
@@ -280,6 +324,14 @@ end
 function nparts!(ir, T::VData, x)
   sz = push!(ir, Expr(:ref, x, 1))
   push!(ir, xcall(WIntrinsic(i64.extend_i32_s, i64), sz))
+end
+
+lowerPrimitive[nparts_method] = function (cx, pr, ir, v)
+  x = ir[v].expr.args[2]
+  T = exprtype(cx.mod, ir, x)
+  delete!(pr, v)
+  replace!(pr, v, nparts!(pr, T, x))
+  isreftype(T) && push!(pr, Expr(:release, x))
 end
 
 function lowerdata(cx, ir)
@@ -294,70 +346,8 @@ function lowerdata(cx, ir)
     elseif isexpr(st.expr, :call)
       st.expr.args[1] isa WIntrinsic && continue
       F = exprtype(cx.mod, ir, st.expr.args[1])
-      if F == widen_method
-        T = exprtype(cx.mod, ir, st.expr.args[2])
-        val = T isa Integer ? T : st.expr.args[2]
-        pr[v] = val
-      elseif F == data_method
-        # Arguments are turned into a tuple when calling any function, so this
-        # is just a cast.
-        @assert layout(st.type) == layout(exprtype(cx.mod, ir, st.expr.args[2]))
-        pr[v] = st.expr.args[2]
-      elseif F == datacat_method
-        x = st.expr.args[2]
-        S = exprtype(cx.mod, ir, x)
-        T = st.type
-        if S isa Data && T isa Data
-          @assert layout(S) == layout(T)
-          pr[v] = Expr(:cast, x)
-        else
-          datacat_method!(cx, S)
-        end
-      elseif F == nparts_method
-        x = st.expr.args[2]
-        T = exprtype(cx.mod, ir, x)
-        delete!(pr, v)
-        replace!(pr, v, nparts!(pr, T, x))
-        isreftype(T) && push!(pr, Expr(:release, x))
-      elseif F == part_method
-        x, i = st.expr.args[2:end]
-        T, I = exprtype(cx.mod, ir, st.expr.args[2:end])
-        if T isa Data && I isa Type{<:Integer}
-          partmethod!(cx, T, I)
-        elseif T isa Or
-          union_partmethod!(cx, T, I)
-        else
-          delete!(pr, v)
-          y = indexer!(pr, T, I, x, i)
-          replace!(pr, v, y)
-          isreftype(exprtype(cx.mod, ir, v)) && push!(pr, Expr(:retain, y))
-          isreftype(T) && push!(pr, Expr(:release, x))
-        end
-      elseif F == shortcutEquals_method
-        @assert isvalue(st.type)
-        pr[v] = Expr(:tuple)
-      elseif F == isnil_method
-        x = st.expr.args[2]
-        T = exprtype(cx.mod, ir, x)
-        if st.type isa Int32
-          pr[v] = st.type
-        else
-          i = findfirst(==(data(:Nil)), T.patterns)
-          j = insert!(pr, v, Expr(:ref, x, 1))
-          pr[v] = xcall(WIntrinsic(i32.eq, i32), j, Int32(i))
-        end
-      elseif F == notnil_method
-        x = st.expr.args[2]
-        T = exprtype(cx.mod, ir, x)
-        if T == st.type
-          pr[v] = x
-        else
-          @assert T isa Or && !(st.type isa Or)
-          pr[v] = Expr(:tuple, [insert!(pr, v, Expr(:ref, x, i)) for i = 2:length(layout(T))]...)
-        end
-      elseif F == symstring_method
-        @assert st.type isa String
-        pr[v] = Expr(:tuple)
+      if haskey(lowerPrimitive, F)
+        lowerPrimitive[F](cx, pr, ir, v)
       end
     end
   end

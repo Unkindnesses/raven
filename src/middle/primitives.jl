@@ -1,4 +1,5 @@
-# Primitives for type inference
+# Core primitives – data, datacat, part and nparts – are dealt with in
+# middle-end lowering, but we define type inference here.
 
 partial_part(data::Union{Data,Primitive,Type{<:Primitive}}, i::Integer) =
   0 <= i <= nparts(data) ? part(data, i) : ⊥
@@ -68,4 +69,46 @@ function primitives!(mod)
   return mod
 end
 
-# TODO handle primitive expansion by dispatch
+# Primitive lowering
+# Invoked from middle-end lowering
+
+const lowerPrimitive = IdDict{RMethod,Any}()
+
+lowerPrimitive[widen_method] = function (cx, pr, ir, v)
+  T = exprtype(cx.mod, ir, ir[v].expr.args[2])
+  val = T isa Integer ? T : ir[v].expr.args[2]
+  pr[v] = val
+end
+
+lowerPrimitive[shortcutEquals_method] = function (cx, pr, ir, v)
+  @assert isvalue(ir[v].type)
+  pr[v] = Expr(:tuple)
+end
+
+lowerPrimitive[isnil_method] = function (cx, pr, ir, v)
+  x = ir[v].expr.args[2]
+  T = exprtype(cx.mod, ir, x)
+  if ir[v].type isa Int32
+    pr[v] = ir[v].type
+  else
+    i = findfirst(==(data(:Nil)), T.patterns)
+    j = insert!(pr, v, Expr(:ref, x, 1))
+    pr[v] = xcall(WIntrinsic(i32.eq, i32), j, Int32(i))
+  end
+end
+
+lowerPrimitive[notnil_method] = function (cx, pr, ir, v)
+  x = ir[v].expr.args[2]
+  T = exprtype(cx.mod, ir, x)
+  if T == ir[v].type
+    pr[v] = x
+  else
+    @assert T isa Or && !(ir[v].type isa Or)
+    pr[v] = Expr(:tuple, [insert!(pr, v, Expr(:ref, x, i)) for i = 2:length(layout(T))]...)
+  end
+end
+
+lowerPrimitive[symstring_method] = function (cx, pr, ir, v)
+  @assert ir[v].type isa String
+  pr[v] = Expr(:tuple)
+end
