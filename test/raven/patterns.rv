@@ -1,2 +1,8 @@
 println(not(isnil(match(widen(1), Literal(1)))))
 println(isnil(match(widen(2), Literal(1))))
+
+fn test(1, x) { x }
+fn test(2, x) { x + 1 }
+
+println(test(widen(1), widen(3)) == 3)
+println(test(widen(2), widen(3)) == 4)

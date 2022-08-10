@@ -98,6 +98,7 @@ Frame(ir::IR) = Frame(ir, Set{Loc}(), keys.(blocks(ir)), ⊥)
 
 function frame(ir::IR, args...)
   ir = prepare_ir!(copy(ir))
+  @assert length(arguments(ir)) == length(args)
   argtypes(ir) .= args
   return Frame(ir)
 end
@@ -156,18 +157,22 @@ function dispatcher(inf, func::Symbol, Ts)
       isempty(meth.sig.swap) && (result = push!(ir, xdata(:Tuple, result)))
       return!(ir, result)
       return ir
-    elseif isempty(meth.sig.args)
-      margs = push!(ir, Expr(:data, :Tuple, args, rvpattern(meth.sig.pattern)))
-      cond = push!(ir, Expr(:call, :ismatch, margs))
-      cond = push!(ir, xcall(part_method, cond, 1))
+    else
+      margs = push!(ir, xdata(:Tuple, args, rvpattern(meth.sig.pattern)))
+      m = push!(ir, xcall(part_method, xcall(:match, margs), 1))
+      cond = push!(ir, xcall(isnil_method, m))
+      cond = push!(ir, xcall(part_method, xcall(:not, xdata(:Tuple, cond)), 1))
       branch!(ir, length(blocks(ir))+2; unless = cond)
       block!(ir)
-      result = push!(ir, xcall(meth))
+      m = push!(ir, xcall(notnil_method, m))
+      as = []
+      for arg in meth.sig.args
+        push!(as, push!(ir, xcall(part_method, xcall(:getkey, xdata(:Tuple, m, arg)), 1)))
+      end
+      result = push!(ir, xcall(meth, as...))
       isempty(meth.sig.swap) && (result = push!(ir, xdata(:Tuple, result)))
       return!(ir, result)
       block!(ir)
-    else
-      error("Runtime matching: $func: $Ts")
     end
   end
   v = push!(ir, xcall(:panic, xdata(:Tuple, "No matching method: $func: $Ts")))

@@ -45,6 +45,7 @@ Base.:(==)(a::Or, b::Or) = a.patterns == b.patterns
 
 rvpattern(x::Primitive) = x
 rvpattern(x::Literal) = data(:Literal, x.value)
+rvpattern(x::Bind) = data(:Bind, x.name)
 rvpattern(xs::Data) = data(:Data, rvpattern.(xs.parts)...)
 
 # Pattern lowering
