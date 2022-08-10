@@ -32,6 +32,11 @@ struct Swap
   pattern
 end
 
+struct Constructor
+  func
+  args::Vector{Any}
+end
+
 function Base.show(io::IO, or::Or)
   for i = 1:length(or.patterns)
     i == 1 || print(io, " | ")
@@ -47,6 +52,7 @@ rvpattern(x::Primitive) = x
 rvpattern(x::Literal) = data(:Literal, x.value)
 rvpattern(x::Bind) = data(:Bind, x.name)
 rvpattern(xs::Data) = data(:Data, rvpattern.(xs.parts)...)
+rvpattern(xs::Constructor) = data(:Constructor, xs.func, rvpattern.(xs.args)...)
 
 # Pattern lowering
 
@@ -79,6 +85,8 @@ function _lowerpattern(ex, as)
     Repeat(_lowerpattern(ex.expr, as))
   elseif ex isa AST.Call && ex.func == :data
     data(map(x -> _lowerpattern(x, as), ex.args)...)
+  elseif ex isa AST.Call
+    Constructor(ex.func, _lowerpattern.(ex.args, (as,)))
   else
     error("Invalid pattern syntax $(ex)")
   end

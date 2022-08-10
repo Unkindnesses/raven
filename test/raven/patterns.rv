@@ -6,3 +6,9 @@ fn test(2, x) { x + 1 }
 
 println(test(widen(1), widen(3)) == 3)
 println(test(widen(2), widen(3)) == 4)
+
+fn test(Complex(a, b)) { a + b }
+fn test(Complex(a, a)) { a }
+
+println(test(Complex(1, widen(2))) == 3)
+println(test(Complex(2, widen(2))) == 2)

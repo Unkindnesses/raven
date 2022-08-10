@@ -88,6 +88,8 @@ function partial_match(mod, pat::Or, val, path)
   return
 end
 
+partial_match(mod, pat::Constructor, val, path) = missing
+
 isslurp(x) = x isa Repeat && x.pattern isa Union{Hole,Bind}
 
 # Redundant, but this check prevents some `trivial_isa` cases becoming circular.
