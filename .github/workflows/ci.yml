@@ -21,6 +21,7 @@ jobs:
           # - 'nightly'
         os:
           - ubuntu-latest
+          - windows-latest
         arch:
           - x64
         # include:
@@ -46,15 +47,7 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - name: Install WABT
-        run: |
-          curl -OL https://github.com/WebAssembly/wabt/releases/download/1.0.29/wabt-1.0.29-ubuntu.tar.gz
-          tar -xf wabt-1.0.29-ubuntu.tar.gz
-          echo "$PWD/wabt-1.0.29/bin" >> $GITHUB_PATH
-      - name: Install Binaryen
-        run: |
-          curl -OL https://github.com/WebAssembly/binaryen/releases/download/version_109/binaryen-version_109-x86_64-linux.tar.gz
-          tar -xf binaryen-version_109-x86_64-linux.tar.gz
-          echo "$PWD/binaryen-version_109/bin" >> $GITHUB_PATH
+      - name: Install WABT/Binaryen
+        run: npm install --global wabt@1.0.29 binaryen@109.0.0
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
