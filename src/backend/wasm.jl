@@ -186,12 +186,21 @@ function wasmmodule(inf::Compilation)
   return mod, strings
 end
 
+function runps(cmd)
+  Sys.iswindows() ? run(`powershell -command $cmd`) : run(cmd)
+end
+
+function tmp(file)
+  # For some reason wat2wasm can't read the temp file on Windows.
+  Sys.iswindows() ? file : tempname()
+end
+
 function binary(m::WebAssembly.Module, file; optimise = true)
-  wat = tempname() * ".wat"
+  wat = tmp(file) * ".wat"
   WebAssembly.write_wat(wat, m)
   try
-    run(`wat2wasm $wat -o $file`)
-    optimise && run(`wasm-opt --enable-multivalue --enable-bulk-memory $file -O4 -o $file`)
+    runps(`wat2wasm $wat -o $file`)
+    optimise && runps(`wasm-opt --enable-multivalue --enable-bulk-memory $file -O4 -o $file`)
   finally
     rm(wat)
   end
