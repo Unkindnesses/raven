@@ -21,3 +21,9 @@ function compile(file, dir = dirname(file); optimise = true)
   emitjs(joinpath(dir, "$name.js"), "$name.wasm", strings)
   return
 end
+
+function exec(file)
+  compile(file)
+  run(`node $(splitext(file)[1]).js`)
+  return
+end
