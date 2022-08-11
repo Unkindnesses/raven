@@ -89,12 +89,13 @@ mutable struct Frame
   ir::IR
   edges::Set{Loc}
   stmts::Vector{Vector{Variable}}
+  seen::Set{Int}
   rettype
 end
 
 Base.show(io::IO, ::Frame) = print(io, "Frame(...)")
 
-Frame(ir::IR) = Frame(ir, Set{Loc}(), keys.(blocks(ir)), ⊥)
+Frame(ir::IR) = Frame(ir, Set{Loc}(), keys.(blocks(ir)), Set(), ⊥)
 
 function frame(ir::IR, args...)
   ir = prepare_ir!(copy(ir))
@@ -258,10 +259,8 @@ function step!(inf::Inference, loc)
         foreach(loc -> push!(inf.queue, loc), frame.edges)
       else
         args = exprtype(inf.mod, block.ir, arguments(br))
-        # TODO slightly inefficient – we only need to visit arg-less blocks once,
-        # after confirming they are reachable. Also has an infinite-loop edge
-        # case.
-        if isempty(args) || blockargs!(IRTools.block(frame.ir, br.block), args)
+        if (isempty(args) && !(br.block in frame.seen)) || blockargs!(IRTools.block(frame.ir, br.block), args)
+          push!(frame.seen, br.block)
           push!(inf.queue, Loc(F, br.block, 1))
         end
       end
