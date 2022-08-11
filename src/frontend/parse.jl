@@ -171,6 +171,7 @@ struct Stmt
 end
 
 function stmt(io::IO)
+  consume_ws(io)
   read(io) == '\n' || return
   i = 0
   while !eof(io) && peek(io) ∈ whitespace
@@ -288,7 +289,7 @@ end
 
 # returns `nothing` if there is no valid input (EOF or only whitespace/comments)
 function parse(io::LineNumberingReader; quasi = true)
-  consume_ws(io); stmts(io)
+  stmts(io)
   parseone(io, _syntax, expr; quasi)
 end
 
