@@ -1,12 +1,12 @@
-data List { Prepend(xs, x) | Empty() }
+data LinkedList { Prepend(xs, x) | Empty() }
 
-fn prepend(xs: List, x) { Prepend(xs, x) }
-fn prepend(xs: List, x, y) { prepend(prepend(xs, x), y) }
+fn prepend(xs: LinkedList, x) { Prepend(xs, x) }
+fn prepend(xs: LinkedList, x, y) { prepend(prepend(xs, x), y) }
 
-fn first(l: Empty) { panic("first: List is empty") }
+fn first(l: Empty) { panic("first: list is empty") }
 fn first(l: Prepend) { part(l, 2) }
 
-fn rest(l: Empty)  { panic("rest: List is empty") }
+fn rest(l: Empty)  { panic("rest: list is empty") }
 fn rest(l: Prepend) { part(l, 1) }
 
 fn list() { Empty() }
@@ -29,13 +29,13 @@ fn lrange(start, end) {
 fn repeat(n, x) { prepend(repeat(n-1, x), x) }
 fn repeat(0, x) { list() }
 
-fn interleave(xs: List, ys: List) { list() }
+fn interleave(xs: LinkedList, ys: LinkedList) { list() }
 
 fn interleave(xs: Prepend, ys: Prepend) {
   prepend(interleave(rest(xs), rest(ys)), first(ys), first(xs))
 }
 
-fn interpose(sep, xs: List) {
+fn interpose(sep, xs: LinkedList) {
   rest(interleave(repeat(length(xs), sep), xs))
 }
 
@@ -44,7 +44,7 @@ fn interpose(sep, xs: Empty) { xs }
 fn sum(xs: Prepend, s) { sum(rest(xs), s + first(xs)) }
 fn sum(xs: Empty, s) { s }
 
-fn sum(xs: List) { sum(xs, zero(first(xs))) }
+fn sum(xs: LinkedList) { sum(xs, zero(first(xs))) }
 
 fn map(f, xs: Empty) { xs }
 fn map(f, xs: Prepend) { prepend(map(f, rest(xs)), f(first(xs))) }
@@ -55,7 +55,7 @@ fn foreach(f, xs: Prepend) {
   foreach(f, rest(xs))
 }
 
-# fn print(xs: List) {
+# fn print(xs: LinkedList) {
 #   print("list(")
 #   foreach(print, interpose(", ", xs))
 #   print(")")
@@ -73,7 +73,7 @@ fn printList(xs: Prepend) {
   printList(rest(xs))
 }
 
-fn print(xs: List) {
+fn print(xs: LinkedList) {
   print("list(")
   printList(xs)
 }
