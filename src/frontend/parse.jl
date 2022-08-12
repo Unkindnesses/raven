@@ -1,7 +1,7 @@
 module Parse
 
 using LNR
-using ..AST: Expr, Return, Break, Continue, Tuple, Splat, Call,
+using ..AST: Expr, Return, Break, Continue, List, Splat, Call,
   Operator, Block, Syntax, Quote, Swap
 
 struct ParseError
@@ -216,7 +216,7 @@ function brackets(io, start = '(', stop = bracketmap[start])
   return xs
 end
 
-_tuple(io) = Tuple(@try(brackets(io, '[')))
+_tuple(io) = List(@try(brackets(io, '[')))
 
 function _block(io)
   read(io) == '{' || return

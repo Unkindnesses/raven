@@ -24,7 +24,7 @@ end
 function load_expr(cx::Inference, x)
   fname = Symbol(:__main, length(cx.main))
   defs = collect(keys(cx.mod.defs))
-  method!(cx.mod, fname, RMethod(fname, lowerpattern(AST.Tuple([])), lower_toplevel(x, defs)))
+  method!(cx.mod, fname, RMethod(fname, lowerpattern(AST.List([])), lower_toplevel(x, defs)))
   push!(cx.main, fname)
 end
 
@@ -34,7 +34,7 @@ function vload(cx::Inference, x::AST.Syntax)
   x.name == :fn || return load_expr(cx, x)
   sig = x.args[1]
   f = sig isa AST.Operator ? sig.op : sig.func
-  args = AST.Tuple(x.args[1].args)
+  args = AST.List(x.args[1].args)
   sig = lowerpattern(args)
   method!(cx.mod, f, RMethod(f, sig, lowerfn(x, sig)))
   return f
@@ -55,7 +55,7 @@ vload(m::Inference, x) = load_expr(m, x)
 function finish!(cx::Inference)
   fn = AST.Syntax(:fn, [AST.Call(:_start, []),
                   AST.Block([AST.Call(f, []) for f in cx.main])])
-  sig = lowerpattern(AST.Tuple([]))
+  sig = lowerpattern(AST.List([]))
   method!(cx.mod, :_start, RMethod(:_start, sig, lowerfn(fn, sig)))
 end
 

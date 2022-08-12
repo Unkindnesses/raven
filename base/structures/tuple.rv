@@ -1,8 +1,8 @@
-data { Tuple(xs...) }
+data { List(xs...) }
 
-fn tuple(xs...) { data(`Tuple`, xs...) }
+fn tuple(xs...) { data(`List`, xs...) }
 
-fn print(x: Tuple) {
+fn print(x: List) {
   print("[")
   i = 1
   while i <= nparts(x) {

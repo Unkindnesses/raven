@@ -1,7 +1,7 @@
 using WebAssembly: WType, WTuple, i32, i64, f32, f64
 
 rvtype(x::WType) = WebAssembly.jltype(x)
-rvtype(x::WTuple) = data(:Tuple, map(rvtype, x.parts)...)
+rvtype(x::WTuple) = data(:List, map(rvtype, x.parts)...)
 rvtype(::typeof(⊥)) = ⊥
 
 struct WIntrinsic

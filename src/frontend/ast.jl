@@ -14,7 +14,7 @@ struct Break <: Expr end
 
 struct Continue <: Expr end
 
-struct Tuple <: Expr
+struct List <: Expr
   args::Vector{Any}
 end
 
@@ -51,7 +51,7 @@ end
 
 using MacroTools: @q
 
-for T in [Return, Tuple, Call, Operator, Syntax, Block]
+for T in [Return, List, Call, Operator, Syntax, Block]
   @eval Base.:(==)(a::$T, b::$T) = $(Base.Expr(:&&, [:(a.$f == b.$f) for f in fieldnames(T)]...))
 end
 
@@ -82,7 +82,7 @@ end
 _show(io::Ctx, x::Break) = print(io, "break")
 _show(io::Ctx, x::Continue) = print(io, "continue")
 
-function _show(io::Ctx, x::Tuple)
+function _show(io::Ctx, x::List)
   print(io, "[")
   join(io, repr.((io,), x.args), ", ")
   print(io, "]")

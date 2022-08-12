@@ -27,7 +27,7 @@ end
 
 tag(x::VData) = x.tag
 
-rtuple(xs...) = data(:Tuple, xs...)
+rtuple(xs...) = data(:List, xs...)
 
 datacat(x) = x
 datacat(x::Data, y::Data) = data(tag(x), parts(x)..., parts(y)...)
@@ -74,7 +74,7 @@ vprint(io::IO, x) = show(io, x)
 
 const printers = Dict{Symbol,Any}()
 
-printers[:Tuple] = function (io::IO, s::Data)
+printers[:List] = function (io::IO, s::Data)
   print(io, "[")
   join(io, [sprint(vprint, x) for x in parts(s)], ", ")
   print(io, "]")

@@ -5,7 +5,7 @@ data Expr {
   Number | String | Symbol
   Return(ex: Expr)
   Break() | Continue()
-  Tuple(xs: List[Expr])
+  List(xs: List[Expr])
   Splat(ex: Expr)
   Call(f: Expr, args: List[Expr])
   Operator(op: Symbol, args: List[Expr])

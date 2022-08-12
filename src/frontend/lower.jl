@@ -75,8 +75,8 @@ function _lowerpattern(ex, as)
   elseif ex isa Union{Primitive,AST.Quote}
     ex isa AST.Quote && (ex = ex.expr)
     return Literal(ex)
-  elseif ex isa AST.Tuple
-    data(Literal(:Tuple), map(x -> _lowerpattern(x, as), ex.args)...)
+  elseif ex isa AST.List
+    data(Literal(:List), map(x -> _lowerpattern(x, as), ex.args)...)
   elseif ex isa AST.Operator && ex.op == :(:)
     name, T = ex.args
     name in as || push!(as, name)
@@ -96,7 +96,7 @@ end
 # TODO: swap should be part of the pattern, so we can reject swaps that mismatch
 # the signature.
 function _lowersig(ex, as, swaps)
-  ex isa AST.Tuple || return _lowerpattern(ex, as)
+  ex isa AST.List || return _lowerpattern(ex, as)
   args = map(enumerate(ex.args)) do (i, x)
     if x isa AST.Swap
       swaps[i] = x.op
@@ -108,7 +108,7 @@ function _lowersig(ex, as, swaps)
       _lowerpattern(x, as)
     end
   end
-  data(Literal(:Tuple), args...)
+  data(Literal(:List), args...)
 end
 
 function lowerpattern(ex)
@@ -174,7 +174,7 @@ xcall(args...) = Expr(:call, args...)
 xdata(args...) = Expr(:data, args...)
 
 function IRTools.Inner.print_stmt(io::IO, ::Val{:data}, ex)
-  if ex.args[1] == :Tuple
+  if ex.args[1] == :List
     print(io, "[")
     join(io, [sprint(vprint, x) for x in ex.args[2:end]], ", ")
     print(io, "]")
@@ -247,7 +247,7 @@ function lower!(sc, ir::IR, ex::AST.Operator, value = true)
     clauses = ex.op == :(&&) ? [ex.args[2], Int32(false)] : [Int32(true), ex.args[2]]
     lowerif!(sc, ir, If([ex.args[1], true], clauses), value)
   else
-    r = _push!(ir, xcall(ex.op, xdata(:Tuple, map(x -> lower!(sc, ir, x), ex.args)...)))
+    r = _push!(ir, xcall(ex.op, xdata(:List, map(x -> lower!(sc, ir, x), ex.args)...)))
     _push!(ir, xcall(part_method, r, 1))
   end
 end
@@ -275,13 +275,13 @@ function argtuple!(sc, ir::IR, args)
         push!(as, lower!(sc, ir, arg))
         idx += 1
       end
-      push!(parts, _push!(ir, xdata(:Tuple, as...)))
+      push!(parts, _push!(ir, xdata(:List, as...)))
     end
   end
   args =
-    isempty(parts) ? xdata(:Tuple) :
+    isempty(parts) ? xdata(:List) :
     length(parts) == 1 ? parts[1] :
-    _push!(ir, xcall(datacat_method, xdata(:Tuple, parts...)))
+    _push!(ir, xcall(datacat_method, xdata(:List, parts...)))
   return args, swaps
 end
 
@@ -295,7 +295,7 @@ function lower!(sc, ir::IR, ex::AST.Call)
   return val
 end
 
-function lower!(sc, ir::IR, ex::AST.Tuple)
+function lower!(sc, ir::IR, ex::AST.List)
   # TODO: should use the `tuple` function.
   # But this puts off the need for special argument inference.
   argtuple!(sc, ir, ex.args)[1]
@@ -304,7 +304,7 @@ end
 function swapreturn!(ir::IR, val, swaps)
   if swaps != nothing && !isempty(swaps)
     args = maximum(keys(swaps))
-    ret = push!(ir, xdata(:Tuple, val, map(i -> haskey(swaps, i) ? Slot(swaps[i]) : Global(:nil), 1:args)...))
+    ret = push!(ir, xdata(:List, val, map(i -> haskey(swaps, i) ? Slot(swaps[i]) : Global(:nil), 1:args)...))
     return!(ir, ret)
   else
     return!(ir, val)
@@ -326,7 +326,7 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
   sc = Scope(sc)
   header = IRTools.block!(ir)
   cond = lower!(sc, ir, ex.args[1])
-  cond = _push!(ir, xcall(:condition, xdata(:Tuple, cond)))
+  cond = _push!(ir, xcall(:condition, xdata(:List, cond)))
   cond = _push!(ir, xcall(part_method, cond, 1))
   IRTools.block!(ir)
   _lower!(sc, ir, ex.args[2].args)
@@ -389,7 +389,7 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
       break
     end
     cond = lower!(sc, ir, cond)
-    cond = _push!(ir, xcall(:condition, xdata(:Tuple, cond)))
+    cond = _push!(ir, xcall(:condition, xdata(:List, cond)))
     cond = _push!(ir, xcall(part_method, cond, 1))
     c = blocks(ir)[end]
     t = IRTools.block!(ir)
@@ -437,7 +437,7 @@ end
 
 _lower!(sc, ir::IR, ex::AST.Syntax) = lower!(sc, ir, ex, false)
 
-fnsig(ex) = lowerpattern(AST.Tuple(ex.args[1].args[1].args))
+fnsig(ex) = lowerpattern(AST.List(ex.args[1].args[1].args))
 
 function lowerfn(ex, sig = fnsig(ex))
   sc = Scope(swap = sig.swap)
