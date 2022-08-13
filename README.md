@@ -2,13 +2,7 @@
 <img width="400px" src=".github/logo.png"/>
 </p>
 
-```
-brew install --cask julia
-brew install wabt binaryen node
-julia --project
-```
-
-On Linux, download the Julia binaries and add `julia` to the path, then use `brew` to get the rest. On Windows, get WSL and then GOTO Linux. (You can alternatively `npm i -g wabt binaryen` once you have node, on any platform.)
+See the [documentation](https://quoththeraven.io/docs/manual/setup) for setup.
 
 `test.rv`:
 
@@ -37,20 +31,3 @@ julia> Raven.compile("test.rv"); run(`node test.js`);
 ```
 
 See also [complex numbers](base/numbers/complex.rv) or [malloc](base/wasm/malloc.rv).
-
-## Editor Support
-
-For Atom:
-
-```bash
-ln -s $PWD/editor/language-raven ~/.atom/packages/
-```
-
-For VS Code:
-
-```bash
-cd editor/raven-language
-npm install
-npm run compile
-ln -s $PWD ~/.vscode/extensions
-```
