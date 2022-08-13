@@ -1,9 +1,5 @@
 data { Complex(re, im) }
 
-fn constructorPattern(`Complex`, a, b) {
-  And(Data(Literal(`Complex`), a, b), Isa(`Complex`))
-}
-
 fn real(z: Complex) { part(z, 1) }
 fn imag(z: Complex) { part(z, 2) }
 

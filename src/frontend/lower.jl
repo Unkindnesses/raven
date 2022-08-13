@@ -144,6 +144,10 @@ function datamacro(ex)
     push!(body, AST.Syntax(:fn, [AST.Call(:isa, [AST.Call(:data, [AST.Quote(name), args...]),
                                                  AST.Quote(name)]),
                                  AST.Block([Symbol("true")])]))
+    push!(body, AST.Syntax(:fn, [AST.Call(:constructorPattern, [AST.Quote(name), namify.(args)...]),
+                                 AST.Block([
+                                   AST.Call(:And, [AST.Call(:Isa, [AST.Quote(name)]),
+                                                   AST.Call(:Data, [AST.Call(:Literal, [AST.Quote(name)]), namify.(args)...])])])]))
   end
   if super != nothing
     push!(body, AST.Operator(:(=), [super, AST.Quote(super)]))
