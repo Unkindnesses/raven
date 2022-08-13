@@ -139,9 +139,9 @@ function indexer!(ir::IR, arg, path)
   isempty(path) && return arg
   (p, rest...) = path
   if p isa AbstractVector
-    arg = push!(ir, xdata(:List, [xcall(part_method, arg, i) for i in p]...))
+    arg = push!(ir, xlist([xpart(arg, i) for i in p]...))
   else
-    arg = push!(ir, xcall(part_method, arg, p))
+    arg = push!(ir, xpart(arg, p))
   end
   arg = indexer!(ir, arg, rest)
 end
@@ -155,28 +155,27 @@ function dispatcher(inf, func::Symbol, Ts)
       continue
     elseif m isa AbstractDict
       result = push!(ir, xcall(meth, [indexer!(ir, args, m[x][2]) for x in meth.sig.args]...))
-      isempty(meth.sig.swap) && (result = push!(ir, xdata(:List, result)))
+      isempty(meth.sig.swap) && (result = push!(ir, xlist(result)))
       return!(ir, result)
       return ir
     else
-      margs = push!(ir, xdata(:List, args, rvpattern(meth.sig.pattern)))
-      m = push!(ir, xcall(part_method, xcall(:match, margs), 1))
+      m = push!(ir, rcall(:match, args, rvpattern(meth.sig.pattern)))
       cond = push!(ir, xcall(isnil_method, m))
-      cond = push!(ir, xcall(part_method, xcall(:not, xdata(:List, cond)), 1))
+      cond = push!(ir, rcall(:not, cond))
       branch!(ir, length(blocks(ir))+2; unless = cond)
       block!(ir)
       m = push!(ir, xcall(notnil_method, m))
       as = []
       for arg in meth.sig.args
-        push!(as, push!(ir, xcall(part_method, xcall(:getkey, xdata(:List, m, arg)), 1)))
+        push!(as, push!(ir, rcall(:getkey, m, arg)))
       end
       result = push!(ir, xcall(meth, as...))
-      isempty(meth.sig.swap) && (result = push!(ir, xdata(:List, result)))
+      isempty(meth.sig.swap) && (result = push!(ir, xlist(result)))
       return!(ir, result)
       block!(ir)
     end
   end
-  v = push!(ir, xcall(:panic, xdata(:List, "No matching method: $func: $Ts")))
+  v = push!(ir, xcall(:panic, xlist("No matching method: $func: $Ts")))
   return!(ir, v)
   return ir
 end

@@ -255,8 +255,8 @@ function lower!(sc, ir::IR, ex::AST.Operator, value = true)
     clauses = ex.op == :(&&) ? [ex.args[2], Int32(false)] : [Int32(true), ex.args[2]]
     lowerif!(sc, ir, If([ex.args[1], true], clauses), value)
   else
-    r = _push!(ir, xcall(ex.op, xdata(:List, map(x -> lower!(sc, ir, x), ex.args)...)))
-    _push!(ir, xcall(part_method, r, 1))
+    r = _push!(ir, xcall(ex.op, xlist(map(x -> lower!(sc, ir, x), ex.args)...)))
+    _push!(ir, xpart(r, 1))
   end
 end
 
@@ -283,22 +283,22 @@ function argtuple!(sc, ir::IR, args)
         push!(as, lower!(sc, ir, arg))
         idx += 1
       end
-      push!(parts, _push!(ir, xdata(:List, as...)))
+      push!(parts, _push!(ir, xlist(as...)))
     end
   end
   args =
     isempty(parts) ? xdata(:List) :
     length(parts) == 1 ? parts[1] :
-    _push!(ir, xcall(datacat_method, xdata(:List, parts...)))
+    _push!(ir, xcall(datacat_method, xlist(parts...)))
   return args, swaps
 end
 
 function lower!(sc, ir::IR, ex::AST.Call)
   args, swaps = argtuple!(sc, ir, ex.args)
   result = _push!(ir, xcall(lower!(sc, ir, ex.func), args))
-  val = _push!(ir, xcall(part_method, result, 1))
+  val = _push!(ir, xpart(result, 1))
   for (x, i) in swaps
-    _push!(ir, Expr(:(=), variable!(sc, x), xcall(part_method, result, i+1)))
+    _push!(ir, Expr(:(=), variable!(sc, x), xpart(result, i+1)))
   end
   return val
 end
@@ -312,7 +312,7 @@ end
 function swapreturn!(ir::IR, val, swaps)
   if swaps != nothing && !isempty(swaps)
     args = maximum(keys(swaps))
-    ret = push!(ir, xdata(:List, val, map(i -> haskey(swaps, i) ? Slot(swaps[i]) : Global(:nil), 1:args)...))
+    ret = push!(ir, xlist(val, map(i -> haskey(swaps, i) ? Slot(swaps[i]) : Global(:nil), 1:args)...))
     return!(ir, ret)
   else
     return!(ir, val)
@@ -350,8 +350,7 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
   sc = Scope(sc)
   header = IRTools.block!(ir)
   cond = lower!(sc, ir, ex.args[1])
-  cond = _push!(ir, xcall(:condition, xdata(:List, cond)))
-  cond = _push!(ir, xcall(part_method, cond, 1))
+  cond = _push!(ir, rcall(:condition, cond))
   IRTools.block!(ir)
   _lower!(sc, ir, ex.args[2].args)
   body = blocks(ir)[end]
@@ -413,8 +412,7 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
       break
     end
     cond = lower!(sc, ir, cond)
-    cond = _push!(ir, xcall(:condition, xdata(:List, cond)))
-    cond = _push!(ir, xcall(part_method, cond, 1))
+    cond = _push!(ir, rcall(:condition, cond))
     c = blocks(ir)[end]
     t = IRTools.block!(ir)
     body!(ir, body)
