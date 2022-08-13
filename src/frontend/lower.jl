@@ -437,7 +437,7 @@ end
 
 _lower!(sc, ir::IR, ex::AST.Syntax) = lower!(sc, ir, ex, false)
 
-fnsig(ex) = lowerpattern(AST.List(ex.args[1].args[1].args))
+fnsig(ex) = lowerpattern(AST.List(ex.args[1].args))
 
 function lowerfn(ex, sig = fnsig(ex))
   sc = Scope(swap = sig.swap)

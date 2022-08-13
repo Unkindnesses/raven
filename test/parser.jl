@@ -37,3 +37,8 @@ using Raven.AST: Call, Syntax, Block, Operator, Splat
                       :else, Block([3])])
 
 @test rvx"foo(x, y...)" == Call(:foo, [:x, Splat(:y)])
+
+let
+  ex = rvx"fn add(a, b) { a+b }"
+  @test Raven.fnsig(ex) isa Raven.Signature
+end
