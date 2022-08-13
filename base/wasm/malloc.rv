@@ -86,9 +86,7 @@ fn trimBlock(ptr, &size, newsize) {
 
 fn malloc!(n: Int32) {
   n = n + headerSize
-  ptrsize = findFreeBlock(n)
-  ptr = part(ptrsize, 1)
-  size = part(ptrsize, 2)
+  [ptr, size] = findFreeBlock(n)
   trimBlock(ptr, &size, n)
   setBlockUsed!(ptr, true)
   return ptr + headerSize
