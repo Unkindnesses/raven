@@ -28,7 +28,7 @@ fails(test) = result_code(test) == 1
 end
 
 # Test that the code compiles successfully, failing at runtime
-@testset for test in [:global, :function, :method, :condition, :index]
+@testset for test in [:global, :function, :method, :condition, :index, :match]
   @test fails("error-$test")
 end
 

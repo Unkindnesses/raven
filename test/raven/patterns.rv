@@ -12,3 +12,21 @@ fn test(Complex(a, a)) { a }
 
 println(test(Complex(1, widen(2))) == 3)
 println(test(Complex(2, widen(2))) == 2)
+
+let {
+  xs = [widen(2), widen(3)]
+  [a, b] = xs
+  println((a + b) == 5)
+}
+
+let {
+  xs = [widen(2), widen(2)]
+  [a, a] = xs
+  println((a + a) == 4)
+}
+
+let {
+  xs = Complex(widen(2), widen(3))
+  Complex(a, b) = xs
+  println((a + b) == 5)
+}

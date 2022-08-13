@@ -100,6 +100,7 @@ printers[:Pair] = function (io, s)
 end
 
 function vprint(io::IO, s::Data)
+  isempty(s.parts) && return print(io, "data()")
   haskey(printers, tag(s)) && return printers[tag(s)](io, s)
   print(io, "data(")
   join(io, [sprint(vprint, x) for x in s.parts], ", ")

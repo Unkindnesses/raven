@@ -172,6 +172,10 @@ end
 
 xcall(args...) = Expr(:call, args...)
 xdata(args...) = Expr(:data, args...)
+xlist(args...) = xdata(:List, args...)
+xpart(x, i) = xcall(part_method, x, i)
+
+rcall(f, args...) = xpart(xcall(f, xlist(args...)), 1)
 
 function IRTools.Inner.print_stmt(io::IO, ::Val{:data}, ex)
   if ex.args[1] == :List
@@ -239,10 +243,14 @@ lower!(sc, ir::IR, x::AST.Block) = lower!(sc, ir, x.args)
 _lower!(sc, ir::IR, x::AST.Block) = foreach(x -> _lower!(sc, ir, x), x.args)
 
 function lower!(sc, ir::IR, ex::AST.Operator, value = true)
-  if ex.op == :(=)
+  if ex.op == :(=) && ex.args[1] isa Symbol
     x = variable!(sc, ex.args[1])
     _push!(ir, :($(x) = $(lower!(sc, ir, ex.args[2]))))
     return x
+  elseif ex.op == :(=)
+    pat = ex.args[1]
+    val = lower!(sc, ir, ex.args[2])
+    lowermatch!(sc, ir, val, pat)
   elseif ex.op in (:(&&), :(||))
     clauses = ex.op == :(&&) ? [ex.args[2], Int32(false)] : [Int32(true), ex.args[2]]
     lowerif!(sc, ir, If([ex.args[1], true], clauses), value)
@@ -320,6 +328,22 @@ end
 function lower!(sc, ir::IR, ex::AST.Break)
   IRTools.branch!(ir, -1)
   return
+end
+
+function lowermatch!(sc, ir::IR, val, pat)
+  sig = lowerpattern(pat)
+  pat = rvpattern(sig.pattern)
+  m = push!(ir, rcall(:match, val, pat))
+  isnil = push!(ir, xcall(isnil_method, m))
+  branch!(ir, length(blocks(ir))+2, unless = isnil)
+  block!(ir)
+  push!(ir, rcall(:panic, "match failed: $(sig.pattern)"))
+  block!(ir)
+  m = push!(ir, xcall(notnil_method, m))
+  for arg in sig.args
+    push!(ir, Expr(:(=), variable!(sc, arg), rcall(:getkey, m, arg)))
+  end
+  return m
 end
 
 function lowerwhile!(sc, ir::IR, ex, value = true)
