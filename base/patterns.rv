@@ -1,15 +1,25 @@
 data Pattern {
   Literal(x)
+  Isa(T)
   Data(xs...)
   Bind(name)
   Constructor(name, args...)
+  And(p, q)
 }
 
 fn match(val, data(`Literal`, pat)) {
   if (pat == val) {
     return simpledict()
   } else {
-    return nil
+    return
+  }
+}
+
+fn match(val, data(`Isa`, pat)) {
+  if isa(val, pat) {
+    return simpledict()
+  } else {
+    return
   }
 }
 
@@ -25,12 +35,20 @@ fn match(data(x, xs...), data(`Data`, p, ps...)) {
   bs = match(x, p)
   isnil(bs) && return
   cs = match(data(xs...), Data(ps...))
-  isnil(cs) && return nil
+  isnil(cs) && return
   merge(notnil(bs), notnil(cs))
 }
 
 fn match(val, data(`Constructor`, name, args...)) {
   match(val, constructorPattern(name, args...))
+}
+
+fn match(val, data(`And`, p, q)) {
+  bs = match(val, p)
+  isnil(bs) && return
+  cs = match(val, q)
+  isnil(cs) && return
+  merge(notnil(bs), notnil(cs))
 }
 
 fn ismatch(val, pat) {
