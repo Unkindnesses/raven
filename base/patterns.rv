@@ -1,10 +1,15 @@
 data Pattern {
+  Hole()
   Literal(x)
   Isa(T)
   Data(xs...)
   Bind(name)
   Constructor(name, args...)
   And(p, q)
+}
+
+fn match(val, data(`Hole`)) {
+  return simpledict()
 }
 
 fn match(val, data(`Literal`, pat)) {

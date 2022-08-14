@@ -48,6 +48,7 @@ Base.:(==)(a::Or, b::Or) = a.patterns == b.patterns
 
 # Raven versions
 
+rvpattern(::Hole) = data(:Hole)
 rvpattern(x::Primitive) = x
 rvpattern(x::Literal) = data(:Literal, x.value)
 rvpattern(x::Bind) = data(:Bind, x.name)
