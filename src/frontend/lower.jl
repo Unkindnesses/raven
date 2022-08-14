@@ -52,7 +52,9 @@ rvpattern(::Hole) = data(:Hole)
 rvpattern(x::Primitive) = x
 rvpattern(x::Literal) = data(:Literal, x.value)
 rvpattern(x::Bind) = data(:Bind, x.name)
+rvpattern(x::Isa) = data(:Isa, x.pattern)
 rvpattern(xs::Data) = data(:Data, rvpattern.(xs.parts)...)
+rvpattern(xs::And) = data(:And, rvpattern.(xs.patterns)...)
 rvpattern(xs::Constructor) = data(:Constructor, xs.func, rvpattern.(xs.args)...)
 
 # Pattern lowering

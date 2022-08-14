@@ -32,64 +32,90 @@ fn npages(bytes: Int32) {
   div(bytes + pageSize - Int32(1), pageSize)
 }
 
-fn isLastBlock(ptr, size) {
+# Block struct
+
+data { Block(ptr: Ptr, size: Int32) }
+
+fn getBlockSize(Block(_, size)) { size }
+
+fn setBlockSize!(&bl: Block(ptr, _), size) {
+  setBlockSize!(ptr, size)
+  bl = Block(ptr, size)
+}
+
+fn getBlockUsed(Block(ptr, _)) { getBlockUsed(ptr) }
+fn setBlockUsed!(Block(ptr, _), u: Int32) { setBlockUsed!(ptr, u) }
+
+fn firstBlock() {
+  Block(Ptr(0), getBlockSize(Ptr(0)))
+}
+
+fn nextBlock(&bl: Block(ptr, size)) {
+  ptr = ptr + size
+  bl = Block(ptr, getBlockSize(ptr))
+}
+
+fn isLastBlock(Block(ptr, size)) {
   addr(ptr + size) == memorySize()
 }
 
-fn coalesceBlock(ptr, &size) {
-  isLastBlock(ptr, size) && return size
-  next = ptr + size
-  getBlockUsed(next) && return size
-  nextSize = getBlockSize(next)
-  nextSize = coalesceBlock(next, nextSize)
-  size = size + nextSize
-  setBlockSize!(ptr, size)
-  return size
+fn publicPtr(Block(ptr, _)) {
+  ptr + headerSize
+}
+
+# Main logic
+
+# Combine a block with free neighbours to the right
+fn coalesceBlock(&bl: Block(ptr, size)) {
+  isLastBlock(bl) && return
+  next = nextBlock(bl)
+  getBlockUsed(next) && return
+  coalesceBlock(&next)
+  setBlockSize!(&bl, getBlockSize(bl) + getBlockSize(next))
+  return
 }
 
 # Find a free block of size >= n, creating it if necessary.
 fn findFreeBlock(n: Int32) {
-  ptr = Ptr(0)
-  size = getBlockSize(ptr)
-  while not(isLastBlock(ptr, size)) {
-    if not(getBlockUsed(ptr)) {
-      coalesceBlock(ptr, &size)
-      (size >= n) && return [ptr, size]
+  bl = firstBlock()
+  while not(isLastBlock(bl)) {
+    if not(getBlockUsed(bl)) {
+      coalesceBlock(&bl)
+      (getBlockSize(bl) >= n) && return bl
     }
-    ptr = ptr + size
-    size = getBlockSize(ptr)
+    nextBlock(&bl)
   }
-  if getBlockUsed(ptr) {
-    ptr = ptr + size
-    size = Int32(0)
+  if getBlockUsed(bl) {
+    Block(ptr, size) = bl
+    bl = Block(ptr+size, Int32(0))
   }
+  size = getBlockSize(bl)
   if (size < n) {
     needed = n - size
     alloc = npages(needed)
     memoryGrow!(alloc)
     size = size + alloc*pageSize
-    setBlockSize!(ptr, size)
+    setBlockSize!(&bl, size)
   }
-  return [ptr, size]
+  return bl
 }
 
-fn trimBlock(ptr, &size, newsize) {
-  (size <= (newsize + headerSize)) && return size
-  setBlockSize!(ptr, newsize)
+fn trimBlock(&bl: Block(ptr, size), newsize) {
+  (size <= (newsize + headerSize)) && return
+  setBlockSize!(&bl, newsize)
   newptr = ptr + newsize
   setBlockSize!(newptr, size-newsize)
-  size = newsize
-  return size
+  return
 }
 
 # Public interface
 
 fn malloc!(n: Int32) {
   n = n + headerSize
-  [ptr, size] = findFreeBlock(n)
-  trimBlock(ptr, &size, n)
-  setBlockUsed!(ptr, true)
-  return ptr + headerSize
+  bl = findFreeBlock(n)
+  trimBlock(&bl, n)
+  setBlockUsed!(bl, true)
+  return publicPtr(bl)
 }
 
 fn free!(p: Ptr) {
@@ -125,12 +151,11 @@ fn release!(p: Ptr) {
 
 fn allocationCount() {
   i = 0
-  ptr = Ptr(0)
+  bl = firstBlock()
   while true {
-    getBlockUsed(ptr) && (i = i + 1)
-    size = getBlockSize(ptr)
-    isLastBlock(ptr, size) && break
-    ptr = ptr + size
+    getBlockUsed(bl) && (i = i + 1)
+    isLastBlock(bl) && break
+    nextBlock(&bl)
   }
   return i
 }
