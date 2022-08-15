@@ -1,6 +1,6 @@
 z = Complex(widen(5), widen(6))
 
-result = (abs2(z) == 61) &
-         ((z*z) == Complex(widen(-11), widen(60)))
-
-println(result)
+println(abs2(z) == 61)
+println((z*z) == Complex(widen(-11), widen(60)))
+println(z == z)
+println(z != (z*z))

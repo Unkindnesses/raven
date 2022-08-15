@@ -1,40 +1,32 @@
 data { Complex(re, im) }
 
-fn real(z: Complex) { part(z, 1) }
-fn imag(z: Complex) { part(z, 2) }
+fn real(Complex(re, im)) { re }
+fn imag(Complex(re, im)) { im }
 
-fn one(z: Complex) { Complex(one(real(z)), one(imag(z))) }
+fn one(Complex(re, im)) { Complex(one(re), one(im)) }
 
-fn (a: Complex) == (b: Complex) {
-  (real(a) == real(b)) & (imag(a) == imag(b))
+# TODO generic `==`
+fn Complex(re, im) == Complex(re, im) { true }
+
+fn abs2(Complex(re, im)) {
+  (re*re) + (im*im)
 }
 
-fn abs2(z: Complex) {
-  (real(z)*real(z)) + (imag(z)*imag(z))
+fn Complex(ra, ia) + Complex(rb, ib) {
+  Complex(ra+rb, ia+ib)
 }
 
-fn (a: Complex) + (b: Complex) {
-  Complex(real(a)+real(b), imag(a)+imag(b))
+fn Complex(ra, ia) - Complex(rb, ib) {
+  Complex(ra-rb, ia-ib)
 }
 
-fn (a: Complex) - (b: Complex) {
-  Complex(real(a)-real(b), imag(a)-imag(b))
+fn Complex(ra, ia) * Complex(rb, ib) {
+  Complex((ra*rb) - (ia*ib), (ra*ib) + (rb*ia))
 }
 
-fn (a: Complex) * (b: Complex) {
-  Complex((real(a)*real(b)) - (imag(a)*imag(b)),
-          (real(a)*imag(b)) + (real(b)*imag(a)))
-}
-
-fn print(x: Complex) {
-  print(real(x))
+fn print(Complex(re, im)) {
+  print(re)
   print(" + ")
-  print(imag(x))
+  print(im)
   print("im")
 }
-
-# fn Complex(a, b) * Complex(c, d) {
-#   Complex(a*c - b*d, a*d + c*b)
-# }
-#
-# fn abs2(Complex(x, y)) { x^2 + y^2 }
