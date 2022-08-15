@@ -50,7 +50,7 @@ fn firstBlock() {
   Block(Ptr(0), getBlockSize(Ptr(0)))
 }
 
-fn nextBlock(&bl: Block(ptr, size)) {
+fn next(&bl: Block(ptr, size)) {
   ptr = ptr + size
   bl = Block(ptr, getBlockSize(ptr))
 }
@@ -66,12 +66,12 @@ fn publicPtr(Block(ptr, _)) {
 # Main logic
 
 # Combine a block with free neighbours to the right
-fn coalesceBlock(&bl: Block(ptr, size)) {
+fn coalesce(&bl: Block) {
   isLastBlock(bl) && return
-  next = nextBlock(bl)
-  getBlockUsed(next) && return
-  coalesceBlock(&next)
-  setBlockSize!(&bl, getBlockSize(bl) + getBlockSize(next))
+  cl = next(bl)
+  getBlockUsed(cl) && return
+  coalesce(&cl)
+  setBlockSize!(&bl, getBlockSize(bl) + getBlockSize(cl))
   return
 }
 
@@ -80,10 +80,10 @@ fn findFreeBlock(n: Int32) {
   bl = firstBlock()
   while not(isLastBlock(bl)) {
     if not(getBlockUsed(bl)) {
-      coalesceBlock(&bl)
+      coalesce(&bl)
       (getBlockSize(bl) >= n) && return bl
     }
-    nextBlock(&bl)
+    next(&bl)
   }
   if getBlockUsed(bl) {
     Block(ptr, size) = bl
@@ -100,7 +100,7 @@ fn findFreeBlock(n: Int32) {
   return bl
 }
 
-fn trimBlock(&bl: Block(ptr, size), newsize) {
+fn trim(&bl: Block(ptr, size), newsize) {
   (size <= (newsize + headerSize)) && return
   setBlockSize!(&bl, newsize)
   newptr = ptr + newsize
@@ -113,7 +113,7 @@ fn trimBlock(&bl: Block(ptr, size), newsize) {
 fn malloc!(n: Int32) {
   n = n + headerSize
   bl = findFreeBlock(n)
-  trimBlock(&bl, n)
+  trim(&bl, n)
   setBlockUsed!(bl, true)
   return publicPtr(bl)
 }
@@ -155,7 +155,7 @@ fn allocationCount() {
   while true {
     getBlockUsed(bl) && (i = i + 1)
     isLastBlock(bl) && break
-    nextBlock(&bl)
+    next(&bl)
   }
   return i
 }
