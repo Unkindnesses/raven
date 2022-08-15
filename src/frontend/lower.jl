@@ -16,7 +16,7 @@ struct Bind
   name::Symbol
 end
 
-struct Isa
+struct Trait
   pattern
 end
 
@@ -52,7 +52,7 @@ rvpattern(::Hole) = data(:Hole)
 rvpattern(x::Primitive) = x
 rvpattern(x::Literal) = data(:Literal, x.value)
 rvpattern(x::Bind) = data(:Bind, x.name)
-rvpattern(x::Isa) = data(:Isa, x.pattern)
+rvpattern(x::Trait) = data(:Trait, x.pattern)
 rvpattern(xs::Data) = data(:Data, rvpattern.(xs.parts)...)
 rvpattern(xs::And) = data(:And, rvpattern.(xs.patterns)...)
 rvpattern(xs::Constructor) = data(:Constructor, xs.func, rvpattern.(xs.args)...)
@@ -61,7 +61,7 @@ rvpattern(xs::Constructor) = data(:Constructor, xs.func, rvpattern.(xs.args)...)
 
 function lowerisa(ex, as)
   if ex isa Symbol
-    return Isa(ex)
+    return Trait(ex)
   elseif ex isa AST.Operator && ex.op == :(|)
     Or(map(x -> lowerisa(x, as), ex.args))
   elseif ex isa AST.Operator && ex.op == :(&)
@@ -149,7 +149,7 @@ function datamacro(ex)
                                  AST.Block([Symbol("true")])]))
     push!(body, AST.Syntax(:fn, [AST.Call(:constructorPattern, [AST.Quote(name), namify.(args)...]),
                                  AST.Block([
-                                   AST.Call(:And, [AST.Call(:Isa, [AST.Quote(name)]),
+                                   AST.Call(:And, [AST.Call(:Trait, [AST.Quote(name)]),
                                                    AST.Call(:Data, [AST.Call(:Literal, [AST.Quote(name)]), namify.(args)...])])])]))
   end
   if super != nothing

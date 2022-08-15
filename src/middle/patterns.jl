@@ -63,7 +63,7 @@ function partial_match(mod, pat::Bind, val, path)
   return Dict(pat.name => (val, path))
 end
 
-function partial_match(mod, pat::Isa, val, path)
+function partial_match(mod, pat::Trait, val, path)
   (haskey(mod, pat.pattern) && isvalue(mod[pat.pattern])) || return missing
   T = mod[pat.pattern]
   r = trivial_isa(mod, val, pat.pattern)

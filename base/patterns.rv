@@ -1,7 +1,7 @@
 data Pattern {
   Hole()
   Literal(x)
-  Isa(T)
+  Trait(T)
   Data(xs...)
   Bind(name)
   Constructor(name, args...)
@@ -20,7 +20,7 @@ fn match(val, data(`Literal`, pat)) {
   }
 }
 
-fn match(val, data(`Isa`, pat)) {
+fn match(val, data(`Trait`, pat)) {
   if isa(val, pat) {
     return simpledict()
   } else {

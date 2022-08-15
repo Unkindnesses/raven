@@ -3,7 +3,7 @@ module Match
 # A Julia implementation of runtime matching. Raven can't make use of this,
 # but it's useful for speccing out the behaviour.
 
-using ..Raven: Data, Hole, Literal, Repeat, Bind, Isa, Or, And, nparts, parts
+using ..Raven: Data, Hole, Literal, Repeat, Bind, Trait, Or, And, nparts, parts
 
 function assoc(bs, k, v)
   haskey(bs, k) || return merge(bs, Dict(k => v))
