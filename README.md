@@ -26,7 +26,7 @@ println(xs)
 ```julia
 julia> using Raven
 
-julia> Raven.compile("test.rv"); run(`node test.js`);
+julia> Raven.exec("test.rv")
 [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
 ```
 
