@@ -64,6 +64,8 @@ isreftype(xs::Or) = any(isreftype, xs.patterns)
 isreftype(xs::Data) = any(isreftype, xs.parts)
 isreftype(x::VData) = layout(x.parts) != ()
 
+isglobal(ir, v) = haskey(ir, v) && isexpr(ir[v].expr, :global)
+
 function retain(f, T::VData, x)
   ptr = f(stmt(Expr(:ref, x, 2), type = rtuple(data(:Ptr, Int32))))
   f(stmt(xcall(:retain!, ptr), type = data(:Nil)))
@@ -122,7 +124,7 @@ function refcounts!(ir)
       # reused argument
       for x in st.expr.args
         x isa Variable && isref(x) || continue
-        x in lv[v] && retain(ex -> insert!(pr, v, ex), IRTools.exprtype(ir, x), x)
+        (isglobal(ir, x) || x in lv[v]) && retain(ex -> insert!(pr, v, ex), IRTools.exprtype(ir, x), x)
       end
     end
   end
