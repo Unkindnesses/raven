@@ -159,3 +159,9 @@ fn allocationCount() {
   }
   return i
 }
+
+fn checkAllocations() {
+  if (allocationCount() != 0) {
+    println("Warning: retained memory")
+  }
+}
