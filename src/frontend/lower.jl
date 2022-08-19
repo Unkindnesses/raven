@@ -20,9 +20,7 @@ struct Trait
   pattern
 end
 
-struct Or
-  patterns::Vector{Any}
-end
+# TODO we reuse the `Or` type as a pattern, don't
 
 struct And
   patterns::Vector{Any}

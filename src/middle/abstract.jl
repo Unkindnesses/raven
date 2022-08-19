@@ -45,14 +45,16 @@ function union(x::VData, y::VData)
 end
 
 function union(x::Union{Primitive,Type{<:Primitive},Data,VData}, y::Or)
-  any(==(x), y.patterns) && return y
-  error("unimplemented union")
+  ps = y.patterns
+  i = findfirst(y -> tag(x) == tag(y), ps)
+  i == nothing && return Or([ps..., x])
+  return Or([j == i ? union(x, ps[j]) : ps[j] for j = 1:length(ps)])
 end
 
 union(y::Or, x::Union{Primitive,Type{<:Primitive},Data,VData}) = union(x, y)
 
 function union(x::Or, y::Or)
-  x == y ? x : error("unimplemented union")
+  reduce(union, y.patterns, init = x)
 end
 
 issubtype(x::Union{T,Type{T}}, y::Type{T}) where T = true

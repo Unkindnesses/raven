@@ -43,9 +43,14 @@ const ⊥ = Unreachable()
 
 Base.show(io::IO, ::Unreachable) = print(io, "⊥")
 
-Primitive = Union{Int64,Int32,Float64,Float32,Symbol,String}
+struct Or
+  patterns::Vector{Any}
+end
 
 # Primitive Types
+
+Primitive = Union{Int64,Int32,Float64,Float32,Symbol,String}
+
 for T in :[Int64, Int32, Float64, Float32, Symbol].args
   @eval part(x::Union{$T,Type{$T}}, i::Integer) =
           i == 0 ? $(QuoteNode(T)) :
@@ -67,6 +72,13 @@ nparts(s::Union{String,Type{String}}) = 1
 isvalue(x) = false
 isvalue(x::Primitive) = true
 isvalue(xs::Data) = all(isvalue, parts(xs))
+
+# Depth
+
+typedepth(::Unreachable) = 0
+typedepth(::Union{Primitive,Type{<:Primitive}}) = 1
+typedepth(x::Data) = 1 + maximum(typedepth.(x.parts), init = 0)
+typedepth(x::Or) = 1 + maximum(typedepth.(x.patterns), init = 0)
 
 # Printing
 
