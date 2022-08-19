@@ -45,6 +45,7 @@ function union(x::VData, y::VData)
 end
 
 function union(x::Union{Primitive,Type{<:Primitive},Data,VData}, y::Or)
+  typedepth(y) > 10 && error("exploding type: $y")
   ps = y.patterns
   i = findfirst(y -> tag(x) == tag(y), ps)
   i == nothing && return Or([ps..., x])
