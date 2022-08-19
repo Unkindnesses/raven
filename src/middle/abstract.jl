@@ -49,7 +49,7 @@ function union(x::Union{Primitive,Type{<:Primitive},Data,VData}, y::Or)
   ps = y.patterns
   i = findfirst(y -> tag(x) == tag(y), ps)
   i == nothing && return Or([ps..., x])
-  return Or([j == i ? union(x, ps[j]) : ps[j] for j = 1:length(ps)])
+  return Or([j == i ? union(x, ps[j]) : ps[j] for j = 1:length(ps)]) |> recursive
 end
 
 union(y::Or, x::Union{Primitive,Type{<:Primitive},Data,VData}) = union(x, y)

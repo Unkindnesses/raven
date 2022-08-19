@@ -36,6 +36,15 @@ datacat(x, y, z, zs...) = datacat(datacat(x, y), z, zs...)
 datacat(x::Union{VData,Data}, y::Union{VData,Data}) =
   VData(tag(x), union(partial_eltype(x), partial_eltype(y)))
 
+struct Recursive
+  type::Any
+end
+
+struct Recur end
+
+Base.show(io::IO, T::Recursive) = print(io, "T = ", T.type)
+Base.show(io::IO, ::Recur) = print(io, "T")
+
 # Abstract Types
 
 struct Unreachable end
@@ -85,6 +94,7 @@ typedepth(x::Or) = 1 + maximum(typedepth.(x.patterns), init = 0)
 issubset(x::Primitive, y::Primitive) = x == y
 issubset(x::Primitive, T::Type{<:Primitive}) = x isa T
 issubset(x::Type{<:Primitive}, y::Type{<:Primitive}) = x <: y
+issubset(x::Union{Primitive,Type{<:Primitive}}, y::Union{Primitive,Data}) = false
 
 issubset(x::Data, y::Data) = nparts(x) == nparts(y) && all(issubset.(x.parts, y.parts))
 
@@ -96,6 +106,34 @@ issubset(x::Or, y) = all(issubset.(x.patterns, (y,)))
 issubset(x, y::Or) = any(issubset.((x,), y.patterns))
 
 issubset(x::Or, y::Or) = invoke(issubset, Tuple{Or,Any}, x, y)
+
+# Recursion widening
+# This has two passes, checking for candidacy and then converting internal
+# subtypes to `Recur`. Some simple internal subtypes don't trigger widening.
+
+recursion_candidate(x::Union{Primitive,Type{<:Primitive}}, T) = false
+
+recursion_candidate(x::Data, T) = any(recursion_candidate.(x.parts, (T,)))
+
+recursion_candidate(x::Or, T) =
+  issubset(x, T) || any(recursion_candidate.(x.patterns, (T,)))
+
+recursion_candidate(T) = false
+recursion_candidate(T::Or) = any(recursion_candidate.(T.patterns, (T,)))
+
+makerecursive(x::Or, T) =
+  issubset(x, T) ? Recur() : Or(makerecursive.(x.patterns, (T,)))
+
+makerecursive(x::Data, T) =
+  issubset(x, T) ? Recur() : data(makerecursive.(x.parts, (T,))...)
+
+makerecursive(x::Union{Primitive,Type{<:Primitive}}, T) =
+  issubset(x, T) ? Recur() : x
+
+makerecursive(T::Or) =
+  Recursive(Or([data(tag(x), makerecursive.(parts(x), (T,))...) for x in T.patterns]))
+
+recursive(T) = recursion_candidate(T) ? makerecursive(T) : T
 
 # Printing
 
