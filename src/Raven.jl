@@ -1,6 +1,6 @@
 module Raven
 
-using MacroTools: @forward, isexpr
+using MacroTools: @q, @forward, isexpr
 using FunctionalCollections
 
 using IRTools, WebAssembly

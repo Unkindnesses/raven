@@ -22,12 +22,16 @@
 # matches the signature, we'll generate code for the dispatcher that behaves
 # like `match`.
 
-@eval macro $:try(x)
-  quote
+function trym(x)
+  @q begin
     local result = $(esc(x))
     (result === nothing || result === missing) && return result
     result
   end
+end
+
+@eval macro $:try(x)
+  trym(x)
 end
 
 function _assoc(as, (name, (val, path)))
@@ -128,6 +132,21 @@ function partial_match(mod, pat::Data, val, path)
     return
   end
   return bs
+end
+
+function partial_match_union(mod, pat, val::Or, path)
+  ms = map(x -> partial_match(mod, pat, x, path), val.patterns)
+  any(x -> x === missing, ms) && return missing
+  all(==(first(ms)), ms) && return first(ms)
+  return missing
+end
+
+function partial_match(mod, pat::Data, val::Or, path)
+  partial_match_union(mod, pat, val, path)
+end
+
+function partial_match(mod, pat::Or, val::Or, path)
+  partial_match_union(mod, pat, val, path)
 end
 
 function destruct_isa(p)
