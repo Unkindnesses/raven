@@ -61,13 +61,13 @@ end
 # Simply dynamic binding for recursive types
 
 function withrecur(f, T)
-  tls = task_local_storage()
+  stack = get!(task_local_storage(), :recur, [])
   try
-    tls[:recur] = T
+    push!(stack, T)
     f()
   finally
-    delete!(tls, :recur)
+    pop!(stack)
   end
 end
 
-recur() = task_local_storage()[:recur]
+recur() = task_local_storage()[:recur][end]

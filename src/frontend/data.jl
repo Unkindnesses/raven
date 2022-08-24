@@ -82,6 +82,8 @@ isvalue(x) = false
 isvalue(x::Primitive) = true
 isvalue(xs::Data) = all(isvalue, parts(xs))
 
+const SimpleType = Union{Primitive,Type{<:Primitive},Data,VData}
+
 # Depth
 
 typedepth(::Unreachable) = 0
@@ -106,6 +108,24 @@ issubset(x::Or, y) = all(issubset.(x.patterns, (y,)))
 issubset(x, y::Or) = any(issubset.((x,), y.patterns))
 
 issubset(x::Or, y::Or) = invoke(issubset, Tuple{Or,Any}, x, y)
+
+function issubset(x::SimpleType, y::Recursive)
+  withrecur(y.type) do
+    issubset(x, y.type)
+  end
+end
+
+function issubset(x::Recursive, y::Recursive)
+  withrecur(y.type) do
+    issubset(x.type, y.type)
+  end
+end
+
+issubset(x::Union{Recursive,Recur}, y::SimpleType) = false
+
+issubset(x::SimpleType, y::Recur) = issubset(x, recur())
+
+issubset(::Recur, ::Recur) = true
 
 # Recursion widening
 # This has two passes, checking for candidacy and then converting internal

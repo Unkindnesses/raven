@@ -6,6 +6,10 @@ using Raven, Test
   include("parser.jl")
 end
 
+@testset "Types" begin
+  include("types.jl")
+end
+
 @testset "Compiler" begin
   include("compiler.jl")
 end
