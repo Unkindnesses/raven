@@ -45,6 +45,8 @@ struct Recur end
 Base.show(io::IO, T::Recursive) = print(io, "T = ", T.type)
 Base.show(io::IO, ::Recur) = print(io, "T")
 
+Base.:(==)(a::Recursive, b::Recursive) = a.type == b.type
+
 # Abstract Types
 
 struct Unreachable end
