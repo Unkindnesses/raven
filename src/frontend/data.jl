@@ -109,29 +109,37 @@ issubset(x::Or, y::Or) = invoke(issubset, Tuple{Or,Any}, x, y)
 
 # Recursion widening
 # This has two passes, checking for candidacy and then converting internal
-# subtypes to `Recur`. Some simple internal subtypes don't trigger widening.
+# subtypes to `Recur`. (Some simple internal subtypes don't trigger widening.)
 
-recursion_candidate(x::Union{Primitive,Type{<:Primitive}}, T) = false
+_recursion_candidate(x::Union{Primitive,Type{<:Primitive}}) = false
 
-recursion_candidate(x::Data, T) = any(recursion_candidate.(x.parts, (T,)))
+_recursion_candidate(x::Data) = any(_recursion_candidate.(x.parts))
 
-recursion_candidate(x::Or, T) =
-  issubset(x, T) || any(recursion_candidate.(x.patterns, (T,)))
+_recursion_candidate(x::Or) =
+  issubset(x, recur()) || any(_recursion_candidate.(x.patterns))
 
 recursion_candidate(T) = false
-recursion_candidate(T::Or) = any(recursion_candidate.(T.patterns, (T,)))
 
-makerecursive(x::Or, T) =
-  issubset(x, T) ? Recur() : Or(makerecursive.(x.patterns, (T,)))
+function recursion_candidate(T::Or)
+  withrecur(T) do
+    any(_recursion_candidate.(T.patterns))
+  end
+end
 
-makerecursive(x::Data, T) =
-  issubset(x, T) ? Recur() : data(makerecursive.(x.parts, (T,))...)
+_makerecursive(x::Or) =
+  issubset(x, recur()) ? Recur() : Or(_makerecursive.(x.patterns))
 
-makerecursive(x::Union{Primitive,Type{<:Primitive}}, T) =
-  issubset(x, T) ? Recur() : x
+_makerecursive(x::Data) =
+  issubset(x, recur()) ? Recur() : data(_makerecursive.(x.parts)...)
 
-makerecursive(T::Or) =
-  Recursive(Or([data(tag(x), makerecursive.(parts(x), (T,))...) for x in T.patterns]))
+_makerecursive(x::Union{Primitive,Type{<:Primitive}}) =
+  issubset(x, recur()) ? Recur() : x
+
+function makerecursive(T::Or)
+  withrecur(T) do
+    Recursive(Or([data(tag(x), _makerecursive.(parts(x))...) for x in T.patterns]))
+  end
+end
 
 recursive(T) = recursion_candidate(T) ? makerecursive(T) : T
 

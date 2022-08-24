@@ -57,3 +57,17 @@ function trim_unreachable!(ir)
   end
   return IRTools.finish(pr)
 end
+
+# Simply dynamic binding for recursive types
+
+function withrecur(f, T)
+  tls = task_local_storage()
+  try
+    tls[:recur] = T
+    f()
+  finally
+    delete!(tls, :recur)
+  end
+end
+
+recur() = task_local_storage()[:recur]
