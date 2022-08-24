@@ -12,3 +12,7 @@ T = union(T1, T2)
 @test issubset(T2, T)
 @test !issubset(T, T1)
 @test issubset(T, T)
+
+Tw = data(:Prepend, T, Int)
+
+@test issubset(Tw, T)

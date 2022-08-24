@@ -105,7 +105,7 @@ function shortcut_literals(pat::Data, val)
   end
 end
 
-function partial_match(mod, pat::Data, val, path)
+function partial_match(mod, pat::Data, val::SimpleType, path)
   bs = Dict()
   i = 0
   shortcut_literals(pat, val) && return nothing
@@ -147,6 +147,18 @@ end
 
 function partial_match(mod, pat::Or, val::Or, path)
   partial_match_union(mod, pat, val, path)
+end
+
+function partial_match(mod, pat::Data, val::Recursive, path)
+  withrecur(val.type) do
+    partial_match(mod, pat, val.type, path)
+  end
+end
+
+function partial_match(mod, pat::Or, val::Recursive, path)
+  withrecur(val.type) do
+    partial_match(mod, pat, val.type, path)
+  end
 end
 
 function destruct_isa(p)

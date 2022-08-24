@@ -58,6 +58,13 @@ function union(x::Or, y::Or)
   reduce(union, y.patterns, init = x)
 end
 
+function union(x::Recursive, y::Union{Or,Data})
+  @assert issubset(y, x)
+  return x
+end
+
+union(y::Union{Or,Data}, x::Recursive) = union(x, y)
+
 issubtype(x::Union{T,Type{T}}, y::Type{T}) where T = true
 issubtype(x, y) = x == y
 

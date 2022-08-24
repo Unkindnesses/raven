@@ -123,6 +123,8 @@ function issubset(x::Recursive, y::Recursive)
   end
 end
 
+issubset(x::Recursive, y::Recur) = issubset(x, Recursive(recur()))
+
 issubset(x::Union{Recursive,Recur}, y::SimpleType) = false
 
 issubset(x::SimpleType, y::Recur) = issubset(x, recur())
