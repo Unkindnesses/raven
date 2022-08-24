@@ -65,9 +65,6 @@ end
 
 union(y::Union{Or,Data}, x::Recursive) = union(x, y)
 
-issubtype(x::Union{T,Type{T}}, y::Type{T}) where T = true
-issubtype(x, y) = x == y
-
 function prepare_ir!(ir)
   IRTools.expand!(ir)
   for b in ir.blocks
@@ -82,7 +79,7 @@ end
 function blockargs!(b, args)
   changed = false
   for i = 1:length(argtypes(b))
-    issubtype(args[i], argtypes(b)[i]) && continue
+    issubset(args[i], argtypes(b)[i]) && continue
     argtypes(b)[i] = union(argtypes(b)[i], args[i])
     changed = true
   end

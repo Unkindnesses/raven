@@ -95,6 +95,9 @@ typedepth(x::Or) = 1 + maximum(typedepth.(x.patterns), init = 0)
 
 # Subset
 
+issubset(x, ::Unreachable) = false
+issubset(::Unreachable, x) = true
+
 issubset(x::Primitive, y::Primitive) = x == y
 issubset(x::Primitive, T::Type{<:Primitive}) = x isa T
 issubset(x::Type{<:Primitive}, y::Type{<:Primitive}) = x <: y
@@ -105,9 +108,13 @@ issubset(x::Data, y::Data) = nparts(x) == nparts(y) && all(issubset.(x.parts, y.
 issubset(x::VData, y::VData) = issubset(tag(x), tag(y)) && issubset(x.parts, y.parts)
 
 issubset(x::Data, y::VData) = issubset(tag(x), tag(y)) && all(issubset.(parts(x), (y.parts,)))
+issubset(x::VData, y::Data) = false
 
 issubset(x::Or, y) = all(issubset.(x.patterns, (y,)))
 issubset(x, y::Or) = any(issubset.((x,), y.patterns))
+
+issubset(x::Or, ::Unreachable) = false
+issubset(::Unreachable, x::Or) = true
 
 issubset(x::Or, y::Or) = invoke(issubset, Tuple{Or,Any}, x, y)
 
