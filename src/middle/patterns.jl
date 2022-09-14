@@ -34,6 +34,8 @@ end
   trym(x)
 end
 
+_assoc(::Missing, _) = missing
+
 function _assoc(as, (name, (val, path)))
   haskey(as, name) || return merge(as, Dict(name => (val, path)))
   val′ = as[name][1]
@@ -45,6 +47,7 @@ function _assoc(as, (name, (val, path)))
 end
 
 function _merge(as, bs)
+  (ismissing(as) || ismissing(bs)) && return missing
   for b in bs
     as = @try _assoc(as, b)
   end
@@ -120,7 +123,10 @@ function partial_match(mod, pat::Data, val::SimpleType, path)
     elseif pat[i] isa Repeat
       return missing
     else
-      bs = @try _merge(bs, @try partial_match(mod, part(pat, i), part(val, i), [path..., i]))
+      # continue on `missing`, since we might narrow to `nothing` later
+      b = partial_match(mod, part(pat, i), part(val, i), [path..., i])
+      b === nothing && return
+      bs = _merge(bs, b)
     end
     i += 1
   end
@@ -134,6 +140,8 @@ function partial_match(mod, pat::Data, val::SimpleType, path)
   return bs
 end
 
+# TODO match results don't have to be identical, if
+# bindings and paths are right we can merge types.
 function partial_match_union(mod, pat, val::Or, path)
   ms = map(x -> partial_match(mod, pat, x, path), val.patterns)
   any(x -> x === missing, ms) && return missing
