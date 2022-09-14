@@ -20,14 +20,14 @@ data Pattern {
   Bind(name: Symbol)
   IsA(type: Symbol)
   Repeat(_: Pattern)
-  Data(_: Pattern...)
+  Pack(_: Pattern...)
   And(_: Pattern...)
   Or(_: Pattern...)
 }
 
 fn constant(_: Pattern) { false }
-fn constant(Data(parts...)) { all(constant, parts) }
+fn constant(Pack(parts...)) { all(constant, parts) }
 fn constant(Literal(_)) { true }
 
 fn value(Literal(x)) { x }
-fn value(Data(parts...)) { data(map(value, parts)...) }
+fn value(Pack(parts...)) { pack(map(value, parts)...) }

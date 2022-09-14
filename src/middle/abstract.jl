@@ -1,7 +1,7 @@
 using IRTools: WorkQueue
 
 _typeof(mod, x) = error("invalid constant $x::$(typeof(x))")
-_typeof(mod, x::Union{Number,String,Symbol,RMethod,Data}) = x
+_typeof(mod, x::Union{Number,String,Symbol,RMethod,Pack}) = x
 _typeof(mod, x::AST.Quote) = x.expr
 _typeof(mod, x::Global) = get(mod, x.name, ⊥)
 
@@ -22,33 +22,33 @@ union(x::Type{T}, y::Type{T}) where T<:NonSymbol = T
 
 union(x::Symbol, y::Symbol) = x == y ? x : Or([x, y])
 
-partial_eltype(x::Data) = reduce(union, parts(x), init = ⊥)
-partial_eltype(x::VData) = x.parts
+partial_eltype(x::Pack) = reduce(union, parts(x), init = ⊥)
+partial_eltype(x::VPack) = x.parts
 
-function union(x::Data, y::Data)
+function union(x::Pack, y::Pack)
   x == y && return x
   if tag(x) == tag(y)
     if nparts(x) == nparts(y)
-      data(tag(x), [union(part(x, i), part(y, i)) for i = 1:nparts(x)]...)
+      pack(tag(x), [union(part(x, i), part(y, i)) for i = 1:nparts(x)]...)
     else
-      return VData(tag(x), union(partial_eltype(x), partial_eltype(y)))
+      return VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))
     end
   else
     return Or([x, y])
   end
 end
 
-function union(x::Data, y::VData)
+function union(x::Pack, y::VPack)
   tag(x) == tag(y) || error("unimplemented union")
-  VData(tag(x), union(partial_eltype(x), partial_eltype(y)))
+  VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))
 end
 
-function union(x::VData, y::VData)
+function union(x::VPack, y::VPack)
   tag(x) == tag(y) || error("unimplemented union")
-  return VData(tag(x), union(x.parts, y.parts))
+  return VPack(tag(x), union(x.parts, y.parts))
 end
 
-function union(x::Union{Primitive,Type{<:Primitive},Data,VData}, y::Or)
+function union(x::Union{Primitive,Type{<:Primitive},Pack,VPack}, y::Or)
   typedepth(y) > 10 && error("exploding type: $y")
   ps = y.patterns
   i = findfirst(y -> tag(x) == tag(y), ps)
@@ -56,18 +56,18 @@ function union(x::Union{Primitive,Type{<:Primitive},Data,VData}, y::Or)
   return Or([j == i ? union(x, ps[j]) : ps[j] for j = 1:length(ps)]) |> recursive
 end
 
-union(y::Or, x::Union{Primitive,Type{<:Primitive},Data,VData}) = union(x, y)
+union(y::Or, x::Union{Primitive,Type{<:Primitive},Pack,VPack}) = union(x, y)
 
 function union(x::Or, y::Or)
   reduce(union, y.patterns, init = x)
 end
 
-function union(x::Recursive, y::Union{Or,Data})
+function union(x::Recursive, y::Union{Or,Pack})
   @assert issubset(y, x)
   return x
 end
 
-union(y::Union{Or,Data}, x::Recursive) = union(x, y)
+union(y::Union{Or,Pack}, x::Recursive) = union(x, y)
 
 function prepare_ir!(ir)
   IRTools.expand!(ir)
@@ -239,10 +239,10 @@ function step!(inf::Inference, loc)
         block.ir[var] = Statement(block[var], type = union(st.type, T))
         push!(inf.queue, Loc(F, b, ip+1))
       end
-    elseif isexpr(st.expr, :data)
+    elseif isexpr(st.expr, :pack)
       Ts = exprtype(inf.mod, block.ir, st.expr.args)
       if !any(==(⊥), Ts)
-        block.ir[var] = Statement(block[var], type = data(Ts...))
+        block.ir[var] = Statement(block[var], type = pack(Ts...))
         push!(inf.queue, Loc(F, b, ip+1))
       end
     elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global

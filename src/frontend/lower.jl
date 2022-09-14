@@ -46,14 +46,14 @@ Base.:(==)(a::Or, b::Or) = a.patterns == b.patterns
 
 # Raven versions
 
-rvpattern(::Hole) = data(:Hole)
+rvpattern(::Hole) = pack(:Hole)
 rvpattern(x::Primitive) = x
-rvpattern(x::Literal) = data(:Literal, x.value)
-rvpattern(x::Bind) = data(:Bind, x.name)
-rvpattern(x::Trait) = data(:Trait, x.pattern)
-rvpattern(xs::Data) = data(:Data, rvpattern.(xs.parts)...)
-rvpattern(xs::And) = data(:And, rvpattern.(xs.patterns)...)
-rvpattern(xs::Constructor) = data(:Constructor, xs.func, rvpattern.(xs.args)...)
+rvpattern(x::Literal) = pack(:Literal, x.value)
+rvpattern(x::Bind) = pack(:Bind, x.name)
+rvpattern(x::Trait) = pack(:Trait, x.pattern)
+rvpattern(xs::Pack) = pack(:Pack, rvpattern.(xs.parts)...)
+rvpattern(xs::And) = pack(:And, rvpattern.(xs.patterns)...)
+rvpattern(xs::Constructor) = pack(:Constructor, xs.func, rvpattern.(xs.args)...)
 
 # Pattern lowering
 
@@ -77,15 +77,15 @@ function _lowerpattern(ex, as)
     ex isa AST.Quote && (ex = ex.expr)
     return Literal(ex)
   elseif ex isa AST.List
-    data(Literal(:List), map(x -> _lowerpattern(x, as), ex.args)...)
+    pack(Literal(:List), map(x -> _lowerpattern(x, as), ex.args)...)
   elseif ex isa AST.Operator && ex.op == :(:)
     name, T = ex.args
     name in as || push!(as, name)
     And([Bind(name), lowerisa(T, as)])
   elseif ex isa AST.Splat
     Repeat(_lowerpattern(ex.expr, as))
-  elseif ex isa AST.Call && ex.func == :data
-    data(map(x -> _lowerpattern(x, as), ex.args)...)
+  elseif ex isa AST.Call && ex.func == :pack
+    pack(map(x -> _lowerpattern(x, as), ex.args)...)
   elseif ex isa AST.Call
     Constructor(ex.func, _lowerpattern.(ex.args, (as,)))
   else
@@ -109,7 +109,7 @@ function _lowersig(ex, as, swaps)
       _lowerpattern(x, as)
     end
   end
-  data(Literal(:List), args...)
+  pack(Literal(:List), args...)
 end
 
 function lowerpattern(ex)
@@ -141,14 +141,14 @@ function datamacro(ex)
     args = spec.args
     push!(body, AST.Syntax(:fn, [spec,
                                  AST.Block([
-                                   AST.Call(:data, [AST.Quote(name), namify.(args)...])])]))
-    push!(body, AST.Syntax(:fn, [AST.Call(:isa, [AST.Call(:data, [AST.Quote(name), args...]),
+                                   AST.Call(:pack, [AST.Quote(name), namify.(args)...])])]))
+    push!(body, AST.Syntax(:fn, [AST.Call(:isa, [AST.Call(:pack, [AST.Quote(name), args...]),
                                                  AST.Quote(name)]),
                                  AST.Block([Symbol("true")])]))
     push!(body, AST.Syntax(:fn, [AST.Call(:constructorPattern, [AST.Quote(name), namify.(args)...]),
                                  AST.Block([
                                    AST.Call(:And, [AST.Call(:Trait, [AST.Quote(name)]),
-                                                   AST.Call(:Data, [AST.Call(:Literal, [AST.Quote(name)]), namify.(args)...])])])]))
+                                                   AST.Call(:Pack, [AST.Call(:Literal, [AST.Quote(name)]), namify.(args)...])])])]))
   end
   if super != nothing
     push!(body, AST.Operator(:(=), [super, AST.Quote(super)]))
@@ -177,19 +177,19 @@ end
 
 xcall(args...) = Expr(:call, args...)
 xtuple(args...) = Expr(:tuple, args...)
-xdata(args...) = Expr(:data, args...)
-xlist(args...) = xdata(:List, args...)
+xpack(args...) = Expr(:pack, args...)
+xlist(args...) = xpack(:List, args...)
 xpart(x, i) = xcall(part_method, x, i)
 
 rcall(f, args...) = xpart(xcall(f, xlist(args...)), 1)
 
-function IRTools.Inner.print_stmt(io::IO, ::Val{:data}, ex)
+function IRTools.Inner.print_stmt(io::IO, ::Val{:pack}, ex)
   if ex.args[1] == :List
     print(io, "[")
     join(io, [sprint(vprint, x) for x in ex.args[2:end]], ", ")
     print(io, "]")
   else
-    print(io, "data[")
+    print(io, "pack[")
     join(io, [sprint(vprint, x) for x in ex.args], ", ")
     print(io, "]")
   end
@@ -240,7 +240,7 @@ _push!(ir::IR, x) = IRTools.canbranch(blocks(ir)[end]) && push!(ir, x)
 # lower while ignoring return value (if applicable)
 _lower!(sc, ir, x) = lower!(sc, ir, x)
 
-lower!(sc, ir::IR, x::Union{Integer,String,AST.Quote,Data}) = x
+lower!(sc, ir::IR, x::Union{Integer,String,AST.Quote,Pack}) = x
 lower!(sc, ir::IR, x::Symbol) = sc[x]
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? nothing : (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
@@ -293,9 +293,9 @@ function argtuple!(sc, ir::IR, args)
     end
   end
   args =
-    isempty(parts) ? xdata(:List) :
+    isempty(parts) ? xpack(:List) :
     length(parts) == 1 ? parts[1] :
-    _push!(ir, xcall(datacat_method, xlist(parts...)))
+    _push!(ir, xcall(packcat_method, xlist(parts...)))
   return args, swaps
 end
 
@@ -397,7 +397,7 @@ function If(b::AST.Syntax)
   end
   if cond[end] !== true
     push!(cond, true)
-    push!(body, AST.Call(:data, [AST.Quote(:Nil)]))
+    push!(body, AST.Call(:pack, [AST.Quote(:Nil)]))
   end
   return If(cond, body)
 end

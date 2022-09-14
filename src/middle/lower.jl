@@ -1,6 +1,6 @@
 # After type inference, we lower to a form where reference and union types are
-# represented with explicit pointers and tags, eg a `VData` becomes a (size,
-# pointer) tuple. This allows us to compile methods like `part`, `datacat` and
+# represented with explicit pointers and tags, eg a `VPack` becomes a (size,
+# pointer) tuple. This allows us to compile methods like `part`, `packcat` and
 # casts, whose implementation needs to access those internals.
 #
 # It makes sense for those methods to be represented as functions, to avoid
@@ -57,7 +57,7 @@ function globals(mod::RModule, ir::IR)
   return IRTools.finish(pr)
 end
 
-# Data primitives
+# Pack primitives
 
 function cat_layout(xs...)
   result = ()
@@ -73,10 +73,10 @@ cat_layout(x::Tuple) = x
 cat_layout(x, xs...) = (cat_layout(x)..., cat_layout(xs...)...)
 
 layout(T::Type{<:Primitive}) = T
-layout(::Type{String}) = layout(data(:String, data(:JSObject, Int32)))
+layout(::Type{String}) = layout(pack(:String, pack(:JSObject, Int32)))
 layout(x::Union{Primitive,AST.Quote,Unreachable}) = ()
-layout(x::Data) = cat_layout(layout.(x.parts)...)
-layout(x::VData) = (Int32, Int32) # size, pointer
+layout(x::Pack) = cat_layout(layout.(x.parts)...)
+layout(x::VPack) = (Int32, Int32) # size, pointer
 layout(x::Recursive) = Int32
 layout(x::Recur) = Int32
 layout(xs::Or) = (Int32, cat_layout(layout.(xs.patterns)...)...)
@@ -85,13 +85,13 @@ nregisters(l::Type) = 1
 nregisters(l::Tuple) = length(l)
 
 function sublayout(T, i)
-  before = data(T.parts[1:i]...)
+  before = pack(T.parts[1:i]...)
   offset = nregisters(layout(before))
   length = nregisters(layout(T.parts[i+1]))
   offset .+ (1:length)
 end
 
-lowerPrimitive[data_method] = function (cx, pr, ir, v)
+lowerPrimitive[pack_method] = function (cx, pr, ir, v)
   # Arguments are turned into a tuple when calling any function, so this
   # is just a cast.
   @assert layout(ir[v].type) == layout(exprtype(cx.mod, ir, ir[v].expr.args[2]))
@@ -191,7 +191,7 @@ function indexer!(ir, ::Type{String}, i::Int, s, _)
   push!(ir, Expr(:ref, s, 1))
 end
 
-function _indexer!(f, T::Data, i::Int, x)
+function _indexer!(f, T::Pack, i::Int, x)
   if 0 <= i <= nparts(T)
     _part(i) = f(Expr(:ref, x, i))
     range = sublayout(T, i)
@@ -206,11 +206,11 @@ function _indexer!(f, T::Data, i::Int, x)
   end
 end
 
-function indexer!(ir, T::Data, i::Int, x, _)
+function indexer!(ir, T::Pack, i::Int, x, _)
   _indexer!(ex -> push!(ir, ex), T, i, x)
 end
 
-function indexer!(ir, T::VData, I::Union{Int,Type{Int64}}, x, i)
+function indexer!(ir, T::VPack, I::Union{Int,Type{Int64}}, x, i)
   (I == 0 || layout(T.parts) == ()) && return push!(ir, Expr(:tuple))
   @assert T.parts == Int64
   if I isa Int
@@ -230,7 +230,7 @@ end
 lowerPrimitive[part_method] = function (cx, pr, ir, v)
   x, i = ir[v].expr.args[2:end]
   T, I = exprtype(cx.mod, ir, ir[v].expr.args[2:end])
-  if T isa Data && I isa Type{<:Integer}
+  if T isa Pack && I isa Type{<:Integer}
     partmethod!(cx, T, I)
   elseif T isa Or
     union_partmethod!(cx, T, I)
@@ -246,11 +246,11 @@ lowerPrimitive[part_method] = function (cx, pr, ir, v)
   end
 end
 
-# datacat
+# packcat
 # =======
 
-function datacat_ir(T::Data)
-  T′ = datacat(parts(T)...)
+function packcat_ir(T::Pack)
+  T′ = packcat(parts(T)...)
   @assert layout(T′.parts) == () || T′.parts == Int64
   ir = IR()
   xs = argument!(ir, type = T)
@@ -272,14 +272,14 @@ function datacat_ir(T::Data)
   pos = ptr
   for i in 1:nparts(T)
     P = part(T, i)
-    if P isa Data
+    if P isa Pack
       for j in 1:nparts(P)
         @assert part(P, j) == Int64
         x = indexer!(ir, P, j, ps[i], j)
         push!(ir, xcall(WIntrinsic(i64.store, WTuple()), pos, x))
         pos = push!(ir, xcall(WIntrinsic(i32.add, i32), pos, Int32(8)))
       end
-    elseif P isa VData
+    elseif P isa VPack
       if P.parts != Int64
         push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
                         Expr(:ref, "unsupported")))
@@ -294,39 +294,39 @@ function datacat_ir(T::Data)
       error("unsupported")
     end
   end
-  result = push!(ir, stmt(Expr(:tuple, size, ptr), type = datacat(parts(T)...)))
+  result = push!(ir, stmt(Expr(:tuple, size, ptr), type = packcat(parts(T)...)))
   return!(ir, result)
   return ir
 end
 
-function datacat_method!(cx::Compilation, T)
-  S = (datacat_method, T)
+function packcat_method!(cx::Compilation, T)
+  S = (packcat_method, T)
   haskey(cx.frames, S) && return
-  ir = datacat_ir(T)
+  ir = packcat_ir(T)
   cx.frames[S] = ir
   return
 end
 
-lowerPrimitive[datacat_method] = function (cx, pr, ir, v)
+lowerPrimitive[packcat_method] = function (cx, pr, ir, v)
   x = ir[v].expr.args[2]
   S = exprtype(cx.mod, ir, x)
   T = ir[v].type
-  if S isa Data && T isa Data
+  if S isa Pack && T isa Pack
     @assert layout(S) == layout(T)
     pr[v] = Expr(:cast, x)
   else
-    datacat_method!(cx, S)
+    packcat_method!(cx, S)
   end
 end
 
 # nparts
 # ======
 
-function nparts!(ir, T::Data, x)
+function nparts!(ir, T::Pack, x)
   return nparts(T)
 end
 
-function nparts!(ir, T::VData, x)
+function nparts!(ir, T::VPack, x)
   sz = push!(ir, Expr(:ref, x, 1))
   push!(ir, xcall(WIntrinsic(i64.extend_i32_s, i64), sz))
 end
@@ -342,7 +342,7 @@ end
 function lowerdata(cx, ir)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
-    if isexpr(st.expr, :data)
+    if isexpr(st.expr, :pack)
       # remove constants, which have zero width
       # TODO: better to do this based on type, even though it doesn't come up
       # yet
@@ -384,12 +384,12 @@ function cast!(ir, from, to, x)
   (to == ⊥ || from == to) && return x
   if from isa Number && to == typeof(from)
     from
-  elseif from isa Data && to isa Data
+  elseif from isa Pack && to isa Pack
     @assert nparts(from) == nparts(to)
     parts = [indexer!(ir, from, i, x, nothing) for i = 0:nparts(from)]
     parts = [cast!(ir, part(from, i), part(to, i), parts[i+1]) for i = 0:nparts(from)]
     push!(ir, Expr(:tuple, parts...))
-  elseif from == rtuple() && to isa VData
+  elseif from == rtuple() && to isa VPack
     margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rtuple(Int32)))
     ptr = push!(ir, stmt(xcall(Global(:malloc!), margs), type = Int32))
     push!(ir, stmt(Expr(:tuple, Int32(0), ptr), type = to))
@@ -402,7 +402,7 @@ function cast!(ir, from, to, x)
     return push!(ir, Expr(:tuple, Int32(i),
                           reduce(vcat, [j == i ? x : collect(zero.(layout(p)))
                                         for (j, p) in enumerate(to.patterns)])...))
-  elseif from isa Data && to isa Recursive
+  elseif from isa Pack && to isa Recursive
     to = unroll(to)
     x = cast!(ir, from, to, x)
     box!(ir, to, x)

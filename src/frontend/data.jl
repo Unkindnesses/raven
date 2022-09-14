@@ -1,40 +1,40 @@
 # Types
 
-struct Data{N}
+struct Pack{N}
   parts::NTuple{N,Any}
 end
 
-data(x...) = Data((x...,))
+pack(x...) = Pack((x...,))
 
-nparts(x::Data) = length(x.parts)-1
-part(x::Data, i) = x.parts[i+1]
+nparts(x::Pack) = length(x.parts)-1
+part(x::Pack, i) = x.parts[i+1]
 parts(x) = x.parts[2:end]
-allparts(x::Data) = x.parts
+allparts(x::Pack) = x.parts
 
-Base.getindex(x::Data, i::Integer) = x.parts[i+1]
-Base.getindex(x::Data, i::AbstractVector) = data(x.parts[i.+1]...)
-Base.lastindex(x::Data) = lastindex(x.parts)
-Base.iterate(x::Data, st...) = iterate(x.parts, st...)
-Base.:(==)(a::Data, b::Data) = a.parts == b.parts
-Base.hash(x::Data, h::UInt) = hash((Data, x.parts), h)
+Base.getindex(x::Pack, i::Integer) = x.parts[i+1]
+Base.getindex(x::Pack, i::AbstractVector) = pack(x.parts[i.+1]...)
+Base.lastindex(x::Pack) = lastindex(x.parts)
+Base.iterate(x::Pack, st...) = iterate(x.parts, st...)
+Base.:(==)(a::Pack, b::Pack) = a.parts == b.parts
+Base.hash(x::Pack, h::UInt) = hash((Pack, x.parts), h)
 
 tag(x) = part(x, 0)
 
-struct VData # variable width
+struct VPack # variable width
   tag::Any
   parts::Any
 end
 
-tag(x::VData) = x.tag
+tag(x::VPack) = x.tag
 
-rtuple(xs...) = data(:List, xs...)
+rtuple(xs...) = pack(:List, xs...)
 
-datacat(x) = x
-datacat(x::Data, y::Data) = data(tag(x), parts(x)..., parts(y)...)
-datacat(x, y, z, zs...) = datacat(datacat(x, y), z, zs...)
+packcat(x) = x
+packcat(x::Pack, y::Pack) = pack(tag(x), parts(x)..., parts(y)...)
+packcat(x, y, z, zs...) = packcat(packcat(x, y), z, zs...)
 
-datacat(x::Union{VData,Data}, y::Union{VData,Data}) =
-  VData(tag(x), union(partial_eltype(x), partial_eltype(y)))
+packcat(x::Union{VPack,Pack}, y::Union{VPack,Pack}) =
+  VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))
 
 struct Recursive
   type::Any
@@ -73,24 +73,24 @@ end
 
 part(s::Union{String,Type{String}}, i::Integer) =
   i == 0 ? :String :
-  i == 1 ? data(:JSObject, Int32) :
+  i == 1 ? pack(:JSObject, Int32) :
   error("Tried to access part $i of 1")
 
-allparts(s::Union{String,Type{String}}) = (:String, data(:JSObject, Int32))
+allparts(s::Union{String,Type{String}}) = (:String, pack(:JSObject, Int32))
 
 nparts(s::Union{String,Type{String}}) = 1
 
 isvalue(x) = false
 isvalue(x::Primitive) = true
-isvalue(xs::Data) = all(isvalue, parts(xs))
+isvalue(xs::Pack) = all(isvalue, parts(xs))
 
-const SimpleType = Union{Primitive,Type{<:Primitive},Data,VData}
+const SimpleType = Union{Primitive,Type{<:Primitive},Pack,VPack}
 
 # Depth
 
 typedepth(::Unreachable) = 0
 typedepth(::Union{Primitive,Type{<:Primitive}}) = 1
-typedepth(x::Data) = 1 + maximum(typedepth.(x.parts), init = 0)
+typedepth(x::Pack) = 1 + maximum(typedepth.(x.parts), init = 0)
 typedepth(x::Or) = 1 + maximum(typedepth.(x.patterns), init = 0)
 
 # Subset
@@ -101,14 +101,14 @@ issubset(::Unreachable, x) = true
 issubset(x::Primitive, y::Primitive) = x == y
 issubset(x::Primitive, T::Type{<:Primitive}) = x isa T
 issubset(x::Type{<:Primitive}, y::Type{<:Primitive}) = x <: y
-issubset(x::Union{Primitive,Type{<:Primitive}}, y::Union{Primitive,Data}) = false
+issubset(x::Union{Primitive,Type{<:Primitive}}, y::Union{Primitive,Pack}) = false
 
-issubset(x::Data, y::Data) = nparts(x) == nparts(y) && all(issubset.(x.parts, y.parts))
+issubset(x::Pack, y::Pack) = nparts(x) == nparts(y) && all(issubset.(x.parts, y.parts))
 
-issubset(x::VData, y::VData) = issubset(tag(x), tag(y)) && issubset(x.parts, y.parts)
+issubset(x::VPack, y::VPack) = issubset(tag(x), tag(y)) && issubset(x.parts, y.parts)
 
-issubset(x::Data, y::VData) = issubset(tag(x), tag(y)) && all(issubset.(parts(x), (y.parts,)))
-issubset(x::VData, y::Data) = false
+issubset(x::Pack, y::VPack) = issubset(tag(x), tag(y)) && all(issubset.(parts(x), (y.parts,)))
+issubset(x::VPack, y::Pack) = false
 
 issubset(x::Or, y) = all(issubset.(x.patterns, (y,)))
 issubset(x, y::Or) = any(issubset.((x,), y.patterns))
@@ -144,7 +144,7 @@ issubset(::Recur, ::Recur) = true
 
 _recursion_candidate(x::Union{Primitive,Type{<:Primitive}}) = false
 
-_recursion_candidate(x::Data) = any(_recursion_candidate.(x.parts))
+_recursion_candidate(x::Pack) = any(_recursion_candidate.(x.parts))
 
 _recursion_candidate(x::Or) =
   issubset(x, recur()) || any(_recursion_candidate.(x.patterns))
@@ -160,15 +160,15 @@ end
 _makerecursive(x::Or) =
   issubset(x, recur()) ? Recur() : Or(_makerecursive.(x.patterns))
 
-_makerecursive(x::Data) =
-  issubset(x, recur()) ? Recur() : data(_makerecursive.(x.parts)...)
+_makerecursive(x::Pack) =
+  issubset(x, recur()) ? Recur() : pack(_makerecursive.(x.parts)...)
 
 _makerecursive(x::Union{Primitive,Type{<:Primitive}}) =
   issubset(x, recur()) ? Recur() : x
 
 function makerecursive(T::Or)
   withrecur(T) do
-    Recursive(Or([data(tag(x), _makerecursive.(parts(x))...) for x in T.patterns]))
+    Recursive(Or([pack(tag(x), _makerecursive.(parts(x))...) for x in T.patterns]))
   end
 end
 
@@ -186,7 +186,7 @@ end
 unroll(T::Union{Primitive,Type{<:Primitive}}, n) = T
 
 unroll(T::Or, n) = typeof(T)(unroll.(T.patterns, n))
-unroll(T::Data, n) = Data(unroll.(T.parts, n))
+unroll(T::Pack, n) = Pack(unroll.(T.parts, n))
 unroll(T::Recur, n) = unroll(recur(), n-1)
 
 # Printing
@@ -195,13 +195,13 @@ vprint(io::IO, x) = show(io, x)
 
 const printers = Dict{Symbol,Any}()
 
-printers[:List] = function (io::IO, s::Data)
+printers[:List] = function (io::IO, s::Pack)
   print(io, "[")
   join(io, [sprint(vprint, x) for x in parts(s)], ", ")
   print(io, "]")
 end
 
-function printList(io::IO, s::Data)
+function printList(io::IO, s::Pack)
   print(io, "list(")
   while tag(s) == :Prepend
     vprint(io, part(s, 2))
@@ -220,16 +220,16 @@ printers[:Pair] = function (io, s)
   vprint(io, part(s, 2))
 end
 
-function vprint(io::IO, s::Data)
-  isempty(s.parts) && return print(io, "data()")
+function vprint(io::IO, s::Pack)
+  isempty(s.parts) && return print(io, "pack()")
   haskey(printers, tag(s)) && return printers[tag(s)](io, s)
-  print(io, "data(")
+  print(io, "pack(")
   join(io, [sprint(vprint, x) for x in s.parts], ", ")
   print(io, ")")
 end
 
-function vprint(io::IO, s::VData)
-  print(io, "data(")
+function vprint(io::IO, s::VPack)
+  print(io, "pack(")
   vprint(io, s.tag)
   print(io, ", ")
   vprint(io, s.parts)
@@ -242,8 +242,8 @@ vprint(io::IO, x::Symbol) = print(io, "`", x, "`")
 
 vprint(io::IO, x::AST.Expr) = print(io, "`", x, "`")
 
-Base.show(io::IO, d::Data) = vprint(io, d)
-Base.show(io::IO, d::VData) = vprint(io, d)
+Base.show(io::IO, d::Pack) = vprint(io, d)
+Base.show(io::IO, d::VPack) = vprint(io, d)
 
 # Show inside AST
-AST._show(io::AST.Ctx, x::Data) = show(io.io, x)
+AST._show(io::AST.Ctx, x::Pack) = show(io.io, x)

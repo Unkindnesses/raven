@@ -12,7 +12,7 @@ fn isa(_, _) { false }
 
 Symbol = `Symbol`
 
-fn isa(data(`Symbol`, _), `Symbol`) { true }
+fn isa(pack(`Symbol`, _), `Symbol`) { true }
 
 fn (x |> f) { f(x) }
 

@@ -2,17 +2,17 @@ data Pattern {
   Hole()
   Literal(x)
   Trait(T)
-  Data(xs...)
+  Pack(xs...)
   Bind(name)
   Constructor(name, args...)
   And(p, q)
 }
 
-fn match(val, data(`Hole`)) {
+fn match(val, pack(`Hole`)) {
   return simpledict()
 }
 
-fn match(val, data(`Literal`, pat)) {
+fn match(val, pack(`Literal`, pat)) {
   if (pat == val) {
     return simpledict()
   } else {
@@ -20,7 +20,7 @@ fn match(val, data(`Literal`, pat)) {
   }
 }
 
-fn match(val, data(`Trait`, pat)) {
+fn match(val, pack(`Trait`, pat)) {
   if isa(val, pat) {
     return simpledict()
   } else {
@@ -28,27 +28,27 @@ fn match(val, data(`Trait`, pat)) {
   }
 }
 
-fn match(val, data(`Bind`, name)) {
+fn match(val, pack(`Bind`, name)) {
   bs = simpledict()
   setkey(&bs, name, val)
   return bs
 }
 
-fn match(data(), data(`Data`)) { simpledict() }
+fn match(pack(), pack(`Pack`)) { simpledict() }
 
-fn match(data(x, xs...), data(`Data`, p, ps...)) {
+fn match(pack(x, xs...), pack(`Pack`, p, ps...)) {
   bs = match(x, p)
   isnil(bs) && return
-  cs = match(data(xs...), Data(ps...))
+  cs = match(pack(xs...), Pack(ps...))
   isnil(cs) && return
   merge(notnil(bs), notnil(cs))
 }
 
-fn match(val, data(`Constructor`, name, args...)) {
+fn match(val, pack(`Constructor`, name, args...)) {
   match(val, constructorPattern(name, args...))
 }
 
-fn match(val, data(`And`, p, q)) {
+fn match(val, pack(`And`, p, q)) {
   bs = match(val, p)
   isnil(bs) && return
   cs = match(val, q)

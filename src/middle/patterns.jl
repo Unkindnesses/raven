@@ -100,7 +100,7 @@ partial_match(mod, pat::Constructor, val, path) = missing
 isslurp(x) = x isa Repeat && x.pattern isa Union{Hole,Bind}
 
 # Redundant, but this check prevents some `trivial_isa` cases becoming circular.
-function shortcut_literals(pat::Data, val)
+function shortcut_literals(pat::Pack, val)
   any(x -> x isa Repeat, allparts(pat)) && return false
   nparts(pat) == nparts(val) || return true
   return any(zip(allparts(pat), allparts(val))) do (a, b)
@@ -108,7 +108,7 @@ function shortcut_literals(pat::Data, val)
   end
 end
 
-function partial_match(mod, pat::Data, val::SimpleType, path)
+function partial_match(mod, pat::Pack, val::SimpleType, path)
   bs = Dict()
   i = 0
   shortcut_literals(pat, val) && return nothing
@@ -149,7 +149,7 @@ function partial_match_union(mod, pat, val::Or, path)
   return missing
 end
 
-function partial_match(mod, pat::Data, val::Or, path)
+function partial_match(mod, pat::Pack, val::Or, path)
   partial_match_union(mod, pat, val, path)
 end
 
@@ -157,7 +157,7 @@ function partial_match(mod, pat::Or, val::Or, path)
   partial_match_union(mod, pat, val, path)
 end
 
-function partial_match(mod, pat::Data, val::Recursive, path)
+function partial_match(mod, pat::Pack, val::Recursive, path)
   withrecur(val.type) do
     partial_match(mod, pat, val.type, path)
   end
@@ -175,7 +175,7 @@ function destruct_isa(p)
   (p.patterns[1].name, length(p.patterns) == 2 ? p.patterns[2] : And(p.patterns[2:end]))
 end
 
-function partial_match(mod, pat::Data, val::VData, path)
+function partial_match(mod, pat::Pack, val::VPack, path)
   bs = @try partial_match(mod, tag(pat), tag(val), [path..., 0])
   isempty(bs) || return missing
   (nparts(pat) == 1 && part(pat, 1) isa Repeat) || return missing

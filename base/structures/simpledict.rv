@@ -3,7 +3,7 @@
 
 data { Pair(a, b) }
 
-fn print(data(`Pair`, a, b)) {
+fn print(pack(`Pair`, a, b)) {
   print(a)
   print(" => ")
   print(b)

@@ -1,4 +1,4 @@
-using Raven: @rvx_str, data, rtuple, match, lowerpattern
+using Raven: @rvx_str, rtuple, match, lowerpattern
 using Test
 
 let

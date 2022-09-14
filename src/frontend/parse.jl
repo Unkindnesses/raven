@@ -242,7 +242,7 @@ end
 
 function ret(io)
   symbol(io) == :return || return
-  tryparse(stmt, io) != nothing && return Return(Call(:data, [Quote(:Nil)]))
+  tryparse(stmt, io) != nothing && return Return(Call(:pack, [Quote(:Nil)]))
   Return(expr(io))
 end
 

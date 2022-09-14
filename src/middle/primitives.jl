@@ -1,39 +1,39 @@
-# Core primitives – data, datacat, part and nparts – are dealt with in
+# Core primitives – pack, packcat, part and nparts – are dealt with in
 # middle-end lowering, but we define type inference here.
 
-partial_part(data::Union{Data,Primitive,Type{<:Primitive}}, i::Integer) =
+partial_part(data::Union{Pack,Primitive,Type{<:Primitive}}, i::Integer) =
   0 <= i <= nparts(data) ? part(data, i) : ⊥
 
 # TODO: HACK: we assume index != 0 when indexing dynamically.
 # Should instead have a seperate `index` function that enforces this.
-partial_part(data::Data, i::Type{<:Integer}) =
+partial_part(data::Pack, i::Type{<:Integer}) =
   reduce(union, parts(data))
 
-partial_part(data::VData, i::Union{Int,Type{<:Integer}}) =
+partial_part(data::VPack, i::Union{Int,Type{<:Integer}}) =
   i == 0 ? data.tag : data.parts
 
 partial_part(data::Or, i) =
   reduce(union, partial_part.(data.patterns, (i,)))
 
-partial_nparts(x::Data) = nparts(x)
-partial_nparts(::VData) = Int64
+partial_nparts(x::Pack) = nparts(x)
+partial_nparts(::VPack) = Int64
 
 partial_widen(x::Primitive) = typeof(x)
 partial_widen(x) = x
 
 # Fast, approximate equality check; basically a stand-in for pointer equality.
-# TODO extend to handle vdata
+# TODO extend to handle VPack
 partial_shortcutEquals(a, b) =
   Int32(isvalue(a) && isvalue(b) && a == b)
 
 # Needed by dispatchers, since a user-defined method would need runtime matching
 # to deal with unions.
 partial_isnil(x::Union{Primitive,Type{<:Primitive}}) = Int32(0)
-partial_isnil(x::Data) = Int32(x == data(:Nil))
-partial_isnil(x::Or) = any(==(data(:Nil)), x.patterns) ? Int32 : Int32(0)
+partial_isnil(x::Pack) = Int32(x == pack(:Nil))
+partial_isnil(x::Or) = any(==(pack(:Nil)), x.patterns) ? Int32 : Int32(0)
 
 # Duct tape until the thatcher algorithm works.
-partial_notnil(x::Data) = tag(x) == :Nil ? ⊥ : x
+partial_notnil(x::Pack) = tag(x) == :Nil ? ⊥ : x
 
 function partial_notnil(x::Or)
   ps = filter(x -> tag(x) != :Nil, x.patterns)
@@ -43,10 +43,10 @@ end
 partial_symstring(x::Symbol) = String(x)
 partial_symstring(x::Or) = String
 
-data_method = RMethod(:data, lowerpattern(rvx"args"), args -> data(parts(args)...), true)
+pack_method = RMethod(:pack, lowerpattern(rvx"args"), args -> pack(parts(args)...), true)
 part_method = RMethod(:part, lowerpattern(rvx"[data, i]"), partial_part, true)
 nparts_method = RMethod(:nparts, lowerpattern(rvx"[x]"), partial_nparts, true)
-datacat_method = RMethod(:datacat, lowerpattern(rvx"args"), args -> datacat(parts(args)...), true)
+packcat_method = RMethod(:packcat, lowerpattern(rvx"args"), args -> packcat(parts(args)...), true)
 widen_method = RMethod(:widen, lowerpattern(rvx"[x]"), partial_widen, true)
 shortcutEquals_method = RMethod(:shortcutEquals, lowerpattern(rvx"[a, b]"), partial_shortcutEquals, true)
 
@@ -57,10 +57,10 @@ symstring_method = RMethod(:symstring, lowerpattern(rvx"[x: Symbol]"), partial_s
 function primitives!(mod)
   mod[Symbol("false")] = Int32(0)
   mod[Symbol("true")] = Int32(1)
-  method!(mod, :data, data_method)
+  method!(mod, :pack, pack_method)
   method!(mod, :part, part_method)
   method!(mod, :nparts, nparts_method)
-  method!(mod, :datacat, datacat_method)
+  method!(mod, :packcat, packcat_method)
   method!(mod, :widen, widen_method)
   method!(mod, :shortcutEquals, shortcutEquals_method)
 
@@ -92,7 +92,7 @@ lowerPrimitive[isnil_method] = function (cx, pr, ir, v)
   if ir[v].type isa Int32
     pr[v] = ir[v].type
   else
-    i = findfirst(==(data(:Nil)), T.patterns)
+    i = findfirst(==(pack(:Nil)), T.patterns)
     j = insert!(pr, v, Expr(:ref, x, 1))
     pr[v] = xcall(WIntrinsic(i32.eq, i32), j, Int32(i))
   end

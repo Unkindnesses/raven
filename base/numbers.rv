@@ -3,10 +3,10 @@ Int64   = `Int64`
 Float32 = `Float32`
 Float64 = `Float64`
 
-fn isa(data(`Int32`, _), `Int32`) { true }
-fn isa(data(`Int64`, _), `Int64`) { true }
-fn isa(data(`Float32`, _), `Float32`) { true }
-fn isa(data(`Float64`, _), `Float64`) { true }
+fn isa(pack(`Int32`, _), `Int32`) { true }
+fn isa(pack(`Int64`, _), `Int64`) { true }
+fn isa(pack(`Float32`, _), `Float32`) { true }
+fn isa(pack(`Float64`, _), `Float64`) { true }
 
 Integer = `Integer`
 

@@ -3,7 +3,7 @@ module Match
 # A Julia implementation of runtime matching. Raven can't make use of this,
 # but it's useful for speccing out the behaviour.
 
-using ..Raven: Data, Hole, Literal, Repeat, Bind, Trait, Or, And, nparts, parts
+using ..Raven: Pack, Hole, Literal, Repeat, Bind, Trait, Or, And, nparts, parts
 
 function assoc(bs, k, v)
   haskey(bs, k) || return merge(bs, Dict(k => v))
@@ -28,7 +28,7 @@ function match(pat::Literal, val)
   pat.value == val ? Dict() : nothing
 end
 
-function match(pat::Data, val)
+function match(pat::Pack, val)
   nparts(pat) == nparts(val) || return
   bs = Dict()
   for (a, b) in zip(parts(pat), parts(val))
