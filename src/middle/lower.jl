@@ -267,7 +267,7 @@ function packcat_ir(T::Pack)
   end
   size = push!(ir, xcall(WIntrinsic(i32.wrap_i64, i32), size))
   bytes = push!(ir, xcall(WIntrinsic(i32.mul, i32), size, Int32(8)))
-  margs = push!(ir, stmt(Expr(:tuple, bytes), type = rtuple(Int32)))
+  margs = push!(ir, stmt(Expr(:tuple, bytes), type = rlist(Int32)))
   ptr = push!(ir, stmt(xcall(Global(:malloc!), margs), type = Int32))
   pos = ptr
   for i in 1:nparts(T)
@@ -369,7 +369,7 @@ storeinstr(::Type{Int32}) = i32.store
 function box!(ir, T, x)
   l = layout(T)
   bytes = sum(sizeof.(l))
-  margs = push!(ir, stmt(Expr(:tuple, Int32(bytes)), type = rtuple(Int32)))
+  margs = push!(ir, stmt(Expr(:tuple, Int32(bytes)), type = rlist(Int32)))
   ptr = push!(ir, stmt(xcall(Global(:malloc!), margs), type = Int32))
   pos = ptr
   for (i, T) in enumerate(cat_layout(l))
@@ -389,8 +389,8 @@ function cast!(ir, from, to, x)
     parts = [indexer!(ir, from, i, x, nothing) for i = 0:nparts(from)]
     parts = [cast!(ir, part(from, i), part(to, i), parts[i+1]) for i = 0:nparts(from)]
     push!(ir, Expr(:tuple, parts...))
-  elseif from == rtuple() && to isa VPack
-    margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rtuple(Int32)))
+  elseif from == rlist() && to isa VPack
+    margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rlist(Int32)))
     ptr = push!(ir, stmt(xcall(Global(:malloc!), margs), type = Int32))
     push!(ir, stmt(Expr(:tuple, Int32(0), ptr), type = to))
   elseif from isa String && to == String

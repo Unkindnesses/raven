@@ -68,12 +68,12 @@ isreftype(x::Recursive) = true
 isglobal(ir, v) = haskey(ir, v) && isexpr(ir[v].expr, :global)
 
 function retain(f, T::VPack, x)
-  ptr = f(stmt(Expr(:ref, x, 2), type = rtuple(pack(:Ptr, Int32))))
+  ptr = f(stmt(Expr(:ref, x, 2), type = rlist(pack(:Ptr, Int32))))
   f(stmt(xcall(:retain!, ptr), type = pack(:Nil)))
 end
 
 function retain(f, T::Recursive, x)
-  ptr = f(stmt(xtuple(x), type = rtuple(pack(:Ptr, Int32))))
+  ptr = f(stmt(xtuple(x), type = rlist(pack(:Ptr, Int32))))
   f(stmt(xcall(:retain!, ptr), type = pack(:Nil)))
 end
 
@@ -86,12 +86,12 @@ function retain(f, T::Pack, x)
 end
 
 function release(f, T::VPack, x)
-  ptr = f(stmt(Expr(:ref, x, 2), type = rtuple(pack(:Ptr, Int32))))
+  ptr = f(stmt(Expr(:ref, x, 2), type = rlist(pack(:Ptr, Int32))))
   f(stmt(xcall(:release!, ptr), type = pack(:Nil)))
 end
 
 function release(f, T::Recursive, x)
-  ptr = f(stmt(xtuple(x), type = rtuple(pack(:Ptr, Int32))))
+  ptr = f(stmt(xtuple(x), type = rlist(pack(:Ptr, Int32))))
   f(stmt(xcall(:release!, ptr), type = pack(:Nil)))
 end
 

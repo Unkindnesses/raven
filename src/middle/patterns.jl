@@ -39,7 +39,7 @@ _assoc(::Missing, _) = missing
 function _assoc(as, (name, (val, path)))
   haskey(as, name) || return merge(as, Dict(name => (val, path)))
   val′ = as[name][1]
-  if isvalue(rtuple(val′, val))
+  if isvalue(rlist(val′, val))
     return val′ == val ? as : nothing
   else
     return missing # could reject more cases here
@@ -118,7 +118,7 @@ function partial_match(mod, pat::Pack, val::SimpleType, path)
     if pat[i] == Repeat(hole)
       break
     elseif isslurp(pat[i])
-      bs = @try _assoc(bs, pat[i].pattern.name => (rtuple(allparts(val)[i+1:end]...), [path..., i:nparts(val)]))
+      bs = @try _assoc(bs, pat[i].pattern.name => (rlist(allparts(val)[i+1:end]...), [path..., i:nparts(val)]))
       return bs
     elseif pat[i] isa Repeat
       return missing
@@ -132,7 +132,7 @@ function partial_match(mod, pat::Pack, val::SimpleType, path)
   end
   if nparts(pat) == i && isslurp(pat[i])
     if pat[i].pattern != hole
-      bs = @try _assoc(bs, pat[i].pattern.name => (rtuple(), [path..., i:0]))
+      bs = @try _assoc(bs, pat[i].pattern.name => (rlist(), [path..., i:0]))
     end
   elseif nparts(pat) > nparts(val)
     return
@@ -209,7 +209,7 @@ function trivial_method(mod, func::Symbol, Ts)
 end
 
 function trivial_isa(mod, val, T)
-  meth = trivial_method(mod, :isa, rtuple(val, T))
+  meth = trivial_method(mod, :isa, rlist(val, T))
   meth == nothing && return missing
   ir = meth.func
   (length(ir) == 0 && length(blocks(ir)) == 1) || return missing

@@ -27,7 +27,7 @@ end
 
 tag(x::VPack) = x.tag
 
-rtuple(xs...) = pack(:List, xs...)
+rlist(xs...) = pack(:List, xs...)
 
 packcat(x) = x
 packcat(x::Pack, y::Pack) = pack(tag(x), parts(x)..., parts(y)...)

@@ -1,4 +1,4 @@
-using Raven: @rvx_str, rtuple, match, lowerpattern
+using Raven: @rvx_str, rlist, match, lowerpattern
 using Test
 
 let
@@ -15,7 +15,7 @@ end
 
 let
   pat = lowerpattern(rvx"[1]").pattern
-  @test match(pat, rtuple(1)) == Dict()
-  @test match(pat, rtuple(2)) == nothing
-  @test match(pat, rtuple(1, 2)) == nothing
+  @test match(pat, rlist(1)) == Dict()
+  @test match(pat, rlist(2)) == nothing
+  @test match(pat, rlist(1, 2)) == nothing
 end
