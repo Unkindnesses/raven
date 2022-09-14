@@ -41,6 +41,7 @@ function partial_notnil(x::Or)
 end
 
 partial_symstring(x::Symbol) = String(x)
+partial_symstring(x::Or) = String
 
 data_method = RMethod(:data, lowerpattern(rvx"args"), args -> data(parts(args)...), true)
 part_method = RMethod(:part, lowerpattern(rvx"[data, i]"), partial_part, true)
@@ -111,7 +112,31 @@ lowerPrimitive[notnil_method] = function (cx, pr, ir, v)
   end
 end
 
+function symstring_ir(T)
+  ir = IR()
+  x = argument!(ir, type = T)
+  j = push!(ir, Expr(:ref, x, 1))
+  for (case, S) in enumerate(T.patterns)
+    @assert S isa Symbol
+    cond = push!(ir, xcall(WIntrinsic(i32.eq, i32), j, Int32(case)))
+    branch!(ir, length(blocks(ir))+2, unless = cond)
+    block!(ir)
+    ret = Expr(:ref, String(S))
+    return!(ir, ret)
+    block!(ir)
+  end
+  push!(ir, xcall(WIntrinsic(WebAssembly.unreachable, ⊥)))
+  return ir
+end
+
 lowerPrimitive[symstring_method] = function (cx, pr, ir, v)
-  @assert ir[v].type isa String
-  pr[v] = Expr(:tuple)
+  if ir[v].type isa String
+    pr[v] = Expr(:tuple)
+  else
+    T = exprtype(cx, ir, ir[v].expr.args[2])
+    S = (symstring_method, T)
+    if !haskey(cx.frames, S)
+      cx.frames[S] = symstring_ir(T)
+    end
+  end
 end

@@ -1,1 +1,12 @@
 println(concat("a", "b") == "ab")
+
+fn eitherSym(x) {
+  if x {
+    return `foo`
+  } else {
+    return `bar`
+  }
+}
+
+println(string(eitherSym(widen(true))) == "foo")
+println(string(eitherSym(widen(false))) == "bar")

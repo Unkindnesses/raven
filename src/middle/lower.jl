@@ -168,7 +168,7 @@ function union_partir(x::Or, i)
     return!(ir, ret)
     block!(ir)
   end
-  push!(ir, xcall(WIntrinsic(WebAssembly.unreachable, ⊥), j, Int32(i)))
+  push!(ir, xcall(WIntrinsic(WebAssembly.unreachable, ⊥)))
   return ir
 end
 
@@ -301,7 +301,7 @@ end
 
 function datacat_method!(cx::Compilation, T)
   S = (datacat_method, T)
-  haskey(cx.frames, S) && return cx.frames[S][1]
+  haskey(cx.frames, S) && return
   ir = datacat_ir(T)
   cx.frames[S] = ir
   return
@@ -398,8 +398,9 @@ function cast!(ir, from, to, x)
   elseif to isa Or
     i = findfirst(==(from), to.patterns)
     @assert i != nothing
+    x = (x isa Variable ? [x] : [])
     return push!(ir, Expr(:tuple, Int32(i),
-                          reduce(vcat, [j == i ? [x] : collect(zero.(layout(p)))
+                          reduce(vcat, [j == i ? x : collect(zero.(layout(p)))
                                         for (j, p) in enumerate(to.patterns)])...))
   elseif from isa Data && to isa Recursive
     to = unroll(to)

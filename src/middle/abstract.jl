@@ -13,10 +13,14 @@ union(::Unreachable, x) = x
 union(x, ::Unreachable) = x
 union(::Unreachable, ::Unreachable) = ⊥
 
-union(x::T, y::T) where T<:Primitive = x == y ? x : T
-union(x::T, y::Type{T}) where T<:Primitive = T
-union(x::Type{T}, y::T) where T<:Primitive = T
-union(x::Type{T}, y::Type{T}) where T<:Primitive = T
+const NonSymbol = Union{Float32,Float64,Int32,Int64,String}
+
+union(x::T, y::T) where T<:NonSymbol = x == y ? x : T
+union(x::T, y::Type{T}) where T<:NonSymbol = T
+union(x::Type{T}, y::T) where T<:NonSymbol = T
+union(x::Type{T}, y::Type{T}) where T<:NonSymbol = T
+
+union(x::Symbol, y::Symbol) = x == y ? x : Or([x, y])
 
 partial_eltype(x::Data) = reduce(union, parts(x), init = ⊥)
 partial_eltype(x::VData) = x.parts
