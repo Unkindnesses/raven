@@ -63,6 +63,7 @@ isreftype(::Union{Primitive,Type,Unreachable}) = false
 isreftype(xs::Or) = any(isreftype, xs.patterns)
 isreftype(xs::Data) = any(isreftype, xs.parts)
 isreftype(x::VData) = layout(x.parts) != ()
+isreftype(x::Recursive) = true
 
 isglobal(ir, v) = haskey(ir, v) && isexpr(ir[v].expr, :global)
 
@@ -71,8 +72,26 @@ function retain(f, T::VData, x)
   f(stmt(xcall(:retain!, ptr), type = data(:Nil)))
 end
 
+function retain(f, T::Recursive, x)
+  ptr = f(stmt(xtuple(x), type = rtuple(data(:Ptr, Int32))))
+  f(stmt(xcall(:retain!, ptr), type = data(:Nil)))
+end
+
+function retain(f, T::Data, x)
+  for i = 0:nparts(T)
+    isreftype(part(T, i)) || continue
+    p = _indexer!(f, T, i, x)
+    retain(f, part(T, i), p)
+  end
+end
+
 function release(f, T::VData, x)
   ptr = f(stmt(Expr(:ref, x, 2), type = rtuple(data(:Ptr, Int32))))
+  f(stmt(xcall(:release!, ptr), type = data(:Nil)))
+end
+
+function release(f, T::Recursive, x)
+  ptr = f(stmt(xtuple(x), type = rtuple(data(:Ptr, Int32))))
   f(stmt(xcall(:release!, ptr), type = data(:Nil)))
 end
 
@@ -122,9 +141,12 @@ function refcounts!(ir)
       # dropped variable
       isref(v) && (v in lv[v] || release(ex -> push!(pr, ex), IRTools.exprtype(ir, v), v))
       # reused argument
-      for x in st.expr.args
+      for x in unique(st.expr.args)
         x isa Variable && isref(x) || continue
-        (isglobal(ir, x) || x in lv[v]) && retain(ex -> insert!(pr, v, ex), IRTools.exprtype(ir, x), x)
+        ret = isglobal(ir, x) + count(==(x), st.expr.args) - !(x in lv[v])
+        for _ = 1:ret
+          retain(ex -> insert!(pr, v, ex), IRTools.exprtype(ir, x), x)
+        end
       end
     end
   end

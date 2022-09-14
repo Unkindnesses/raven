@@ -77,6 +77,8 @@ layout(::Type{String}) = layout(data(:String, data(:JSObject, Int32)))
 layout(x::Union{Primitive,AST.Quote,Unreachable}) = ()
 layout(x::Data) = cat_layout(layout.(x.parts)...)
 layout(x::VData) = (Int32, Int32) # size, pointer
+layout(x::Recursive) = Int32
+layout(x::Recur) = Int32
 layout(xs::Or) = (Int32, cat_layout(layout.(xs.patterns)...)...)
 
 nregisters(l::Type) = 1
@@ -236,7 +238,10 @@ lowerPrimitive[part_method] = function (cx, pr, ir, v)
     delete!(pr, v)
     y = indexer!(pr, T, I, x, i)
     replace!(pr, v, y)
-    isreftype(exprtype(cx.mod, ir, v)) && push!(pr, Expr(:retain, y))
+    if isreftype(exprtype(cx.mod, ir, v))
+      push!(pr, Expr(:retain, y))
+      push!(pr, Expr(:release, y))
+    end
     isreftype(T) && push!(pr, Expr(:release, x))
   end
 end
@@ -358,6 +363,23 @@ end
 
 blockargtype(mod::RModule, bl, i) = exprtype(mod, bl.ir, arguments(bl)[i])
 
+storeinstr(::Type{Int64}) = i64.store
+storeinstr(::Type{Int32}) = i32.store
+
+function box!(ir, T, x)
+  l = layout(T)
+  bytes = sum(sizeof.(l))
+  margs = push!(ir, stmt(Expr(:tuple, Int32(bytes)), type = rtuple(Int32)))
+  ptr = push!(ir, stmt(xcall(Global(:malloc!), margs), type = Int32))
+  pos = ptr
+  for (i, T) in enumerate(cat_layout(l))
+    push!(ir, xcall(WIntrinsic(storeinstr(T), WTuple()), pos, Expr(:ref, x, i)))
+    # TODO could use constant offset here
+    i == length(l) || (pos = push!(ir, xcall(WIntrinsic(i32.add, i32), pos, Int32(sizeof(T)))))
+  end
+  return ptr
+end
+
 function cast!(ir, from, to, x)
   (to == ⊥ || from == to) && return x
   if from isa Number && to == typeof(from)
@@ -379,6 +401,10 @@ function cast!(ir, from, to, x)
     return push!(ir, Expr(:tuple, Int32(i),
                           reduce(vcat, [j == i ? [x] : collect(zero.(layout(p)))
                                         for (j, p) in enumerate(to.patterns)])...))
+  elseif from isa Data && to isa Recursive
+    to = unroll(to)
+    x = cast!(ir, from, to, x)
+    box!(ir, to, x)
   else
     error("unsupported cast: $(repr(from)) -> $(repr(to))")
   end

@@ -174,6 +174,21 @@ end
 
 recursive(T) = recursion_candidate(T) ? makerecursive(T) : T
 
+# Recursion unrolling
+
+function unroll(T::Recursive, n = 1)
+  n == 0 && return T
+  withrecur(T) do
+    unroll(T.type, n)
+  end
+end
+
+unroll(T::Union{Primitive,Type{<:Primitive}}, n) = T
+
+unroll(T::Or, n) = typeof(T)(unroll.(T.patterns, n))
+unroll(T::Data, n) = Data(unroll.(T.parts, n))
+unroll(T::Recur, n) = unroll(recur(), n-1)
+
 # Printing
 
 vprint(io::IO, x) = show(io, x)

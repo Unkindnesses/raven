@@ -176,6 +176,7 @@ end
 # Expr -> IR lowering
 
 xcall(args...) = Expr(:call, args...)
+xtuple(args...) = Expr(:tuple, args...)
 xdata(args...) = Expr(:data, args...)
 xlist(args...) = xdata(:List, args...)
 xpart(x, i) = xcall(part_method, x, i)

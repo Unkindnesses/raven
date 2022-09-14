@@ -86,3 +86,11 @@ let {
   b2 = list(Pair(`b`, widen(3)), Pair(`d`, 3))
   println(isnil(merge(&b1, b2)))
 }
+
+fn foo(n) { prepend(foo(n-1), n) }
+fn foo(0) { list() }
+
+let {
+  foo(widen(0))
+  println(allocationCount() == 0)
+}
