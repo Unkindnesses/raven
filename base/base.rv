@@ -31,6 +31,6 @@ import { print }
 import { wasm }
 import { numbers }
 import { structures.tuple }
-import { structures.linkedlist }
+import { structures.sequence }
 import { structures.simpledict }
 import { strings }
