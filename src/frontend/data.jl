@@ -55,7 +55,8 @@ const ⊥ = Unreachable()
 Base.show(io::IO, ::Unreachable) = print(io, "⊥")
 
 struct Or
-  patterns::Vector{Any}
+  patterns::NTuple{N,Any} where N
+  Or(xs) = new((xs...,))
 end
 
 # Primitive Types
