@@ -13,6 +13,8 @@ T = union(T1, T2)
 @test !issubset(T, T1)
 @test issubset(T, T)
 
+@test union(T, T) == T
+
 Tw = pack(:Prepend, T, Int)
 
 @test issubset(Tw, T)

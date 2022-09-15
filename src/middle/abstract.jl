@@ -72,6 +72,11 @@ end
 
 union(y::Union{Or,Pack}, x::Recursive) = union(x, y)
 
+function union(a::Recursive, b::Recursive)
+  @assert a == b
+  return a
+end
+
 function prepare_ir!(ir)
   IRTools.expand!(ir)
   for b in ir.blocks
