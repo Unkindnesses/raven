@@ -1,4 +1,4 @@
-data { Ptr(x: Int32) }
+bundle { Ptr(x: Int32) }
 
 fn Ptr(x: Int64) { Ptr(Int32(x)) }
 

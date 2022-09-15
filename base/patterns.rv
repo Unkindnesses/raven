@@ -1,4 +1,4 @@
-data Pattern {
+bundle Pattern {
   Hole()
   Literal(x)
   Trait(T)

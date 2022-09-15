@@ -1,4 +1,4 @@
-data { JSObject(ref: Int32) }
+bundle { JSObject(ref: Int32) }
 
 fn jsref(x) { jsref(tojs(x)) }
 

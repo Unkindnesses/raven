@@ -1,4 +1,4 @@
-data { Complex(re, im) }
+bundle { Complex(re, im) }
 
 fn real(Complex(re, im)) { re }
 fn imag(Complex(re, im)) { im }

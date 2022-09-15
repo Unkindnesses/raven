@@ -30,7 +30,7 @@ end
 
 function vload(cx::Inference, x::AST.Syntax)
   x.name == :import && return load_import(cx, x)
-  x.name == :data && return vload(cx, datamacro(x))
+  x.name == :bundle && return vload(cx, datamacro(x))
   x.name == :fn || return load_expr(cx, x)
   sig = x.args[1]
   f = sig isa AST.Operator ? sig.op : sig.func

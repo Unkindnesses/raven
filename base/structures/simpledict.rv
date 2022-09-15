@@ -1,7 +1,7 @@
 # Simple linked list of pairs, for pattern matching. The recursion makes it easy
 # to unroll everything.
 
-data { Pair(a, b) }
+bundle { Pair(a, b) }
 
 fn print(pack(`Pair`, a, b)) {
   print(a)

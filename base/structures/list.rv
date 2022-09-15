@@ -1,4 +1,4 @@
-data { List(xs...) }
+bundle { List(xs...) }
 
 fn list(xs...) { pack(`List`, xs...) }
 
