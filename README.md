@@ -14,7 +14,7 @@ fn fib(0) { 0 }
 fn fibSequence(n) {
   xs = []
   for i in range(1, n) {
-    push(&xs, fib(i))
+    append(&xs, fib(i))
   }
   return xs
 }

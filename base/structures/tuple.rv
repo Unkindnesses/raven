@@ -15,7 +15,7 @@ fn print(x: List) {
   print("]")
 }
 
-fn push(&xs, x) {
+fn append(&xs, x) {
   xs = [xs..., x]
   return xs
 }
