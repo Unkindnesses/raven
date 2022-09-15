@@ -30,7 +30,7 @@ import { iterate }
 import { print }
 import { wasm }
 import { numbers }
-import { structures.tuple }
+import { structures.list }
 import { structures.sequence }
 import { structures.simpledict }
 import { strings }

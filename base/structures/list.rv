@@ -1,6 +1,6 @@
 data { List(xs...) }
 
-fn tuple(xs...) { pack(`List`, xs...) }
+fn list(xs...) { pack(`List`, xs...) }
 
 fn print(x: List) {
   print("[")
