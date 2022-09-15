@@ -8,6 +8,9 @@ _typeof(mod, x::Global) = get(mod, x.name, ⊥)
 exprtype(mod, ir, x) = IRTools.exprtype(ir, x, typeof = x -> _typeof(mod, x))
 exprtype(mod, ir, xs::AbstractVector) = map(x -> exprtype(mod, ir, x), xs)
 
+typekey(x) = tag(x)
+typekey(x::Symbol) = x
+
 union(x) = x
 union(::Unreachable, x) = x
 union(x, ::Unreachable) = x
@@ -51,7 +54,7 @@ end
 function union(x::Union{Primitive,Type{<:Primitive},Pack,VPack}, y::Or)
   typedepth(y) > 10 && error("exploding type: $y")
   ps = y.patterns
-  i = findfirst(y -> tag(x) == tag(y), ps)
+  i = findfirst(y -> typekey(x) == typekey(y), ps)
   i == nothing && return Or([ps..., x])
   return Or([j == i ? union(x, ps[j]) : ps[j] for j = 1:length(ps)]) |> recursive
 end

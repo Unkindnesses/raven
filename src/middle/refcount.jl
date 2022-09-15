@@ -73,7 +73,7 @@ function retain(f, T::VPack, x)
 end
 
 function retain(f, T::Recursive, x)
-  ptr = f(stmt(xtuple(x), type = rlist(pack(:Ptr, Int32))))
+  ptr = f(stmt(Expr(:ref, x, 1), type = rlist(pack(:Ptr, Int32))))
   f(stmt(xcall(:retain!, ptr), type = pack(:Nil)))
 end
 
@@ -90,8 +90,16 @@ function release(f, T::VPack, x)
   f(stmt(xcall(:release!, ptr), type = pack(:Nil)))
 end
 
+function retain(f, T::Or, x)
+  # TODO implement
+end
+
+function release(f, T::Or, x)
+  # TODO implement
+end
+
 function release(f, T::Recursive, x)
-  ptr = f(stmt(xtuple(x), type = rlist(pack(:Ptr, Int32))))
+  ptr = f(stmt(Expr(:ref, x, 1), type = rlist(pack(:Ptr, Int32))))
   f(stmt(xcall(:release!, ptr), type = pack(:Nil)))
 end
 

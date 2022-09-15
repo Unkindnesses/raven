@@ -91,6 +91,7 @@ fn foo(n) { prepend(foo(n-1), n) }
 fn foo(0) { list() }
 
 let {
-  foo(widen(0))
+  xs = foo(widen(0))
+  println(string(tag(xs)) == "Empty")
   println(allocationCount() == 0)
 }

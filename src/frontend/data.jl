@@ -202,19 +202,6 @@ printers[:List] = function (io::IO, s::Pack)
   print(io, "]")
 end
 
-function printList(io::IO, s::Pack)
-  print(io, "list(")
-  while tag(s) == :Prepend
-    vprint(io, part(s, 2))
-    tag(part(s, 1)) == :Prepend && print(io, ", ")
-    s = part(s, 1)
-  end
-  print(io, ")")
-end
-
-printers[:Prepend] = printList
-printers[:Empty] = printList
-
 printers[:Pair] = function (io, s)
   vprint(io, part(s, 1))
   print(io, " => ")

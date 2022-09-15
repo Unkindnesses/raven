@@ -77,7 +77,7 @@ layout(::Type{String}) = layout(pack(:String, pack(:JSObject, Int32)))
 layout(x::Union{Primitive,AST.Quote,Unreachable}) = ()
 layout(x::Pack) = cat_layout(layout.(x.parts)...)
 layout(x::VPack) = (Int32, Int32) # size, pointer
-layout(x::Recursive) = Int32
+layout(x::Recursive) = (Int32,)
 layout(x::Recur) = Int32
 layout(xs::Or) = (Int32, cat_layout(layout.(xs.patterns)...)...)
 
@@ -154,7 +154,7 @@ end
 
 function union_partir(x::Or, i)
   ir = IR()
-  T = partial_part(x, i)
+  retT = partial_part(x, i)
   vx = argument!(ir, type = x)
   vi = argument!(ir, type = i)
   j = push!(ir, Expr(:ref, vx, 1))
@@ -165,6 +165,9 @@ function union_partir(x::Or, i)
     val = union_downcast!(ir, x, case, vx)
     # TODO possibly insert `part_method` calls and redo lowering
     ret = indexer!(ir, T, i, val, vi)
+    ret = cast!(ir, partial_part(T, i), retT, ret)
+    isreftype(partial_part(T, i)) && push!(ir, Expr(:retain, ret))
+    isreftype(x) && push!(ir, Expr(:release, vx))
     return!(ir, ret)
     block!(ir)
   end
@@ -229,11 +232,20 @@ end
 
 lowerPrimitive[part_method] = function (cx, pr, ir, v)
   x, i = ir[v].expr.args[2:end]
-  T, I = exprtype(cx.mod, ir, ir[v].expr.args[2:end])
+  T, I = exprtype(cx.mod, ir, [x, i])
   if T isa Pack && I isa Type{<:Integer}
     partmethod!(cx, T, I)
   elseif T isa Or
     union_partmethod!(cx, T, I)
+  elseif T isa Recursive
+    T = unroll(T)
+    delete!(pr, v)
+    x′ = unbox!(pr, T, x)
+    y = push!(pr, stmt(xcall(part_method, x′, i), type = ir[v].type))
+    replace!(pr, v, y)
+    @assert T isa Or
+    union_partmethod!(cx, T, I)
+    isreftype(ir[v].type) && push!(pr, Expr(:release, y))
   else
     delete!(pr, v)
     y = indexer!(pr, T, I, x, i)
@@ -363,9 +375,6 @@ end
 
 blockargtype(mod::RModule, bl, i) = exprtype(mod, bl.ir, arguments(bl)[i])
 
-storeinstr(::Type{Int64}) = i64.store
-storeinstr(::Type{Int32}) = i32.store
-
 function box!(ir, T, x)
   l = layout(T)
   bytes = sum(sizeof.(l))
@@ -373,15 +382,35 @@ function box!(ir, T, x)
   ptr = push!(ir, stmt(xcall(Global(:malloc!), margs), type = Int32))
   pos = ptr
   for (i, T) in enumerate(cat_layout(l))
-    push!(ir, xcall(WIntrinsic(storeinstr(T), WTuple()), pos, Expr(:ref, x, i)))
+    push!(ir, xcall(WIntrinsic(WType(T).store, WTuple()), pos, Expr(:ref, x, i)))
     # TODO could use constant offset here
     i == length(l) || (pos = push!(ir, xcall(WIntrinsic(i32.add, i32), pos, Int32(sizeof(T)))))
   end
   return ptr
 end
 
+function unbox!(ir, T, x)
+  l = layout(T)
+  bytes = sum(sizeof.(l))
+  parts = []
+  pos = push!(ir, stmt(Expr(:ref, x, 1), type = Int32))
+  for (i, T) in enumerate(cat_layout(l))
+    part = push!(ir, xcall(WIntrinsic(WType(T).load, WType(T)), pos))
+    push!(parts, part)
+    # TODO same as above
+    i == length(l) || (pos = push!(ir, xcall(WIntrinsic(i32.add, i32), pos, Int32(sizeof(T)))))
+  end
+  result = push!(ir, stmt(Expr(:tuple, parts...), type = T))
+  if isreftype(T)
+    push!(ir, Expr(:retain, result))
+    push!(ir, Expr(:release, result))
+  end
+  push!(ir, Expr(:release, x))
+  return result
+end
+
 function cast!(ir, from, to, x)
-  (to == ⊥ || from == to) && return x
+  (to == ⊥ || from == ⊥ || from == to) && return x
   if from isa Number && to == typeof(from)
     from
   elseif from isa Pack && to isa Pack

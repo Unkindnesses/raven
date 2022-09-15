@@ -15,6 +15,9 @@ partial_part(data::VPack, i::Union{Int,Type{<:Integer}}) =
 partial_part(data::Or, i) =
   reduce(union, partial_part.(data.patterns, (i,)))
 
+partial_part(data::Recursive, i) =
+  partial_part(unroll(data), i)
+
 partial_nparts(x::Pack) = nparts(x)
 partial_nparts(::VPack) = Int64
 
