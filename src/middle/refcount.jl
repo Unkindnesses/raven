@@ -67,58 +67,58 @@ isreftype(x::Recursive) = true
 
 isglobal(ir, v) = haskey(ir, v) && isexpr(ir[v].expr, :global)
 
-function retain(f, T::Pack, x)
+function retain(cx, ir, T::Pack, x)
   for i = 0:nparts(T)
     isreftype(part(T, i)) || continue
-    p = _indexer!(f, T, i, x)
-    retain(f, part(T, i), p)
+    p = indexer!(ir, T, i, x, nothing)
+    retain(cx, ir, part(T, i), p)
   end
 end
 
-function release(f, T::Pack, x)
+function release(cx, ir, T::Pack, x)
   for i = 0:nparts(T)
     isreftype(part(T, i)) || continue
-    p = _indexer!(f, T, i, x)
-    release(f, part(T, i), p)
+    p = indexer!(ir, T, i, x, nothing)
+    release(cx, ir, part(T, i), p)
   end
 end
 
-function retain(f, T::VPack, x)
-  ptr = f(stmt(Expr(:ref, x, 2), type = rlist(pack(:Ptr, Int32))))
-  f(stmt(xcall(:retain!, ptr), type = pack(:Nil)))
+function retain(cx, ir, T::VPack, x)
+  ptr = push!(ir, stmt(Expr(:ref, x, 2), type = rlist(pack(:Ptr, Int32))))
+  push!(ir, stmt(xcall(:retain!, ptr), type = pack(:Nil)))
 end
 
-function release(f, T::VPack, x)
-  ptr = f(stmt(Expr(:ref, x, 2), type = rlist(pack(:Ptr, Int32))))
-  f(stmt(xcall(:release!, ptr), type = pack(:Nil)))
+function release(cx, ir, T::VPack, x)
+  ptr = push!(ir, stmt(Expr(:ref, x, 2), type = rlist(pack(:Ptr, Int32))))
+  push!(ir, stmt(xcall(:release!, ptr), type = pack(:Nil)))
 end
 
-function retain(f, T::Or, x)
+function retain(cx, ir, T::Or, x)
   # TODO implement
 end
 
-function release(f, T::Or, x)
+function release(cx, ir, T::Or, x)
   # TODO implement
 end
 
-function retain(f, T::Recursive, x)
-  ptr = f(stmt(Expr(:ref, x, 1), type = rlist(pack(:Ptr, Int32))))
-  f(stmt(xcall(:retain!, ptr), type = pack(:Nil)))
+function retain(cx, ir, T::Recursive, x)
+  ptr = push!(ir, stmt(Expr(:ref, x, 1), type = rlist(pack(:Ptr, Int32))))
+  push!(ir, stmt(xcall(:retain!, ptr), type = pack(:Nil)))
 end
 
-function release(f, T::Recursive, x)
-  ptr = f(stmt(Expr(:ref, x, 1), type = rlist(pack(:Ptr, Int32))))
-  f(stmt(xcall(:release!, ptr), type = pack(:Nil)))
+function release(cx, ir, T::Recursive, x)
+  ptr = push!(ir, stmt(Expr(:ref, x, 1), type = rlist(pack(:Ptr, Int32))))
+  push!(ir, stmt(xcall(:release!, ptr), type = pack(:Nil)))
 end
 
-function refcounts!(ir)
+function refcounts!(cx, ir)
   lv = liveness(ir)
   isref(v) = isreftype(IRTools.exprtype(ir, v))
   # Would be better to do this as part of the pipe – fix this in IRTools2.
   for b in IRTools.blocks(ir)
     # Could pushfirst! to free earlier, but this causes issues with multiple
     # statements.
-    rel(x) = isref(x) && release(ex -> push!(b, ex), IRTools.exprtype(ir, x), x)
+    rel(x) = isref(x) && release(cx, b, IRTools.exprtype(ir, x), x)
     # unused block arguments
     foreach(rel, filter(x -> !(x in lv[b.id]), arguments(b)))
     # conditionally dropped variables
@@ -139,23 +139,27 @@ function refcounts!(ir)
       delete!(pr, v)
       x = st.expr.args[1]
       isref(x) && !(x in lv[v]) || continue
-      release(ex -> push!(pr, ex), IRTools.exprtype(ir, x), x)
+      release(cx, pr, IRTools.exprtype(ir, x), x)
     elseif isexpr(st.expr, :retain)
       delete!(pr, v)
       x = st.expr.args[1]
       isref(x) || continue
-      retain(ex -> push!(pr, ex), IRTools.exprtype(ir, x), x)
+      retain(cx, pr, IRTools.exprtype(ir, x), x)
     elseif isexpr(st.expr, :call, :tuple) && haskey(lv, v)
-      # dropped variable
-      isref(v) && (v in lv[v] || release(ex -> push!(pr, ex), IRTools.exprtype(ir, v), v))
+      delete!(pr, v)
       # reused argument
       for x in unique(st.expr.args)
         x isa Variable && isref(x) || continue
         ret = isglobal(ir, x) + count(==(x), st.expr.args) - !(x in lv[v])
         for _ = 1:ret
-          retain(ex -> insert!(pr, v, ex), IRTools.exprtype(ir, x), x)
+          retain(cx, pr, IRTools.exprtype(ir, x), x)
         end
       end
+      v′ = push!(pr, st)
+      replace!(pr, v, v′)
+      v = v′
+      # dropped variable
+      isref(v) && (v in lv[v] || release(cx, pr, IRTools.exprtype(ir, v), v))
     end
   end
   ir = IRTools.finish(pr)
@@ -165,7 +169,7 @@ end
 function refcounts(c::Compilation)
   comp = Compilation(c.mod)
   for (k, ir) in c.frames
-    comp.frames[k] = ir |> copy |> refcounts!
+    comp.frames[k] = refcounts!(comp, copy(ir))
   end
   return comp
 end

@@ -187,23 +187,19 @@ function indexer!(ir, ::Type{String}, i::Int, s, _)
   push!(ir, Expr(:ref, s, 1))
 end
 
-function _indexer!(f, T::Pack, i::Int, x)
+function indexer!(ir, T::Pack, i::Int, x, _)
   if 0 <= i <= nparts(T)
-    _part(i) = f(Expr(:ref, x, i))
+    _part(i) = push!(ir, Expr(:ref, x, i))
     range = sublayout(T, i)
     if layout(part(T, i)) isa Type
-      f(stmt(Expr(:ref, x, range[1]), type = part(T, i)))
+      push!(ir, stmt(Expr(:ref, x, range[1]), type = part(T, i)))
     else
-      f(stmt(Expr(:tuple, _part.(range)...), type = part(T, i)))
+      push!(ir, stmt(Expr(:tuple, _part.(range)...), type = part(T, i)))
     end
   else
-    s = f(Expr(:ref, "Invalid index $i for $T"))
-    f(xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s))
+    s = push!(ir, Expr(:ref, "Invalid index $i for $T"))
+    push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s))
   end
-end
-
-function indexer!(ir, T::Pack, i::Int, x, _)
-  _indexer!(ex -> push!(ir, ex), T, i, x)
 end
 
 function indexer!(ir, T::VPack, I::Union{Int,Type{Int64}}, x, i)
