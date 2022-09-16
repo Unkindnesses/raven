@@ -32,8 +32,8 @@ partial_shortcutEquals(a, b) =
 # Needed by dispatchers, since a user-defined method would need runtime matching
 # to deal with unions.
 partial_isnil(x::Union{Primitive,Type{<:Primitive}}) = Int32(0)
-partial_isnil(x::Pack) = Int32(x == pack(:Nil))
-partial_isnil(x::Or) = any(==(pack(:Nil)), x.patterns) ? Int32 : Int32(0)
+partial_isnil(x::Pack) = Int32(x == nil)
+partial_isnil(x::Or) = any(==(nil), x.patterns) ? Int32 : Int32(0)
 
 # Duct tape until the thatcher algorithm works.
 partial_notnil(x::Pack) = tag(x) == :Nil ? ⊥ : x
@@ -95,7 +95,7 @@ lowerPrimitive[isnil_method] = function (cx, pr, ir, v)
   if ir[v].type isa Int32
     pr[v] = ir[v].type
   else
-    i = findfirst(==(pack(:Nil)), T.patterns)
+    i = findfirst(==(nil), T.patterns)
     j = insert!(pr, v, Expr(:ref, x, 1))
     pr[v] = xcall(WIntrinsic(i32.eq, i32), j, Int32(i))
   end

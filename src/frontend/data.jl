@@ -6,6 +6,8 @@ end
 
 pack(x...) = Pack((x...,))
 
+nil = pack(:Nil)
+
 nparts(x::Pack) = length(x.parts)-1
 part(x::Pack, i) = x.parts[i+1]
 parts(x) = x.parts[2:end]

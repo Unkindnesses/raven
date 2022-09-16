@@ -67,79 +67,64 @@ isreftype(x::Recursive) = true
 
 isglobal(ir, v) = haskey(ir, v) && isexpr(ir[v].expr, :global)
 
+# Define refcount methods for different types
+# ===========================================
+
+@enum CountMode retain release
+
 # Used as a key for generated methods
 retain_method = RMethod(:retain, lowerpattern(rvx"args"), nothing, false)
 release_method = RMethod(:release, lowerpattern(rvx"args"), nothing, false)
 
-function retain_body!(cx, ir, T::Pack, x)
+function countptr!(ir, ptr, mode)
+  f = mode == retain ? :retain! : :release!
+  push!(ir, stmt(xcall(f, ptr), type = nil))
+end
+
+function count!(cx, ir, T::Pack, x, mode)
   for i = 0:nparts(T)
     isreftype(part(T, i)) || continue
     p = indexer!(ir, T, i, x, nothing)
-    retain!(cx, ir, part(T, i), p)
+    f = mode == retain ? retain! : release!
+    f(cx, ir, part(T, i), p)
   end
 end
 
-function release_body!(cx, ir, T::Pack, x)
-  for i = 0:nparts(T)
-    isreftype(part(T, i)) || continue
-    p = indexer!(ir, T, i, x, nothing)
-    release!(cx, ir, part(T, i), p)
-  end
-end
-
-function retain_body!(cx, ir, T::VPack, x)
+function count!(cx, ir, T::VPack, x, mode)
   ptr = push!(ir, stmt(Expr(:ref, x, 2), type = rlist(pack(:Ptr, Int32))))
-  push!(ir, stmt(xcall(:retain!, ptr), type = pack(:Nil)))
-end
-
-function release_body!(cx, ir, T::VPack, x)
-  ptr = push!(ir, stmt(Expr(:ref, x, 2), type = rlist(pack(:Ptr, Int32))))
-  push!(ir, stmt(xcall(:release!, ptr), type = pack(:Nil)))
+  countptr!(ir, ptr, mode)
 end
 
 # TODO implement
-function retain_body!(cx, ir, T::Or, x)
+function count!(cx, ir, T::Or, x, mode)
 end
 
-# TODO implement
-function release_body!(cx, ir, T::Or, x)
-end
-
-function retain_body!(cx, ir, T::Recursive, x)
+function count!(cx, ir, T::Recursive, x, mode)
   ptr = push!(ir, stmt(Expr(:ref, x, 1), type = rlist(pack(:Ptr, Int32))))
-  push!(ir, stmt(xcall(:retain!, ptr), type = pack(:Nil)))
+  countptr!(ir, ptr, mode)
 end
 
-function release_body!(cx, ir, T::Recursive, x)
-  ptr = push!(ir, stmt(Expr(:ref, x, 1), type = rlist(pack(:Ptr, Int32))))
-  push!(ir, stmt(xcall(:release!, ptr), type = pack(:Nil)))
-end
-
-function retain_ir(cx, T)
+function count_ir(cx, T, mode)
   ir = IR()
   x = argument!(ir, type = T)
-  retain_body!(cx, ir, T, x)
-  return!(ir, push!(ir, stmt(xtuple(), type = pack(:Nil))))
-end
-
-function release_ir(cx, T)
-  ir = IR()
-  x = argument!(ir, type = T)
-  release_body!(cx, ir, T, x)
-  return!(ir, push!(ir, stmt(xtuple(), type = pack(:Nil))))
+  count!(cx, ir, T, x, mode)
+  return!(ir, push!(ir, stmt(xtuple(), type = nil)))
 end
 
 function retain!(cx, ir, T, x)
   sig = (retain_method, T)
-  haskey(cx.frames, sig) || (cx.frames[sig] = retain_ir(cx, T))
-  push!(ir, stmt(xcall(retain_method, x), type = pack(:Nil)))
+  haskey(cx.frames, sig) || (cx.frames[sig] = count_ir(cx, T, retain))
+  push!(ir, stmt(xcall(retain_method, x), type = nil))
 end
 
 function release!(cx, ir, T, x)
   sig = (release_method, T)
-  haskey(cx.frames, sig) || (cx.frames[sig] = release_ir(cx, T))
-  push!(ir, stmt(xcall(release_method, x), type = pack(:Nil)))
+  haskey(cx.frames, sig) || (cx.frames[sig] = count_ir(cx, T, release))
+  push!(ir, stmt(xcall(release_method, x), type = nil))
 end
+
+# Actually insert counting instructions into code
+# ===============================================
 
 function refcounts!(cx, ir)
   lv = liveness(ir)
