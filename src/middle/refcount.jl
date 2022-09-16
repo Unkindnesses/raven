@@ -67,48 +67,78 @@ isreftype(x::Recursive) = true
 
 isglobal(ir, v) = haskey(ir, v) && isexpr(ir[v].expr, :global)
 
-function retain(cx, ir, T::Pack, x)
+# Used as a key for generated methods
+retain_method = RMethod(:retain, lowerpattern(rvx"args"), nothing, false)
+release_method = RMethod(:release, lowerpattern(rvx"args"), nothing, false)
+
+function retain_body!(cx, ir, T::Pack, x)
   for i = 0:nparts(T)
     isreftype(part(T, i)) || continue
     p = indexer!(ir, T, i, x, nothing)
-    retain(cx, ir, part(T, i), p)
+    retain!(cx, ir, part(T, i), p)
   end
 end
 
-function release(cx, ir, T::Pack, x)
+function release_body!(cx, ir, T::Pack, x)
   for i = 0:nparts(T)
     isreftype(part(T, i)) || continue
     p = indexer!(ir, T, i, x, nothing)
-    release(cx, ir, part(T, i), p)
+    release!(cx, ir, part(T, i), p)
   end
 end
 
-function retain(cx, ir, T::VPack, x)
+function retain_body!(cx, ir, T::VPack, x)
   ptr = push!(ir, stmt(Expr(:ref, x, 2), type = rlist(pack(:Ptr, Int32))))
   push!(ir, stmt(xcall(:retain!, ptr), type = pack(:Nil)))
 end
 
-function release(cx, ir, T::VPack, x)
+function release_body!(cx, ir, T::VPack, x)
   ptr = push!(ir, stmt(Expr(:ref, x, 2), type = rlist(pack(:Ptr, Int32))))
   push!(ir, stmt(xcall(:release!, ptr), type = pack(:Nil)))
 end
 
-function retain(cx, ir, T::Or, x)
-  # TODO implement
+# TODO implement
+function retain_body!(cx, ir, T::Or, x)
 end
 
-function release(cx, ir, T::Or, x)
-  # TODO implement
+# TODO implement
+function release_body!(cx, ir, T::Or, x)
 end
 
-function retain(cx, ir, T::Recursive, x)
+function retain_body!(cx, ir, T::Recursive, x)
   ptr = push!(ir, stmt(Expr(:ref, x, 1), type = rlist(pack(:Ptr, Int32))))
   push!(ir, stmt(xcall(:retain!, ptr), type = pack(:Nil)))
 end
 
-function release(cx, ir, T::Recursive, x)
+function release_body!(cx, ir, T::Recursive, x)
   ptr = push!(ir, stmt(Expr(:ref, x, 1), type = rlist(pack(:Ptr, Int32))))
   push!(ir, stmt(xcall(:release!, ptr), type = pack(:Nil)))
+end
+
+function retain_ir(cx, T)
+  ir = IR()
+  x = argument!(ir, type = T)
+  retain_body!(cx, ir, T, x)
+  return!(ir, push!(ir, stmt(xtuple(), type = pack(:Nil))))
+end
+
+function release_ir(cx, T)
+  ir = IR()
+  x = argument!(ir, type = T)
+  release_body!(cx, ir, T, x)
+  return!(ir, push!(ir, stmt(xtuple(), type = pack(:Nil))))
+end
+
+function retain!(cx, ir, T, x)
+  sig = (retain_method, T)
+  haskey(cx.frames, sig) || (cx.frames[sig] = retain_ir(cx, T))
+  push!(ir, stmt(xcall(retain_method, x), type = pack(:Nil)))
+end
+
+function release!(cx, ir, T, x)
+  sig = (release_method, T)
+  haskey(cx.frames, sig) || (cx.frames[sig] = release_ir(cx, T))
+  push!(ir, stmt(xcall(release_method, x), type = pack(:Nil)))
 end
 
 function refcounts!(cx, ir)
@@ -118,7 +148,7 @@ function refcounts!(cx, ir)
   for b in IRTools.blocks(ir)
     # Could pushfirst! to free earlier, but this causes issues with multiple
     # statements.
-    rel(x) = isref(x) && release(cx, b, IRTools.exprtype(ir, x), x)
+    rel(x) = isref(x) && release!(cx, b, IRTools.exprtype(ir, x), x)
     # unused block arguments
     foreach(rel, filter(x -> !(x in lv[b.id]), arguments(b)))
     # conditionally dropped variables
@@ -139,12 +169,12 @@ function refcounts!(cx, ir)
       delete!(pr, v)
       x = st.expr.args[1]
       isref(x) && !(x in lv[v]) || continue
-      release(cx, pr, IRTools.exprtype(ir, x), x)
+      release!(cx, pr, IRTools.exprtype(ir, x), x)
     elseif isexpr(st.expr, :retain)
       delete!(pr, v)
       x = st.expr.args[1]
       isref(x) || continue
-      retain(cx, pr, IRTools.exprtype(ir, x), x)
+      retain!(cx, pr, IRTools.exprtype(ir, x), x)
     elseif isexpr(st.expr, :call, :tuple) && haskey(lv, v)
       delete!(pr, v)
       # reused argument
@@ -152,14 +182,14 @@ function refcounts!(cx, ir)
         x isa Variable && isref(x) || continue
         ret = isglobal(ir, x) + count(==(x), st.expr.args) - !(x in lv[v])
         for _ = 1:ret
-          retain(cx, pr, IRTools.exprtype(ir, x), x)
+          retain!(cx, pr, IRTools.exprtype(ir, x), x)
         end
       end
       v′ = push!(pr, st)
       replace!(pr, v, v′)
       v = v′
       # dropped variable
-      isref(v) && (v in lv[v] || release(cx, pr, IRTools.exprtype(ir, v), v))
+      isref(v) && (v in lv[v] || release!(cx, pr, IRTools.exprtype(ir, v), v))
     end
   end
   ir = IRTools.finish(pr)
