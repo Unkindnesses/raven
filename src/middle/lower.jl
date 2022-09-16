@@ -378,7 +378,7 @@ function box!(ir, T, x)
   return ptr
 end
 
-function unbox!(ir, T, x)
+function unbox!(ir, T, x; count = true)
   l = layout(T)
   bytes = sum(sizeof.(l))
   parts = []
@@ -390,11 +390,13 @@ function unbox!(ir, T, x)
     i == length(l) || (pos = push!(ir, xcall(WIntrinsic(i32.add, i32), pos, Int32(sizeof(T)))))
   end
   result = push!(ir, stmt(Expr(:tuple, parts...), type = T))
-  if isreftype(T)
-    push!(ir, Expr(:retain, result))
-    push!(ir, Expr(:release, result))
+  if count
+    if isreftype(T)
+      push!(ir, Expr(:retain, result))
+      push!(ir, Expr(:release, result))
+    end
+    push!(ir, Expr(:release, x))
   end
-  push!(ir, Expr(:release, x))
   return result
 end
 

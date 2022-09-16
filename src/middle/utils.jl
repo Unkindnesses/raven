@@ -88,3 +88,8 @@ function union_cases!(f, ir, T::Or, x)
   push!(ir, xcall(WIntrinsic(WebAssembly.unreachable, ⊥)))
   return ir
 end
+
+function log!(ir, s::String)
+  s = push!(ir, stmt(Expr(:ref, s), type = rlist(String)))
+  push!(ir, stmt(xcall(:println, s), type = nil))
+end

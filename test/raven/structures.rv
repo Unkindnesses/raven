@@ -94,4 +94,10 @@ let {
   xs = foo(widen(0))
   println(string(tag(xs)) == "Empty")
   println(allocationCount() == 0)
+
+  xs = foo(widen(5))
+  println(string(tag(xs)) == "Prepend")
+  println(part(xs, 2) == 5)
+  println(part(part(xs, 1), 2) == 4)
+  println(allocationCount() == 0)
 }

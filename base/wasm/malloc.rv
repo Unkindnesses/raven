@@ -132,6 +132,10 @@ fn blockCount(p: Ptr) {
   Int64(getBlockUsed(p - headerSize))
 }
 
+fn blockUnique(p: Ptr) {
+  blockCount(p) == 1
+}
+
 fn retain!(p: Ptr) {
   p = p - headerSize
   n = getBlockUsed(p)

@@ -91,16 +91,35 @@ function count!(cx, ir, T::Pack, x, mode)
 end
 
 function count!(cx, ir, T::VPack, x, mode)
+  # TODO release children
   ptr = push!(ir, stmt(Expr(:ref, x, 2), type = rlist(pack(:Ptr, Int32))))
   countptr!(ir, ptr, mode)
 end
 
 # TODO implement
 function count!(cx, ir, T::Or, x, mode)
+  union_cases!(ir, T, x) do T, x
+    f = mode == retain ? retain! : release!
+    if isreftype(T)
+      f(cx, ir, T, x)
+    else
+      push!(ir, stmt(Expr(:tuple), type = nil))
+    end
+  end
 end
 
 function count!(cx, ir, T::Recursive, x, mode)
   ptr = push!(ir, stmt(Expr(:ref, x, 1), type = rlist(pack(:Ptr, Int32))))
+  if mode == release
+    unique = push!(ir, stmt(xcall(:blockUnique, ptr), type = rlist(Int32)))
+    unique = push!(ir, Expr(:ref, unique, 1))
+    branch!(ir, length(blocks(ir))+2, unless = unique)
+    block!(ir)
+    T = unroll(T)
+    inner = unbox!(ir, T, x, count = false)
+    release!(cx, ir, T, inner)
+    block!(ir)
+  end
   countptr!(ir, ptr, mode)
 end
 
@@ -113,13 +132,19 @@ end
 
 function retain!(cx, ir, T, x)
   sig = (retain_method, T)
-  haskey(cx.frames, sig) || (cx.frames[sig] = count_ir(cx, T, retain))
+  if !haskey(cx.frames, sig)
+    cx.frames[sig] = IR()
+    cx.frames[sig] = count_ir(cx, T, retain)
+  end
   push!(ir, stmt(xcall(retain_method, x), type = nil))
 end
 
 function release!(cx, ir, T, x)
   sig = (release_method, T)
-  haskey(cx.frames, sig) || (cx.frames[sig] = count_ir(cx, T, release))
+  if !haskey(cx.frames, sig)
+    cx.frames[sig] = IR()
+    cx.frames[sig] = count_ir(cx, T, release)
+  end
   push!(ir, stmt(xcall(release_method, x), type = nil))
 end
 
