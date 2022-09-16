@@ -149,7 +149,7 @@ end
 function union_downcast!(ir, T::Or, i::Integer, x)
   offset = sum(length, layout.(T.patterns[1:i-1]), init = 0)+1
   parts = [push!(ir, Expr(:ref, x, j+offset)) for j = 1:length(layout(T.patterns[i]))]
-  return layout(T.patterns[i]) isa Tuple ? push!(ir, Expr(:tuple, parts...)) : parts[1]
+  return layout(T.patterns[i]) isa Tuple ? push!(ir, stmt(Expr(:tuple, parts...), type = T.patterns[i])) : parts[1]
 end
 
 function union_partir(x::Or, i)
@@ -157,21 +157,14 @@ function union_partir(x::Or, i)
   retT = partial_part(x, i)
   vx = argument!(ir, type = x)
   vi = argument!(ir, type = i)
-  j = push!(ir, Expr(:ref, vx, 1))
-  for (case, T) in enumerate(x.patterns)
-    cond = push!(ir, xcall(WIntrinsic(i32.eq, i32), j, Int32(case)))
-    branch!(ir, length(blocks(ir))+2, unless = cond)
-    block!(ir)
-    val = union_downcast!(ir, x, case, vx)
+  union_cases!(ir, x, vx) do T, val
     # TODO possibly insert `part_method` calls and redo lowering
     ret = indexer!(ir, T, i, val, vi)
     ret = cast!(ir, partial_part(T, i), retT, ret)
     isreftype(partial_part(T, i)) && push!(ir, Expr(:retain, ret))
     isreftype(x) && push!(ir, Expr(:release, vx))
-    return!(ir, ret)
-    block!(ir)
+    return ret
   end
-  push!(ir, xcall(WIntrinsic(WebAssembly.unreachable, ⊥)))
   return ir
 end
 

@@ -115,20 +115,13 @@ lowerPrimitive[notnil_method] = function (cx, pr, ir, v)
   end
 end
 
-function symstring_ir(T)
+function symstring_ir(T::Or)
   ir = IR()
   x = argument!(ir, type = T)
-  j = push!(ir, Expr(:ref, x, 1))
-  for (case, S) in enumerate(T.patterns)
+  union_cases!(ir, T, x) do S, _
     @assert S isa Symbol
-    cond = push!(ir, xcall(WIntrinsic(i32.eq, i32), j, Int32(case)))
-    branch!(ir, length(blocks(ir))+2, unless = cond)
-    block!(ir)
-    ret = Expr(:ref, String(S))
-    return!(ir, ret)
-    block!(ir)
+    Expr(:ref, String(S))
   end
-  push!(ir, xcall(WIntrinsic(WebAssembly.unreachable, ⊥)))
   return ir
 end
 

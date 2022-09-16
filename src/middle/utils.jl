@@ -71,3 +71,20 @@ function withrecur(f, T)
 end
 
 recur() = task_local_storage()[:recur][end]
+
+# Union splitting
+
+function union_cases!(f, ir, T::Or, x)
+  j = push!(ir, Expr(:ref, x, 1))
+  for case in 1:length(T.patterns)
+    cond = push!(ir, xcall(WIntrinsic(i32.eq, i32), j, Int32(case)))
+    branch!(ir, length(blocks(ir))+2, unless = cond)
+    block!(ir)
+    val = union_downcast!(ir, T, case, x)
+    ret = f(T.patterns[case], val)
+    return!(ir, ret)
+    block!(ir)
+  end
+  push!(ir, xcall(WIntrinsic(WebAssembly.unreachable, ⊥)))
+  return ir
+end
