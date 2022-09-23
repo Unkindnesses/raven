@@ -239,7 +239,13 @@ function step!(inf::Inference, loc)
       g isa Global && push!(global_edges(inf, g.name), loc)
     end
     if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
-      block.ir[var] = Statement(block[var], type = rvtype(st.expr.args[1].ret))
+      op = st.expr.args[1].op
+      T = rvtype(st.expr.args[1].ret)
+      Ts = exprtype(inf.mod, block.ir, st.expr.args[2:end])
+      if all(isvalue, Ts) && haskey(wasmPartials, op)
+        T = wasmPartials[op](Ts...)
+      end
+      block.ir[var] = Statement(block[var], type = T)
       push!(inf.queue, Loc(F, b, ip+1))
     elseif isexpr(st.expr, :call)
       T = infercall!(inf, Loc(F, b, ip), block, st.expr)

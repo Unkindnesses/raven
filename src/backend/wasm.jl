@@ -1,5 +1,13 @@
 using WebAssembly: WType, WTuple, i32, i64, f32, f64
 
+# WASM partial primitives
+# These are supposed to be defined in Raven, but we don't yet have a mechanism
+# for const prop, so this is a stopgap.
+
+const wasmPartials = Dict{WebAssembly.Op,Any}()
+
+wasmPartials[i64.add] = +
+
 rvtype(x::WType) = WebAssembly.jltype(x)
 rvtype(x::WTuple) = pack(:List, map(rvtype, x.parts)...)
 rvtype(::typeof(⊥)) = ⊥
