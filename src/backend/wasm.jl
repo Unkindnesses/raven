@@ -29,7 +29,7 @@ end
 function intrinsic_args(ex)
   ex isa AST.Operator && ex.op == :(:) && return intrinsic_args(ex.args[1])
   args = filter(x -> x isa AST.Operator && x.op == :(:), ex.args)
-  return map(x -> AST.Call(:widen, [x.args[1]]), args)
+  return map(x -> x.args[1], args)
 end
 
 function wlayout(x)

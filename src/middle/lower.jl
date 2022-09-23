@@ -452,6 +452,12 @@ function casts!(mod::RModule, ir, ret)
     return br
   end
   for (v, st) in pr
+    # Cast arguments to wasm primitives
+    if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
+      args = st.expr.args[2:end]
+      Ts = exprtype(mod, ir, args)
+      pr[v] = xcall(st.expr.args[1], [T isa Integer ? T : x for (x, T) in zip(args, Ts)]...)
+    end
   end
   return IRTools.finish(pr)
 end
