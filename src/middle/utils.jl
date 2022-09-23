@@ -4,6 +4,10 @@ function Base.replace!(pr::IRTools.Pipe, x, y)
   IRTools.substitute!(pr, x, IRTools.substitute(pr, y))
 end
 
+isvariable(x) = false
+isvariable(::Variable) = true
+isvariable(::IRTools.Inner.NewVariable) = true
+
 reachable(b::IRTools.Block) =
   any(((v, st),) -> st.type == ⊥, b) ? Set(b.id) :
     reduce(Base.union, [Set(b.id),

@@ -418,7 +418,7 @@ function cast!(ir, from, to, x)
   elseif to isa Or
     i = findfirst(==(from), to.patterns)
     @assert i != nothing
-    x = (x isa Variable ? [x] : [])
+    x = (isvariable(x) ? [x] : [])
     return push!(ir, Expr(:tuple, Int32(i),
                           reduce(vcat, [j == i ? x : collect(zero.(layout(p)))
                                         for (j, p) in enumerate(to.patterns)])...))
@@ -432,26 +432,28 @@ function cast!(ir, from, to, x)
 end
 
 function casts!(mod::RModule, ir, ret)
-  for bl in blocks(ir)
-    for br in branches(bl)
-      if isreturn(br)
-        S = exprtype(mod, ir, arguments(br)[1])
-        if S != ret
-          arguments(br)[1] = cast!(bl, S, ret, arguments(br)[1])
-        elseif !(arguments(br)[1] isa Variable)
-          arguments(br)[1] = push!(bl, Expr(:tuple))
-        end
-      else
-        for i = 1:length(arguments(br))
-          S = exprtype(mod, ir, arguments(br)[i])
-          T = blockargtype(mod, block(ir, br.block), i)
-          S == T && continue
-          arguments(br)[i] = cast!(bl, S, T, arguments(br)[i])
-        end
+  pr = IRTools.Pipe(ir)
+  IRTools.branches(pr) do br
+    if isreturn(br)
+      S = exprtype(mod, ir, arguments(br)[1])
+      if S != ret
+        arguments(br)[1] = cast!(pr, S, ret, arguments(br)[1])
+      elseif !(arguments(br)[1] isa Variable)
+        arguments(br)[1] = push!(pr, Expr(:tuple))
+      end
+    else
+      for i = 1:length(arguments(br))
+        S = exprtype(mod, ir, arguments(br)[i])
+        T = blockargtype(mod, block(ir, br.block), i)
+        S == T && continue
+        arguments(br)[i] = cast!(pr, S, T, arguments(br)[i])
       end
     end
+    return br
   end
-  return ir
+  for (v, st) in pr
+  end
+  return IRTools.finish(pr)
 end
 
 function lowerir(cx, ir, ret)
