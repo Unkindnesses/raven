@@ -98,58 +98,57 @@ function sigs!(mod::RModule, ir::IR)
   return ir
 end
 
-# TODO: rewrite this to use a pipe, and avoid `sigs!`.
 function lowerwasm!(mod::WModule, ir::IR)
   sigs!(mod.inf.mod, ir)
+  pr = IRTools.Pipe(ir)
+  for (v, st) in pr
+    if !isexpr(st.expr)
+      pr[v] = stmt(st.expr, type = wlayout(st.type))
+      continue
+    elseif isexpr(st.expr, :ref) && st.expr.args[1] isa String
+      pr[v] = stringid!(mod, st.expr.args[1])
+      continue
+    elseif isexpr(st.expr, :tuple, :ref)
+      continue
+    elseif isexpr(st.expr, :cast)
+      @assert layout(st.type) == layout(exprtype(mod, ir, st.expr.args[1]))
+      pr[v] = st.expr.args[1]
+      continue
+    elseif isexpr(st.expr, :global)
+      g = Global(st.expr.args[1])
+      l = global!(mod, g, st.type)
+      pr[v] = Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
+      continue
+    elseif isexpr(st.expr, :(=)) && (g = st.expr.args[1]) isa Global
+      delete!(pr, v)
+      l = global!(mod, g, st.type)
+      for i in 1:length(l)
+        p = st.expr.args[2]
+        wlayout(st.type) isa WTuple &&
+          (p = push!(pr, Expr(:ref, p, i)))
+        push!(pr, stmt(xcall(WebAssembly.SetGlobal(l[i]), p), type = WTuple()))
+      end
+      continue
+    elseif !isexpr(st.expr, :call)
+      error("unrecognised $(st.expr.head) expression")
+    end
+    Ts, args = st.expr.args[1], st.expr.args[2:end]
+    if Ts isa WIntrinsic
+      ex = xcall(st.expr.args[1].op, st.expr.args[2:end]...)
+      pr[v] = stmt(st.expr, expr = ex, type = Ts.ret == ⊥ ? WTuple() : Ts.ret)
+      if Ts.ret == ⊥
+        IRTools.push!(pr, stmt(xcall(WebAssembly.unreachable), type = WTuple()))
+      end
+    elseif any(x -> x == ⊥, Ts)
+      pr[v] = stmt(xcall(WebAssembly.unreachable), type = WTuple())
+    else
+      func = lowerwasm!(mod, Ts)
+      pr[v] = stmt(xcall(WebAssembly.Call(func), args[2:end]...), type = wlayout(ir[v].type))
+    end
+  end
+  ir = IRTools.finish(pr)
   for b in blocks(ir)
     IRTools.argtypes(b) .= wlayout.(IRTools.argtypes(b))
-    for (v, st) in b
-      if !isexpr(st.expr)
-        ir[v] = stmt(st.expr, type = wlayout(st.type))
-        continue
-      elseif isexpr(st.expr, :ref) && st.expr.args[1] isa String
-        ir[v] = stringid!(mod, st.expr.args[1])
-        continue
-      elseif isexpr(st.expr, :tuple, :ref)
-        continue
-      elseif isexpr(st.expr, :cast)
-        @assert layout(st.type) == layout(exprtype(mod, ir, st.expr.args[1]))
-        ir[v] = st.expr.args[1]
-        continue
-      elseif isexpr(st.expr, :global)
-        g = Global(st.expr.args[1])
-        l = global!(mod, g, st.type)
-        ir[v] = Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
-        continue
-      elseif isexpr(st.expr, :(=)) && (g = st.expr.args[1]) isa Global
-        l = global!(mod, g, st.type)
-        for i in 1:length(l)
-          p = st.expr.args[2]
-          wlayout(st.type) isa WTuple &&
-            (p = insert!(ir, v, Expr(:ref, p, i)))
-          w = insert!(ir, v, xcall(WebAssembly.SetGlobal(l[i]), p))
-          ir[w] = stmt(ir[w], type = WTuple())
-        end
-        delete!(ir, v)
-        continue
-      elseif !isexpr(st.expr, :call)
-        error("unrecognised $(st.expr.head) expression")
-      end
-      Ts, args = st.expr.args[1], st.expr.args[2:end]
-      if Ts isa WIntrinsic
-        ex = xcall(st.expr.args[1].op, st.expr.args[2:end]...)
-        ir[v] = stmt(st.expr, expr = ex, type = Ts.ret == ⊥ ? WTuple() : Ts.ret)
-        if Ts.ret == ⊥
-          IRTools.insertafter!(ir, v, stmt(xcall(WebAssembly.unreachable), type = WTuple()))
-        end
-      elseif any(x -> x == ⊥, Ts)
-        ir[v] = stmt(xcall(WebAssembly.unreachable), type = WTuple())
-      else
-        func = lowerwasm!(mod, Ts)
-        ir[v] = xcall(WebAssembly.Call(func), args[2:end]...)
-        ir[v] = stmt(ir[v], type = wlayout(ir[v].type))
-      end
-    end
   end
   return ir
 end
