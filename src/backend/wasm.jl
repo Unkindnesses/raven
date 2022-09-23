@@ -83,42 +83,21 @@ end
 
 WModule(inf) = WModule(inf, Dict(), [], Dict(), Dict(), [])
 
-function sigs!(mod::RModule, ir::IR)
-  for (v, st) in ir
-    if isexpr(st.expr, :call)
-      if st.expr.args[1] isa WIntrinsic
-      elseif st.expr.args[1] isa RMethod
-        ir[v] = xcall((exprtype(mod, ir, st.expr.args)...,), st.expr.args...)
-      else
-        f, xs = exprtype(mod, ir, st.expr.args)
-        ir[v] = xcall((f, xs), st.expr.args...)
-      end
-    end
-  end
-  return ir
-end
-
 function lowerwasm!(mod::WModule, ir::IR)
-  sigs!(mod.inf.mod, ir)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     if !isexpr(st.expr)
       pr[v] = stmt(st.expr, type = wlayout(st.type))
-      continue
     elseif isexpr(st.expr, :ref) && st.expr.args[1] isa String
       pr[v] = stringid!(mod, st.expr.args[1])
-      continue
     elseif isexpr(st.expr, :tuple, :ref)
-      continue
     elseif isexpr(st.expr, :cast)
-      @assert layout(st.type) == layout(exprtype(mod, ir, st.expr.args[1]))
+      @assert layout(st.type) == layout(exprtype(mod.inf.mod, ir, st.expr.args[1]))
       pr[v] = st.expr.args[1]
-      continue
     elseif isexpr(st.expr, :global)
       g = Global(st.expr.args[1])
       l = global!(mod, g, st.type)
       pr[v] = Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
-      continue
     elseif isexpr(st.expr, :(=)) && (g = st.expr.args[1]) isa Global
       delete!(pr, v)
       l = global!(mod, g, st.type)
@@ -128,22 +107,23 @@ function lowerwasm!(mod::WModule, ir::IR)
           (p = push!(pr, Expr(:ref, p, i)))
         push!(pr, stmt(xcall(WebAssembly.SetGlobal(l[i]), p), type = WTuple()))
       end
-      continue
-    elseif !isexpr(st.expr, :call)
-      error("unrecognised $(st.expr.head) expression")
-    end
-    Ts, args = st.expr.args[1], st.expr.args[2:end]
-    if Ts isa WIntrinsic
-      ex = xcall(st.expr.args[1].op, st.expr.args[2:end]...)
-      pr[v] = stmt(st.expr, expr = ex, type = Ts.ret == ⊥ ? WTuple() : Ts.ret)
-      if Ts.ret == ⊥
+    elseif isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
+      int = st.expr.args[1]
+      ex = xcall(int.op, st.expr.args[2:end]...)
+      pr[v] = stmt(st.expr, expr = ex, type = int.ret == ⊥ ? WTuple() : int.ret)
+      if int.ret == ⊥
         IRTools.push!(pr, stmt(xcall(WebAssembly.unreachable), type = WTuple()))
       end
-    elseif any(x -> x == ⊥, Ts)
-      pr[v] = stmt(xcall(WebAssembly.unreachable), type = WTuple())
+    elseif isexpr(st.expr, :call)
+      Ts = (exprtype(mod.inf.mod, ir, st.expr.args)...,)
+      if any(x -> x == ⊥, Ts)
+        pr[v] = stmt(xcall(WebAssembly.unreachable), type = WTuple())
+      else
+        func = lowerwasm!(mod, Ts)
+        pr[v] = stmt(xcall(WebAssembly.Call(func), st.expr.args[2:end]...), type = wlayout(ir[v].type))
+      end
     else
-      func = lowerwasm!(mod, Ts)
-      pr[v] = stmt(xcall(WebAssembly.Call(func), args[2:end]...), type = wlayout(ir[v].type))
+      error("unrecognised $(st.expr.head) expression")
     end
   end
   ir = IRTools.finish(pr)
