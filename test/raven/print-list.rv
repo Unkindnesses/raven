@@ -1,1 +1,12 @@
-print(seq(1, 2, 3))
+fn range(n) {
+  xs = []
+  for i in range(1, n) {
+    append(&xs, i)
+  }
+  return xs
+}
+
+let {
+  xs = range(10)
+  print(xs)
+}

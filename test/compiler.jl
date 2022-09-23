@@ -33,5 +33,5 @@ end
 end
 
 # Test `println` output
-@test output("print-tuple") == string([1:10...])
-@test output("print-list") == "seq(1, 2, 3)"
+@test output("print-list") == string([1:10...])
+@test output("print-seq") == "seq(1, 2, 3)"
