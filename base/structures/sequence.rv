@@ -3,14 +3,14 @@ bundle Sequence { Prepend(xs, x) | Empty() }
 fn prepend(xs: Sequence, x) { Prepend(xs, x) }
 fn prepend(xs: Sequence, x, y) { prepend(prepend(xs, x), y) }
 
-fn first(l: Empty) { panic("first: list is empty") }
+fn first(l: Empty) { panic("first: seq is empty") }
 fn first(l: Prepend) { part(l, 2) }
 
-fn rest(l: Empty)  { panic("rest: list is empty") }
+fn rest(l: Empty)  { panic("rest: seq is empty") }
 fn rest(l: Prepend) { part(l, 1) }
 
-fn list() { Empty() }
-fn list(x, xs...) { prepend(list(xs...), x) }
+fn seq() { Empty() }
+fn seq(x, xs...) { prepend(seq(xs...), x) }
 
 fn empty(xs: Prepend) { false }
 fn empty(xs: Empty) { true }
@@ -20,16 +20,16 @@ fn length(xs: Empty) { 0 }
 
 fn lrange(start, end) {
   if (start > end) {
-    list()
+    seq()
   } else {
     prepend(range(start+one(start), end), start)
   }
 }
 
 fn repeat(n, x) { prepend(repeat(n-1, x), x) }
-fn repeat(0, x) { list() }
+fn repeat(0, x) { seq() }
 
-fn interleave(xs: Sequence, ys: Sequence) { list() }
+fn interleave(xs: Sequence, ys: Sequence) { seq() }
 
 fn interleave(xs: Prepend, ys: Prepend) {
   prepend(interleave(rest(xs), rest(ys)), first(ys), first(xs))
@@ -56,7 +56,7 @@ fn foreach(f, xs: Prepend) {
 }
 
 # fn print(xs: Sequence) {
-#   print("list(")
+#   print("seq(")
 #   foreach(print, interpose(", ", xs))
 #   print(")")
 # }
@@ -74,6 +74,6 @@ fn printList(xs: Prepend) {
 }
 
 fn print(xs: Sequence) {
-  print("list(")
+  print("seq(")
   printList(xs)
 }

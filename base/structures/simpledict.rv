@@ -9,7 +9,7 @@ fn print(pack(`Pair`, a, b)) {
   print(b)
 }
 
-fn simpledict() { list() }
+fn simpledict() { seq() }
 
 fn haskey(d: Empty, k: Symbol) { false }
 fn haskey(d: Prepend, k: Symbol) { (part(first(d), 1) == k) || haskey(rest(d), k) }

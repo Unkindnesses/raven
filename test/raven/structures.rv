@@ -1,4 +1,4 @@
-xs = list(widen(1), widen(2), widen(3))
+xs = seq(widen(1), widen(2), widen(3))
 println(sum(xs) == 6)
 
 ys = [4, widen(5)]
@@ -78,17 +78,17 @@ let {
 }
 
 let {
-  b1 = list(Pair(`a`, 1), Pair(`b`, 2))
-  b2 = list(Pair(`b`, widen(2)), Pair(`d`, 3))
+  b1 = seq(Pair(`a`, 1), Pair(`b`, 2))
+  b2 = seq(Pair(`b`, widen(2)), Pair(`d`, 3))
   println(not(isnil(merge(&b1, b2))))
 
-  b1 = list(Pair(`a`, 1), Pair(`b`, 2))
-  b2 = list(Pair(`b`, widen(3)), Pair(`d`, 3))
+  b1 = seq(Pair(`a`, 1), Pair(`b`, 2))
+  b2 = seq(Pair(`b`, widen(3)), Pair(`d`, 3))
   println(isnil(merge(&b1, b2)))
 }
 
 fn foo(n) { prepend(foo(n-1), n) }
-fn foo(0) { list() }
+fn foo(0) { seq() }
 
 let {
   xs = foo(widen(0))
