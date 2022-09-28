@@ -107,14 +107,13 @@ end
 mutable struct Frame
   ir::IR
   edges::Set{Loc}
-  stmts::Vector{Vector{Variable}}
   seen::Set{Int}
   rettype
 end
 
 Base.show(io::IO, ::Frame) = print(io, "Frame(...)")
 
-Frame(ir::IR) = Frame(ir, Set{Loc}(), keys.(blocks(ir)), Set(), ⊥)
+Frame(ir::IR) = Frame(ir, Set{Loc}(), Set(), ⊥)
 
 function frame(ir::IR, args...)
   ir = prepare_ir!(copy(ir))
@@ -231,7 +230,8 @@ end
 function step!(inf::Inference, loc)
   F, b, ip = loc.sig, loc.block, loc.ip
   frame = inf.frames[F]
-  block, stmts = IRTools.block(frame.ir, b), frame.stmts[b]
+  block = IRTools.block(frame.ir, b)
+  stmts = keys(block)
   if ip <= length(stmts)
     var = stmts[ip]
     st = block[var]
