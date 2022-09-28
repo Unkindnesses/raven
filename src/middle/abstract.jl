@@ -199,15 +199,9 @@ function dispatcher(inf, func::Symbol, Ts)
 end
 
 function infercall!(inf, loc, block, ex)
-  if ex.args[1] isa RMethod
-    F = ex.args[1]
-    Ts = exprtype(inf.mod, block.ir, ex.args[2:end])
-  else
-    Ts = exprtype(inf.mod, block.ir, ex.args)
-    F, Ts = Ts[1], (Ts[2],)
-  end
-  (F == ⊥ || any(==(⊥), Ts)) && return ⊥
-  fr = frame!(inf, F, Ts...)
+  Ts = exprtype(inf.mod, block.ir, ex.args)
+  any(==(⊥), Ts) && return ⊥
+  fr = frame!(inf, Ts...)
   fr isa Frame || return fr
   push!(fr.edges, loc)
   return fr.rettype
