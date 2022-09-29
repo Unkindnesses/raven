@@ -100,12 +100,18 @@ end
 
 struct Loc
   sig::Tuple
-  block::Integer
-  ip::Integer
+  block::Int
+  follow::Int
+  ip::Int
 end
+
+Loc(sig, block = 1) = Loc(sig, block, 0, 1)
+
+next(l::Loc) = Loc(l.sig, l.block, l.follow, l.ip+1)
 
 mutable struct Frame
   ir::IR
+  inlined::Vector{Vector{IR}}
   edges::Set{Loc}
   seen::Set{Int}
   rettype
@@ -113,7 +119,7 @@ end
 
 Base.show(io::IO, ::Frame) = print(io, "Frame(...)")
 
-Frame(ir::IR) = Frame(ir, Set{Loc}(), Set(), ⊥)
+Frame(ir::IR) = Frame(ir, [IR[] for _ = 1:length(blocks(ir))], Set{Loc}(), Set(), ⊥)
 
 function frame(ir::IR, args...)
   ir = prepare_ir!(copy(ir))
@@ -139,7 +145,7 @@ function irframe!(inf, T, ir, args...)
   haskey(inf.frames, T) && return inf.frames[T]
   fr = frame(ir, args...)
   inf.frames[T] = fr
-  push!(inf.queue, Loc(T, 1, 1))
+  push!(inf.queue, Loc(T))
   return fr
 end
 
@@ -222,8 +228,8 @@ function openbranches(mod, bl)
 end
 
 function step!(inf::Inference, loc)
-  F, b, ip = loc.sig, loc.block, loc.ip
-  frame = inf.frames[F]
+  b, ip = loc.block, loc.ip
+  frame = inf.frames[loc.sig]
   block = IRTools.block(frame.ir, b)
   stmts = keys(block)
   if ip <= length(stmts)
@@ -240,25 +246,25 @@ function step!(inf::Inference, loc)
         T = wasmPartials[op](Ts...)
       end
       block.ir[var] = Statement(block[var], type = T)
-      push!(inf.queue, Loc(F, b, ip+1))
+      push!(inf.queue, next(loc))
     elseif isexpr(st.expr, :call)
-      T = infercall!(inf, Loc(F, b, ip), block, st.expr)
+      T = infercall!(inf, loc, block, st.expr)
       if T != ⊥
         block.ir[var] = Statement(block[var], type = union(st.type, T))
-        push!(inf.queue, Loc(F, b, ip+1))
+        push!(inf.queue, next(loc))
       end
     elseif isexpr(st.expr, :pack)
       Ts = exprtype(inf.mod, block.ir, st.expr.args)
       if !any(==(⊥), Ts)
         block.ir[var] = Statement(block[var], type = pack(Ts...))
-        push!(inf.queue, Loc(F, b, ip+1))
+        push!(inf.queue, next(loc))
       end
     elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global
       x = st.expr.args[1].name
       T = exprtype(inf.mod, block.ir, st.expr.args[2])
       T = union(get!(inf.mod.defs, x, ⊥), T)
       block.ir[var] = Statement(block[var], type = T)
-      push!(inf.queue, Loc(F, b, ip+1))
+      push!(inf.queue, next(loc))
       if inf.mod.defs[x] != T
         inf.mod.defs[x] = T
         foreach(loc -> push!(inf.queue, loc), global_edges(inf, x))
@@ -279,7 +285,7 @@ function step!(inf::Inference, loc)
         args = exprtype(inf.mod, block.ir, arguments(br))
         if (isempty(args) && !(br.block in frame.seen)) || blockargs!(IRTools.block(frame.ir, br.block), args)
           push!(frame.seen, br.block)
-          push!(inf.queue, Loc(F, br.block, 1))
+          push!(inf.queue, Loc(loc.sig, br.block))
         end
       end
     end
