@@ -100,6 +100,7 @@ typedepth(x::Or) = 1 + maximum(typedepth.(x.patterns), init = 0)
 
 issubset(x, ::Unreachable) = false
 issubset(::Unreachable, x) = true
+issubset(::Unreachable, ::Unreachable) = true
 
 issubset(x::Primitive, y::Primitive) = x == y
 issubset(x::Primitive, T::Type{<:Primitive}) = x isa T

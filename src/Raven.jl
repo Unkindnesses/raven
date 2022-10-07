@@ -17,6 +17,7 @@ include("frontend/lower.jl")
 include("match.jl")
 
 include("middle/utils.jl")
+include("middle/loop.jl")
 include("middle/primitives.jl")
 include("middle/patterns.jl")
 include("middle/abstract.jl")
