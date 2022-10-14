@@ -17,13 +17,9 @@ function copyblock!(c, b)
   return c
 end
 
-nblocks(cs::Integer) = 1
-nblocks(cs::Component) = sum(nblocks, cs.children)
-
 mutable struct LoopIR
   ir::IR
   bls::Vector{Int}
-  nblocks::Int
 end
 
 function loop(bl::Block)
@@ -50,15 +46,19 @@ function looped(ir::IR, cs::Component = components(CFG(ir)))
       push!(bl, Expr(:loop, looped(ir, ch), args...))
     end
   end
-  return LoopIR(out, blocks, nblocks(cs))
+  return LoopIR(out, blocks)
 end
+
+nblocks(b::Block) = (l = loop(b)) == nothing ? 1 : nblocks(l)
+nblocks(b::IR) = sum(nblocks, blocks(b))
+nblocks(b::LoopIR) = nblocks(b.ir)
 
 function blockmap(l::LoopIR, offset = 1)
   map = Dict{Int,Int}()
   for b in blocks(l.ir)
     map[l.bls[b.id]] = offset
     l′ = loop(b)
-    offset += l′ == nothing ? 1 : l′.nblocks
+    offset += l′ == nothing ? 1 : nblocks(l′)
   end
   return map
 end
