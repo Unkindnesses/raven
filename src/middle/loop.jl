@@ -1,4 +1,4 @@
-using IRTools.Inner: CFG, Component, components, entries
+using IRTools.Inner: CFG, Block, Component, components, entries
 
 rename(env, ex) =
   IRTools.prewalk(x -> x isa Variable ? env[x] : x, ex)
@@ -17,9 +17,21 @@ function copyblock!(c, b)
   return c
 end
 
-struct LoopIR
+nblocks(cs::Integer) = 1
+nblocks(cs::Component) = sum(nblocks, cs.children)
+
+mutable struct LoopIR
   ir::IR
   bls::Vector{Int}
+  nblocks::Int
+end
+
+function loop(bl::Block)
+  if !isempty(bl) && isexpr(first(bl)[2].expr, :loop)
+    return first(bl)[2].expr.args[1]
+  else
+    return nothing
+  end
 end
 
 function looped(ir::IR, cs::Component = components(CFG(ir)))
@@ -38,17 +50,32 @@ function looped(ir::IR, cs::Component = components(CFG(ir)))
       push!(bl, Expr(:loop, looped(ir, ch), args...))
     end
   end
-  return LoopIR(out, blocks)
+  return LoopIR(out, blocks, nblocks(cs))
+end
+
+function blockmap(l::LoopIR, offset = 1)
+  map = Dict{Int,Int}()
+  for b in blocks(l.ir)
+    map[l.bls[b.id]] = offset
+    l′ = loop(b)
+    offset += l′ == nothing ? 1 : l′.nblocks
+  end
+  return map
 end
 
 function unloop!(ir::IR, l::LoopIR, bs)
+  bs = merge(blockmap(l, length(blocks(ir))), bs)
   for b in blocks(l.ir)
     c = b.id == 1 ? last(blocks(ir)) : block!(ir)
-    bs[l.bls[b.id]] = c.id
-    if !isempty(b) && isexpr(first(b)[2].expr, :loop)
-      unloop!(ir, first(b)[2].expr.args[1], bs)
+    if (l′ = loop(b)) != nothing
+      unloop!(ir, l′, bs)
     else
       copyblock!(c, b)
+      for i = 1:length(branches(c))
+        br = branches(c)[i]
+        isreturn(br) && continue
+        branches(c)[i] = IRTools.Branch(br, block = bs[br.block])
+      end
     end
   end
   return ir
@@ -58,11 +85,5 @@ function unloop(l::LoopIR)
   ir = IR()
   bs = Dict{Int,Int}()
   unloop!(ir, l, bs)
-  for b in blocks(ir)
-    for i = 1:length(branches(b))
-      br = branches(b)[i]
-      branches(b)[i] = IRTools.Branch(br, block = get(bs, br.block, br.block))
-    end
-  end
   return ir
 end

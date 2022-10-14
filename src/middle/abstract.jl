@@ -79,6 +79,8 @@ end
 
 function prepare_ir!(ir)
   IRTools.expand!(ir)
+  # ir = ir |> IRTools.expand! |> IRTools.explicitbranch!
+  # ir = ir |> looped |> unloop
   for b in ir.blocks
     b.argtypes .= (⊥,)
     for i in 1:length(b.stmts)
