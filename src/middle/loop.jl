@@ -20,6 +20,7 @@ end
 mutable struct LoopIR
   ir::IR
   bls::Vector{Int}
+  body::Vector{IR}
 end
 
 function loop(bl::Block)
@@ -46,12 +47,28 @@ function looped(ir::IR, cs::Component = components(CFG(ir)))
       push!(bl, Expr(:loop, looped(ir, ch), args...))
     end
   end
-  return LoopIR(out, blocks)
+  return LoopIR(out, blocks, IR[copy(out)])
+end
+
+function unrollall!(ir::IR, n)
+  for b in blocks(ir)
+    l = loop(b)
+    l == nothing && continue
+    unrollall!(l, n)
+    for _ = 1:n
+      push!(l.body, copy(l.ir))
+    end
+  end
+end
+
+function unrollall!(l::LoopIR, n = 1)
+  unrollall!(l.ir, n)
+  return l
 end
 
 nblocks(b::Block) = (l = loop(b)) == nothing ? 1 : nblocks(l)
 nblocks(b::IR) = sum(nblocks, blocks(b))
-nblocks(b::LoopIR) = nblocks(b.ir)
+nblocks(b::LoopIR) = sum(nblocks, b.body)
 
 function blockmap(l::LoopIR, offset = 1)
   map = Dict{Int,Int}()
@@ -63,18 +80,23 @@ function blockmap(l::LoopIR, offset = 1)
   return map
 end
 
-function unloop!(ir::IR, l::LoopIR, bs)
-  bs = merge(blockmap(l, length(blocks(ir))), bs)
-  for b in blocks(l.ir)
-    c = b.id == 1 ? last(blocks(ir)) : block!(ir)
-    if (l′ = loop(b)) != nothing
-      unloop!(ir, l′, bs)
-    else
-      copyblock!(c, b)
-      for i = 1:length(branches(c))
-        br = branches(c)[i]
-        isreturn(br) && continue
-        branches(c)[i] = IRTools.Branch(br, block = bs[br.block])
+function unloop!(ir::IR, l::LoopIR, _bs)
+  for (iter, lir) in enumerate(l.body)
+    bs = merge(blockmap(l, length(blocks(ir))+1), _bs)
+    entry = length(blocks(ir))+1
+    nextEntry = entry + nblocks(lir)
+    bs[l.bls[1]] = iter == length(l.body) ? entry : nextEntry
+    for b in blocks(l.ir)
+      if (l′ = loop(b)) != nothing
+        unloop!(ir, l′, bs)
+      else
+        c = block!(ir)
+        copyblock!(c, b)
+        for i = 1:length(branches(c))
+          br = branches(c)[i]
+          isreturn(br) && continue
+          branches(c)[i] = IRTools.Branch(br, block = bs[br.block])
+        end
       end
     end
   end
@@ -83,6 +105,7 @@ end
 
 function unloop(l::LoopIR)
   ir = IR()
+  IRTools.deleteblock!(ir, 1)
   bs = Dict{Int,Int}()
   unloop!(ir, l, bs)
   return ir
