@@ -78,15 +78,14 @@ function union(a::Recursive, b::Recursive)
 end
 
 function prepare_ir!(ir)
-  IRTools.expand!(ir)
-  # ir = ir |> IRTools.expand! |> IRTools.explicitbranch!
-  # ir = ir |> looped |> unloop
+  ir = ir |> IRTools.expand! |> IRTools.explicitbranch!
   for b in ir.blocks
     b.argtypes .= (⊥,)
     for i in 1:length(b.stmts)
       b.stmts[i] = stmt(b.stmts[i], type = ⊥)
     end
   end
+  ir = looped(ir)
   return ir
 end
 
@@ -102,18 +101,16 @@ end
 
 struct Loc
   sig::Tuple
-  block::Int
-  follow::Int
+  path::Vector{Int}
   ip::Int
 end
 
-Loc(sig, block = 1) = Loc(sig, block, 0, 1)
+Loc(sig, path = [1]) = Loc(sig, path, 1)
 
-next(l::Loc) = Loc(l.sig, l.block, l.follow, l.ip+1)
+next(l::Loc) = Loc(l.sig, l.path, l.ip+1)
 
 mutable struct Frame
-  ir::IR
-  inlined::Vector{Vector{IR}}
+  ir::LoopIR
   edges::Set{Loc}
   seen::Set{Int}
   rettype
@@ -121,12 +118,12 @@ end
 
 Base.show(io::IO, ::Frame) = print(io, "Frame(...)")
 
-Frame(ir::IR) = Frame(ir, [IR[] for _ = 1:length(blocks(ir))], Set{Loc}(), Set(), ⊥)
+Frame(ir::LoopIR) = Frame(ir, Set{Loc}(), Set(), ⊥)
 
 function frame(ir::IR, args...)
   ir = prepare_ir!(copy(ir))
-  @assert length(arguments(ir)) == length(args)
-  argtypes(ir) .= args
+  @assert length(arguments(ir.ir)) == length(args)
+  argtypes(ir.body[1]) .= args
   return Frame(ir)
 end
 
@@ -230,9 +227,9 @@ function openbranches(mod, bl)
 end
 
 function step!(inf::Inference, loc)
-  b, ip = loc.block, loc.ip
+  p, ip = loc.path, loc.ip
   frame = inf.frames[loc.sig]
-  block = IRTools.block(frame.ir, b)
+  block = IRTools.block(frame.ir, p)
   stmts = keys(block)
   if ip <= length(stmts)
     var = stmts[ip]
@@ -261,6 +258,11 @@ function step!(inf::Inference, loc)
         block.ir[var] = Statement(block[var], type = pack(Ts...))
         push!(inf.queue, next(loc))
       end
+    elseif isexpr(st.expr, :loop)
+      l = loop(block)
+      if blockargs!(l.body[1], argtypes(block))
+        push!(inf.queue, Loc(loc.sig, [p..., 1]))
+      end
     elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global
       x = st.expr.args[1].name
       T = exprtype(inf.mod, block.ir, st.expr.args[2])
@@ -285,9 +287,10 @@ function step!(inf::Inference, loc)
         foreach(loc -> push!(inf.queue, loc), frame.edges)
       else
         args = exprtype(inf.mod, block.ir, arguments(br))
-        if (isempty(args) && !(br.block in frame.seen)) || blockargs!(IRTools.block(frame.ir, br.block), args)
+        p′ = nextpath(frame.ir, p, br.block)
+        if (isempty(args) && !(br.block in frame.seen)) || blockargs!(IRTools.block(frame.ir, p′), args)
           push!(frame.seen, br.block)
-          push!(inf.queue, Loc(loc.sig, br.block))
+          push!(inf.queue, Loc(loc.sig, p′))
         end
       end
     end

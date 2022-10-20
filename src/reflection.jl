@@ -6,7 +6,7 @@ function code_lowered(cx::Inference, func)
 end
 
 function code_typed(cx::Inference, func)
-  IdDict{Any,IR}(sig => fr.ir for (sig, fr) in cx.frames if sigmatch(sig, func))
+  IdDict{Any,IR}(sig => unloop(fr.ir) for (sig, fr) in cx.frames if sigmatch(sig, func))
 end
 
 function code_final(cx::Inference, func)

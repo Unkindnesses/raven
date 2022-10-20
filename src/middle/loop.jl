@@ -23,12 +23,33 @@ mutable struct LoopIR
   body::Vector{IR}
 end
 
+function IRTools.block(l::LoopIR, path::Vector{Int})
+  for i in path[1:end-1]
+    l = loop(block(l.body[1], i))
+  end
+  return block(l.body[1], path[end])
+end
+
 function loop(bl::Block)
   if !isempty(bl) && isexpr(first(bl)[2].expr, :loop)
     return first(bl)[2].expr.args[1]
   else
     return nothing
   end
+end
+
+function nextpath(l::LoopIR, p::Vector{Int}, target::Int)
+  p′ = Int[]
+  for i in p
+    j = findfirst(==(target), l.bls)
+    if j != nothing
+      return push!(p′, j)
+    else
+      l = loop(block(l.body[1], i))
+      push!(p′, i)
+    end
+  end
+  error("Invalid block target $target")
 end
 
 function looped(ir::IR, cs::Component = components(CFG(ir)))
@@ -43,7 +64,7 @@ function looped(ir::IR, cs::Component = components(CFG(ir)))
       es = entries(ch)
       @assert length(es) == 1
       push!(blocks, es[1])
-      args = [argument!(bl, insert = false) for _ in arguments(block(ir, es[1]))]
+      args = [argument!(bl, type = T, insert = false) for T in argtypes(block(ir, es[1]))]
       push!(bl, Expr(:loop, looped(ir, ch), args...))
     end
   end
@@ -86,7 +107,7 @@ function unloop!(ir::IR, l::LoopIR, _bs)
     entry = length(blocks(ir))+1
     nextEntry = entry + nblocks(lir)
     bs[l.bls[1]] = iter == length(l.body) ? entry : nextEntry
-    for b in blocks(l.ir)
+    for b in blocks(lir)
       if (l′ = loop(b)) != nothing
         unloop!(ir, l′, bs)
       else
