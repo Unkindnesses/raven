@@ -229,45 +229,45 @@ end
 function step!(inf::Inference, loc)
   p, ip = loc.path, loc.ip
   frame = inf.frames[loc.sig]
-  block = IRTools.block(frame.ir, p)
-  stmts = keys(block)
+  bl = block(frame.ir, p)
+  stmts = keys(bl)
   if ip <= length(stmts)
     var = stmts[ip]
-    st = block[var]
+    st = bl[var]
     for g in (isexpr(st.expr, :(=)) ? st.expr.args[2:end] : st.expr.args)
       g isa Global && push!(global_edges(inf, g.name), loc)
     end
     if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
       op = st.expr.args[1].op
       T = rvtype(st.expr.args[1].ret)
-      Ts = exprtype(inf.mod, block.ir, st.expr.args[2:end])
+      Ts = exprtype(inf.mod, bl.ir, st.expr.args[2:end])
       if all(isvalue, Ts) && haskey(wasmPartials, op)
         T = wasmPartials[op](Ts...)
       end
-      block.ir[var] = Statement(block[var], type = T)
+      bl.ir[var] = Statement(bl[var], type = T)
       push!(inf.queue, next(loc))
     elseif isexpr(st.expr, :call)
-      T = infercall!(inf, loc, block, st.expr)
+      T = infercall!(inf, loc, bl, st.expr)
       if T != ⊥
-        block.ir[var] = Statement(block[var], type = union(st.type, T))
+        bl.ir[var] = Statement(bl[var], type = union(st.type, T))
         push!(inf.queue, next(loc))
       end
     elseif isexpr(st.expr, :pack)
-      Ts = exprtype(inf.mod, block.ir, st.expr.args)
+      Ts = exprtype(inf.mod, bl.ir, st.expr.args)
       if !any(==(⊥), Ts)
-        block.ir[var] = Statement(block[var], type = pack(Ts...))
+        bl.ir[var] = Statement(bl[var], type = pack(Ts...))
         push!(inf.queue, next(loc))
       end
     elseif isexpr(st.expr, :loop)
-      l = loop(block)
-      if blockargs!(l.body[1], argtypes(block))
+      l = loop(bl)
+      if blockargs!(l.body[1], argtypes(bl))
         push!(inf.queue, Loc(loc.sig, [p..., 1]))
       end
     elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global
       x = st.expr.args[1].name
-      T = exprtype(inf.mod, block.ir, st.expr.args[2])
+      T = exprtype(inf.mod, bl.ir, st.expr.args[2])
       T = union(get!(inf.mod.defs, x, ⊥), T)
-      block.ir[var] = Statement(block[var], type = T)
+      bl.ir[var] = Statement(bl[var], type = T)
       push!(inf.queue, next(loc))
       if inf.mod.defs[x] != T
         inf.mod.defs[x] = T
@@ -277,18 +277,18 @@ function step!(inf::Inference, loc)
       error("Unknown expr type $(st.expr.head)")
     end
   else
-    brs = openbranches(inf.mod, block)
+    brs = openbranches(inf.mod, bl)
     for br in brs
       if isreturn(br)
-        T = exprtype(inf.mod, block.ir, IRTools.returnvalue(block))
+        T = exprtype(inf.mod, bl.ir, IRTools.returnvalue(bl))
         T = union(frame.rettype, T)
         T == frame.rettype && return
         frame.rettype = T
         foreach(loc -> push!(inf.queue, loc), frame.edges)
       else
-        args = exprtype(inf.mod, block.ir, arguments(br))
+        args = exprtype(inf.mod, bl.ir, arguments(br))
         p′ = nextpath(frame.ir, p, br.block)
-        if (isempty(args) && !(br.block in frame.seen)) || blockargs!(IRTools.block(frame.ir, p′), args)
+        if (isempty(args) && !(br.block in frame.seen)) || blockargs!(block(frame.ir, p′), args)
           push!(frame.seen, br.block)
           push!(inf.queue, Loc(loc.sig, p′))
         end
