@@ -24,16 +24,17 @@ mutable struct LoopIR
 end
 
 struct Path
-  parts::Vector{Int}
+  parts::Vector{Tuple{Int,Int}} # iter, block
 end
 
-Path() = Path([1])
+Path() = Path([(1,1)])
 
 function IRTools.block(l::LoopIR, path::Path)
-  for i in path.parts[1:end-1]
-    l = loop(block(l.body[1], i))
+  for (itr, bl) in path.parts[1:end-1]
+    l = loop(block(l.body[itr], bl))
   end
-  return block(l.body[1], path.parts[end])
+  itr, bl = path.parts[end]
+  return block(l.body[itr], bl)
 end
 
 function loop(bl::Block)
@@ -45,14 +46,14 @@ function loop(bl::Block)
 end
 
 function nextpath(l::LoopIR, p::Path, target::Int)
-  p′ = Int[]
-  for i in p.parts
+  p′ = Tuple{Int,Int}[]
+  for (itr, bl) in p.parts
     j = findfirst(==(target), l.bls)
     if j != nothing
-      return Path(push!(p′, j))
+      return Path(push!(p′, (itr, j)))
     else
-      l = loop(block(l.body[1], i))
-      push!(p′, i)
+      l = loop(block(l.body[itr], bl))
+      push!(p′, (itr, bl))
     end
   end
   error("Invalid block target $target")

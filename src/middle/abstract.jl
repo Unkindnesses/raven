@@ -261,7 +261,7 @@ function step!(inf::Inference, loc)
     elseif isexpr(st.expr, :loop)
       l = loop(bl)
       if blockargs!(l.body[1], argtypes(bl))
-        push!(inf.queue, Loc(loc.sig, Path([p.parts..., 1])))
+        push!(inf.queue, Loc(loc.sig, Path([p.parts..., (1,1)])))
       end
     elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global
       x = st.expr.args[1].name
