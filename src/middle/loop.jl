@@ -23,11 +23,17 @@ mutable struct LoopIR
   body::Vector{IR}
 end
 
-function IRTools.block(l::LoopIR, path::Vector{Int})
-  for i in path[1:end-1]
+struct Path
+  parts::Vector{Int}
+end
+
+Path() = Path([1])
+
+function IRTools.block(l::LoopIR, path::Path)
+  for i in path.parts[1:end-1]
     l = loop(block(l.body[1], i))
   end
-  return block(l.body[1], path[end])
+  return block(l.body[1], path.parts[end])
 end
 
 function loop(bl::Block)
@@ -38,12 +44,12 @@ function loop(bl::Block)
   end
 end
 
-function nextpath(l::LoopIR, p::Vector{Int}, target::Int)
+function nextpath(l::LoopIR, p::Path, target::Int)
   p′ = Int[]
-  for i in p
+  for i in p.parts
     j = findfirst(==(target), l.bls)
     if j != nothing
-      return push!(p′, j)
+      return Path(push!(p′, j))
     else
       l = loop(block(l.body[1], i))
       push!(p′, i)

@@ -101,11 +101,11 @@ end
 
 struct Loc
   sig::Tuple
-  path::Vector{Int}
+  path::Path
   ip::Int
 end
 
-Loc(sig, path = [1]) = Loc(sig, path, 1)
+Loc(sig, path = Path()) = Loc(sig, path, 1)
 
 next(l::Loc) = Loc(l.sig, l.path, l.ip+1)
 
@@ -261,7 +261,7 @@ function step!(inf::Inference, loc)
     elseif isexpr(st.expr, :loop)
       l = loop(bl)
       if blockargs!(l.body[1], argtypes(bl))
-        push!(inf.queue, Loc(loc.sig, [p..., 1]))
+        push!(inf.queue, Loc(loc.sig, Path([p.parts..., 1])))
       end
     elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global
       x = st.expr.args[1].name
