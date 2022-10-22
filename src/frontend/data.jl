@@ -193,6 +193,77 @@ unroll(T::Or, n) = typeof(T)(unroll.(T.patterns, n))
 unroll(T::Pack, n) = Pack(unroll.(T.parts, n))
 unroll(T::Recur, n) = unroll(recur(), n-1)
 
+# Union
+
+typekey(x) = tag(x)
+typekey(x::Symbol) = x
+
+union(x) = x
+union(::Unreachable, x) = x
+union(x, ::Unreachable) = x
+union(::Unreachable, ::Unreachable) = ⊥
+
+const NonSymbol = Union{Float32,Float64,Int32,Int64,String}
+
+union(x::T, y::T) where T<:NonSymbol = x == y ? x : T
+union(x::T, y::Type{T}) where T<:NonSymbol = T
+union(x::Type{T}, y::T) where T<:NonSymbol = T
+union(x::Type{T}, y::Type{T}) where T<:NonSymbol = T
+
+union(x::Symbol, y::Symbol) = x == y ? x : Or([x, y])
+
+partial_eltype(x::Pack) = reduce(union, parts(x), init = ⊥)
+partial_eltype(x::VPack) = x.parts
+
+function union(x::Pack, y::Pack)
+  x == y && return x
+  if tag(x) == tag(y)
+    if nparts(x) == nparts(y)
+      pack(tag(x), [union(part(x, i), part(y, i)) for i = 1:nparts(x)]...)
+    else
+      return VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))
+    end
+  else
+    return Or([x, y])
+  end
+end
+
+function union(x::Pack, y::VPack)
+  tag(x) == tag(y) || error("unimplemented union")
+  VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))
+end
+
+function union(x::VPack, y::VPack)
+  tag(x) == tag(y) || error("unimplemented union")
+  return VPack(tag(x), union(x.parts, y.parts))
+end
+
+function union(x::Union{Primitive,Type{<:Primitive},Pack,VPack}, y::Or)
+  typedepth(y) > 10 && error("exploding type: $y")
+  ps = y.patterns
+  i = findfirst(y -> typekey(x) == typekey(y), ps)
+  i == nothing && return Or([ps..., x])
+  return Or([j == i ? union(x, ps[j]) : ps[j] for j = 1:length(ps)]) |> recursive
+end
+
+union(y::Or, x::Union{Primitive,Type{<:Primitive},Pack,VPack}) = union(x, y)
+
+function union(x::Or, y::Or)
+  reduce(union, y.patterns, init = x)
+end
+
+function union(x::Recursive, y::Union{Or,Pack})
+  @assert issubset(y, x)
+  return x
+end
+
+union(y::Union{Or,Pack}, x::Recursive) = union(x, y)
+
+function union(a::Recursive, b::Recursive)
+  @assert a == b
+  return a
+end
+
 # Printing
 
 vprint(io::IO, x) = show(io, x)

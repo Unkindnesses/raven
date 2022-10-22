@@ -8,75 +8,6 @@ _typeof(mod, x::Global) = get(mod, x.name, ⊥)
 exprtype(mod, ir, x) = IRTools.exprtype(ir, x, typeof = x -> _typeof(mod, x))
 exprtype(mod, ir, xs::AbstractVector) = map(x -> exprtype(mod, ir, x), xs)
 
-typekey(x) = tag(x)
-typekey(x::Symbol) = x
-
-union(x) = x
-union(::Unreachable, x) = x
-union(x, ::Unreachable) = x
-union(::Unreachable, ::Unreachable) = ⊥
-
-const NonSymbol = Union{Float32,Float64,Int32,Int64,String}
-
-union(x::T, y::T) where T<:NonSymbol = x == y ? x : T
-union(x::T, y::Type{T}) where T<:NonSymbol = T
-union(x::Type{T}, y::T) where T<:NonSymbol = T
-union(x::Type{T}, y::Type{T}) where T<:NonSymbol = T
-
-union(x::Symbol, y::Symbol) = x == y ? x : Or([x, y])
-
-partial_eltype(x::Pack) = reduce(union, parts(x), init = ⊥)
-partial_eltype(x::VPack) = x.parts
-
-function union(x::Pack, y::Pack)
-  x == y && return x
-  if tag(x) == tag(y)
-    if nparts(x) == nparts(y)
-      pack(tag(x), [union(part(x, i), part(y, i)) for i = 1:nparts(x)]...)
-    else
-      return VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))
-    end
-  else
-    return Or([x, y])
-  end
-end
-
-function union(x::Pack, y::VPack)
-  tag(x) == tag(y) || error("unimplemented union")
-  VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))
-end
-
-function union(x::VPack, y::VPack)
-  tag(x) == tag(y) || error("unimplemented union")
-  return VPack(tag(x), union(x.parts, y.parts))
-end
-
-function union(x::Union{Primitive,Type{<:Primitive},Pack,VPack}, y::Or)
-  typedepth(y) > 10 && error("exploding type: $y")
-  ps = y.patterns
-  i = findfirst(y -> typekey(x) == typekey(y), ps)
-  i == nothing && return Or([ps..., x])
-  return Or([j == i ? union(x, ps[j]) : ps[j] for j = 1:length(ps)]) |> recursive
-end
-
-union(y::Or, x::Union{Primitive,Type{<:Primitive},Pack,VPack}) = union(x, y)
-
-function union(x::Or, y::Or)
-  reduce(union, y.patterns, init = x)
-end
-
-function union(x::Recursive, y::Union{Or,Pack})
-  @assert issubset(y, x)
-  return x
-end
-
-union(y::Union{Or,Pack}, x::Recursive) = union(x, y)
-
-function union(a::Recursive, b::Recursive)
-  @assert a == b
-  return a
-end
-
 function prepare_ir!(ir)
   ir = ir |> IRTools.expand! |> IRTools.explicitbranch!
   for b in ir.blocks
@@ -156,51 +87,6 @@ end
 function frame!(inf, F, Ts)
   haskey(inf.frames, (F, Ts)) && return inf.frames[(F, Ts)]
   irframe!(inf, (F, Ts), dispatcher(inf, F, Ts), Ts)
-end
-
-function indexer!(ir::IR, arg, path)
-  isempty(path) && return arg
-  (p, rest...) = path
-  if p isa AbstractVector
-    arg = push!(ir, xlist([xpart(arg, i) for i in p]...))
-  else
-    arg = push!(ir, xpart(arg, p))
-  end
-  arg = indexer!(ir, arg, rest)
-end
-
-function dispatcher(inf, func::Symbol, Ts)
-  ir = IR()
-  args = argument!(ir)
-  for meth in reverse(inf.mod.methods[func])
-    m = partial_match(inf.mod, meth.sig.pattern, Ts)
-    if m === nothing
-      continue
-    elseif m isa AbstractDict
-      result = push!(ir, xcall(meth, [indexer!(ir, args, m[x][2]) for x in meth.sig.args]...))
-      isempty(meth.sig.swap) && (result = push!(ir, xlist(result)))
-      return!(ir, result)
-      return ir
-    else
-      m = push!(ir, rcall(:match, args, rvpattern(meth.sig.pattern)))
-      cond = push!(ir, xcall(isnil_method, m))
-      cond = push!(ir, rcall(:not, cond))
-      branch!(ir, length(blocks(ir))+2; unless = cond)
-      block!(ir)
-      m = push!(ir, xcall(notnil_method, m))
-      as = []
-      for arg in meth.sig.args
-        push!(as, push!(ir, rcall(:getkey, m, arg)))
-      end
-      result = push!(ir, xcall(meth, as...))
-      isempty(meth.sig.swap) && (result = push!(ir, xlist(result)))
-      return!(ir, result)
-      block!(ir)
-    end
-  end
-  v = push!(ir, xcall(:panic, xlist("No matching method: $func: $Ts")))
-  return!(ir, v)
-  return ir
 end
 
 function infercall!(inf, loc, block, ex)

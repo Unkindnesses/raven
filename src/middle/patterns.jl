@@ -219,3 +219,50 @@ function trivial_isa(mod, val, T)
   ret isa Int32 || return missing
   return Bool(ret)
 end
+
+# Generate dispatchers
+
+function indexer!(ir::IR, arg, path)
+  isempty(path) && return arg
+  (p, rest...) = path
+  if p isa AbstractVector
+    arg = push!(ir, xlist([xpart(arg, i) for i in p]...))
+  else
+    arg = push!(ir, xpart(arg, p))
+  end
+  arg = indexer!(ir, arg, rest)
+end
+
+function dispatcher(inf, func::Symbol, Ts)
+  ir = IR()
+  args = argument!(ir)
+  for meth in reverse(inf.mod.methods[func])
+    m = partial_match(inf.mod, meth.sig.pattern, Ts)
+    if m === nothing
+      continue
+    elseif m isa AbstractDict
+      result = push!(ir, xcall(meth, [indexer!(ir, args, m[x][2]) for x in meth.sig.args]...))
+      isempty(meth.sig.swap) && (result = push!(ir, xlist(result)))
+      return!(ir, result)
+      return ir
+    else
+      m = push!(ir, rcall(:match, args, rvpattern(meth.sig.pattern)))
+      cond = push!(ir, xcall(isnil_method, m))
+      cond = push!(ir, rcall(:not, cond))
+      branch!(ir, length(blocks(ir))+2; unless = cond)
+      block!(ir)
+      m = push!(ir, xcall(notnil_method, m))
+      as = []
+      for arg in meth.sig.args
+        push!(as, push!(ir, rcall(:getkey, m, arg)))
+      end
+      result = push!(ir, xcall(meth, as...))
+      isempty(meth.sig.swap) && (result = push!(ir, xlist(result)))
+      return!(ir, result)
+      block!(ir)
+    end
+  end
+  v = push!(ir, xcall(:panic, xlist("No matching method: $func: $Ts")))
+  return!(ir, v)
+  return ir
+end

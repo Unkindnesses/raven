@@ -23,40 +23,12 @@ mutable struct LoopIR
   body::Vector{IR}
 end
 
-struct Path
-  parts::Vector{Tuple{Int,Int}} # iter, block
-end
-
-Path() = Path([(1,1)])
-
-function IRTools.block(l::LoopIR, path::Path)
-  for (itr, bl) in path.parts[1:end-1]
-    l = loop(block(l.body[itr], bl))
-  end
-  itr, bl = path.parts[end]
-  return block(l.body[itr], bl)
-end
-
 function loop(bl::Block)
   if !isempty(bl) && isexpr(first(bl)[2].expr, :loop)
     return first(bl)[2].expr.args[1]
   else
     return nothing
   end
-end
-
-function nextpath(l::LoopIR, p::Path, target::Int)
-  p′ = Tuple{Int,Int}[]
-  for (itr, bl) in p.parts
-    j = findfirst(==(target), l.bls)
-    if j != nothing
-      return Path(push!(p′, (itr, j)))
-    else
-      l = loop(block(l.body[itr], bl))
-      push!(p′, (itr, bl))
-    end
-  end
-  error("Invalid block target $target")
 end
 
 function looped(ir::IR, cs::Component = components(CFG(ir)))
@@ -137,4 +109,34 @@ function unloop(l::LoopIR)
   bs = Dict{Int,Int}()
   unloop!(ir, l, bs)
   return ir
+end
+
+# Utilities for inference
+
+struct Path
+  parts::Vector{Tuple{Int,Int}} # iter, block
+end
+
+Path() = Path([(1,1)])
+
+function IRTools.block(l::LoopIR, path::Path)
+  for (itr, bl) in path.parts[1:end-1]
+    l = loop(block(l.body[itr], bl))
+  end
+  itr, bl = path.parts[end]
+  return block(l.body[itr], bl)
+end
+
+function nextpath(l::LoopIR, p::Path, target::Int)
+  p′ = Tuple{Int,Int}[]
+  for (itr, bl) in p.parts
+    j = findfirst(==(target), l.bls)
+    if j != nothing
+      return Path(push!(p′, (itr, j)))
+    else
+      l = loop(block(l.body[itr], bl))
+      push!(p′, (itr, bl))
+    end
+  end
+  error("Invalid block target $target")
 end
