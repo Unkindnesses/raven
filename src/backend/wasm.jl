@@ -7,6 +7,9 @@ using WebAssembly: WType, WTuple, i32, i64, f32, f64
 const wasmPartials = Dict{WebAssembly.Op,Any}()
 
 wasmPartials[i64.add] = +
+wasmPartials[i64.sub] = -
+wasmPartials[i64.mul] = *
+wasmPartials[i64.gt_s] = (a, b) -> Int32(a>b)
 
 rvtype(x::WType) = WebAssembly.jltype(x)
 rvtype(x::WTuple) = pack(:List, map(rvtype, x.parts)...)

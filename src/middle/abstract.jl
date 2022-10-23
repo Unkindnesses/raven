@@ -115,7 +115,7 @@ end
 function step!(inf::Inference, loc)
   p, ip = loc.path, loc.ip
   frame = inf.frames[loc.sig]
-  bl = block(frame.ir, p)
+  bl = block(inf, frame.ir, p)
   stmts = keys(bl)
   if ip <= length(stmts)
     var = stmts[ip]
@@ -174,12 +174,13 @@ function step!(inf::Inference, loc)
       else
         args = exprtype(inf.mod, bl.ir, arguments(br))
         p′ = nextpath(frame.ir, p, br.block)
-        if (isempty(args) && !(br.block in frame.seen)) || blockargs!(block(frame.ir, p′), args)
+        if (isempty(args) && !(br.block in frame.seen)) || blockargs!(block(inf, frame.ir, p′), args)
           push!(frame.seen, br.block)
           push!(inf.queue, Loc(loc.sig, p′))
         end
       end
     end
+    checkExit(inf, frame.ir, p)
   end
   return
 end

@@ -14,6 +14,10 @@ end
   include("compiler.jl")
 end
 
+@testset "Inference" begin
+  include("inference.jl")
+end
+
 @testset "Reflection" begin
   include("reflection.jl")
 end

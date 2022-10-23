@@ -17,13 +17,13 @@ fn fib1(n) {
   }
 }
 
-println(fib1(20) == 6765)
+println(fib1(widen(20)) == 6765)
 
 fn fib2(n) { fib2(n-1) + fib2(n-2) }
 fn fib2(0) { 0 }
 fn fib2(1) { 1 }
 
-println(fib2(20) == 6765)
+println(fib2(widen(20)) == 6765)
 
 # Return-value casting
 fn test(c) {

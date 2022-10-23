@@ -66,6 +66,11 @@ function unrollall!(l::LoopIR, n = 1)
   return l
 end
 
+function reroll!(l::LoopIR)
+  # TODO: combine entry block types and re-infer
+  @assert length(l.body) == 1
+end
+
 nblocks(b::Block) = (l = loop(b)) == nothing ? 1 : nblocks(l)
 nblocks(b::IR) = sum(nblocks, blocks(b))
 nblocks(b::LoopIR) = sum(nblocks, b.body)
@@ -111,7 +116,63 @@ function unloop(l::LoopIR)
   return ir
 end
 
-# Utilities for inference
+# Unrolling eligibility
+
+function merge_branchtypes!(a, b)
+  for (k, v) in b
+    a[k] = union.(get(a, k, [⊥ for _ in v]), v)
+  end
+  return a
+end
+
+function exitBranches(inf, l::LoopIR, b::Block)
+  l′ = loop(b)
+  l′ == nothing || error("unimplemented")
+  brs = Dict()
+  internal = l.bls[2:end]
+  any(((v, st),) -> st.type == ⊥, b) && return brs
+  for br in openbranches(inf.mod, b)
+    if !(br.block in internal)
+      merge_branchtypes!(brs, Dict(br.block => exprtype(inf.mod, b.ir, br.args)))
+    end
+    br.block in internal && br.block > l.bls[b.id] &&
+      merge_branchtypes!(brs, exitBranches(inf, l, block(b.ir, findfirst(==(br.block), l.bls))))
+  end
+  return brs
+end
+
+function exitBranches(inf, l::LoopIR, itr::Int)
+  ir = l.body[itr]
+  exitBranches(inf, l, block(ir, 1))
+end
+
+function checkUnroll(inf, l::LoopIR, itr)
+  ir = l.body[itr-1]
+  inputs = argtypes(ir)
+  brs = exitBranches(inf, l, itr-1)
+  if length(brs) != 1 || !haskey(brs, l.bls[1]) || all(issubset.(inputs, brs[l.bls[1]]))
+    reroll!(l)
+    return false
+  else
+    length(l.body) < itr && push!(l.body, copy(l.ir))
+    return true
+  end
+end
+
+function checkExit(inf, l::LoopIR, path)
+  for (itr, bl) in path.parts
+    if itr != 1
+      brs = exitBranches(inf, l, itr)
+      if length(brs) > 1 && haskey(brs, l.bls[1])
+        reroll!(l)
+        itr = 1
+      end
+    end
+    l = loop(block(l.body[itr], bl))
+  end
+end
+
+# Navigation during inference
 
 struct Path
   parts::Vector{Tuple{Int,Int}} # iter, block
@@ -119,20 +180,28 @@ end
 
 Path() = Path([(1,1)])
 
-function IRTools.block(l::LoopIR, path::Path)
+function IRTools.block(inf, l::LoopIR, path::Path)
   for (itr, bl) in path.parts[1:end-1]
     l = loop(block(l.body[itr], bl))
   end
   itr, bl = path.parts[end]
+  if itr > 1 && bl == 1 && !checkUnroll(inf, l, itr)
+    itr -= 1
+    path.parts[end] = (itr, bl)
+  end
   return block(l.body[itr], bl)
 end
 
 function nextpath(l::LoopIR, p::Path, target::Int)
   p′ = Tuple{Int,Int}[]
-  for (itr, bl) in p.parts
-    j = findfirst(==(target), l.bls)
-    if j != nothing
-      return Path(push!(p′, (itr, j)))
+  for (i, (itr, bl)) in enumerate(p.parts)
+    bl′ = findfirst(==(target), l.bls)
+    if bl′ == bl # back edge; enter the next loop iteration
+      push!(p′, (itr,bl′), (p.parts[i+1][1]+1,1))
+      return Path(p′)
+    elseif bl′ != nothing
+      push!(p′, (itr, bl′))
+      return Path(p′)
     else
       l = loop(block(l.body[itr], bl))
       push!(p′, (itr, bl))
