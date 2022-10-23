@@ -40,7 +40,7 @@ function trim_unreachable!(ir)
         br = nothing
       elseif cond == false
         flag = true
-        br = IRTools.branch(br.block)
+        br = IRTools.branch(br.block, br.args...)
       end
     end
     return br
