@@ -75,12 +75,12 @@ function loadfile(f::String; infer = true, partial = false)
   open(io -> loadfile(cx, io), f)
   finish!(cx)
   infer || return cx
-  frame!(cx, :malloc!, rlist(Int32))
-  frame!(cx, :retain!, rlist(pack(:Ptr, Int32)))
-  frame!(cx, :release!, rlist(pack(:Ptr, Int32)))
-  frame!(cx, :blockUnique, rlist(pack(:Ptr, Int32)))
-  frame!(cx, :println, rlist(String))
-  frame!(cx, startmethod(cx.mod))
+  frame!(cx, (), :malloc!, rlist(Int32))
+  frame!(cx, (), :retain!, rlist(pack(:Ptr, Int32)))
+  frame!(cx, (), :release!, rlist(pack(:Ptr, Int32)))
+  frame!(cx, (), :blockUnique, rlist(pack(:Ptr, Int32)))
+  frame!(cx, (), :println, rlist(String))
+  frame!(cx, (), startmethod(cx.mod))
   infer && infer!(cx; partial)
   return cx
 end

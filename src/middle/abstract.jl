@@ -39,6 +39,7 @@ Loc(sig, path = Path()) = Loc(sig, path, 1)
 next(l::Loc) = Loc(l.sig, l.path, l.ip+1)
 
 mutable struct Frame
+  parent::Tuple
   ir::LoopIR
   edges::Set{Loc}
   seen::Set{Int}
@@ -47,13 +48,13 @@ end
 
 Base.show(io::IO, ::Frame) = print(io, "Frame(...)")
 
-Frame(ir::LoopIR) = Frame(ir, Set{Loc}(), Set(), ⊥)
+Frame(P, ir::LoopIR) = Frame(P, ir, Set{Loc}(), Set(), ⊥)
 
-function frame(ir::IR, args...)
+function frame(P, ir::IR, args...)
   ir = prepare_ir!(copy(ir))
   @assert length(arguments(ir.ir)) == length(args)
   argtypes(ir.body[1]) .= args
-  return Frame(ir)
+  return Frame(P, ir)
 end
 
 struct Inference
@@ -69,28 +70,28 @@ Inference(mod::RModule) = Inference(mod, Dict(), Dict(), [], WorkQueue{Loc}())
 global_edges(inf::Inference, name::Symbol) =
   get!(() -> Set{Loc}(), inf.globals, name)
 
-function irframe!(inf, T, ir, args...)
+function irframe!(inf, P, T, ir, args...)
   haskey(inf.frames, T) && return inf.frames[T]
-  fr = frame(ir, args...)
+  fr = frame(P, ir, args...)
   inf.frames[T] = fr
   push!(inf.queue, Loc(T))
   return fr
 end
 
-function frame!(inf, meth::RMethod, Ts...)
+function frame!(inf, P, meth::RMethod, Ts...)
   meth.partial && return meth.func(Ts...)
-  irframe!(inf, (meth, Ts...), meth.func, Ts...)
+  irframe!(inf, P, (meth, Ts...), meth.func, Ts...)
 end
 
-function frame!(inf, F, Ts)
+function frame!(inf, P, F, Ts)
   haskey(inf.frames, (F, Ts)) && return inf.frames[(F, Ts)]
-  irframe!(inf, (F, Ts), dispatcher(inf, F, Ts), Ts)
+  irframe!(inf, P, (F, Ts), dispatcher(inf, F, Ts), Ts)
 end
 
 function infercall!(inf, loc, block, ex)
   Ts = exprtype(inf.mod, block.ir, ex.args)
   any(==(⊥), Ts) && return ⊥
-  fr = frame!(inf, Ts...)
+  fr = frame!(inf, loc.sig, Ts...)
   fr isa Frame || return fr
   push!(fr.edges, loc)
   return fr.rettype
@@ -191,24 +192,17 @@ end
 
 Stack() = Stack([])
 
-Base.length(st::Stack) = length(st.frames)
-
-append(st::Stack, T) = Stack(Any[st.frames..., T])
-
-function stack(inf::Inference, T; cache = Dict())
-  haskey(cache, T) && return cache[T]
-  cache[T] = nothing # stop cycles
-  callers = unique([loc.sig for loc in inf.frames[T].edges])
-  callers = [stack(inf, S) for S in callers]
-  isempty(callers) && return (cache[T] = Stack([T]))
-  all(==(nothing), callers) && return (cache[T] = nothing) # hit a cycle
-  callers = filter(!=(nothing), callers)
-  _, i = findmin(length, callers)
-  return cache[T] = append(callers[i], T)
+function stack(inf::Inference, T)
+  st = Stack()
+  while T != ()
+    pushfirst!(st.frames, T)
+    T = inf.frames[T].parent
+  end
+  return st
 end
 
 function Base.show(io::IO, stack::Stack)
-  println(io, "Virtual stack trace:")
+  println(io, "Abstract stack trace:")
   for (f, Ts...) in stack.frames
     print(io, f, ": ")
     println(io, f isa RMethod ? Ts : Ts[1])
