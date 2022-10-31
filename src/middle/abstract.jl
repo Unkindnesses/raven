@@ -1,5 +1,3 @@
-using IRTools: WorkQueue
-
 _typeof(mod, x) = error("invalid constant $x::$(typeof(x))")
 _typeof(mod, x::Union{Number,String,Symbol,RMethod,Pack}) = x
 _typeof(mod, x::AST.Quote) = x.expr

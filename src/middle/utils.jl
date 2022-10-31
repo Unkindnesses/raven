@@ -1,3 +1,25 @@
+# Unique Work Queue
+
+struct WorkQueue{T}
+  items::Vector{T}
+end
+
+WorkQueue{T}() where T = WorkQueue(T[])
+
+WorkQueue() = WorkQueue{Any}()
+
+WorkQueue(xs) = WorkQueue(collect(xs))
+
+function Base.push!(q::WorkQueue, x)
+  i = findfirst(y -> x === y, q.items)
+  i === nothing || (deleteat!(q.items, i))
+  push!(q.items, x)
+  return q
+end
+
+Base.pop!(q::WorkQueue) = pop!(q.items)
+Base.isempty(q::WorkQueue) = isempty(q.items)
+
 # Belongs in IRTools.
 # Also, could be written as `pr[x] = y`
 function Base.replace!(pr::IRTools.Pipe, x, y)
