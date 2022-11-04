@@ -1,3 +1,5 @@
+const recursionLimit = 10
+
 _typeof(mod, x) = error("invalid constant $x::$(typeof(x))")
 _typeof(mod, x::Union{Number,String,Symbol,RMethod,Pack}) = x
 _typeof(mod, x::AST.Quote) = x.expr
@@ -70,6 +72,15 @@ Inference(mod::RModule) = Inference(mod, Dict(), Dict(), [], WorkQueue{Loc}())
 global_edges(inf::Inference, name::Symbol) =
   get!(() -> Set{Loc}(), inf.globals, name)
 
+function recursions(inf, T, F)
+  n = 0
+  while T != ()
+    T[1] == F && (n += 1)
+    T = inf.frames[T].parent
+  end
+  return n
+end
+
 function irframe!(inf, P, T, ir, args...)
   haskey(inf.frames, T) && return inf.frames[T]
   fr = frame(P, ir, args...)
@@ -85,6 +96,7 @@ end
 
 function frame!(inf, P, F, Ts)
   haskey(inf.frames, (F, Ts)) && return inf.frames[(F, Ts)]
+  recursions(inf, P, F) > recursionLimit && error("recursion limit reached")
   irframe!(inf, P, (F, Ts), dispatcher(inf, F, Ts), Ts)
 end
 
