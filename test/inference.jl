@@ -27,3 +27,21 @@ let
   end |> collect
   @test fs[1][2].rettype == 8
 end
+
+let
+  inf = loadsrc("""
+    fn fib(n) {
+      if widen(n <= 1) {
+        return n
+      } else {
+        return fib(n-1) + fib(n-2)
+      }
+    }
+    fn main() { fib(20) }
+    main()
+    """)
+  fs = filter(inf.frames) do (sig, fr)
+    sig[1] isa Raven.RMethod && sig[1].name == :main
+  end |> collect
+  @test fs[1][2].rettype == Int64
+end

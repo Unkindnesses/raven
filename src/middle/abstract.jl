@@ -40,17 +40,27 @@ Loc(sig, path = Path()) = Loc(sig, path, 1)
 
 next(l::Loc) = Loc(l.sig, l.path, l.ip+1)
 
+struct Parent
+  sig::Tuple
+  depth::Int
+end
+
 mutable struct Frame
-  parent::Tuple
+  parent::Parent
   ir::LoopIR
   edges::Set{Loc}
   seen::Set{Int}
   rettype
 end
 
+struct Redirect
+  to::Tuple
+end
+
 Base.show(io::IO, ::Frame) = print(io, "Frame(...)")
 
-Frame(P, ir::LoopIR) = Frame(P, ir, Set{Loc}(), Set(), ⊥)
+Frame(P, ir::LoopIR) =
+  Frame(P, ir, Set{Loc}(), Set(), ⊥)
 
 function frame(P, ir::IR, args...)
   ir = prepare_ir!(copy(ir))
@@ -61,7 +71,7 @@ end
 
 struct Inference
   mod::RModule
-  frames::IdDict{Any,Frame}
+  frames::IdDict{Any,Union{Frame,Redirect}}
   globals::Dict{Symbol,Set{Loc}}
   main::Vector{Any}
   queue::WorkQueue{Loc}
@@ -72,17 +82,36 @@ Inference(mod::RModule) = Inference(mod, Dict(), Dict(), [], WorkQueue{Loc}())
 global_edges(inf::Inference, name::Symbol) =
   get!(() -> Set{Loc}(), inf.globals, name)
 
-function recursions(inf, T, F)
-  n = 0
-  while T != ()
-    T[1] == F && (n += 1)
-    T = inf.frames[T].parent
+function frame(inf, T)
+  fr = nothing
+  while true
+    fr = inf.frames[T]
+    fr isa Redirect || break
+    T = fr.to
   end
-  return n
+  return fr
+end
+
+function parent(inf, T)
+  fr = frame(inf, T)
+  P = fr.parent.sig
+  while P != () && inf.frames[P] isa Redirect
+    P = inf.frames[P].to
+  end
+  return P
+end
+
+function recursionDepth(inf, T, F)
+  sigs = []
+  while T != ()
+    T[1] == F && return frame(inf, T).parent.depth+1
+    T = parent(inf, T)
+  end
+  return 1
 end
 
 function irframe!(inf, P, T, ir, args...)
-  haskey(inf.frames, T) && return inf.frames[T]
+  haskey(inf.frames, T) && return frame(inf, T)
   fr = frame(P, ir, args...)
   inf.frames[T] = fr
   push!(inf.queue, Loc(T))
@@ -95,15 +124,32 @@ function frame!(inf, P, meth::RMethod, Ts...)
 end
 
 function frame!(inf, P, F, Ts)
-  haskey(inf.frames, (F, Ts)) && return inf.frames[(F, Ts)]
-  recursions(inf, P, F) > recursionLimit && error("recursion limit reached")
-  irframe!(inf, P, (F, Ts), dispatcher(inf, F, Ts), Ts)
+  haskey(inf.frames, (F, Ts)) && return frame(inf, (F, Ts))
+  if P.depth > recursionLimit
+    mergeFrames(inf, P.sig, F)
+  else
+    irframe!(inf, P, (F, Ts), dispatcher(inf, F, Ts), Ts)
+  end
+end
+
+# TODO some methods become unreachable, remove them somewhere?
+function mergeFrames(inf, T, F)
+  sigs = filter(t -> t[1] == F, stack(inf, T).frames)
+  length(sigs) == 1 && return frame(inf, sigs[1])
+  sig = reduce((a, b) -> union.(a, b), sigs)
+  P = inf.frames[sigs[1]].parent.sig
+  fr = frame!(inf, Parent(P, recursionLimit), sig...)
+  for s in sigs
+    s === sig || (inf.frames[s] = Redirect(sig))
+  end
+  return fr
 end
 
 function infercall!(inf, loc, block, ex)
   Ts = exprtype(inf.mod, block.ir, ex.args)
   any(==(⊥), Ts) && return ⊥
-  fr = frame!(inf, loc.sig, Ts...)
+  P = Parent(loc.sig, recursionDepth(inf, loc.sig, Ts[1]))
+  fr = frame!(inf, P, Ts...)
   fr isa Frame || return fr
   push!(fr.edges, loc)
   return fr.rettype
@@ -126,6 +172,7 @@ end
 function step!(inf::Inference, loc)
   p, ip = loc.path, loc.ip
   frame = inf.frames[loc.sig]
+  frame isa Redirect && return
   bl = block(inf, frame.ir, p)
   stmts = keys(bl)
   if ip <= length(stmts)
@@ -208,7 +255,7 @@ function stack(inf::Inference, T)
   st = Stack()
   while T != ()
     pushfirst!(st.frames, T)
-    T = inf.frames[T].parent
+    T = parent(inf, T)
   end
   return st
 end
