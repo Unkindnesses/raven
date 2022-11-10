@@ -23,6 +23,8 @@ mutable struct LoopIR
   body::Vector{IR}
 end
 
+IRTools.argtypes(ir::LoopIR) = argtypes(ir.body[1])
+
 function loop(bl::Block)
   if !isempty(bl) && isexpr(first(bl)[2].expr, :loop)
     return first(bl)[2].expr.args[1]

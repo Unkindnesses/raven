@@ -19,10 +19,17 @@
 
 struct Compilation
   mod::RModule
-  frames::IdDict{Any,IR}
+  frames::IdDict{Any,Union{IR,Redirect}}
 end
 
 Compilation(mod::RModule) = Compilation(mod, IdDict{Any,IR}())
+
+function sig(inf::Compilation, T)
+  fr = inf.frames[T]
+  fr isa Redirect ? sig(inf, fr.to) : T
+end
+
+frame(inf::Compilation, T) = inf.frames[sig(inf, T)]
 
 # Global variables
 
@@ -408,7 +415,7 @@ function cast!(ir, from, to, x)
     @assert nparts(from) == nparts(to)
     parts = [indexer!(ir, from, i, x, nothing) for i = 0:nparts(from)]
     parts = [cast!(ir, part(from, i), part(to, i), parts[i+1]) for i = 0:nparts(from)]
-    push!(ir, Expr(:tuple, parts...))
+    push!(ir, stmt(Expr(:tuple, parts...), type = to))
   elseif from == rlist() && to isa VPack
     margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rlist(Int32)))
     ptr = push!(ir, stmt(xcall(Global(:malloc!), margs), type = Int32))
@@ -431,11 +438,11 @@ function cast!(ir, from, to, x)
   end
 end
 
-function casts!(mod::RModule, ir, ret)
+function casts!(inf::Inference, ir, ret)
   pr = IRTools.Pipe(ir)
   IRTools.branches(pr) do br
     if isreturn(br)
-      S = exprtype(mod, ir, arguments(br)[1])
+      S = exprtype(inf.mod, ir, arguments(br)[1])
       if S != ret
         arguments(br)[1] = cast!(pr, S, ret, arguments(br)[1])
       elseif !(arguments(br)[1] isa Variable)
@@ -443,8 +450,8 @@ function casts!(mod::RModule, ir, ret)
       end
     else
       for i = 1:length(arguments(br))
-        S = exprtype(mod, ir, arguments(br)[i])
-        T = blockargtype(mod, block(ir, br.block), i)
+        S = exprtype(inf.mod, ir, arguments(br)[i])
+        T = blockargtype(inf.mod, block(ir, br.block), i)
         S == T && continue
         arguments(br)[i] = cast!(pr, S, T, arguments(br)[i])
       end
@@ -455,27 +462,37 @@ function casts!(mod::RModule, ir, ret)
     # Cast arguments to wasm primitives
     if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
       args = st.expr.args[2:end]
-      Ts = exprtype(mod, ir, args)
+      Ts = exprtype(inf.mod, ir, args)
       pr[v] = xcall(st.expr.args[1], [T isa Integer ? T : x for (x, T) in zip(args, Ts)]...)
+    elseif isexpr(st.expr, :call)
+      S = (exprtype(inf.mod, ir, st.expr.args)...,)
+      if get(inf.frames, S, nothing) isa Redirect
+        T = sig(inf, S)
+        delete!(pr, v)
+        args = [cast!(pr, s, t, x) for (x, s, t) in zip(st.expr.args, S, T)]
+        v′ = push!(pr, stmt(xcall(args...), type = st.type))
+        replace!(pr, v, v′)
+      end
     end
   end
   return IRTools.finish(pr)
 end
 
-function lowerir(cx, ir, ret)
+function lowerir(inf, cx, ir, ret)
   # Inference expands block args, so prune them here
   ir = prune!(unloop(ir))
   ir = trim_unreachable!(ir)
   ir = globals(cx.mod, ir)
   ir = lowerdata(cx, ir)
-  ir = casts!(cx.mod, ir, ret)
+  ir = casts!(inf, ir, ret)
   return ir
 end
 
 function lowerir(inf::Inference)
   comp = Compilation(inf.mod)
   for (k, fr) in inf.frames
-    comp.frames[k] = lowerir(comp, fr.ir, fr.rettype)
+    comp.frames[k] =
+      fr isa Redirect ? fr : lowerir(inf, comp, fr.ir, fr.rettype)
   end
   return refcounts(comp)
 end

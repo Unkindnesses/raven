@@ -209,7 +209,8 @@ end
 function refcounts(c::Compilation)
   comp = Compilation(c.mod)
   for (k, ir) in c.frames
-    comp.frames[k] = refcounts!(comp, copy(ir))
+    comp.frames[k] =
+      ir isa Redirect ? ir : refcounts!(comp, copy(ir))
   end
   return comp
 end

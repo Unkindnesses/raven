@@ -82,24 +82,15 @@ Inference(mod::RModule) = Inference(mod, Dict(), Dict(), [], WorkQueue{Loc}())
 global_edges(inf::Inference, name::Symbol) =
   get!(() -> Set{Loc}(), inf.globals, name)
 
-function frame(inf, T)
-  fr = nothing
-  while true
-    fr = inf.frames[T]
-    fr isa Redirect || break
-    T = fr.to
-  end
-  return fr
+function sig(inf::Inference, T)
+  T == () && return ()
+  fr = inf.frames[T]
+  fr isa Redirect ? sig(inf, fr.to) : T
 end
 
-function parent(inf, T)
-  fr = frame(inf, T)
-  P = fr.parent.sig
-  while P != () && inf.frames[P] isa Redirect
-    P = inf.frames[P].to
-  end
-  return P
-end
+frame(inf::Inference, T) = inf.frames[sig(inf, T)]
+
+parent(inf, T) = sig(inf, frame(inf, T).parent.sig)
 
 function recursionDepth(inf, T, F)
   sigs = []
@@ -126,7 +117,7 @@ end
 function frame!(inf, P, F, Ts)
   haskey(inf.frames, (F, Ts)) && return frame(inf, (F, Ts))
   if P.depth > recursionLimit
-    mergeFrames(inf, P.sig, F)
+    mergeFrames(inf, P.sig, (F, Ts))
   else
     irframe!(inf, P, (F, Ts), dispatcher(inf, F, Ts), Ts)
   end
@@ -134,8 +125,8 @@ end
 
 # TODO some methods become unreachable, remove them somewhere?
 function mergeFrames(inf, T, F)
-  sigs = filter(t -> t[1] == F, stack(inf, T).frames)
-  length(sigs) == 1 && return frame(inf, sigs[1])
+  sigs = filter(t -> t[1] == F[1], [stack(inf, T).frames..., F])
+  @assert length(sigs) > 1
   sig = reduce((a, b) -> union.(a, b), sigs)
   P = inf.frames[sigs[1]].parent.sig
   fr = frame!(inf, Parent(P, recursionLimit), sig...)

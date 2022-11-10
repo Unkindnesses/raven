@@ -141,7 +141,7 @@ function lowerwasm!(mod::WModule, T)
   f = T[1]::Union{Symbol,RMethod}
   id = name(mod, f isa Symbol ? f : Symbol(f.name, ":method"))
   mod.funcs[T] = (id, nothing)
-  ir = lowerwasm!(mod, mod.inf.frames[T])
+  ir = lowerwasm!(mod, frame(mod.inf, T))
   mod.funcs[T] = (id, ir)
   return id
 end
