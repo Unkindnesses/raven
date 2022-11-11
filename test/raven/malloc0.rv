@@ -25,3 +25,12 @@ println(blockCount(ptr3) == 1)
 
 release!(ptr3)
 println(allocationCount() == 0)
+
+# trim blocks resets used
+
+let {
+  setBlockUsed!(Ptr(16), true)
+  ptr = malloc!(Int32(8))
+  release!(ptr)
+  println(allocationCount() == 0)
+}
