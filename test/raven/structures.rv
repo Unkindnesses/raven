@@ -91,6 +91,14 @@ fn foo(n) { prepend(foo(n-1), n) }
 fn foo(0) { seq() }
 
 let {
+  xs = collect(range(1, 5))
+  println(length(rest(xs)) == 4)
+
+  xs = collect(range(1, widen(5)))
+  println(length(rest(xs)) == 4)
+}
+
+let {
   xs = foo(widen(0))
   println(string(tag(xs)) == "Empty")
   println(allocationCount() == 0)

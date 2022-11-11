@@ -233,6 +233,8 @@ function union(x::Pack, y::VPack)
   VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))
 end
 
+union(x::VPack, y::Pack) = union(y, x)
+
 function union(x::VPack, y::VPack)
   tag(x) == tag(y) || error("unimplemented union")
   return VPack(tag(x), union(x.parts, y.parts))
