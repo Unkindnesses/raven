@@ -48,6 +48,6 @@ jobs:
             ${{ runner.os }}-test-
             ${{ runner.os }}-
       - name: Install WABT/Binaryen
-        run: npm install --global wabt@1.0.29 binaryen@109.0.0
+        run: npm install --global wabt@1.0.30 binaryen@110.0.0
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
