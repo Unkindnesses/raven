@@ -15,6 +15,11 @@ RMethod(name, pat, func) = RMethod(name, pat, func, false)
 
 Base.show(io::IO, meth::RMethod) = print(io, "RMethod($(meth.name))")
 
+function union(a::RMethod, b::RMethod)
+  @assert a === b
+  return a
+end
+
 struct RModule
   defs::Dict{Symbol,Any}
   methods::Dict{Symbol,Vector{RMethod}}

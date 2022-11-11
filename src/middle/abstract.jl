@@ -111,16 +111,16 @@ end
 
 function frame!(inf, P, meth::RMethod, Ts...)
   meth.partial && return meth.func(Ts...)
-  irframe!(inf, P, (meth, Ts...), meth.func, Ts...)
+  if P.depth > recursionLimit
+    mergeFrames(inf, P.sig, (meth, Ts...))
+  else
+    irframe!(inf, P, (meth, Ts...), meth.func, Ts...)
+  end
 end
 
 function frame!(inf, P, F, Ts)
   haskey(inf.frames, (F, Ts)) && return frame(inf, (F, Ts))
-  if P.depth > recursionLimit
-    mergeFrames(inf, P.sig, (F, Ts))
-  else
-    irframe!(inf, P, (F, Ts), dispatcher(inf, F, Ts), Ts)
-  end
+  irframe!(inf, P, (F, Ts), dispatcher(inf, F, Ts), Ts)
 end
 
 # TODO some methods become unreachable, remove them somewhere?
