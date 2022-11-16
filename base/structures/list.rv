@@ -19,10 +19,6 @@ fn append(&xs, x) {
   return xs
 }
 
-fn parts(xs) {
-  packcat(list(), xs)
-}
-
 fn rest(xs: List) {
   if isempty(xs) { panic("List is empty")  }
   result = []

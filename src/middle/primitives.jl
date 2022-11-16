@@ -21,6 +21,11 @@ partial_part(data::Recursive, i) =
 partial_nparts(x::Pack) = nparts(x)
 partial_nparts(::VPack) = Int64
 
+partial_nparts(x::Or) =
+  reduce(union, partial_nparts.(x.patterns))
+
+partial_nparts(x::Recursive) = partial_nparts(unroll(x))
+
 partial_widen(x::Primitive) = typeof(x)
 partial_widen(x) = x
 

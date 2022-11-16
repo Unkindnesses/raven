@@ -177,7 +177,7 @@ end
 
 function union_partmethod!(cx::Compilation, x, i)
   T = (part_method, x, i)
-  haskey(cx.frames, T) && return cx.frames[T][1]
+  haskey(cx.frames, T) && return
   ir = union_partir(x, i)
   cx.frames[T] = ir
   return
@@ -330,6 +330,27 @@ end
 # nparts
 # ======
 
+function nparts_ir(x::Or)
+  ir = IR()
+  retT = partial_nparts(x)
+  vx = argument!(ir, type = x)
+  union_cases!(ir, x, vx) do T, val
+    # TODO possibly insert `nparts_method` calls and redo lowering
+    ret = nparts!(ir, T, val)
+    ret = cast!(ir, partial_nparts(T), retT, ret)
+    isreftype(x) && push!(ir, Expr(:release, vx))
+    return ret
+  end
+  return ir
+end
+
+function nparts_method!(cx::Compilation, x)
+  T = (nparts_method, x)
+  haskey(cx.frames, T) && return
+  cx.frames[T] = nparts_ir(x)
+  return
+end
+
 function nparts!(ir, T::Pack, x)
   return nparts(T)
 end
@@ -342,9 +363,22 @@ end
 lowerPrimitive[nparts_method] = function (cx, pr, ir, v)
   x = ir[v].expr.args[2]
   T = exprtype(cx.mod, ir, x)
-  delete!(pr, v)
-  replace!(pr, v, nparts!(pr, T, x))
-  isreftype(T) && push!(pr, Expr(:release, x))
+  if T isa Or
+    nparts_method!(cx, T)
+  elseif T isa Recursive
+    T = unroll(T)
+    delete!(pr, v)
+    x′ = unbox!(pr, T, x)
+    y = push!(pr, stmt(xcall(nparts_method, x′), type = Int64))
+    replace!(pr, v, y)
+    @assert T isa Or
+    nparts_method!(cx, T)
+    isreftype(ir[v].type) && push!(pr, Expr(:release, y))
+  else
+    delete!(pr, v)
+    replace!(pr, v, nparts!(pr, T, x))
+    isreftype(T) && push!(pr, Expr(:release, x))
+  end
 end
 
 function lowerdata(cx, ir)

@@ -32,8 +32,10 @@ tag(x::VPack) = x.tag
 rlist(xs...) = pack(:List, xs...)
 
 packcat(x) = x
-packcat(x::Pack, y::Pack) = pack(tag(x), parts(x)..., parts(y)...)
+packcat(x, y) = pack(tag(x), parts(x)..., parts(y)...)
 packcat(x, y, z, zs...) = packcat(packcat(x, y), z, zs...)
+
+packcat(x::Pack, y::Pack) = invoke(packcat, Tuple{Any,Any}, x, y)
 
 packcat(x::Union{VPack,Pack}, y::Union{VPack,Pack}) =
   VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))

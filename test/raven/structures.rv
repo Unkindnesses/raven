@@ -93,10 +93,12 @@ fn foo(0) { seq() }
 let {
   xs = foo(widen(0))
   println(string(tag(xs)) == "Empty")
+  println(nparts(xs) == 0)
   println(allocationCount() == 0)
 
   xs = foo(widen(5))
   println(string(tag(xs)) == "Prepend")
+  println(nparts(xs) == 2)
   println(part(xs, 2) == 5)
   println(part(part(xs, 1), 2) == 4)
   println(allocationCount() == 0)
