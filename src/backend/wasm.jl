@@ -9,7 +9,11 @@ const wasmPartials = Dict{WebAssembly.Op,Any}()
 wasmPartials[i64.add] = +
 wasmPartials[i64.sub] = -
 wasmPartials[i64.mul] = *
+
+wasmPartials[i64.eq] = (a, b) -> Int32(a==b)
 wasmPartials[i64.gt_s] = (a, b) -> Int32(a>b)
+wasmPartials[i64.lt_s] = (a, b) -> Int32(a<b)
+wasmPartials[i32.eqz] = x -> Int32(x==0)
 
 rvtype(x::WType) = WebAssembly.jltype(x)
 rvtype(x::WTuple) = pack(:List, map(rvtype, x.parts)...)

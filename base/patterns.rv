@@ -34,14 +34,24 @@ fn match(val, pack(`Bind`, name)) {
   return bs
 }
 
-fn match(pack(), pack(`Pack`)) { simpledict() }
-
-fn match(pack(x, xs...), pack(`Pack`, p, ps...)) {
-  bs = match(x, p)
-  isnil(bs) && return
-  cs = match(pack(xs...), Pack(ps...))
-  isnil(cs) && return
-  merge(notnil(bs), notnil(cs))
+fn match(xs, p: Pack) {
+  if not(eq(nparts(xs), sub(nparts(p), 1))) { return nil }
+  bs = simpledict()
+  i = 0
+  while lt(i, nparts(p)) {
+    if not(isnil(bs)) {
+      m = match(part(xs, i), part(p, add(i, 1)))
+      if isnil(m) {
+        bs = nil
+      } else {
+        bs = merge(notnil(bs), notnil(m))
+      }
+    } else {
+      bs = nil # type inference hack
+    }
+    i = add(i, 1)
+  }
+  return bs
 }
 
 fn match(val, pack(`Constructor`, name, args...)) {

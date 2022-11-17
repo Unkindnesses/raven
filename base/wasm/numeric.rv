@@ -18,8 +18,28 @@ fn Float64(x: Int32) {
   wasm { (f64.convert_i32_s)(x: i32): f64 }
 }
 
-fn (a: Int64) + (b: Int64) {
+# Simple versions that doesn't get overloaded; to bootstrap matching
+
+fn add(a: Int64, b: Int64) {
   wasm { (i64.add)(a: i64, b: i64): i64 }
+}
+
+fn sub(a: Int64, b: Int64) {
+  wasm { (i64.sub)(a: i64, b: i64): i64 }
+}
+
+fn eq(a: Int64, b: Int64) {
+  wasm { (i64.eq)(a: i64, b: ii64): i32 }
+}
+
+fn lt(a: Int64, b: Int64) {
+  wasm { (i64.lt_s)(a: i64, b: i64): i32 }
+}
+
+# Overloadable operators
+
+fn (a: Int64) + (b: Int64) {
+  add(a, b)
 }
 
 fn (a: Int32) + (b: Int32) {
@@ -35,7 +55,7 @@ fn (a: Int32) * (b: Int32) {
 }
 
 fn (a: Int64) - (b: Int64) {
-  wasm { (i64.sub)(a: i64, b: i64): i64 }
+  sub(a, b)
 }
 
 fn (a: Int32) - (b: Int32) {
@@ -59,7 +79,7 @@ fn (a: Int32) >= (b: Int32) {
 }
 
 fn (a: Int64) < (b: Int64) {
-  wasm { (i64.lt_s)(a: i64, b: i64): i32 }
+  lt(a, b)
 }
 
 fn (a: Int64) <= (b: Int64) {
