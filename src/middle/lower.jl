@@ -486,6 +486,7 @@ function casts!(inf::Inference, ir, ret)
       for i = 1:length(arguments(br))
         S = exprtype(inf.mod, ir, arguments(br)[i])
         T = blockargtype(inf.mod, block(ir, br.block), i)
+        arguments(br)[i] isa Variable || (arguments(br)[i] = push!(pr, stmt(Expr(:tuple), type = S)))
         S == T && continue
         arguments(br)[i] = cast!(pr, S, T, arguments(br)[i])
       end
