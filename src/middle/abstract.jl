@@ -184,7 +184,7 @@ function step!(inf::Inference, loc)
     elseif isexpr(st.expr, :call)
       T = infercall!(inf, loc, bl, st.expr)
       if T != ⊥
-        bl.ir[var] = Statement(bl[var], type = union(st.type, T))
+        bl.ir[var] = Statement(bl[var], type = T)
         push!(inf.queue, next(loc))
       end
     elseif isexpr(st.expr, :pack)
