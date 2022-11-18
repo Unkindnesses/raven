@@ -38,7 +38,7 @@ partial_shortcutEquals(a, b) =
 
 # Needed by dispatchers, since a user-defined method would need runtime matching
 # to deal with unions.
-partial_isnil(x::Union{Primitive,Type{<:Primitive}}) = Int32(0)
+partial_isnil(x::Union{Primitive,Type{<:Primitive},VPack}) = Int32(0)
 partial_isnil(x::Pack) = Int32(x == nil)
 partial_isnil(x::Or) = any(==(nil), x.patterns) ? Int32 : Int32(0)
 

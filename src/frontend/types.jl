@@ -58,6 +58,7 @@ const ⊥ = Unreachable()
 
 Base.show(io::IO, ::Unreachable) = print(io, "⊥")
 
+# TODO: types should have a sort order
 struct Or
   patterns::NTuple{N,Any} where N
   Or(xs) = new((xs...,))
@@ -96,7 +97,10 @@ const SimpleType = Union{Primitive,Type{<:Primitive},Pack,VPack}
 typedepth(::Unreachable) = 0
 typedepth(::Union{Primitive,Type{<:Primitive}}) = 1
 typedepth(x::Pack) = 1 + maximum(typedepth.(x.parts), init = 0)
+typedepth(x::VPack) = 1 + typedepth(x.parts)
 typedepth(x::Or) = 1 + maximum(typedepth.(x.patterns), init = 0)
+typedepth(x::Recursive) = 1 + typedepth(x.type)
+typedepth(x::Recur) = 1
 
 # Subset
 
@@ -247,7 +251,8 @@ function union(x::Union{Primitive,Type{<:Primitive},Pack,VPack}, y::Or)
   ps = y.patterns
   i = findfirst(y -> typekey(x) == typekey(y), ps)
   i == nothing && return Or([ps..., x])
-  return Or([j == i ? union(x, ps[j]) : ps[j] for j = 1:length(ps)]) |> recursive
+  T = Or([j == i ? union(x, ps[j]) : ps[j] for j = 1:length(ps)])
+  return T == y ? T : recursive(T)
 end
 
 union(y::Or, x::Union{Primitive,Type{<:Primitive},Pack,VPack}) = union(x, y)
