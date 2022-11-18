@@ -118,6 +118,7 @@ lowerPrimitive[isnil_method] = function (cx, pr, ir, v)
     j = insert!(pr, v, Expr(:ref, x, 1))
     pr[v] = xcall(WIntrinsic(i32.eq, i32), j, Int32(i))
   end
+  isreftype(T) && push!(pr, Expr(:release, x))
 end
 
 lowerPrimitive[notnil_method] = function (cx, pr, ir, v)
