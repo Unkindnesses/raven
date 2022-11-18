@@ -167,7 +167,7 @@ function union_partir(x::Or, i)
   union_cases!(ir, x, vx) do T, val
     # TODO possibly insert `part_method` calls and redo lowering
     ret = indexer!(ir, T, i, val, vi)
-    ret = cast!(ir, partial_part(T, i), retT, ret)
+    ret = cast!(nothing, ir, partial_part(T, i), retT, ret)
     isreftype(partial_part(T, i)) && push!(ir, Expr(:retain, ret))
     isreftype(x) && push!(ir, Expr(:release, vx))
     return ret
@@ -337,7 +337,7 @@ function nparts_ir(x::Or)
   union_cases!(ir, x, vx) do T, val
     # TODO possibly insert `nparts_method` calls and redo lowering
     ret = nparts!(ir, T, val)
-    ret = cast!(ir, partial_nparts(T), retT, ret)
+    ret = cast!(nothing, ir, partial_nparts(T), retT, ret)
     isreftype(x) && push!(ir, Expr(:release, vx))
     return ret
   end
@@ -441,14 +441,14 @@ function unbox!(ir, T, x; count = true)
   return result
 end
 
-function cast!(ir, from, to, x)
+function cast!(cx, ir, from, to, x)
   (to == ⊥ || from == ⊥ || from == to) && return x
   if from isa Number && to == typeof(from)
     from
   elseif from isa Pack && to isa Pack
     @assert nparts(from) == nparts(to)
     parts = [indexer!(ir, from, i, x, nothing) for i = 0:nparts(from)]
-    parts = [cast!(ir, part(from, i), part(to, i), parts[i+1]) for i = 0:nparts(from)]
+    parts = [cast!(cx, ir, part(from, i), part(to, i), parts[i+1]) for i = 0:nparts(from)]
     push!(ir, stmt(Expr(:tuple, parts...), type = to))
   elseif from == rlist() && to isa VPack
     margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rlist(Int32)))
@@ -465,30 +465,30 @@ function cast!(ir, from, to, x)
                                         for (j, p) in enumerate(to.patterns)])...))
   elseif from isa Pack && to isa Recursive
     to = unroll(to)
-    x = cast!(ir, from, to, x)
+    x = cast!(cx, ir, from, to, x)
     box!(ir, to, x)
   else
     error("unsupported cast: $(repr(from)) -> $(repr(to))")
   end
 end
 
-function casts!(inf::Inference, ir, ret)
+function casts!(inf::Inference, cx::Compilation, ir, ret)
   pr = IRTools.Pipe(ir)
   IRTools.branches(pr) do br
     if isreturn(br)
-      S = exprtype(inf.mod, ir, arguments(br)[1])
+      S = exprtype(cx.mod, ir, arguments(br)[1])
       if S != ret
-        arguments(br)[1] = cast!(pr, S, ret, arguments(br)[1])
+        arguments(br)[1] = cast!(cx, pr, S, ret, arguments(br)[1])
       elseif !(arguments(br)[1] isa Variable)
         arguments(br)[1] = push!(pr, Expr(:tuple))
       end
     else
       for i = 1:length(arguments(br))
-        S = exprtype(inf.mod, ir, arguments(br)[i])
-        T = blockargtype(inf.mod, block(ir, br.block), i)
+        S = exprtype(cx.mod, ir, arguments(br)[i])
+        T = blockargtype(cx.mod, block(ir, br.block), i)
         arguments(br)[i] isa Variable || (arguments(br)[i] = push!(pr, stmt(Expr(:tuple), type = S)))
         S == T && continue
-        arguments(br)[i] = cast!(pr, S, T, arguments(br)[i])
+        arguments(br)[i] = cast!(cx, pr, S, T, arguments(br)[i])
       end
     end
     return br
@@ -497,14 +497,14 @@ function casts!(inf::Inference, ir, ret)
     # Cast arguments to wasm primitives
     if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
       args = st.expr.args[2:end]
-      Ts = exprtype(inf.mod, ir, args)
+      Ts = exprtype(cx.mod, ir, args)
       pr[v] = xcall(st.expr.args[1], [T isa Integer ? T : x for (x, T) in zip(args, Ts)]...)
     elseif isexpr(st.expr, :call)
-      S = (exprtype(inf.mod, ir, st.expr.args)...,)
+      S = (exprtype(cx.mod, ir, st.expr.args)...,)
       if get(inf.frames, S, nothing) isa Redirect
         T = sig(inf, S)
         delete!(pr, v)
-        args = [cast!(pr, s, t, x) for (x, s, t) in zip(st.expr.args, S, T)]
+        args = [cast!(cx, pr, s, t, x) for (x, s, t) in zip(st.expr.args, S, T)]
         v′ = push!(pr, stmt(xcall(args...), type = st.type))
         replace!(pr, v, v′)
       end
@@ -519,7 +519,7 @@ function lowerir(inf, cx, ir, ret)
   ir = trim_unreachable!(ir)
   ir = globals(cx.mod, ir)
   ir = lowerdata(cx, ir)
-  ir = casts!(inf, ir, ret)
+  ir = casts!(inf, cx, ir, ret)
   return ir
 end
 

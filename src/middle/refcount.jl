@@ -96,7 +96,6 @@ function count!(cx, ir, T::VPack, x, mode)
   countptr!(ir, ptr, mode)
 end
 
-# TODO implement
 function count!(cx, ir, T::Or, x, mode)
   union_cases!(ir, T, x) do T, x
     f = mode == retain ? retain! : release!
