@@ -441,10 +441,32 @@ function unbox!(ir, T, x; count = true)
   return result
 end
 
+# Used as a key for generated methods
+cast_method = RMethod(:cast, lowerpattern(rvx"args"), nothing, false)
+
+function castir(cx, from::Or, to)
+  ir = IR()
+  x = argument!(ir, type = from)
+  union_cases!(ir, from, x) do T, val
+    cast!(cx, ir, T, to, val)
+  end
+  return ir
+end
+
+function castmethod!(cx::Compilation, from, to)
+  sig = (cast_method, from)
+  haskey(cx.frames, sig) && return
+  cx.frames[sig] = castir(cx, from, to)
+  return
+end
+
 function cast!(cx, ir, from, to, x)
   (to == ⊥ || from == ⊥ || from == to) && return x
   if from isa Number && to == typeof(from)
     from
+  elseif from isa Or
+    castmethod!(cx, from, to)
+    push!(ir, stmt(xcall(cast_method, x), type = to))
   elseif from isa Pack && to isa Pack
     @assert nparts(from) == nparts(to)
     parts = [indexer!(ir, from, i, x, nothing) for i = 0:nparts(from)]
