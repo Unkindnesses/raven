@@ -100,6 +100,14 @@ recur() = task_local_storage()[:recur][end]
 
 # Union splitting
 
+function union_downcast!(ir, T::Or, i::Integer, x)
+  offset = sum(length, layout.(T.patterns[1:i-1]), init = 0)+1
+  parts = [push!(ir, Expr(:ref, x, j+offset)) for j = 1:length(layout(T.patterns[i]))]
+  return layout(T.patterns[i]) isa Tuple ? push!(ir, stmt(Expr(:tuple, parts...), type = T.patterns[i])) : parts[1]
+end
+
+# `f` is reponsible for freeing its argument value, but not for freeing `x`
+# (since they are the same object)
 function union_cases!(f, ir, T::Or, x)
   j = push!(ir, Expr(:ref, x, 1))
   for case in 1:length(T.patterns)

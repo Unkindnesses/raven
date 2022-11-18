@@ -153,12 +153,6 @@ function partmethod!(cx::Compilation, x, i)
   return
 end
 
-function union_downcast!(ir, T::Or, i::Integer, x)
-  offset = sum(length, layout.(T.patterns[1:i-1]), init = 0)+1
-  parts = [push!(ir, Expr(:ref, x, j+offset)) for j = 1:length(layout(T.patterns[i]))]
-  return layout(T.patterns[i]) isa Tuple ? push!(ir, stmt(Expr(:tuple, parts...), type = T.patterns[i])) : parts[1]
-end
-
 function union_partir(x::Or, i)
   ir = IR()
   retT = partial_part(x, i)
@@ -167,9 +161,12 @@ function union_partir(x::Or, i)
   union_cases!(ir, x, vx) do T, val
     # TODO possibly insert `part_method` calls and redo lowering
     ret = indexer!(ir, T, i, val, vi)
+    if isreftype(partial_part(T, i))
+      push!(ir, Expr(:retain, ret))
+      push!(ir, Expr(:release, ret))
+    end
+    isreftype(T) && push!(ir, Expr(:release, val))
     ret = cast!(nothing, ir, partial_part(T, i), retT, ret)
-    isreftype(partial_part(T, i)) && push!(ir, Expr(:retain, ret))
-    isreftype(x) && push!(ir, Expr(:release, vx))
     return ret
   end
   return ir
@@ -338,7 +335,7 @@ function nparts_ir(x::Or)
     # TODO possibly insert `nparts_method` calls and redo lowering
     ret = nparts!(ir, T, val)
     ret = cast!(nothing, ir, partial_nparts(T), retT, ret)
-    isreftype(x) && push!(ir, Expr(:release, vx))
+    isreftype(T) && push!(ir, Expr(:release, val))
     return ret
   end
   return ir

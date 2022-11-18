@@ -196,9 +196,8 @@ function refcounts!(cx, ir)
       end
       v′ = push!(pr, st)
       replace!(pr, v, v′)
-      v = v′
       # dropped variable
-      isref(v) && (v in lv[v] || release!(cx, pr, IRTools.exprtype(ir, v), v))
+      isref(v) && (v in lv[v] || release!(cx, pr, IRTools.exprtype(ir, v), v′))
     end
   end
   ir = IRTools.finish(pr)
