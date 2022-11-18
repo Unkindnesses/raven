@@ -268,6 +268,12 @@ function union(a::Recursive, b::Recursive)
   return a
 end
 
+# Internal symbols
+
+symbolValues(x::Union{Primitive,Type{<:Primitive},Pack}) = []
+symbolValues(x::Symbol) = [x]
+symbolValues(x::Or) = reduce(vcat, map(symbolValues, x.patterns))
+
 # Printing
 
 vprint(io::IO, x) = show(io, x)

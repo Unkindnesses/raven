@@ -40,3 +40,11 @@ println(test(widen(false)) == "false")
 
 println(`foo` == `foo`)
 println(`foo` != `bar`)
+
+let {
+  x = if widen(true) { `foo` } else { `bar` }
+  println(x == `foo`)
+  println(x != `bar`)
+  println(`foo` == x)
+  println(`bar` != x)
+}

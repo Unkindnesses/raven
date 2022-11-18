@@ -32,7 +32,9 @@ partial_widen(x) = x
 # Fast, approximate equality check; basically a stand-in for pointer equality.
 # TODO extend to handle VPack
 partial_shortcutEquals(a, b) =
-  Int32(isvalue(a) && isvalue(b) && a == b)
+  isvalue(a) && isvalue(b) ? Int32(a == b) :
+  !isempty(intersect(symbolValues(a), symbolValues(b))) ? Int32 :
+  Int32(false)
 
 # Needed by dispatchers, since a user-defined method would need runtime matching
 # to deal with unions.
@@ -89,9 +91,21 @@ lowerPrimitive[widen_method] = function (cx, pr, ir, v)
   pr[v] = val
 end
 
+symoverlap(x::Symbol, ys::Or) = [i for (i, y) in enumerate(ys.patterns) if x == y]
+symoverlap(xs::Or, y::Symbol) = symoverlap(y, xs)
+
 lowerPrimitive[shortcutEquals_method] = function (cx, pr, ir, v)
-  @assert isvalue(ir[v].type)
-  pr[v] = Expr(:tuple)
+  if isvalue(ir[v].type)
+    pr[v] = Expr(:tuple)
+  else # symbol case
+    a, b = ir[v].expr.args[2:3]
+    Ta, Tb = exprtype(cx.mod, ir, [a, b])
+    Tb isa Or && ((a, Ta, b, Tb) = (b, Tb, a, Ta))
+    ov = symoverlap(Ta, Tb)
+    length(ov) == 1 || error("not implemented")
+    i = insert!(pr, v, Expr(:ref, a, 1))
+    pr[v] = xcall(WIntrinsic(i32.eq, i32), i, Int32(ov[1]))
+  end
 end
 
 lowerPrimitive[isnil_method] = function (cx, pr, ir, v)
