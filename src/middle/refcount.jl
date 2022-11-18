@@ -182,7 +182,7 @@ function refcounts!(cx, ir)
     elseif isexpr(st.expr, :retain)
       delete!(pr, v)
       x = st.expr.args[1]
-      isref(x) || continue
+      isref(x) && x in lv[v] || continue
       retain!(cx, pr, IRTools.exprtype(ir, x), x)
     elseif isexpr(st.expr, :call, :tuple) && haskey(lv, v)
       delete!(pr, v)

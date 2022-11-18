@@ -161,10 +161,7 @@ function union_partir(x::Or, i)
   union_cases!(ir, x, vx) do T, val
     # TODO possibly insert `part_method` calls and redo lowering
     ret = indexer!(ir, T, i, val, vi)
-    if isreftype(partial_part(T, i))
-      push!(ir, Expr(:retain, ret))
-      push!(ir, Expr(:release, ret))
-    end
+    isreftype(partial_part(T, i)) && push!(ir, Expr(:retain, ret))
     isreftype(T) && push!(ir, Expr(:release, val))
     ret = cast!(nothing, ir, partial_part(T, i), retT, ret)
     return ret
@@ -243,10 +240,7 @@ lowerPrimitive[part_method] = function (cx, pr, ir, v)
     delete!(pr, v)
     y = indexer!(pr, T, I, x, i)
     replace!(pr, v, y)
-    if isreftype(exprtype(cx.mod, ir, v))
-      push!(pr, Expr(:retain, y))
-      push!(pr, Expr(:release, y))
-    end
+    isreftype(exprtype(cx.mod, ir, v)) && push!(pr, Expr(:retain, y))
     isreftype(T) && push!(pr, Expr(:release, x))
   end
 end
@@ -429,10 +423,7 @@ function unbox!(ir, T, x; count = true)
   end
   result = push!(ir, stmt(Expr(:tuple, parts...), type = T))
   if count
-    if isreftype(T)
-      push!(ir, Expr(:retain, result))
-      push!(ir, Expr(:release, result))
-    end
+    isreftype(T) && push!(ir, Expr(:retain, result))
     push!(ir, Expr(:release, x))
   end
   return result
