@@ -80,8 +80,12 @@ function _lowerpattern(ex, as)
     pack(Literal(:List), map(x -> _lowerpattern(x, as), ex.args)...)
   elseif ex isa AST.Operator && ex.op == :(:)
     name, T = ex.args
-    name in as || push!(as, name)
-    And([Bind(name), lowerisa(T, as)])
+    if name == :_
+      lowerisa(T, as)
+    else
+      name in as || push!(as, name)
+      And([Bind(name), lowerisa(T, as)])
+    end
   elseif ex isa AST.Splat
     Repeat(_lowerpattern(ex.expr, as))
   elseif ex isa AST.Call && ex.func == :pack
