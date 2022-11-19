@@ -53,7 +53,7 @@ function trim_unreachable!(ir)
   flag = false
   IRTools.branches(pr) do br
     if flag
-      br = nothing
+      br = IRTools.unreachable
     elseif br.condition == nothing
       flag = true
     else

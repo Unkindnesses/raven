@@ -155,8 +155,8 @@ function refcounts!(cx, ir)
   isref(v) = isreftype(IRTools.exprtype(ir, v))
   # Would be better to do this as part of the pipe – fix this in IRTools2.
   for b in IRTools.blocks(ir)
-    # Could pushfirst! to free earlier, but this causes issues with multiple
-    # statements.
+    # TODO: could pushfirst! to free earlier, but this causes issues with multiple
+    # statements. This is an issue if the block errors.
     rel(x) = isref(x) && release!(cx, b, IRTools.exprtype(ir, x), x)
     # unused block arguments
     foreach(rel, filter(x -> !(x in lv[b.id]), arguments(b)))
