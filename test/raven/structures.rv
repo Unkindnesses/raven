@@ -95,6 +95,7 @@ let {
   println(string(tag(xs)) == "Empty")
   println(nparts(xs) == 0)
   println(isempty(xs))
+  println(length(xs) == 0)
   println(allocationCount() == 0)
 
   xs = foo(widen(5))
@@ -103,7 +104,15 @@ let {
   println(part(xs, 2) == 5)
   println(part(part(xs, 1), 2) == 4)
   println(not(isempty(xs)))
+  println(length(xs) == 5)
   println(allocationCount() == 0)
+}
+
+let {
+  xs = seqRange(widen(1), widen(10))
+  println(sum(xs) == 55)
+  xs = repeat(widen(3), widen(5))
+  println(sum(xs) == 15)
 }
 
 let {

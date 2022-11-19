@@ -1,7 +1,9 @@
 bundle Sequence { Prepend(xs, x) | Empty() }
 
 fn prepend(xs: Sequence, x) { Prepend(xs, x) }
-fn prepend(xs: Sequence, x, y) { prepend(prepend(xs, x), y) }
+
+fn seq() { Empty() }
+fn seq(x, xs...) { prepend(seq(xs...), x) }
 
 fn first(l: Empty) { panic("first: seq is empty") }
 fn first(l: Prepend) { part(l, 2) }
@@ -9,57 +11,27 @@ fn first(l: Prepend) { part(l, 2) }
 fn rest(l: Empty)  { panic("rest: seq is empty") }
 fn rest(l: Prepend) { part(l, 1) }
 
-fn seq() { Empty() }
-fn seq(x, xs...) { prepend(seq(xs...), x) }
+fn isempty(_: Prepend) { false }
+fn isempty(_: Empty) { true }
 
-fn isempty(xs: Prepend) { false }
-fn isempty(xs: Empty) { true }
+fn length(Prepend(xs, _)) { 1 + length(xs) }
+fn length(Empty()) { 0 }
 
-fn length(xs: Prepend) { 1 + length(rest(xs)) }
-fn length(xs: Empty) { 0 }
-
-fn lrange(start, end) {
+fn seqRange(start, end) {
   if (start > end) {
     seq()
   } else {
-    prepend(range(start+one(start), end), start)
+    prepend(seqRange(start+one(start), end), start)
   }
 }
 
 fn repeat(n, x) { prepend(repeat(n-1, x), x) }
 fn repeat(0, x) { seq() }
 
-fn interleave(xs: Sequence, ys: Sequence) { seq() }
+fn sum(Empty(), total) { total }
+fn sum(Prepend(xs, x), total) { sum(xs, total + x) }
 
-fn interleave(xs: Prepend, ys: Prepend) {
-  prepend(interleave(rest(xs), rest(ys)), first(ys), first(xs))
-}
-
-fn interpose(sep, xs: Sequence) {
-  rest(interleave(repeat(length(xs), sep), xs))
-}
-
-fn interpose(sep, xs: Empty) { xs }
-
-fn sum(xs: Prepend, s) { sum(rest(xs), s + first(xs)) }
-fn sum(xs: Empty, s) { s }
-
-fn sum(xs: Sequence) { sum(xs, zero(first(xs))) }
-
-fn map(f, xs: Empty) { xs }
-fn map(f, xs: Prepend) { prepend(map(f, rest(xs)), f(first(xs))) }
-
-fn foreach(f, _: Empty) { nil }
-fn foreach(f, xs: Prepend) {
-  f(first(xs))
-  foreach(f, rest(xs))
-}
-
-# fn print(xs: Sequence) {
-#   print("seq(")
-#   foreach(print, interpose(", ", xs))
-#   print(")")
-# }
+fn sum(Prepend(xs, x)) { sum(xs, x) }
 
 fn printList(xs: Empty) {
   print(")")
