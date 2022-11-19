@@ -140,6 +140,9 @@ fn blockUnique(p: Ptr) {
 fn retain!(p: Ptr) {
   p = p - headerSize
   n = getBlockUsed(p)
+  if (n == Int32(0)) {
+    panic("Memory management fault: retain")
+  }
   setBlockUsed!(p, n+Int32(1))
   return
 }
@@ -148,7 +151,7 @@ fn release!(p: Ptr) {
   p = p - headerSize
   n = getBlockUsed(p)
   if (n == Int32(0)) {
-    panic("Memory management fault")
+    panic("Memory management fault: release")
   }
   # Setting to 0 equates to freeing
   setBlockUsed!(p, n-Int32(1))
