@@ -90,14 +90,11 @@ let {
 fn foo(n) { prepend(foo(n-1), n) }
 fn foo(0) { seq() }
 
-fn _isempty(xs) { false } # TODO Prepend trait
-fn _isempty(x: Empty) { true }
-
 let {
   xs = foo(widen(0))
   println(string(tag(xs)) == "Empty")
   println(nparts(xs) == 0)
-  println(_isempty(xs))
+  println(isempty(xs))
   println(allocationCount() == 0)
 
   xs = foo(widen(5))
@@ -105,7 +102,7 @@ let {
   println(nparts(xs) == 2)
   println(part(xs, 2) == 5)
   println(part(part(xs, 1), 2) == 4)
-  println(not(_isempty(xs)))
+  println(not(isempty(xs)))
   println(allocationCount() == 0)
 }
 

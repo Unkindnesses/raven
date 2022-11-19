@@ -12,8 +12,8 @@ fn rest(l: Prepend) { part(l, 1) }
 fn seq() { Empty() }
 fn seq(x, xs...) { prepend(seq(xs...), x) }
 
-fn empty(xs: Prepend) { false }
-fn empty(xs: Empty) { true }
+fn isempty(xs: Prepend) { false }
+fn isempty(xs: Empty) { true }
 
 fn length(xs: Prepend) { 1 + length(rest(xs)) }
 fn length(xs: Empty) { 0 }
