@@ -33,16 +33,16 @@ fn sum(Prepend(xs, x), total) { sum(xs, total + x) }
 
 fn sum(Prepend(xs, x)) { sum(xs, x) }
 
-fn printList(xs: Empty) {
+fn printList(Empty()) {
   print(")")
 }
 
-fn printList(xs: Prepend) {
-  print(first(xs))
-  if not(isa(rest(xs), Empty)) {
+fn printList(Prepend(xs, x)) {
+  print(x)
+  if not(isa(xs, Empty)) {
     print(", ")
   }
-  printList(rest(xs))
+  printList(xs)
 }
 
 fn print(xs: Sequence) {

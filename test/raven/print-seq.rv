@@ -1,1 +1,1 @@
-print(seq(1, 2, 3))
+print(seqRange(widen(1), widen(3)))

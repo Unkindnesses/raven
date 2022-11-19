@@ -7,6 +7,6 @@ fn range(n) {
 }
 
 let {
-  xs = range(10)
+  xs = range(widen(10))
   print(xs)
 }
