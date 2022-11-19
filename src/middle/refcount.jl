@@ -169,7 +169,13 @@ function refcounts!(cx, ir)
     lafter = liveness_after(b, lv)
     for br in branches(b)
       # reused branch args
-      @assert !any(x -> x in lafter, filter(isref, arguments(br)))
+      for x in unique(arguments(br))
+        x isa Variable && isref(x) || continue
+        ret = isglobal(ir, x) + count(==(x), arguments(br)) - !(x in lafter)
+        for _ = 1:ret
+          retain!(cx, b, IRTools.exprtype(ir, x), x)
+        end
+      end
     end
   end
   pr = IRTools.Pipe(ir)
