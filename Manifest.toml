@@ -2,7 +2,7 @@
 
 julia_version = "1.8.1"
 manifest_format = "2.0"
-project_hash = "f0f3ae78839b74e6ec415122c12566e2e8181084"
+project_hash = "d36a94097fd0c5c960f52cf1c7d42006c7d63b5f"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -192,14 +192,6 @@ uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [[deps.Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
-
-[[deps.WebAssembly]]
-deps = ["IRTools", "Libdl", "MacroTools"]
-git-tree-sha1 = "898ec55ebac4d2932f7d98ccc6f9b78deebbf5e0"
-repo-rev = "master"
-repo-url = "https://github.com/MikeInnes/WebAssembly.jl.git"
-uuid = "4f6df8df-4739-5653-a877-cf57ee625c27"
-version = "0.1.1"
 
 [[deps.Zlib_jll]]
 deps = ["Libdl"]

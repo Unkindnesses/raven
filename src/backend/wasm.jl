@@ -1,4 +1,4 @@
-using WebAssembly: WType, WTuple, i32, i64, f32, f64
+using .WebAssembly: WType, WTuple, i32, i64, f32, f64
 
 # WASM partial primitives
 # These are supposed to be defined in Raven, but we don't yet have a mechanism

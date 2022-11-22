@@ -1,9 +1,11 @@
 module Raven
 
+include("WebAssembly/WebAssembly.jl")
+
 using MacroTools: @q, @forward, isexpr
 using FunctionalCollections
 
-using IRTools, WebAssembly
+using IRTools, .WebAssembly
 using IRTools: IR, Variable, Statement, Variable, argument!, block, blocks, arguments, argtypes,
   block, isreturn, branches, prune!, return!, branch!, block!, stmt, predecessors, successors
 using IRTools.Inner: Slot

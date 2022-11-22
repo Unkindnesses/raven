@@ -26,4 +26,6 @@ end
   include("match.jl")
 end
 
+include("WebAssembly/runtests.jl")
+
 end
