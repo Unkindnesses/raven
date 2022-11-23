@@ -2,6 +2,7 @@ module WebAssembly
 
 include("wasm.jl")
 include("ir.jl")
+include("binary.jl")
 
 module Instructions
 
