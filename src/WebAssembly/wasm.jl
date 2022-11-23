@@ -17,22 +17,14 @@ jltype(x::WType) = [Int32, Int64, Float32, Float64][Int(x)+1]
 
 abstract type Instruction end
 
-import Base.parse
-parse(t::Type{WType}, s) = Dict(zip(map(string, instances(WType)), instances(WType)))[s]
-
 struct Const <: Instruction
-  typ::WType
-  val::UInt64
+  val::Union{Int32,Int64,Float32,Float64}
 end
 
-Const(x::Union{UInt32,UInt64})   = Const(WType(typeof(x)), UInt64(x))
-Const(x::Union{Int64,Int32})     = Const(WType(typeof(x)), reinterpret(UInt64, Int64(x)))
-Const(x::Union{Float64,Float32}) = Const(WType(typeof(x)), reinterpret(UInt64, Float64(x)))
-Const(x::Bool) = Const(Int32(x))
+Const(x::UInt32) = Const(reinterpret(Int32, x))
+Const(x::UInt64) = Const(reinterpret(Int64, x))
 
-value(x::Const) = value(x, jltype(x.typ))
-value(x::Const, T::Union{Type{Float64},Type{Int64}}) = reinterpret(T, x.val)
-value(x::Const, T::Union{Type{Float32},Type{Int32}}) = T(value(x, widen(T)))
+WType(x::Const) = WType(typeof(x.val))
 
 struct Nop <: Instruction end
 
@@ -62,7 +54,6 @@ end
 Op(x::WType, op::Symbol) = Op(Symbol(x, ".", op))
 
 Base.getproperty(x::WType, op::Symbol) = Op(x, op)
-Base.:(/)(x::Op, t::WType) = Op(Symbol(x.name, "/", t))
 
 struct Select <: Instruction end
 
@@ -102,10 +93,6 @@ struct Unreachable <: Instruction end
 
 const unreachable = Unreachable()
 
-struct FuncType
-  # TODO
-end
-
 struct Func
   name::Symbol
   params::Vector{WType}
@@ -114,18 +101,11 @@ struct Func
   body::Block
 end
 
-struct Table
-  # TODO
-end
-
 struct Mem
-  name::Symbol
   min::UInt32
   max::Union{UInt32,Nothing}
-  Mem(name::Symbol, min::Integer, max = nothing) = new(name, min, max)
+  Mem(min::Integer, max = nothing) = new(min, max)
 end
-
-Mem(min::Integer, max = nothing) = Mem(:memory, min, max)
 
 struct Global
   type::WType
@@ -135,10 +115,6 @@ end
 
 Global(val, mut = true) = Global(WType(typeof(val)), mut, Const(val))
 Global(T::WType, mut = true) = Global(jltype(T)(0), mut)
-
-struct Elem
-  # TODO
-end
 
 struct Data
   memidx::UInt32
@@ -150,7 +126,7 @@ struct Import
   mod::Symbol
   name::Symbol
   as::Symbol
-  typ::Symbol   # :func, :table, :memory, :global
+  type::Symbol   # :func, :table, :memory, :global
   params::Vector{WType}
   result::Vector{WType}
 end
@@ -158,19 +134,15 @@ end
 struct Export
   name::Symbol
   internalname::Symbol
-  typ::Symbol   # :func, :table, :memory, :global
+  type::Symbol   # :func, :table, :memory, :global
 end
 
 # TODO perhaps split this into sections
 struct Module
-  types::Vector{FuncType}
   funcs::Vector{Func}
-  tables::Vector{Table}
-  mems::Vector{Mem}       # Only one of these is allowed right now
+  mems::Vector{Mem}
   globals::Vector{Global}
-  elem::Vector{Elem}
   data::Vector{Data}
-  start::Ref{Int}
   imports::Vector{Import}
   exports::Vector{Export}
 end
@@ -183,23 +155,23 @@ function func(m::Module, name)
   error("Function $name not found.")
 end
 
-Module(; types = [], funcs = [], tables = [], mems = [], globals = [], elem = [], data = [], start = Ref(0), imports = [], exports = []) =
-  Module(types, funcs, tables, mems, globals, elem, data, start, imports, exports)
+Module(; funcs = [], mems = [], globals = [], data = [], imports = [], exports = []) =
+  Module(funcs, mems, globals, data, imports, exports)
 
 # Printing
 
-Base.show(io::IO, i::Nop)      = print(io, "nop")
-Base.show(io::IO, i::Const)    = print(io, i.typ, ".const ", value(i))
-Base.show(io::IO, i::Local)    = print(io, "local.get ", i.id)
-Base.show(io::IO, i::SetLocal) = print(io, i.tee ? "local.tee " : "local.set ", i.id)
-Base.show(io::IO, i::GetGlobal)= print(io, "global.get ", i.id)
-Base.show(io::IO, i::SetGlobal)= print(io, "global.set ", i.id)
-Base.show(io::IO, i::Op)       = print(io, i.name)
-Base.show(io::IO, i::Call)     = print(io, "call \$", i.name)
-Base.show(io::IO, i::Convert)  = print(io, i.to, ".", i.name, "/", i.from)
-Base.show(io::IO, i::Select)   = print(io, "select")
-Base.show(io::IO, i::Branch)   = print(io, i.cond ? "br_if " : "br ", i.level)
-Base.show(io::IO, i::Return)   = print(io, "return")
+Base.show(io::IO, i::Nop)         = print(io, "nop")
+Base.show(io::IO, i::Const)       = print(io, WType(i), ".const ", i.val)
+Base.show(io::IO, i::Local)       = print(io, "local.get ", i.id)
+Base.show(io::IO, i::SetLocal)    = print(io, i.tee ? "local.tee " : "local.set ", i.id)
+Base.show(io::IO, i::GetGlobal)   = print(io, "global.get ", i.id)
+Base.show(io::IO, i::SetGlobal)   = print(io, "global.set ", i.id)
+Base.show(io::IO, i::Op)          = print(io, i.name)
+Base.show(io::IO, i::Call)        = print(io, "call \$", i.name)
+Base.show(io::IO, i::Convert)     = print(io, i.to, ".", i.name, "/", i.from)
+Base.show(io::IO, i::Select)      = print(io, "select")
+Base.show(io::IO, i::Branch)      = print(io, i.cond ? "br_if " : "br ", i.level)
+Base.show(io::IO, i::Return)      = print(io, "return")
 Base.show(io::IO, i::Unreachable) = print(io, "unreachable")
 
 printwasm(io, x, level) = show(io, x)
@@ -251,18 +223,18 @@ end
 
 function printwasm(io, x::Export, level)
   print(io, "\n", "  "^(level))
-  print(io, "(export \"$(x.name)\" ($(x.typ) \$$(x.internalname)))")
+  print(io, "(export \"$(x.name)\" ($(x.type) \$$(x.internalname)))")
 end
 
 function printwasm(io, x::Import, level)
   print(io, "\n", "  "^(level))
-  print(io, "(import \"$(x.mod)\" \"$(x.name)\" ($(x.typ) \$$(x.as)")
-  if x.typ == :func && length(x.params) > 0
+  print(io, "(import \"$(x.mod)\" \"$(x.name)\" ($(x.type) \$$(x.as)")
+  if x.type == :func && length(x.params) > 0
     print(io, " (param")
     foreach(p -> print(io, " $p"), x.params)
     print(io, ")")
   end
-  if x.typ == :func && length(x.result) > 0
+  if x.type == :func && length(x.result) > 0
     print(io, " (result")
     foreach(p -> print(io, " $p"), x.result)
     print(io, ")")

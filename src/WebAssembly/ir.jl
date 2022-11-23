@@ -25,7 +25,7 @@ function locals!(ir::IR)
   rename(x::Variable) = env[x]
   rename(x::Real) = Const(x)
   rename(x::Union{Const,Local,GetGlobal}) = x
-  ltype(x) = rename(x) isa Const ? rename(x).typ : locals[rename(x).id+1]
+  ltype(x) = rename(x) isa Const ? WType(rename(x)) : locals[rename(x).id+1]
   local!(T) = (push!(locals, T); Local(length(locals)-1))
   local!(v, T) = get!(() -> local!(T), env, v)
   local!(v, T::WTuple) = tuples[v] = local!.(T.parts)
