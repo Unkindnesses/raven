@@ -6,11 +6,14 @@ include("binary.jl")
 
 module Instructions
 
-using ..WebAssembly: Instruction, Const, Nop, Local, SetLocal, Op, Select, Convert,
-  Block, If, Loop, Branch, Call, Return, Unreachable, nop, unreachable
-
-export Instruction, Const, Nop, Local, SetLocal, Op, Select, Convert,
-  Block, If, Loop, Branch, Call, Return, Unreachable, nop, unreachable
+for x in :[
+  Instruction, Const, Nop, Local, SetLocal, Op, Select, Convert, Block,
+  If, Loop, Branch, Call, Return, Unreachable, nop, unreachable,
+  i32, i64, f32, f64
+].args
+  @eval using ..WebAssembly: $x
+  @eval export $x
+end
 
 end
 
