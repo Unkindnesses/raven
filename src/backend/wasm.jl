@@ -182,13 +182,13 @@ end
 
 pscmd(cmd) = Sys.iswindows() ? `powershell -command $cmd` : cmd
 
-function tmp(file)
+function tmp()
   # For some reason wat2wasm can't read the temp file on Windows.
-  Sys.iswindows() ? file : tempname()
+  Sys.iswindows() ? tempname(".") : tempname()
 end
 
 function binary(m::WebAssembly.Module, file; optimise = true)
-  wat = tmp(file) * ".wat"
+  wat = tmp() * ".wat"
   WebAssembly.write_wat(wat, m)
   try
     run(pscmd(`wat2wasm $wat -o $file`))

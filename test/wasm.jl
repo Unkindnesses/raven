@@ -1,6 +1,6 @@
 module WASMTest
 
-using Raven.WebAssembly, Test
+using Raven, Raven.WebAssembly, Test
 using Raven.WebAssembly.Instructions
 import Raven.WebAssembly: Func, Mem, leb128, binary
 using Raven: pscmd
@@ -24,7 +24,7 @@ end
 end
 
 function compiled_wat(m)
-  tmp = tempname() * ".wasm"
+  tmp = Raven.tmp() * ".wasm"
   try
     open(tmp, "w") do io
       binary(io, m)
