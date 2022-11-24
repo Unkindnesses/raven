@@ -1,5 +1,29 @@
 # https://webassembly.github.io/spec/core/binary/instructions.html
 
+struct BinaryContext <: IO
+  io::IO
+  types::Dict{Any,Int}
+end
+
+@forward BinaryContext.io Base.position, Base.seek
+
+Base.write(cx::BinaryContext, x::UInt8) = write(cx.io, x)
+
+BinaryContext(io::IO, cx::BinaryContext) =
+  BinaryContext(io, cx.types)
+
+function BinaryContext(io::IO, m::Module)
+  types = Dict{Any,Int}()
+  i = 0
+  for f in vcat(m.imports, m.funcs)
+    type = f.params => f.result
+    haskey(types, type) && continue
+    types[type] = i
+    i += 1
+  end
+  return BinaryContext(io, types)
+end
+
 # Numeric values
 
 function leb128(io::IO, x::Unsigned)
@@ -28,6 +52,11 @@ end
 
 u32(io::IO, x) = leb128(io, UInt32(x))
 
+function name(io::IO, x)
+  u32(io, sizeof(x))
+  write(io, x)
+end
+
 # Instruction / type assignments
 
 numtypes = Dict(i32 => 0x7f, i64 => 0x7e, f32 => 0x7d, f64 => 0x7c)
@@ -48,8 +77,8 @@ function header(io::IO)
   write(io, UInt32(1)) # version number
 end
 
-function withsize(f, io::IO)
-  buf = IOBuffer()
+function withsize(f, io::BinaryContext)
+  buf = BinaryContext(IOBuffer(), io)
   f(buf)
   u32(io, position(buf))
   write(io, read(seek(buf, 0)))
@@ -69,9 +98,9 @@ function functype(io::IO, a, b)
   typevec(io, b)
 end
 
-function types(io::IO, funcs)
-  isempty(funcs) && return
-  sigs = [f.params => f.result for f in funcs] # TODO unique
+function types(io::IO, m::Module)
+  sigs = unique(f.params => f.result for f in vcat(m.imports, m.funcs))
+  isempty(sigs) && return
   write(io, 0x01) # section id
   withsize(io) do io
     u32(io, length(sigs))
@@ -81,13 +110,27 @@ function types(io::IO, funcs)
   end
 end
 
-function functions(io::IO, funcs)
+function imports(io::BinaryContext, imps)
+  isempty(imps) && return
+  write(io, 0x02) # section id
+  withsize(io) do io
+    u32(io, length(imps))
+    for i in imps
+      name(io, i.mod)
+      name(io, i.name)
+      write(io, 0x00) # func import
+      u32(io, io.types[i.params => i.result])
+    end
+  end
+end
+
+function functions(io::BinaryContext, funcs)
   isempty(funcs) && return
   write(io, 0x03) # section id
   withsize(io) do io
     u32(io, length(funcs))
-    for (i, f) in enumerate(funcs)
-      u32(io, i-1)
+    for f in funcs
+      u32(io, io.types[f.params => f.result])
     end
   end
 end
@@ -136,9 +179,11 @@ function code(io::IO, funcs)
 end
 
 function binary(io::IO, m::Module)
-  header(io)
-  types(io, m.funcs)
-  functions(io, m.funcs)
-  memories(io, m.mems)
-  code(io, m.funcs)
+  cx = BinaryContext(io, m)
+  header(cx)
+  types(cx, m)
+  imports(cx, m.imports)
+  functions(cx, m.funcs)
+  memories(cx, m.mems)
+  code(cx, m.funcs)
 end

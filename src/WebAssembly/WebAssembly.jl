@@ -1,5 +1,7 @@
 module WebAssembly
 
+using MacroTools: @forward
+
 include("wasm.jl")
 include("ir.jl")
 include("binary.jl")
