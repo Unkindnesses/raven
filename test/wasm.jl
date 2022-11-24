@@ -2,7 +2,7 @@ module WASMTest
 
 using Raven, Raven.WebAssembly, Test
 using Raven.WebAssembly.Instructions
-import Raven.WebAssembly: Func, Mem, Import, leb128, binary
+import Raven.WebAssembly: Func, Mem, Import, Export, leb128, binary
 using Raven: pscmd
 
 function leb128(x)
@@ -53,10 +53,15 @@ end
   @test occursin("f64.const 0x1p+0", compiled_wat(m))
 
   m = WebAssembly.Module(
-    imports = [Import(:support, :global, :jsglobal, :func, [f32], [i32])])
+    imports = [Import(:support, :global, :jsglobal, [f32], [i32])])
   s = compiled_wat(m)
   @test occursin("import \"support\" \"global\"", s)
   @test occursin("(param f32) (result i32)", s)
+
+  m = WebAssembly.Module(
+    exports = [Export(:wasmAdd, :add)],
+    funcs = [Func(:add, [i32], [i32], [], Block([Const(Int32(5))]))])
+  @test occursin("(export \"wasmAdd\" (func 0))", compiled_wat(m))
 end
 
 end

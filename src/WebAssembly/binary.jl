@@ -1,8 +1,12 @@
 # https://webassembly.github.io/spec/core/binary/instructions.html
 
+# TODO make this a struct
+const Sig = Pair{Vector{WType},Vector{WType}}
+
 struct BinaryContext <: IO
   io::IO
-  types::Dict{Any,Int}
+  types::Dict{Sig,Int}
+  funcs::Dict{Symbol,Int}
 end
 
 @forward BinaryContext.io Base.position, Base.seek
@@ -10,18 +14,26 @@ end
 Base.write(cx::BinaryContext, x::UInt8) = write(cx.io, x)
 
 BinaryContext(io::IO, cx::BinaryContext) =
-  BinaryContext(io, cx.types)
+  BinaryContext(io, cx.types, cx.funcs)
 
 function BinaryContext(io::IO, m::Module)
-  types = Dict{Any,Int}()
-  i = 0
+  types = Dict{Sig,Int}()
+  funcs = Dict{Symbol,Int}()
+  i = 0 # assign ids to type signatures
   for f in vcat(m.imports, m.funcs)
     type = f.params => f.result
     haskey(types, type) && continue
     types[type] = i
     i += 1
   end
-  return BinaryContext(io, types)
+  i = 0 # assign ids to function names
+  for f in vcat(m.imports, m.funcs)
+    name = f isa Func ? f.name : f.as
+    @assert !haskey(funcs, name)
+    funcs[name] = i
+    i += 1
+  end
+  return BinaryContext(io, types, funcs)
 end
 
 # Numeric values
@@ -153,6 +165,19 @@ function memories(io::IO, mems)
   end
 end
 
+function exports(io::BinaryContext, exs)
+  isempty(exs) && return
+  write(io, 0x07)
+  withsize(io) do io
+    u32(io, length(exs))
+    for ex in exs
+      name(io, ex.as)
+      write(io, 0x00) # func export
+      u32(io, io.funcs[ex.name])
+    end
+  end
+end
+
 function func(io::IO, f)
   u32(io, length(f.locals))
   for t in f.locals
@@ -185,5 +210,6 @@ function binary(io::IO, m::Module)
   imports(cx, m.imports)
   functions(cx, m.funcs)
   memories(cx, m.mems)
+  exports(cx, m.exports)
   code(cx, m.funcs)
 end

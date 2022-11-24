@@ -151,14 +151,14 @@ function lowerwasm!(mod::WModule, T)
 end
 
 default_imports = [
-  WebAssembly.Import(:support, :global, :jsglobal, :func, [], [i32]),
-  WebAssembly.Import(:support, :property, :jsproperty, :func, [i32, i32], [i32]),
-  WebAssembly.Import(:support, :call, :jscall0, :func, [i32, i32], [i32]),
-  WebAssembly.Import(:support, :call, :jscall1, :func, [i32, i32, i32], [i32]),
-  WebAssembly.Import(:support, :panic, :panic, :func, [i32], []),
-  WebAssembly.Import(:support, :createRef, :jsbox, :func, [f64], [i32]),
-  WebAssembly.Import(:support, :fromRef, :jsunbox, :func, [i32], [f64]),
-  WebAssembly.Import(:support, :equal, :jseq, :func, [i32, i32], [i32])]
+  WebAssembly.Import(:support, :global, :jsglobal, [], [i32]),
+  WebAssembly.Import(:support, :property, :jsproperty, [i32, i32], [i32]),
+  WebAssembly.Import(:support, :call, :jscall0, [i32, i32], [i32]),
+  WebAssembly.Import(:support, :call, :jscall1, [i32, i32, i32], [i32]),
+  WebAssembly.Import(:support, :panic, :panic, [i32], []),
+  WebAssembly.Import(:support, :createRef, :jsbox, [f64], [i32]),
+  WebAssembly.Import(:support, :fromRef, :jsunbox, [i32], [f64]),
+  WebAssembly.Import(:support, :equal, :jseq, [i32, i32], [i32])]
 
 function wasm_ir(inf::Compilation)
   mod = WModule(inf)
@@ -174,7 +174,7 @@ function wasmmodule(inf::Compilation)
   mod = WebAssembly.Module(
     funcs = fs,
     imports = default_imports,
-    exports = [WebAssembly.Export(:_start, Symbol("_start:method:1"), :func)],
+    exports = [WebAssembly.Export(:_start, Symbol("_start:method:1"))],
     globals = [WebAssembly.Global(t) for t in mod.gtypes],
     mems = [WebAssembly.Mem(0)])
   return mod, strings

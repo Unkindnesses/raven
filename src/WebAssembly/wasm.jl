@@ -126,15 +126,13 @@ struct Import
   mod::Symbol
   name::Symbol
   as::Symbol
-  type::Symbol   # :func, :table, :memory, :global
   params::Vector{WType}
   result::Vector{WType}
 end
 
 struct Export
+  as::Symbol
   name::Symbol
-  internalname::Symbol
-  type::Symbol   # :func, :table, :memory, :global
 end
 
 # TODO perhaps split this into sections
@@ -223,18 +221,18 @@ end
 
 function printwasm(io, x::Export, level)
   print(io, "\n", "  "^(level))
-  print(io, "(export \"$(x.name)\" ($(x.type) \$$(x.internalname)))")
+  print(io, "(export \"$(x.as)\" (func \$$(x.name)))")
 end
 
 function printwasm(io, x::Import, level)
   print(io, "\n", "  "^(level))
-  print(io, "(import \"$(x.mod)\" \"$(x.name)\" ($(x.type) \$$(x.as)")
-  if x.type == :func && length(x.params) > 0
+  print(io, "(import \"$(x.mod)\" \"$(x.name)\" (func \$$(x.as)")
+  if length(x.params) > 0
     print(io, " (param")
     foreach(p -> print(io, " $p"), x.params)
     print(io, ")")
   end
-  if x.type == :func && length(x.result) > 0
+  if length(x.result) > 0
     print(io, " (result")
     foreach(p -> print(io, " $p"), x.result)
     print(io, ")")
