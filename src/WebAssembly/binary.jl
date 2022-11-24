@@ -165,6 +165,20 @@ function memories(io::IO, mems)
   end
 end
 
+function globals(io::BinaryContext, gs)
+  isempty(gs) && return
+  write(io, 0x06) # section id
+  withsize(io) do io
+    u32(io, length(gs))
+    for g in gs
+      write(io, numtypes[g.type])
+      write(io, UInt8(g.mut))
+      instr(io, g.init)
+      write(io, 0x0B) # end
+    end
+  end
+end
+
 function exports(io::BinaryContext, exs)
   isempty(exs) && return
   write(io, 0x07)
@@ -210,6 +224,7 @@ function binary(io::IO, m::Module)
   imports(cx, m.imports)
   functions(cx, m.funcs)
   memories(cx, m.mems)
+  globals(cx, m.globals)
   exports(cx, m.exports)
   code(cx, m.funcs)
 end

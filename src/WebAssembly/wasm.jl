@@ -113,7 +113,7 @@ struct Global
   init::Instruction
 end
 
-Global(val, mut = true) = Global(WType(typeof(val)), mut, Const(val))
+Global(val::Number, mut = true) = Global(WType(typeof(val)), mut, Const(val))
 Global(T::WType, mut = true) = Global(jltype(T)(0), mut)
 
 struct Data

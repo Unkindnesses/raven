@@ -2,7 +2,7 @@ module WASMTest
 
 using Raven, Raven.WebAssembly, Test
 using Raven.WebAssembly.Instructions
-import Raven.WebAssembly: Func, Mem, Import, Export, leb128, binary
+import Raven.WebAssembly: Func, Mem, Import, Export, Global, leb128, binary
 using Raven: pscmd
 
 function leb128(x)
@@ -41,6 +41,9 @@ end
 
   m = WebAssembly.Module(mems = [Mem(0)])
   @test occursin("(memory" , compiled_wat(m))
+
+  m = WebAssembly.Module(globals = [Global(0)])
+  @test occursin("(global (;0;) (mut i64) (i64.const 0))", compiled_wat(m))
 
   m = WebAssembly.Module(
     funcs = [Func(:add, [], [i32], [], Block([Const(Int32(5))]))])
