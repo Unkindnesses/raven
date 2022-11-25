@@ -60,6 +60,12 @@ end
 
 u32(io::IO, x) = leb128(io, UInt32(x))
 
+function u32(x)
+  io = IOBuffer()
+  u32(io, x)
+  return read(seek(io, 0))
+end
+
 function name(io::IO, x)
   u32(io, sizeof(x))
   write(io, x)
@@ -69,6 +75,64 @@ end
 
 numtypes = Dict(i32 => 0x7f, i64 => 0x7e, f32 => 0x7d, f64 => 0x7c)
 
+include("opcodes.jl")
+
+function instr(io::IO, ::Unreachable)
+  write(io, 0x00)
+end
+
+function instr(io::IO, bl::Block)
+  write(io, 0x02)
+  write(io, 0x40) # empty type
+  for i in bl.body
+    instr(io, i)
+  end
+  write(io, 0x0b) # end
+end
+
+function instr(io::IO, bl::Loop)
+  write(io, 0x03)
+  write(io, 0x40) # empty type
+  for i in bl.body
+    instr(io, i)
+  end
+  write(io, 0x0b) # end
+end
+
+function instr(io::IO, br::Branch)
+  write(io, 0x0c + br.cond)
+  u32(io, br.level)
+end
+
+function instr(io::IO, ::Return)
+  write(io, 0x0f)
+end
+
+function instr(io::IO, c::Call)
+  write(io, 0x10)
+  u32(io, io.funcs[c.name])
+end
+
+function instr(io::IO, v::Local)
+  write(io, 0x20)
+  u32(io, v.id)
+end
+
+function instr(io::IO, v::SetLocal)
+  write(io, 0x21 + v.tee)
+  u32(io, v.id)
+end
+
+function instr(io::IO, x::GetGlobal)
+  write(io, 0x23)
+  u32(io, x.id)
+end
+
+function instr(io::IO, x::SetGlobal)
+  write(io, 0x24)
+  u32(io, x.id)
+end
+
 function instr(io::IO, x::Const)
   write(io, 0x41 + UInt8(WType(x)))
   if x.val isa Integer
@@ -76,6 +140,10 @@ function instr(io::IO, x::Const)
   else
     write(io, x.val)
   end
+end
+
+function instr(io::IO, x::Op)
+  write(io, opcodes[x])
 end
 
 # Modules
