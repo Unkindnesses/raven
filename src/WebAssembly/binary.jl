@@ -1,11 +1,8 @@
 # https://webassembly.github.io/spec/core/binary/instructions.html
 
-# TODO make this a struct
-const Sig = Pair{Vector{WType},Vector{WType}}
-
 struct BinaryContext <: IO
   io::IO
-  types::Dict{Sig,Int}
+  types::Dict{Signature,Int}
   funcs::Dict{Symbol,Int}
 end
 
@@ -17,13 +14,12 @@ BinaryContext(io::IO, cx::BinaryContext) =
   BinaryContext(io, cx.types, cx.funcs)
 
 function BinaryContext(io::IO, m::Module)
-  types = Dict{Sig,Int}()
+  types = Dict{Signature,Int}()
   funcs = Dict{Symbol,Int}()
   i = 0 # assign ids to type signatures
   for f in vcat(m.imports, m.funcs)
-    type = f.params => f.result
-    haskey(types, type) && continue
-    types[type] = i
+    haskey(types, f.sig) && continue
+    types[f.sig] = i
     i += 1
   end
   i = 0 # assign ids to function names
@@ -104,20 +100,20 @@ function typevec(io::IO, ts)
   end
 end
 
-function functype(io::IO, a, b)
+function functype(io::IO, s::Signature)
   write(io, 0x60)
-  typevec(io, a)
-  typevec(io, b)
+  typevec(io, s.params)
+  typevec(io, s.result)
 end
 
 function types(io::IO, m::Module)
-  sigs = unique(f.params => f.result for f in vcat(m.imports, m.funcs))
+  sigs = unique(f.sig for f in vcat(m.imports, m.funcs))
   isempty(sigs) && return
   write(io, 0x01) # section id
   withsize(io) do io
     u32(io, length(sigs))
     for s in sigs
-      functype(io, s...)
+      functype(io, s)
     end
   end
 end
@@ -131,7 +127,7 @@ function imports(io::BinaryContext, imps)
       name(io, i.mod)
       name(io, i.name)
       write(io, 0x00) # func import
-      u32(io, io.types[i.params => i.result])
+      u32(io, io.types[i.sig])
     end
   end
 end
@@ -142,7 +138,7 @@ function functions(io::BinaryContext, funcs)
   withsize(io) do io
     u32(io, length(funcs))
     for f in funcs
-      u32(io, io.types[f.params => f.result])
+      u32(io, io.types[f.sig])
     end
   end
 end

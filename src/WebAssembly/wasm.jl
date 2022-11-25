@@ -93,10 +93,19 @@ struct Unreachable <: Instruction end
 
 const unreachable = Unreachable()
 
-struct Func
-  name::Symbol
+struct Signature
   params::Vector{WType}
   result::Vector{WType}
+end
+
+Base.:(==)(a::Signature, b::Signature) = a.params == b.params && a.result == b.result
+Base.hash(s::Signature, h::UInt) = hash((0xa0029abae2de0ab6, s.params, s.result), h)
+
+Base.convert(::Type{Signature}, (p,r)::Pair) = Signature(p, r)
+
+struct Func
+  name::Symbol
+  sig::Signature
   locals::Vector{WType}
   body::Block
 end
@@ -126,8 +135,7 @@ struct Import
   mod::Symbol
   name::Symbol
   as::Symbol
-  params::Vector{WType}
-  result::Vector{WType}
+  sig::Signature
 end
 
 struct Export
@@ -135,7 +143,6 @@ struct Export
   name::Symbol
 end
 
-# TODO perhaps split this into sections
 struct Module
   funcs::Vector{Func}
   mems::Vector{Mem}
@@ -227,16 +234,7 @@ end
 function printwasm(io, x::Import, level)
   print(io, "\n", "  "^(level))
   print(io, "(import \"$(x.mod)\" \"$(x.name)\" (func \$$(x.as)")
-  if length(x.params) > 0
-    print(io, " (param")
-    foreach(p -> print(io, " $p"), x.params)
-    print(io, ")")
-  end
-  if length(x.result) > 0
-    print(io, " (result")
-    foreach(p -> print(io, " $p"), x.result)
-    print(io, ")")
-  end
+  printwasm(io, x.sig, level)
   print(io, "))")
 end
 
@@ -259,11 +257,15 @@ function printvars(io, name, vs)
   end
 end
 
+function printwasm(io::IO, sig::Signature, level)
+  printvars(io, "param", sig.params)
+  printvars(io, "result", sig.result)
+end
+
 function printwasm(io::IO, f::Func, level)
   print(io, "\n", "  "^(level))
   print(io, "(func \$$(f.name)")
-  printvars(io, "param", f.params)
-  printvars(io, "result", f.result)
+  printwasm(io, f.sig, level)
   !isempty(f.locals) && print(io, "\n", "  "^level, " ")
   printvars(io, "local", f.locals)
   printwasm_(io, f.body.body, level + 1)
@@ -280,5 +282,5 @@ function Base.show(io::IO, m::Module)
   foreach(p -> printwasm(io, p, 1), m.mems)
   foreach(p -> printwasm(io, p, 1), m.data)
   foreach(p -> printwasm(io, p, 1), m.funcs)
-  print(io, ")")
+  println(io, ")")
 end

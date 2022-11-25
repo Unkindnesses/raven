@@ -176,5 +176,5 @@ function irfunc(name, ir)
   ir, locals, ret = locals!(ir)
   params = flattentype(argtypes(ir))
   locals = locals[length(params)+1:end]
-  Func(name, params, ret, locals, reloop(ir, cfg))
+  Func(name, params => ret, locals, reloop(ir, cfg))
 end
