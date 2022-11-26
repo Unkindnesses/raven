@@ -174,6 +174,14 @@ function functype(io::IO, s::Signature)
   typevec(io, s.result)
 end
 
+function custom(f, io::IO, nm)
+  write(io, 0x00) # section id
+  withsize(io) do io
+    name(io, nm)
+    f(io)
+  end
+end
+
 function types(io::IO, m::Module)
   sigs = unique(f.sig for f in vcat(m.imports, m.funcs))
   isempty(sigs) && return
@@ -281,6 +289,19 @@ function code(io::IO, funcs)
   end
 end
 
+function names(io::IO, m)
+  custom(io, "name") do io
+    write(io, 0x01) # func map
+    withsize(io) do io
+      u32(io, length(m.imports) + length(m.funcs))
+      for (i, f) in enumerate(vcat(m.imports, m.funcs))
+        u32(io, i-1)
+        name(io, f isa Func ? f.name : f.as)
+      end
+    end
+  end
+end
+
 function binary(io::IO, m::Module)
   cx = BinaryContext(io, m)
   header(cx)
@@ -291,4 +312,5 @@ function binary(io::IO, m::Module)
   globals(cx, m.globals)
   exports(cx, m.exports)
   code(cx, m.funcs)
+  names(cx, m)
 end

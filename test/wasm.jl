@@ -48,7 +48,7 @@ end
   m = WebAssembly.Module(
     funcs = [Func(:add, [] => [i32], [], Block([Const(Int32(5))]))])
   s = compiled_wat(m)
-  @test occursin("(func (result i32))", s)
+  @test occursin("func \$add (type 0) (result i32)", s)
   @test occursin("i32.const 5", s)
 
   m = WebAssembly.Module(
@@ -64,7 +64,7 @@ end
   m = WebAssembly.Module(
     exports = [Export(:wasmAdd, :add)],
     funcs = [Func(:add, [i32] => [i32], [], Block([Const(Int32(5))]))])
-  @test occursin("(export \"wasmAdd\" (func 0))", compiled_wat(m))
+  @test occursin("(export \"wasmAdd\" (func \$add))", compiled_wat(m))
 end
 
 end
