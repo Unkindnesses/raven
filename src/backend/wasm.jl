@@ -1,7 +1,5 @@
 using .WebAssembly: WType, WTuple, i32, i64, f32, f64
 
-const useWatBackend = Ref(false)
-
 # WASM partial primitives
 # These are supposed to be defined in Raven, but we don't yet have a mechanism
 # for const prop, so this is a stopgap.
@@ -189,17 +187,6 @@ function tmp()
   Sys.iswindows() ? tempname(".") : tempname()
 end
 
-function watBinary(m::WebAssembly.Module, file)
-  wat = tmp() * ".wat"
-  WebAssembly.write_wat(wat, m)
-  try
-    run(pscmd(`wat2wasm $wat -o $file`))
-  finally
-    rm(wat)
-  end
-  return
-end
-
 function binary(m::WebAssembly.Module, file)
   open(file, "w") do io
     WebAssembly.binary(io, m)
@@ -209,6 +196,6 @@ end
 
 function emitwasm(file, out)
   mod, strings = wasmmodule(lowerir(loadfile(file)))
-  useWatBackend[] ? watBinary(mod, out) : binary(mod, out)
+  binary(mod, out)
   return strings
 end

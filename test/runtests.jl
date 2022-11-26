@@ -15,14 +15,7 @@ end
 end
 
 @testset "Compiler" begin
-  Raven.useWatBackend[] = true
-  @testset "WAT backend" begin
-    include("compiler.jl")
-  end
-  Raven.useWatBackend[] = false
-  @testset "Binary backend" begin
-    include("compiler.jl")
-  end
+  include("compiler.jl")
 end
 
 @testset "Inference" begin
