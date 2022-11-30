@@ -34,29 +34,7 @@ end
 
 # Numeric values
 
-function leb128(io::IO, x::Unsigned)
-  while true
-    byte = (x % UInt8) & 0x7f
-    x >>= 7
-    x == 0 || (byte |= 0x80)
-    write(io, byte)
-    x == 0 && break
-  end
-end
-
-function leb128(io::IO, x::Signed)
-  while true
-    byte = (x % UInt8) & 0x7f
-    x >>= 7
-    sign = (byte & 0x40) == 0
-    if (x == 0 && sign) || (x == -1 && !sign)
-      write(io, byte)
-      break
-    else
-      write(io, byte | 0x80)
-    end
-  end
-end
+using ..Raven.Dwarf: leb128
 
 u32(io::IO, x) = leb128(io, UInt32(x))
 
@@ -302,6 +280,20 @@ function names(io::IO, m)
   end
 end
 
+const default_die =
+  Dwarf.DIE(Dwarf.TAG_compile_unit,
+            [Dwarf.AT_producer => "raven version 0.0.0",
+             Dwarf.AT_language => Dwarf.LANG_C99], [])
+
+function dwarf(io::IO)
+  custom(io, ".debug_info") do io
+    Dwarf.debug_info(io, default_die)
+  end
+  custom(io, ".debug_abbrev") do io
+    Dwarf.debug_abbrev(io, default_die)
+  end
+end
+
 function binary(io::IO, m::Module)
   cx = BinaryContext(io, m)
   header(cx)
@@ -313,4 +305,5 @@ function binary(io::IO, m::Module)
   exports(cx, m.exports)
   code(cx, m.funcs)
   names(cx, m)
+  dwarf(cx)
 end

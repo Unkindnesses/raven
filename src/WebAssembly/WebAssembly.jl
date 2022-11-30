@@ -1,6 +1,7 @@
 module WebAssembly
 
 using MacroTools: @forward
+using ..Raven.Dwarf
 
 include("wasm.jl")
 include("wat.jl")

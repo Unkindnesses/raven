@@ -1,0 +1,17 @@
+using Raven, Test
+
+hasdwarfdump() = !Sys.iswindows() && success(`which dwarfdump`)
+
+if !hasdwarfdump()
+  @warn("Not testing debug info; couldn't find `dwarfdump`.")
+end
+
+if hasdwarfdump()
+  out = String(read(`dwarfdump $(@__DIR__)/compiled/structures.wasm`))
+  @test occursin("DW_AT_producer\t(\"raven version 0.0.0\")", out)
+  @test occursin("DW_AT_language\t(DW_LANG_C99)", out)
+
+  out = String(read(`dwarfdump --verify $(@__DIR__)/compiled/structures.wasm`))
+  @test !occursin("warning", out)
+  @test occursin("No errors.", out)
+end

@@ -183,3 +183,7 @@ end
   FORM_flag_present
   FORM_ref_sig8 = 0x20
 end
+
+@enum Lang::UInt32 begin
+  LANG_C99 = 0x000c
+end
