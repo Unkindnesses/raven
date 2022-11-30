@@ -134,9 +134,10 @@ end
 function withsize(f, io::BinaryContext)
   buf = BinaryContext(IOBuffer(), io)
   f(buf)
-  u32(io, position(buf))
+  size = position(buf)
+  u32(io, size)
   write(io, read(seek(buf, 0)))
-  return
+  return size
 end
 
 function typevec(io::IO, ts)
@@ -280,17 +281,25 @@ function names(io::IO, m)
   end
 end
 
-const default_die =
+function debuginfo(sz)
   Dwarf.DIE(Dwarf.TAG_compile_unit,
             [Dwarf.AT_producer => "raven version 0.0.0",
-             Dwarf.AT_language => Dwarf.LANG_C99], [])
+             Dwarf.AT_language => Dwarf.LANG_C99,
+             Dwarf.AT_stmt_list => UInt32(0),
+             Dwarf.AT_low_pc => UInt32(0),
+             Dwarf.AT_high_pc => UInt32(sz)],
+            [])
+end
 
-function dwarf(io::IO)
+function dwarf(io::IO, sz)
+  dbg = debuginfo(sz)
   custom(io, ".debug_info") do io
-    Dwarf.debug_info(io, default_die)
+    Dwarf.debug_info(io, dbg)
   end
   custom(io, ".debug_abbrev") do io
-    Dwarf.debug_abbrev(io, default_die)
+    Dwarf.debug_abbrev(io, dbg)
+  end
+  custom(io, ".debug_line") do io
   end
 end
 
@@ -303,7 +312,7 @@ function binary(io::IO, m::Module)
   memories(cx, m.mems)
   globals(cx, m.globals)
   exports(cx, m.exports)
-  code(cx, m.funcs)
+  sz = code(cx, m.funcs)
   names(cx, m)
-  dwarf(cx)
+  dwarf(cx, sz)
 end

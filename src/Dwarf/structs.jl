@@ -10,9 +10,10 @@ struct Abbrev
   children::Bool
 end
 
-function abbrev(d::DIE)
-  Abbrev(d.tag, [k => form(v) for (k, v) in d.attrs], !isempty(d.children))
-end
+const attrforms =
+  Dict(AT_high_pc => (FORM_addr, UInt32),
+       AT_low_pc  => (FORM_addr, UInt32),
+       AT_stmt_list => (FORM_sec_offset, UInt32))
 
 const byteforms =
   Dict(1 => FORM_data1,
@@ -22,3 +23,14 @@ const byteforms =
 
 form(x::AbstractString) = FORM_string
 form(x::Union{Enum,Integer}) = byteforms[sizeof(x)]
+
+function form(attr, v)
+  haskey(attrforms, attr) || return form(v)
+  f, T = attrforms[attr]
+  @assert v isa T
+  return f
+end
+
+function abbrev(d::DIE)
+  Abbrev(d.tag, [k => form(k, v) for (k, v) in d.attrs], !isempty(d.children))
+end
