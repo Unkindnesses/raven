@@ -68,3 +68,38 @@ function debug_info(io, info::DIE)
     end
   end
 end
+
+function ln_end_sequence(io)
+  write(io, 0x00)
+  leb128(io, 0x01)
+  write(io, 0x01)
+end
+
+function debug_line(io, path, sz)
+  withsize(io) do io
+    write(io, UInt16(4)) # version
+    withsize(io) do io # header
+      write(io, 0x01) # minimum_instruction_length
+      write(io, 0x01) # maximum_operations_per_instruction
+      write(io, false) # default_is_stmt
+      write(io, Int8(-3)) # line_base
+      write(io, Int8(12)) # line_range
+      write(io, Int8(13)) # opcode_base
+      # standard_opcode_lengths
+      for i in Int8.([0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1])
+        write(io, i)
+      end
+      emit(io, dirname(path))
+      write(io, 0x00)
+      emit(io, basename(path))
+      leb128(io, UInt32(1)) # dir
+      leb128(io, UInt32(0)) # last modified
+      leb128(io, UInt32(0)) # file size
+      write(io, 0x00)
+    end
+    write(io, 0x01) # copy
+    write(io, 0x02) # advance_pc
+    leb128(io, UInt32(sz))
+    ln_end_sequence(io)
+  end
+end

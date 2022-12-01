@@ -256,7 +256,7 @@ function func(io::IO, f)
 end
 
 function code(io::IO, funcs)
-  isempty(funcs) && return
+  isempty(funcs) && return 0
   write(io, 0x0a) # section id
   withsize(io) do io
     u32(io, length(funcs))
@@ -291,7 +291,7 @@ function debuginfo(sz)
             [])
 end
 
-function dwarf(io::IO, sz)
+function dwarf(io::IO, path, sz)
   dbg = debuginfo(sz)
   custom(io, ".debug_info") do io
     Dwarf.debug_info(io, dbg)
@@ -300,10 +300,11 @@ function dwarf(io::IO, sz)
     Dwarf.debug_abbrev(io, dbg)
   end
   custom(io, ".debug_line") do io
+    Dwarf.debug_line(io, path, sz)
   end
 end
 
-function binary(io::IO, m::Module)
+function binary(io::IO, m::Module; path)
   cx = BinaryContext(io, m)
   header(cx)
   types(cx, m)
@@ -314,5 +315,5 @@ function binary(io::IO, m::Module)
   exports(cx, m.exports)
   sz = code(cx, m.funcs)
   names(cx, m)
-  dwarf(cx, sz)
+  dwarf(cx, path, sz)
 end

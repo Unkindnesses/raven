@@ -27,7 +27,7 @@ function compiled_wat(m)
   tmp = Raven.tmp() * ".wasm"
   try
     open(tmp, "w") do io
-      binary(io, m)
+      binary(io, m, path = "")
     end
     return String(read(pscmd(`wasm2wat $tmp`)))
   finally

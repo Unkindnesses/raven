@@ -187,15 +187,15 @@ function tmp()
   Sys.iswindows() ? tempname(".") : tempname()
 end
 
-function binary(m::WebAssembly.Module, file)
+function binary(m::WebAssembly.Module, file; path)
   open(file, "w") do io
-    WebAssembly.binary(io, m)
+    WebAssembly.binary(io, m; path)
   end
   return
 end
 
 function emitwasm(file, out)
   mod, strings = wasmmodule(lowerir(loadfile(file)))
-  binary(mod, out)
+  binary(mod, out; path = normpath(joinpath(pwd(), file)))
   return strings
 end
