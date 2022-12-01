@@ -18,8 +18,10 @@ end
   include("compiler.jl")
 end
 
-@testset "Dwarf" begin
-  include("dwarf.jl")
+if !Sys.iswindows()
+  @testset "Dwarf" begin
+    include("dwarf.jl")
+  end
 end
 
 @testset "Inference" begin

@@ -33,11 +33,13 @@ jobs:
         #     arch: x64
     steps:
       - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@v1
+      - name: Install Julia
+        uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - uses: actions/cache@v1
+      - name: Cache Julia artifacts
+        uses: actions/cache@v1
         env:
           cache-name: cache-artifacts
         with:
@@ -47,6 +49,19 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
+      - name: Cache LLVM
+        id: cache-llvm
+        uses: actions/cache@v2
+        with:
+          path: |
+            C:/Program Files/LLVM
+            ./llvm
+          key: llvm-14
+      - name: Install LLVM
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: "14"
+          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
       - name: Install WABT
         run: npm install --global wabt@1.0.30
       - uses: julia-actions/julia-buildpkg@v1
