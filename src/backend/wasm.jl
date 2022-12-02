@@ -25,25 +25,29 @@ struct WIntrinsic
 end
 
 function intrinsic(ex)
+  ex = AST.unwrap(ex)
   if ex isa AST.Operator && ex.op == :(:)
-    typ = ex.args[2] == :unreachable ? ⊥ : WType(ex.args[2])
-    ex = ex.args[1]
+    typ = AST.unwrap(ex.args[2])
+    typ = typ == :unreachable ? ⊥ : WType(AST.unwrap(typ))
+    ex = AST.unwrap(ex.args[1])
   else
     typ = WTuple()
   end
-  op = ex.func
+  op = AST.unwrap(ex.func)
   if op == :call
-    WIntrinsic(WebAssembly.Call(ex.args[1].expr), typ)
+    WIntrinsic(WebAssembly.Call(AST.unwrap(ex.args[1]).expr |> AST.unwrap), typ)
   else
     namify(x::Symbol) = x
     namify(x::AST.Operator) = Symbol(join(namify.(x.args), x.op))
+    namify(x::AST.Meta) = namify(x.expr)
     WIntrinsic(WebAssembly.Op(namify(op)), typ)
   end
 end
 
 function intrinsic_args(ex)
-  ex isa AST.Operator && ex.op == :(:) && return intrinsic_args(ex.args[1])
-  args = filter(x -> x isa AST.Operator && x.op == :(:), ex.args)
+  ex = AST.unwrap(ex)
+  ex isa AST.Operator && AST.unwrap(ex.op) == :(:) && return intrinsic_args(ex.args[1])
+  args = filter(x -> x isa AST.Operator && x.op == :(:), AST.unwrap.(ex.args))
   return map(x -> x.args[1], args)
 end
 

@@ -86,17 +86,23 @@ end
 
 # Simply dynamic binding for recursive types
 
-function withrecur(f, T)
-  stack = get!(task_local_storage(), :recur, [])
+function dynamic_bind(f, k, v)
+  stack = get!(task_local_storage(), k, [])
   try
-    push!(stack, T)
+    push!(stack, v)
     f()
   finally
     pop!(stack)
   end
 end
 
-recur() = task_local_storage()[:recur][end]
+dynamic_value(k) = task_local_storage()[k][end]
+
+withrecur(f, T) = dynamic_bind(f, :recur, T)
+recur() = dynamic_value(:recur)
+
+withpath(f, p) = dynamic_bind(f, :path, p)
+path() = dynamic_value(:path)
 
 # Union splitting
 

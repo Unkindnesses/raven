@@ -1,8 +1,13 @@
+# Declared in middle/utils.jl
+function withpath end
+function path end
+
 module Parse
 
 using LNR
 using ..AST: Expr, Return, Break, Continue, List, Splat, Call,
-  Operator, Block, Syntax, Quote, Swap
+  Operator, Block, Syntax, Quote, Swap, Meta, isexpr
+using ..Raven: withpath, path
 
 struct ParseError
   m
@@ -255,6 +260,7 @@ nop(io) = nothing
 
 function expr(io; quasi = true)
   consume_ws(io)
+  cur = cursor(io)
   quot = quasi ? quotation : nop
   ex = parseone(io, ret, _break, symbol, swap, string, number, op_token, quot, grouping, _tuple, _block)
   ex == nothing && throw(ParseError("Unexpected character $(read(io))", loc(io)))
@@ -265,12 +271,12 @@ function expr(io; quasi = true)
   if (op = tryparse(op_token, io)) != nothing
     ex = Operator(op, [ex, parse(io)])
   end
-  return ex
+  return Meta(path(), cur, ex)
 end
 
 function _syntax(io; quasi = true)
   name = @try expr(io)
-  name isa Symbol || return
+  isexpr(name, Symbol) || return
   !eof(io) || return
   args = []
   block = false
@@ -280,7 +286,7 @@ function _syntax(io; quasi = true)
     peek(io) in ('}', ')', ']') && break
     next = tryparse(expr, io; quasi)
     next == nothing && return
-    next isa Block && (block = true)
+    isexpr(next, Block) && (block = true)
     push!(args, next)
   end
   block || return
@@ -288,17 +294,18 @@ function _syntax(io; quasi = true)
 end
 
 # returns `nothing` if there is no valid input (EOF or only whitespace/comments)
-function parse(io::LineNumberingReader; quasi = true)
+function parse(io::LineNumberingReader; path = nothing, quasi = true)
+  path == nothing || return withpath(() -> parse(io; quasi), path)
   stmts(io)
   parseone(io, _syntax, expr; quasi)
 end
 
-parse(io::IO) = parse(LineNumberingReader(io))
+parse(io::IO; path) = parse(LineNumberingReader(io); path)
 
-parse(s::String) = parse(IOBuffer(s))
+parse(s::String; path) = parse(IOBuffer(s); path)
 
 macro rvx_str(x)
-  QuoteNode(parse(x))
+  QuoteNode(parse(x, path = String(__source__.file)))
 end
 
 end

@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.8.1"
+julia_version = "1.8.3"
 manifest_format = "2.0"
 project_hash = "945a7b5f8f74c69396b73ba2a61fba4139188a69"
 
@@ -57,7 +57,9 @@ uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 
 [[deps.LNR]]
 deps = ["Compat", "Lazy"]
-git-tree-sha1 = "c83f10b69f10e4ddad68f3b061de6f287417b9dc"
+git-tree-sha1 = "fa26f6eae18177827240f0b1f7cd32a5b1e1815f"
+repo-rev = "master"
+repo-url = "https://github.com/JunoLab/LNR.jl.git"
 uuid = "7c4cb9fa-83a0-5386-9231-d6167c818060"
 version = "0.2.1"
 
@@ -174,7 +176,7 @@ version = "1.0.0"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
-version = "1.10.0"
+version = "1.10.1"
 
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]

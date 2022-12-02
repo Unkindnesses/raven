@@ -6,10 +6,6 @@ using Raven, Test
   include("wasm.jl")
 end
 
-@testset "Parser" begin
-  include("parser.jl")
-end
-
 @testset "Types" begin
   include("types.jl")
 end

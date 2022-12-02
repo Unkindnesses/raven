@@ -58,6 +58,7 @@ rvpattern(xs::Constructor) = pack(:Constructor, xs.func, rvpattern.(xs.args)...)
 # Pattern lowering
 
 function lowerisa(ex, as)
+  ex = AST.unwrap(ex)
   if ex isa Symbol
     return Trait(ex)
   elseif ex isa AST.Operator && ex.op == :(|)
@@ -70,11 +71,12 @@ function lowerisa(ex, as)
 end
 
 function _lowerpattern(ex, as)
+  ex = AST.unwrap(ex)
   if ex isa Symbol
     ex == :_ || ex in as || push!(as, ex)
     return ex == :_ ? hole : Bind(ex)
   elseif ex isa Union{Primitive,AST.Quote}
-    ex isa AST.Quote && (ex = ex.expr)
+    ex isa AST.Quote && (ex = AST.unwrap(ex.expr))
     return Literal(ex)
   elseif ex isa AST.List
     pack(Literal(:List), map(x -> _lowerpattern(x, as), ex.args)...)
@@ -101,8 +103,10 @@ end
 # TODO: swap should be part of the pattern, so we can reject swaps that mismatch
 # the signature.
 function _lowersig(ex, as, swaps)
+  ex = AST.unwrap(ex)
   ex isa AST.List || return _lowerpattern(ex, as)
   args = map(enumerate(ex.args)) do (i, x)
+    x = AST.unwrap(x)
     if x isa AST.Swap
       swaps[i] = x.op
       _lowerpattern(x.op, as)
@@ -126,10 +130,12 @@ end
 # Built-in macros
 
 namify(x::Symbol) = x
+namify(ex::AST.Meta) = namify(ex.expr)
 namify(ex::AST.Operator) = namify(ex.args[1])
 namify(ex::AST.Splat) = AST.Splat(namify(ex.expr))
 
 allspecs(ex) = [ex]
+allspecs(ex::AST.Meta) = allspecs(ex.expr)
 allspecs(ex::AST.Block) = reduce(vcat, allspecs.(ex.args))
 allspecs(ex::AST.Operator) =
   ex.op == :| ? reduce(vcat, allspecs.(ex.args)) : [ex]
@@ -140,7 +146,7 @@ function datamacro(ex)
   names = []
   body = []
   for spec in specs
-    name = spec.func
+    name = AST.unwrap(spec.func)
     push!(names, name)
     args = spec.args
     push!(body, AST.Syntax(:fn, [spec,
@@ -244,17 +250,21 @@ _push!(ir::IR, x) = IRTools.canbranch(blocks(ir)[end]) && push!(ir, x)
 # lower while ignoring return value (if applicable)
 _lower!(sc, ir, x) = lower!(sc, ir, x)
 
-lower!(sc, ir::IR, x::Union{Integer,String,AST.Quote,Pack}) = x
+lower!(sc, ir::IR, x::Union{Integer,String,Pack}) = x
+lower!(sc, ir::IR, x::AST.Quote) = AST.Quote(AST.unwrap(x.expr))
 lower!(sc, ir::IR, x::Symbol) = sc[x]
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? nothing : (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
+
+lower!(sc, ir::IR, x::AST.Meta) = lower!(sc, ir, x.expr)
+_lower!(sc, ir::IR, x::AST.Meta) = _lower!(sc, ir, x.expr)
 
 lower!(sc, ir::IR, x::AST.Block) = lower!(sc, ir, x.args)
 _lower!(sc, ir::IR, x::AST.Block) = foreach(x -> _lower!(sc, ir, x), x.args)
 
 function lower!(sc, ir::IR, ex::AST.Operator, value = true)
-  if ex.op == :(=) && ex.args[1] isa Symbol
-    x = variable!(sc, ex.args[1])
+  if ex.op == :(=) && AST.isexpr(ex.args[1], Symbol)
+    x = variable!(sc, AST.unwrap(ex.args[1]))
     _push!(ir, :($(x) = $(lower!(sc, ir, ex.args[2]))))
     return x
   elseif ex.op == :(=)
@@ -273,7 +283,7 @@ end
 _lower!(sc, ir::IR, ex::AST.Operator) = lower!(sc, ir, ex, false)
 
 function argtuple!(sc, ir::IR, args)
-  args = collect(args)
+  args = AST.unwrap.(collect(args))
   swaps = []
   parts = []
   idx = 1
@@ -362,7 +372,7 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
   cond = lower!(sc, ir, ex.args[1])
   cond = _push!(ir, rcall(:condition, cond))
   IRTools.block!(ir)
-  _lower!(sc, ir, ex.args[2].args)
+  _lower!(sc, ir, AST.unwrap(ex.args[2]).args)
   body = blocks(ir)[end]
   after = IRTools.block!(ir)
   # Rewrite continue/break to the right block number
@@ -390,7 +400,7 @@ function If(b::AST.Syntax)
   push!(body, b.args[2])
   args = b.args[3:end]
   while !isempty(args)
-    @assert popfirst!(args) == :else "Broken if block"
+    @assert AST.unwrap(popfirst!(args)) == :else "Broken if block"
     if args[1] == :if
       popfirst!(args)
       push!(cond, popfirst!(args))
@@ -447,23 +457,24 @@ function lowerlet!(sc, ir::IR, ex, value = true)
 end
 
 function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
-  if ex.name == :while
+  name = AST.unwrap(ex.name)
+  if name == :while
     lowerwhile!(sc, ir, ex, value)
-  elseif ex.name == :if
+  elseif name == :if
     lowerif!(sc, ir, If(ex), value)
-  elseif ex.name == :wasm
-    ex = ex.args[1].args[1]
+  elseif name == :wasm
+    ex = AST.unwrap(ex.args[1]).args[1]
     op = intrinsic(ex)
     args = lower!.((sc,), (ir,), intrinsic_args(ex))
     push!(ir, xcall(op, args...))
-  elseif ex.name == :import
+  elseif name == :import
     push!(ir, Expr(:import, importpath(ex)))
-  elseif ex.name == :let
+  elseif name == :let
     lowerlet!(sc, ir, ex, value)
-  elseif ex.name == :for
+  elseif name == :for
     (value ? lower! : _lower!)(sc, ir, formacro(ex))
   else
-    error("unrecognised block $(ex.name)")
+    error("unrecognised block $(name)")
   end
 end
 
@@ -480,7 +491,7 @@ function lowerfn(ex, sig = fnsig(ex))
   end
   out = lower!(sc, ir, ex.args[2])
   out == nothing || swapreturn!(ir, out, sig.swap)
-  return ir |> pruneblocks! |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
+  ir = ir |> pruneblocks! |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
 end
 
 function lowerexpr(ex)

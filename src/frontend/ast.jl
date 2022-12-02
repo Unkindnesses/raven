@@ -3,8 +3,23 @@
 module AST
 
 using MacroTools: @forward
+using LNR
 
 abstract type Expr end
+
+struct Meta <: Expr
+  file::String
+  loc::Cursor
+  expr::Any
+end
+
+unwrap(ex) = ex
+unwrap(ex::Meta) = unwrap(ex.expr)
+
+isexpr(ex, T) =
+  ex isa Meta ?
+  isexpr(ex.expr, T) :
+  ex isa T
 
 struct Return <: Expr
   val
@@ -41,7 +56,7 @@ struct Block <: Expr
 end
 
 struct Syntax <: Expr
-  name::Symbol
+  name
   args::Vector{Any}
 end
 
@@ -54,6 +69,10 @@ using MacroTools: @q
 for T in [Return, List, Call, Operator, Syntax, Block]
   @eval Base.:(==)(a::$T, b::$T) = $(Base.Expr(:&&, [:(a.$f == b.$f) for f in fieldnames(T)]...))
 end
+
+meta(x) = nothing
+meta(x::Meta) = x
+meta(x::Syntax) = meta(x.name)
 
 # Printing
 
@@ -71,6 +90,8 @@ indent(cx::ShowContext) = ShowContext(cx.io, cx.indent+2)
 Base.repr(cx::ShowContext, x) = sprint(io -> _show(ShowContext(io, cx.indent), x))
 
 const Ctx = ShowContext
+
+showline(io, x::Meta) = print(io, " # ", basename(x.file), ":", x.loc.line)
 
 _show(io::Ctx, x::Union{Symbol,Number,String}) = print(io, x)
 
@@ -117,12 +138,18 @@ function _show(io::Ctx, x::Quote)
   print(io, "`")
 end
 
-function _show(io::Ctx, x::Block)
+function _show(io::Ctx, x::Block; meta = nothing)
   io′ = indent(io)
   print(io, "{")
+  if meta != nothing
+    showline(io, meta)
+  end
   for x in x.args
     print(io, "\n", " "^io′.indent)
     _show(io′, x)
+    if !isexpr(x, Syntax) && AST.meta(x) != nothing
+      showline(io, AST.meta(x))
+    end
   end
   print(io, "\n", " "^io.indent, "}")
 end
@@ -131,11 +158,25 @@ function _show(io::Ctx, x::Syntax)
   _show(io, x.name)
   print(io, " ")
   for i in 1:length(x.args)
-    _show(io, x.args[i])
-    i == length(x.args) || print(io, " ")
+    if i == length(x.args)
+      _show(io, unwrap(x.args[i])::Block, meta = meta(x))
+    else
+      _show(io, x.args[i])
+      print(io, " ")
+    end
   end
 end
 
+function _show(io::Ctx, x::Meta)
+  _show(io, x.expr)
+end
+
 Base.show(io::IO, x::Expr) = _show(ShowContext(io), x)
+
+function Base.show(io::IO, x::Meta)
+  showline(io, x)
+  println(io)
+  show(io, x.expr)
+end
 
 end
