@@ -262,6 +262,9 @@ function dispatcher(inf, func::Symbol, Ts)
       block!(ir)
     end
   end
+  if func == :panic && issubset(Ts, rlist(String))
+    error("Compiler fault: couldn't guarantee panic method matches")
+  end
   v = push!(ir, xcall(:panic, xlist("No matching method: $func: $Ts")))
   return!(ir, v)
   return ir
