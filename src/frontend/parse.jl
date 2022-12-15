@@ -6,7 +6,7 @@ module Parse
 
 using LNR
 using ..AST: Expr, Return, Break, Continue, List, Splat, Call,
-  Operator, Block, Syntax, Quote, Swap, Meta, isexpr
+  Operator, Block, Syntax, Quote, Swap, Meta, meta, unwrapToken
 using ..Raven: withpath, path
 
 struct ParseError
@@ -221,7 +221,7 @@ function brackets(io, start = '(', stop = bracketmap[start])
   return xs
 end
 
-_tuple(io) = List(@try(brackets(io, '[')))
+_tuple(io) = List(@try(brackets(io, '['))...)
 
 function _block(io)
   read(io) == '{' || return
@@ -234,7 +234,7 @@ function _block(io)
     push!(args, parse(io))
   end
   read(io)
-  return Block(args)
+  return Block(args...)
 end
 
 function grouping(io)
@@ -247,7 +247,7 @@ end
 
 function ret(io)
   symbol(io) == :return || return
-  tryparse(stmt, io) != nothing && return Return(Call(:pack, [Quote(:Nil)]))
+  tryparse(stmt, io) != nothing && return Return(Call(:pack, Quote(:Nil)))
   Return(expr(io))
 end
 
@@ -265,18 +265,18 @@ function expr(io; quasi = true)
   ex = parseone(io, ret, _break, symbol, swap, string, number, op_token, quot, grouping, _tuple, _block)
   ex == nothing && throw(ParseError("Unexpected character $(read(io))", loc(io)))
   while (args = tryparse(brackets, io)) != nothing
-    ex = Call(ex, args)
+    ex = Call(ex, args...)
   end
   consume_ws(io)
   if (op = tryparse(op_token, io)) != nothing
-    ex = Operator(op, [ex, parse(io)])
+    ex = Operator(op, ex, parse(io))
   end
-  return Meta(path(), cur, ex)
+  return meta(ex, path(), cur)
 end
 
 function _syntax(io; quasi = true)
   name = @try expr(io)
-  isexpr(name, Symbol) || return
+  unwrapToken(name) isa Symbol || return
   !eof(io) || return
   args = []
   block = false
@@ -286,11 +286,11 @@ function _syntax(io; quasi = true)
     peek(io) in ('}', ')', ']') && break
     next = tryparse(expr, io; quasi)
     next == nothing && return
-    isexpr(next, Block) && (block = true)
+    next isa Block && (block = true)
     push!(args, next)
   end
   block || return
-  return Syntax(name, args)
+  return Syntax(name, args...)
 end
 
 # returns `nothing` if there is no valid input (EOF or only whitespace/comments)
@@ -300,7 +300,7 @@ function parse(io::LineNumberingReader; path = nothing, quasi = true)
   parseone(io, _syntax, expr; quasi)
 end
 
-parse(io::IO; path) = parse(LineNumberingReader(io); path)
+parse(io::IO; path) = unwrapToken(parse(LineNumberingReader(io); path))
 
 parse(s::String; path) = parse(IOBuffer(s); path)
 

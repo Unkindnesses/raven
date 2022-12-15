@@ -5,15 +5,14 @@ base = joinpath(@__DIR__, "../../base")
 function simpleconst(cx::Inference, x)
   x isa Symbol && return cx.mod.defs[x]
   x isa Primitive && return x
-  x isa AST.Quote && return AST.unwrap(x.expr)
+  x isa AST.Quote && return x[1]
   return
 end
 
 function importpath(x)
-  modname(x::AST.Operator) = Base.string(modname(x.args[1]), ".", modname(x.args[2]))
+  modname(x::AST.Operator) = Base.string(modname(x[2]), ".", modname(x[3]))
   modname(x::Symbol) = Base.string(x)
-  modname(x::AST.Meta) = modname(x.expr)
-  name = AST.unwrap(x.args[1]).args[1]
+  name = x[2][1]
   name = modname(name)
   path = replace(name, "."=>"/")
 end
@@ -26,28 +25,27 @@ end
 function load_expr(cx::Inference, x)
   fname = Symbol(:__main, length(cx.main))
   defs = collect(keys(cx.mod.defs))
-  method!(cx.mod, fname, RMethod(fname, lowerpattern(AST.List([])), lower_toplevel(x, defs)))
+  method!(cx.mod, fname, RMethod(fname, lowerpattern(AST.List()), lower_toplevel(x, defs)))
   push!(cx.main, fname)
 end
 
 function vload(cx::Inference, x::AST.Syntax)
-  name = AST.unwrap(x.name)
-  name == :import && return load_import(cx, x)
-  name == :bundle && return vload(cx, datamacro(x))
-  name == :fn || return load_expr(cx, x)
-  sig = AST.unwrap(x.args[1])
-  f = sig isa AST.Operator ? sig.op : sig.func
-  args = AST.List(sig.args)
+  x[1] == :import && return load_import(cx, x)
+  x[1] == :bundle && return vload(cx, datamacro(x))
+  x[1] == :fn || return load_expr(cx, x)
+  sig = x[2]
+  f = sig[1]
+  args = AST.List(sig[2:end]...)
   sig = lowerpattern(args)
   method!(cx.mod, f, RMethod(f, sig, lowerfn(x, sig)))
   return f
 end
 
-vload(cx::Inference, x::AST.Block) = foreach(x -> vload(cx, x), x.args)
+vload(cx::Inference, x::AST.Block) = foreach(x -> vload(cx, x), x[:])
 
 function vload(cx::Inference, x::AST.Operator)
-  if x.op == :(=) && AST.isexpr(x.args[1], Symbol) && (c = simpleconst(cx, AST.unwrap(x.args[2]))) != nothing
-    cx.mod.defs[AST.unwrap(x.args[1])] = c
+  if x[1] == :(=) && x[2] isa Symbol && (c = simpleconst(cx, x[3])) != nothing
+    cx.mod.defs[x[2]] = c
   else
     load_expr(cx, x)
   end
@@ -56,10 +54,10 @@ end
 vload(m::Inference, x) = load_expr(m, x)
 
 function finish!(cx::Inference)
-  fn = AST.Syntax(:fn, [AST.Call(:_start, []),
-                        AST.Block([[AST.Call(f, []) for f in cx.main]...,
-                                   AST.Call(:checkAllocations, [])])])
-  sig = lowerpattern(AST.List([]))
+  fn = AST.Syntax(:fn, AST.Call(:_start),
+                       AST.Block([AST.Call(f) for f in cx.main]...,
+                                 AST.Call(:checkAllocations)))
+  sig = lowerpattern(AST.List())
   method!(cx.mod, :_start, RMethod(:_start, sig, lowerfn(fn, sig)))
 end
 
@@ -67,7 +65,7 @@ function loadfile(cx::Inference, io::IO; path)
   io = LineNumberingReader(io)
   Parse.stmts(io)
   while (ex = parse(io; path)) != nothing
-    vload(cx, AST.unwrap(ex))
+    vload(cx, ex)
     Parse.stmts(io)
   end
 end

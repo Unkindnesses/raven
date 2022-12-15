@@ -58,30 +58,28 @@ rvpattern(xs::Constructor) = pack(:Constructor, xs.func, rvpattern.(xs.args)...)
 # Pattern lowering
 
 function lowerisa(ex, as)
-  ex = AST.unwrap(ex)
   if ex isa Symbol
     return Trait(ex)
-  elseif ex isa AST.Operator && ex.op == :(|)
-    Or(map(x -> lowerisa(x, as), ex.args))
-  elseif ex isa AST.Operator && ex.op == :(&)
-    And(map(x -> lowerisa(x, as), ex.args))
+  elseif ex isa AST.Operator && ex[1] == :(|)
+    Or(map(x -> lowerisa(x, as), ex[2:end]))
+  elseif ex isa AST.Operator && ex[1] == :(&)
+    And(map(x -> lowerisa(x, as), ex[2:end]))
   else
     _lowerpattern(ex, as)
   end
 end
 
 function _lowerpattern(ex, as)
-  ex = AST.unwrap(ex)
   if ex isa Symbol
     ex == :_ || ex in as || push!(as, ex)
     return ex == :_ ? hole : Bind(ex)
   elseif ex isa Union{Primitive,AST.Quote}
-    ex isa AST.Quote && (ex = AST.unwrap(ex.expr))
+    ex isa AST.Quote && (ex = ex[1])
     return Literal(ex)
   elseif ex isa AST.List
     pack(Literal(:List), map(x -> _lowerpattern(x, as), ex.args)...)
-  elseif ex isa AST.Operator && ex.op == :(:)
-    name, T = ex.args
+  elseif ex isa AST.Operator && ex[1] == :(:)
+    name, T = ex[2:end]
     if name == :_
       lowerisa(T, as)
     else
@@ -89,11 +87,11 @@ function _lowerpattern(ex, as)
       And([Bind(name), lowerisa(T, as)])
     end
   elseif ex isa AST.Splat
-    Repeat(_lowerpattern(ex.expr, as))
-  elseif ex isa AST.Call && ex.func == :pack
-    pack(map(x -> _lowerpattern(x, as), ex.args)...)
+    Repeat(_lowerpattern(ex[1], as))
+  elseif ex isa AST.Call && ex[1] == :pack
+    pack(map(x -> _lowerpattern(x, as), ex[2:end])...)
   elseif ex isa AST.Call
-    Constructor(ex.func, _lowerpattern.(ex.args, (as,)))
+    Constructor(ex[1], _lowerpattern.(ex[2:end], (as,)))
   else
     error("Invalid pattern syntax $(ex)")
   end
@@ -103,16 +101,14 @@ end
 # TODO: swap should be part of the pattern, so we can reject swaps that mismatch
 # the signature.
 function _lowersig(ex, as, swaps)
-  ex = AST.unwrap(ex)
   ex isa AST.List || return _lowerpattern(ex, as)
-  args = map(enumerate(ex.args)) do (i, x)
-    x = AST.unwrap(x)
+  args = map(enumerate(ex[:])) do (i, x)
     if x isa AST.Swap
-      swaps[i] = x.op
-      _lowerpattern(x.op, as)
-    elseif x isa AST.Operator && x.op == :(:) && x.args[1] isa AST.Swap
-      swaps[i] = x.args[1].op
-      _lowerpattern(AST.Operator(:(:), [x.args[1].op, x.args[2:end]...]), as)
+      swaps[i] = x[1]
+      _lowerpattern(x[1], as)
+    elseif x isa AST.Operator && x[1] == :(:) && x[2] isa AST.Swap
+      swaps[i] = x[2][1]
+      _lowerpattern(AST.Operator(:(:), x[2][1], x[3:end]...), as)
     else
       _lowerpattern(x, as)
     end
@@ -130,57 +126,55 @@ end
 # Built-in macros
 
 namify(x::Symbol) = x
-namify(ex::AST.Meta) = namify(ex.expr)
-namify(ex::AST.Operator) = namify(ex.args[1])
-namify(ex::AST.Splat) = AST.Splat(namify(ex.expr))
+namify(ex::AST.Operator) = namify(ex[2])
+namify(ex::AST.Splat) = AST.Splat(namify(ex[1]))
 
 allspecs(ex) = [ex]
-allspecs(ex::AST.Meta) = allspecs(ex.expr)
-allspecs(ex::AST.Block) = reduce(vcat, allspecs.(ex.args))
+allspecs(ex::AST.Block) = reduce(vcat, allspecs.(ex[:]))
 allspecs(ex::AST.Operator) =
-  ex.op == :| ? reduce(vcat, allspecs.(ex.args)) : [ex]
+  ex[1] == :| ? reduce(vcat, allspecs.(ex[2:end])) : [ex]
 
-function datamacro(ex)
-  super, specs = length(ex.args) == 1 ? (nothing, ex.args[1]) : (ex.args[1], ex.args[2])
+function datamacro(ex::AST.Syntax)
+  super, specs = length(ex) == 2 ? (nothing, ex[2]) : (ex[2], ex[3])
   specs = allspecs(specs)
   names = []
   body = []
   for spec in specs
-    name = AST.unwrap(spec.func)
+    name = spec[1]
     push!(names, name)
-    args = spec.args
-    push!(body, AST.Syntax(:fn, [spec,
-                                 AST.Block([
-                                   AST.Call(:pack, [AST.Quote(name), namify.(args)...])])]))
-    push!(body, AST.Syntax(:fn, [AST.Call(:isa, [AST.Call(:pack, [AST.Quote(name), args...]),
-                                                 AST.Quote(name)]),
-                                 AST.Block([Symbol("true")])]))
-    push!(body, AST.Syntax(:fn, [AST.Call(:constructorPattern, [AST.Quote(name), namify.(args)...]),
-                                 AST.Block([
-                                   AST.Call(:And, [AST.Call(:Trait, [AST.Quote(name)]),
-                                                   AST.Call(:Pack, [AST.Call(:Literal, [AST.Quote(name)]), namify.(args)...])])])]))
+    args = spec[2:end]
+    push!(body, AST.Syntax(:fn, spec,
+                                AST.Block(
+                                 AST.Call(:pack, AST.Quote(name), namify.(args)...))))
+    push!(body, AST.Syntax(:fn, AST.Call(:isa, AST.Call(:pack, AST.Quote(name), args...),
+                                               AST.Quote(name)),
+                                AST.Block(Symbol("true"))))
+    push!(body, AST.Syntax(:fn, AST.Call(:constructorPattern, AST.Quote(name), namify.(args)...),
+                                AST.Block(
+                                  AST.Call(:And, AST.Call(:Trait, AST.Quote(name)),
+                                                 AST.Call(:Pack, AST.Call(:Literal, AST.Quote(name)), namify.(args)...)))))
   end
   if super != nothing
-    push!(body, AST.Operator(:(=), [super, AST.Quote(super)]))
-    push!(body, AST.Syntax(:fn, [AST.Call(:isa, [AST.Operator(:(:), [:_, AST.Operator(:|, names)]),
-                                                 AST.Quote(super)]),
-                                 AST.Block([Symbol("true")])]))
+    push!(body, AST.Operator(:(=), super, AST.Quote(super)))
+    push!(body, AST.Syntax(:fn, AST.Call(:isa, AST.Operator(:(:), :_, AST.Operator(:|, names...)),
+                                               AST.Quote(super)),
+                                AST.Block(Symbol("true"))))
   end
-  return AST.Block(body)
+  return AST.Block(body...)
 end
 
 function formacro(ex)
-  x, xs, body = ex.args[1], ex.args[3], ex.args[4]
+  x, xs, body = ex[2], ex[4], ex[5]
   itr, val = gensym.((:itr, :val))
-  AST.Block([
-    AST.Operator(:(=), [itr, AST.Call(:iterator, [xs])]),
-    AST.Syntax(:while, [Symbol("true"), AST.Block([
-      AST.Operator(:(=), [val, AST.Call(:iterate, [AST.Swap(itr)])]),
-      AST.Syntax(:if, [AST.Call(:isnil, [val]), AST.Block([AST.Break()])]),
-      AST.Operator(:(=), [x, AST.Call(:part, [val, 1])]),
+  AST.Block(
+    AST.Operator(:(=), itr, AST.Call(:iterator, xs)),
+    AST.Syntax(:while, Symbol("true"), AST.Block(
+      AST.Operator(:(=), val, AST.Call(:iterate, AST.Swap(itr))),
+      AST.Syntax(:if, AST.Call(:isnil, val), AST.Block(AST.Break())),
+      AST.Operator(:(=), x, AST.Call(:part, val, 1)),
       body
-    ])])
-  ])
+    ))
+  )
 end
 
 # Expr -> IR lowering
@@ -251,31 +245,28 @@ _push!(ir::IR, x) = IRTools.canbranch(blocks(ir)[end]) && push!(ir, x)
 _lower!(sc, ir, x) = lower!(sc, ir, x)
 
 lower!(sc, ir::IR, x::Union{Integer,String,Pack}) = x
-lower!(sc, ir::IR, x::AST.Quote) = AST.Quote(AST.unwrap(x.expr))
+lower!(sc, ir::IR, x::AST.Quote) = AST.Quote(x[1])
 lower!(sc, ir::IR, x::Symbol) = sc[x]
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? nothing : (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
 
-lower!(sc, ir::IR, x::AST.Meta) = lower!(sc, ir, x.expr)
-_lower!(sc, ir::IR, x::AST.Meta) = _lower!(sc, ir, x.expr)
-
-lower!(sc, ir::IR, x::AST.Block) = lower!(sc, ir, x.args)
-_lower!(sc, ir::IR, x::AST.Block) = foreach(x -> _lower!(sc, ir, x), x.args)
+lower!(sc, ir::IR, x::AST.Block) = lower!(sc, ir, x[:])
+_lower!(sc, ir::IR, x::AST.Block) = foreach(x -> _lower!(sc, ir, x), x[:])
 
 function lower!(sc, ir::IR, ex::AST.Operator, value = true)
-  if ex.op == :(=) && AST.isexpr(ex.args[1], Symbol)
-    x = variable!(sc, AST.unwrap(ex.args[1]))
-    _push!(ir, :($(x) = $(lower!(sc, ir, ex.args[2]))))
+  if ex[1] == :(=) && ex[2] isa Symbol
+    x = variable!(sc, ex[2])
+    _push!(ir, :($(x) = $(lower!(sc, ir, ex[3]))))
     return x
-  elseif ex.op == :(=)
-    pat = ex.args[1]
-    val = lower!(sc, ir, ex.args[2])
+  elseif ex[1] == :(=)
+    pat = ex[2]
+    val = lower!(sc, ir, ex[3])
     lowermatch!(sc, ir, val, pat)
-  elseif ex.op in (:(&&), :(||))
-    clauses = ex.op == :(&&) ? [ex.args[2], Int32(false)] : [Int32(true), ex.args[2]]
-    lowerif!(sc, ir, If([ex.args[1], true], clauses), value)
+  elseif ex[1] in (:(&&), :(||))
+    clauses = ex[1] == :(&&) ? [ex[3], Int32(false)] : [Int32(true), ex[3]]
+    lowerif!(sc, ir, If([ex[2], true], clauses), value)
   else
-    r = _push!(ir, xcall(ex.op, xlist(map(x -> lower!(sc, ir, x), ex.args)...)))
+    r = _push!(ir, xcall(ex[1], xlist(map(x -> lower!(sc, ir, x), ex[2:end])...)))
     _push!(ir, xpart(r, 1))
   end
 end
@@ -283,21 +274,20 @@ end
 _lower!(sc, ir::IR, ex::AST.Operator) = lower!(sc, ir, ex, false)
 
 function argtuple!(sc, ir::IR, args)
-  args = AST.unwrap.(collect(args))
   swaps = []
   parts = []
   idx = 1
   splat = false
   while !isempty(args)
     if first(args) isa AST.Splat
-      push!(parts, lower!(sc, ir, popfirst!(args).expr))
+      push!(parts, lower!(sc, ir, popfirst!(args)[1]))
       splat = true
     else
       as = []
       while !(isempty(args) || first(args) isa AST.Splat)
         arg = popfirst!(args)
         if arg isa AST.Swap && !splat
-          arg = arg.op
+          arg = arg[1]
           push!(swaps, arg => idx)
         end
         push!(as, lower!(sc, ir, arg))
@@ -314,8 +304,8 @@ function argtuple!(sc, ir::IR, args)
 end
 
 function lower!(sc, ir::IR, ex::AST.Call)
-  args, swaps = argtuple!(sc, ir, ex.args)
-  result = _push!(ir, xcall(lower!(sc, ir, ex.func), args))
+  args, swaps = argtuple!(sc, ir, ex[2:end])
+  result = _push!(ir, xcall(lower!(sc, ir, ex[1]), args))
   val = _push!(ir, xpart(result, 1))
   for (x, i) in swaps
     _push!(ir, Expr(:(=), variable!(sc, x), xpart(result, i+1)))
@@ -326,7 +316,7 @@ end
 function lower!(sc, ir::IR, ex::AST.List)
   # TODO: should use the `tuple` function.
   # But this puts off the need for special argument inference.
-  argtuple!(sc, ir, ex.args)[1]
+  argtuple!(sc, ir, ex[:])[1]
 end
 
 function swapreturn!(ir::IR, val, swaps)
@@ -340,7 +330,7 @@ function swapreturn!(ir::IR, val, swaps)
 end
 
 function lower!(sc, ir::IR, ex::AST.Return)
-  result = lower!(sc, ir, ex.val)
+  result = lower!(sc, ir, ex[1])
   swapreturn!(ir, result, swaps(sc))
   return
 end
@@ -369,10 +359,10 @@ end
 function lowerwhile!(sc, ir::IR, ex, value = true)
   sc = Scope(sc)
   header = IRTools.block!(ir)
-  cond = lower!(sc, ir, ex.args[1])
+  cond = lower!(sc, ir, ex[2])
   cond = _push!(ir, rcall(:condition, cond))
   IRTools.block!(ir)
-  _lower!(sc, ir, AST.unwrap(ex.args[2]).args)
+  _lower!(sc, ir, ex[3][:])
   body = blocks(ir)[end]
   after = IRTools.block!(ir)
   # Rewrite continue/break to the right block number
@@ -396,11 +386,11 @@ end
 function If(b::AST.Syntax)
   cond = []
   body = []
-  push!(cond, b.args[1])
-  push!(body, b.args[2])
-  args = b.args[3:end]
+  push!(cond, b[2])
+  push!(body, b[3])
+  args = b[4:end]
   while !isempty(args)
-    @assert AST.unwrap(popfirst!(args)) == :else "Broken if block"
+    @assert popfirst!(args) == :else "Broken if block"
     if args[1] == :if
       popfirst!(args)
       push!(cond, popfirst!(args))
@@ -411,7 +401,7 @@ function If(b::AST.Syntax)
   end
   if cond[end] !== true
     push!(cond, true)
-    push!(body, AST.Call(:pack, [AST.Quote(:Nil)]))
+    push!(body, AST.Call(:pack, AST.Quote(:Nil)))
   end
   return If(cond, body)
 end
@@ -452,29 +442,28 @@ end
 
 function lowerlet!(sc, ir::IR, ex, value = true)
   sc = Scope(sc)
-  @assert length(ex.args) == 1
-  (value ? lower! : _lower!)(sc, ir, ex.args[1])
+  @assert length(ex) == 2
+  (value ? lower! : _lower!)(sc, ir, ex[2])
 end
 
 function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
-  name = AST.unwrap(ex.name)
-  if name == :while
+  if ex[1] == :while
     lowerwhile!(sc, ir, ex, value)
-  elseif name == :if
+  elseif ex[1] == :if
     lowerif!(sc, ir, If(ex), value)
-  elseif name == :wasm
-    ex = AST.unwrap(ex.args[1]).args[1]
+  elseif ex[1] == :wasm
+    ex = ex[2][1]
     op = intrinsic(ex)
     args = lower!.((sc,), (ir,), intrinsic_args(ex))
     push!(ir, xcall(op, args...))
-  elseif name == :import
+  elseif ex[1] == :import
     push!(ir, Expr(:import, importpath(ex)))
-  elseif name == :let
+  elseif ex[1] == :let
     lowerlet!(sc, ir, ex, value)
-  elseif name == :for
+  elseif ex[1] == :for
     (value ? lower! : _lower!)(sc, ir, formacro(ex))
   else
-    error("unrecognised block $(name)")
+    error("unrecognised block $(ex[1])")
   end
 end
 
@@ -489,7 +478,7 @@ function lowerfn(ex, sig = fnsig(ex))
     sc[arg] = Slot(arg)
     push!(ir, :($(Slot(arg)) = $(argument!(ir))))
   end
-  out = lower!(sc, ir, ex.args[2])
+  out = lower!(sc, ir, ex[3])
   out == nothing || swapreturn!(ir, out, sig.swap)
   ir = ir |> pruneblocks! |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
 end
