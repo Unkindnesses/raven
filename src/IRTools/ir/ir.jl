@@ -14,6 +14,9 @@ end
 
 var(id::Integer) = Variable(id)
 
+isvariable(x) = false
+isvariable(::Variable) = true
+
 struct Slot
   id::Symbol
   type
@@ -403,6 +406,8 @@ struct NewVariable
   id::Int
 end
 
+isvariable(::IRTools.NewVariable) = true
+
 """
     Pipe(ir)
 
@@ -500,6 +505,10 @@ function setindex!(p::Pipe, x::Variable, v)
   else
     p.to[v′] = substitute(p, x)
   end
+end
+
+function Base.replace!(pr::IRTools.Pipe, x, y)
+  IRTools.substitute!(pr, x, IRTools.substitute(pr, y))
 end
 
 function Base.push!(p::Pipe, x)

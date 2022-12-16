@@ -20,15 +20,7 @@ end
 Base.pop!(q::WorkQueue) = pop!(q.items)
 Base.isempty(q::WorkQueue) = isempty(q.items)
 
-# Belongs in IRTools.
-# Also, could be written as `pr[x] = y`
-function Base.replace!(pr::IRTools.Pipe, x, y)
-  IRTools.substitute!(pr, x, IRTools.substitute(pr, y))
-end
-
-isvariable(x) = false
-isvariable(::Variable) = true
-isvariable(::IRTools.NewVariable) = true
+# Trim unreachable code
 
 reachable(b::IRTools.Block) =
   any(((v, st),) -> st.type == ⊥, b) ? Set(b.id) :
@@ -84,7 +76,7 @@ function trim_unreachable!(ir)
   return IRTools.finish(pr)
 end
 
-# Simply dynamic binding for recursive types
+# Simple dynamic binding for recursive types
 
 function dynamic_bind(f, k, v)
   stack = get!(task_local_storage(), k, [])

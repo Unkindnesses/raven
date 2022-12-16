@@ -6,8 +6,6 @@ import ..IRTools
 
 export @code_ir
 
-include("utils.jl")
-
 include("ir/ir.jl")
 include("ir/utils.jl")
 include("ir/print.jl")
