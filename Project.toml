@@ -2,7 +2,7 @@ name = "Raven"
 uuid = "0ecc78c5-42b8-4664-97dc-55e6808aaa3c"
 
 [deps]
-IRTools = "7869d1d1-7146-5819-86e3-90919afe41df"
+InteractiveUtils = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 LNR = "7c4cb9fa-83a0-5386-9231-d6167c818060"
 MacroTools = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
 REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"

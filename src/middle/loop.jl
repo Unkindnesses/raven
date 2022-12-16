@@ -1,4 +1,4 @@
-using IRTools.Inner: CFG, Block, Component, components, entries
+using .IRTools: CFG, Block, Component, components, entries
 
 rename(env, ex) =
   IRTools.prewalk(x -> x isa Variable ? env[x] : x, ex)

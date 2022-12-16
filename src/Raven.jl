@@ -1,14 +1,15 @@
 module Raven
 
+include("IRTools/IRTools.jl")
 include("Dwarf/Dwarf.jl")
 include("WebAssembly/WebAssembly.jl")
 
 using MacroTools: @q, @forward, isexpr
 
-using IRTools, .Dwarf, .WebAssembly
-using IRTools: IR, Variable, Statement, Variable, argument!, block, blocks, arguments, argtypes,
-  block, isreturn, branches, prune!, return!, branch!, block!, stmt, predecessors, successors
-using IRTools.Inner: Slot
+using .IRTools, .Dwarf, .WebAssembly
+using .IRTools: IR, Variable, Statement, Variable, argument!, block, blocks, arguments, argtypes,
+  block, isreturn, branches, prune!, return!, branch!, block!, stmt, predecessors, successors,
+  Slot
 
 include("frontend/ast.jl")
 include("frontend/parse.jl")

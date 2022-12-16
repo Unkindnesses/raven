@@ -49,7 +49,7 @@ function liveness(ir)
     for v in reverse(keys(b))
       union!(result[v], live)
       delete!(live, v)
-      IRTools.Inner.varmap(x -> push!(live, x), b[v])
+      IRTools.varmap(x -> push!(live, x), b[v])
     end
     if !isempty(setdiff(live, result[b.id]))
       union!(result[b.id], live)

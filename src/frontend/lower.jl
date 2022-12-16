@@ -187,7 +187,7 @@ xpart(x, i) = xcall(part_method, x, i)
 
 rcall(f, args...) = xpart(xcall(f, xlist(args...)), 1)
 
-function IRTools.Inner.print_stmt(io::IO, ::Val{:pack}, ex)
+function IRTools.print_stmt(io::IO, ::Val{:pack}, ex)
   if ex.args[1] == :List
     print(io, "[")
     join(io, [sprint(vprint, x) for x in ex.args[2:end]], ", ")

@@ -28,7 +28,7 @@ end
 
 isvariable(x) = false
 isvariable(::Variable) = true
-isvariable(::IRTools.Inner.NewVariable) = true
+isvariable(::IRTools.NewVariable) = true
 
 reachable(b::IRTools.Block) =
   any(((v, st),) -> st.type == ⊥, b) ? Set(b.id) :

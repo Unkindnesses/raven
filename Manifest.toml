@@ -2,7 +2,7 @@
 
 julia_version = "1.8.3"
 manifest_format = "2.0"
-project_hash = "945a7b5f8f74c69396b73ba2a61fba4139188a69"
+project_hash = "82557451ad047c10d2c56f70a63c9a7070ed3e63"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
@@ -44,12 +44,6 @@ version = "1.6.0"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
-
-[[deps.IRTools]]
-deps = ["InteractiveUtils", "MacroTools", "Test"]
-git-tree-sha1 = "2e99184fca5eb6f075944b04c22edec29beb4778"
-uuid = "7869d1d1-7146-5819-86e3-90919afe41df"
-version = "0.4.7"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
