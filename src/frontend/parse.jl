@@ -264,14 +264,19 @@ function expr(io; quasi = true)
   quot = quasi ? quotation : nop
   ex = parseone(io, ret, _break, symbol, swap, string, number, op_token, quot, grouping, _tuple, _block)
   ex == nothing && throw(ParseError("Unexpected character $(read(io))", loc(io)))
-  while (args = tryparse(brackets, io)) != nothing
-    ex = Call(ex, args...)
+  ex = meta(ex, path(), cur)
+  while true
+    cur = cursor(io)
+    args = tryparse(brackets, io)
+    args == nothing && break
+    ex = meta(Call(ex, args...), path(), cur)
   end
   consume_ws(io)
+  cur = cursor(io)
   if (op = tryparse(op_token, io)) != nothing
-    ex = Operator(op, ex, parse(io))
+    ex = Operator(meta(op, path(), cur), ex, parse(io))
   end
-  return meta(ex, path(), cur)
+  return ex
 end
 
 function _syntax(io; quasi = true)
