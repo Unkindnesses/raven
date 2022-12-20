@@ -345,8 +345,8 @@ function lowermatch!(sc, ir::IR, val, pat)
   pat = rvpattern(sig.pattern)
   m = push!(ir, rcall(:match, val, pat))
   isnil = push!(ir, xcall(isnil_method, m))
-  branch!(ir, length(blocks(ir))+2, unless = isnil)
-  branch!(ir, length(blocks(ir))+1)
+  branch!(ir, length(blocks(ir))+1, when = isnil)
+  branch!(ir, length(blocks(ir))+2)
   block!(ir)
   push!(ir, rcall(:panic, "match failed: $(sig.pattern)"))
   block!(ir)
@@ -375,8 +375,8 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
       br.args[1] == -1 && (br.args[1] = after.id)
     end
   end
-  branch!(header, after, unless = cond)
-  branch!(header, bodyStart)
+  branch!(header, bodyStart, when = cond)
+  branch!(header, after)
   IRTools.canbranch(bodyEnd) && branch!(bodyEnd, header)
   return value ? Global(:nil) : nothing
 end
@@ -431,8 +431,8 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
     body!(ir, body)
     push!(ts, blocks(ir)[end])
     f = block!(ir)
-    branch!(c, f, unless = cond)
-    branch!(c, t)
+    branch!(c, t, when = cond)
+    branch!(c, f)
   end
   b = blocks(ir)[end]
   for i = 1:length(ts)

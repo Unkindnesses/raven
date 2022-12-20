@@ -119,8 +119,8 @@ function partir(x, i)
   part(i) = xlayout isa Tuple ? push!(ir, Expr(:ref, vx, i)) : vx
   for i = 1:nparts(x)
     cond = push!(ir, stmt(xcall(WIntrinsic(i64.eq, i32), i, vi), type = Int32))
-    branch!(ir, length(ir.blocks) + 2, unless = cond)
-    branch!(ir, length(ir.blocks) + 1)
+    branch!(ir, length(ir.blocks) + 1, when = cond)
+    branch!(ir, length(ir.blocks) + 2)
     block!(ir)
     # TODO: recurse to `indexer` here, let casting happen later
     range = sublayout(x, i)

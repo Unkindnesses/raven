@@ -159,8 +159,8 @@ function openbranches(mod, bl)
   for br in IRTools.branches(bl)
     br.args[2] == nothing && (push!(brs, br); break)
     cond = exprtype(mod, bl.ir, br.args[2])
-    cond == true && continue
-    cond == false && (push!(brs, br); break)
+    cond == false && continue
+    cond == true && (push!(brs, br); break)
     push!(brs, br)
   end
   return brs
@@ -215,7 +215,7 @@ function step!(inf::Inference, loc)
     end
   elseif isexpr(st.expr, :branch)
     brs = openbranches(inf.mod, bl)
-    for br in brs
+    for br in reverse(brs) # HACK
       if isreturn(br)
         T = exprtype(inf.mod, bl.ir, IRTools.returnvalue(bl))
         T = union(frame.rettype, T)
@@ -282,7 +282,8 @@ function infer!(inf::Inference; partial = false)
     try
       step!(inf, loc)
     catch e
-      partial || rethrow(CompileError(e, stack(inf, loc.sig)))
+      partial && break
+      rethrow(CompileError(e, stack(inf, loc.sig)))
     end
   end
   return inf

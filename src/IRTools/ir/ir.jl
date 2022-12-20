@@ -31,8 +31,8 @@ function Base.show(io::IO, s::Slot)
   s.type != Any && print(io, "::", s.type)
 end
 
-branch(block::Integer, args...; unless = nothing) =
-  Expr(:branch, block, unless, args...)
+branch(block::Integer, args...; when = nothing) =
+  Expr(:branch, block, when, args...)
 
 function arguments(ex::Expr)
   @assert isexpr(ex, :branch)
@@ -240,10 +240,10 @@ setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], expr = x))
 
 branch(block::Block, args...; kw...) = branch(block.id, args...; kw...)
 
-function branch!(b::Block, block, args...; unless = nothing)
+function branch!(b::Block, block, args...; when = nothing)
   brs = branches(b)
   args = map(a -> a isa Expr ? push!(b, a) : a, args)
-  push!(b, branch(block, args...; unless = unless))
+  push!(b, branch(block, args...; when))
   return b
 end
 

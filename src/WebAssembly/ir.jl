@@ -132,7 +132,6 @@ function reloop!(rl::Relooping, i::Integer)
   b = blocks(rl.ir)[i]
   for (v, st) in b
     if st.expr isa Branch
-      st.expr.cond && push!(rl.scopes[end].body, i32.eqz)
       target = findfirst(b -> b == st.expr.level, reverse(rl.targets))-1
       push!(rl.scopes[end].body, Branch(st.expr.cond, target))
     else

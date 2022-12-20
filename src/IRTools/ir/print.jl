@@ -22,7 +22,7 @@ function print_stmt(io::IO, ::Val{:branch}, b)
       join(io, arguments(b), ", ")
       print(io, ")")
     end
-    b.args[2] != nothing && print(io, " unless $(b.args[2])")
+    b.args[2] != nothing && print(io, " if $(b.args[2])")
   end
 end
 

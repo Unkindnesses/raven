@@ -55,9 +55,9 @@ function trim_unreachable!(ir)
         flag = true
       else
         cond = exprtype(nothing, ir, br.args[2])
-        if cond == true
+        if cond == false
           delete!(pr, v)
-        elseif cond == false
+        elseif cond == true
           flag = true
           pr[v] = IRTools.branch(br.args[1], arguments(br)...)
         end
@@ -106,8 +106,8 @@ function union_cases!(f, ir, T::Or, x)
   j = push!(ir, Expr(:ref, x, 1))
   for case in 1:length(T.patterns)
     cond = push!(ir, xcall(WIntrinsic(i32.eq, i32), j, Int32(case)))
-    branch!(ir, length(blocks(ir))+2, unless = cond)
-    branch!(ir, length(blocks(ir))+1)
+    branch!(ir, length(blocks(ir))+1, when = cond)
+    branch!(ir, length(blocks(ir))+2)
     block!(ir)
     val = union_downcast!(ir, T, case, x)
     ret = f(T.patterns[case], val)
