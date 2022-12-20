@@ -9,7 +9,7 @@ exprtype(mod, ir, x) = IRTools.exprtype(ir, x, typeof = x -> _typeof(mod, x))
 exprtype(mod, ir, xs::AbstractVector) = map(x -> exprtype(mod, ir, x), xs)
 
 function prepare_ir!(ir)
-  ir = ir |> IRTools.expand! |> IRTools.explicitbranch!
+  ir = ir |> IRTools.expand!
   for b in ir.blocks
     b.argtypes .= (⊥,)
     for i in 1:length(b.stmts)
@@ -148,15 +148,13 @@ end
 
 function openbranches(mod, bl)
   brs = []
-  fallthrough = true
   for br in IRTools.branches(bl)
-    br.condition == nothing && (fallthrough = false; push!(brs, br); break)
-    cond = exprtype(mod, bl.ir, br.condition)
+    br.args[2] == nothing && (push!(brs, br); break)
+    cond = exprtype(mod, bl.ir, br.args[2])
     cond == true && continue
-    cond == false && (fallthrough = false; push!(brs, br); break)
+    cond == false && (push!(brs, br); break)
     push!(brs, br)
   end
-  fallthrough && push!(brs, IRTools.branch(bl.id+1))
   return brs
 end
 
@@ -166,52 +164,48 @@ function step!(inf::Inference, loc)
   frame isa Redirect && return
   bl = block(inf, frame.ir, p)
   stmts = keys(bl)
-  if ip <= length(stmts)
-    var = stmts[ip]
-    st = bl[var]
-    for g in (isexpr(st.expr, :(=)) ? st.expr.args[2:end] : st.expr.args)
-      g isa Global && push!(global_edges(inf, g.name), loc)
+  var = stmts[ip]
+  st = bl[var]
+  for g in (isexpr(st.expr, :(=)) ? st.expr.args[2:end] : st.expr.args)
+    g isa Global && push!(global_edges(inf, g.name), loc)
+  end
+  if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
+    op = st.expr.args[1].op
+    T = rvtype(st.expr.args[1].ret)
+    Ts = exprtype(inf.mod, bl.ir, st.expr.args[2:end])
+    if all(isvalue, Ts) && haskey(wasmPartials, op)
+      T = wasmPartials[op](Ts...)
     end
-    if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
-      op = st.expr.args[1].op
-      T = rvtype(st.expr.args[1].ret)
-      Ts = exprtype(inf.mod, bl.ir, st.expr.args[2:end])
-      if all(isvalue, Ts) && haskey(wasmPartials, op)
-        T = wasmPartials[op](Ts...)
-      end
+    bl.ir[var] = Statement(bl[var], type = T)
+    push!(inf.queue, next(loc))
+  elseif isexpr(st.expr, :call)
+    T = infercall!(inf, loc, bl, st.expr)
+    if T != ⊥
       bl.ir[var] = Statement(bl[var], type = T)
       push!(inf.queue, next(loc))
-    elseif isexpr(st.expr, :call)
-      T = infercall!(inf, loc, bl, st.expr)
-      if T != ⊥
-        bl.ir[var] = Statement(bl[var], type = T)
-        push!(inf.queue, next(loc))
-      end
-    elseif isexpr(st.expr, :pack)
-      Ts = exprtype(inf.mod, bl.ir, st.expr.args)
-      if !any(==(⊥), Ts)
-        bl.ir[var] = Statement(bl[var], type = pack(Ts...))
-        push!(inf.queue, next(loc))
-      end
-    elseif isexpr(st.expr, :loop)
-      l = loop(bl)
-      if blockargs!(l.body[1], argtypes(bl))
-        push!(inf.queue, Loc(loc.sig, Path([p.parts..., (1,1)])))
-      end
-    elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global
-      x = st.expr.args[1].name
-      T = exprtype(inf.mod, bl.ir, st.expr.args[2])
-      T = union(get!(inf.mod.defs, x, ⊥), T)
-      bl.ir[var] = Statement(bl[var], type = T)
-      push!(inf.queue, next(loc))
-      if inf.mod.defs[x] != T
-        inf.mod.defs[x] = T
-        foreach(loc -> push!(inf.queue, loc), global_edges(inf, x))
-      end
-    else
-      error("Unknown expr type $(st.expr.head)")
     end
-  else
+  elseif isexpr(st.expr, :pack)
+    Ts = exprtype(inf.mod, bl.ir, st.expr.args)
+    if !any(==(⊥), Ts)
+      bl.ir[var] = Statement(bl[var], type = pack(Ts...))
+      push!(inf.queue, next(loc))
+    end
+  elseif isexpr(st.expr, :loop)
+    l = loop(bl)
+    if blockargs!(l.body[1], argtypes(bl))
+      push!(inf.queue, Loc(loc.sig, Path([p.parts..., (1,1)])))
+    end
+  elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global
+    x = st.expr.args[1].name
+    T = exprtype(inf.mod, bl.ir, st.expr.args[2])
+    T = union(get!(inf.mod.defs, x, ⊥), T)
+    bl.ir[var] = Statement(bl[var], type = T)
+    push!(inf.queue, next(loc))
+    if inf.mod.defs[x] != T
+      inf.mod.defs[x] = T
+      foreach(loc -> push!(inf.queue, loc), global_edges(inf, x))
+    end
+  elseif isexpr(st.expr, :branch)
     brs = openbranches(inf.mod, bl)
     for br in brs
       if isreturn(br)
@@ -222,14 +216,16 @@ function step!(inf::Inference, loc)
         foreach(loc -> push!(inf.queue, loc), frame.edges)
       else
         args = exprtype(inf.mod, bl.ir, arguments(br))
-        p′ = nextpath(frame.ir, p, br.block)
-        if (isempty(args) && !(br.block in frame.seen)) || blockargs!(block(inf, frame.ir, p′), args)
-          push!(frame.seen, br.block)
+        p′ = nextpath(frame.ir, p, br.args[1])
+        if (isempty(args) && !(br.args[1] in frame.seen)) || blockargs!(block(inf, frame.ir, p′), args)
+          push!(frame.seen, br.args[1])
           push!(inf.queue, Loc(loc.sig, p′))
         end
       end
     end
     checkExit(inf, frame.ir, p)
+  else
+    error("Unknown expr type $(st.expr.head)")
   end
   return
 end

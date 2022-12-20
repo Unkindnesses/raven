@@ -10,19 +10,19 @@ print_stmt(io::IO, ex::Expr) = print_stmt(io::IO, Val(ex.head), ex)
 print_stmt(io::IO, ::Val, ex) = print(io, ex)
 print_stmt(io::IO, ex) = print(io, ex)
 
-function show(io::IO, b::Branch)
+function print_stmt(io::IO, ::Val{:branch}, b)
   if b == unreachable
     print(io, "unreachable")
   elseif isreturn(b)
-    print(io, "return ", b.args[1])
+    print(io, "return ", b.args[3])
   else
-    print(io, "br $(b.block)")
-    if !isempty(b.args)
+    print(io, "br $(b.args[1])")
+    if !isempty(arguments(b))
       print(io, " (")
-      join(io, b.args, ", ")
+      join(io, arguments(b), ", ")
       print(io, ")")
     end
-    b.condition != nothing && print(io, " unless $(b.condition)")
+    b.args[2] != nothing && print(io, " unless $(b.args[2])")
   end
 end
 
@@ -56,10 +56,6 @@ function show(io::IO, b::Block)
     st.expr == nothing ? print(io, "nothing") :
       print_stmt(io, st.expr)
     st.type == Any || print(io, " :: ", st.type)
-  end
-  for br in bb.branches
-    println(io)
-    print(io, tab^indent, "  ", br)
   end
 end
 

@@ -336,7 +336,7 @@ function lower!(sc, ir::IR, ex::AST.Return)
 end
 
 function lower!(sc, ir::IR, ex::AST.Break)
-  IRTools.branch!(ir, -1)
+  branch!(ir, -1)
   return
 end
 
@@ -346,6 +346,7 @@ function lowermatch!(sc, ir::IR, val, pat)
   m = push!(ir, rcall(:match, val, pat))
   isnil = push!(ir, xcall(isnil_method, m))
   branch!(ir, length(blocks(ir))+2, unless = isnil)
+  branch!(ir, length(blocks(ir))+1)
   block!(ir)
   push!(ir, rcall(:panic, "match failed: $(sig.pattern)"))
   block!(ir)
@@ -358,23 +359,25 @@ end
 
 function lowerwhile!(sc, ir::IR, ex, value = true)
   sc = Scope(sc)
-  header = IRTools.block!(ir)
+  header = block!(ir)
+  branch!(blocks(ir)[end-1], header)
   cond = lower!(sc, ir, ex[2])
   cond = _push!(ir, rcall(:condition, cond))
-  IRTools.block!(ir)
+  bodyStart = block!(ir)
   _lower!(sc, ir, ex[3][:])
-  body = blocks(ir)[end]
-  after = IRTools.block!(ir)
+  bodyEnd = blocks(ir)[end]
+  after = block!(ir)
   # Rewrite continue/break to the right block number
-  for i = header.id:body.id
+  for i = header.id:bodyEnd.id
     bl = block(ir, i)
     for j = 1:length(branches(bl))
       br = branches(bl)[j]
-      br.block == -1 && (branches(bl)[j] = IRTools.Branch(br, block = after.id))
+      br.args[1] == -1 && (br.args[1] = after.id)
     end
   end
-  IRTools.branch!(header, after, unless = cond)
-  IRTools.canbranch(body) && IRTools.branch!(body, header)
+  branch!(header, after, unless = cond)
+  branch!(header, bodyStart)
+  IRTools.canbranch(bodyEnd) && branch!(bodyEnd, header)
   return value ? Global(:nil) : nothing
 end
 
@@ -418,24 +421,25 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
     if cond === true
       body!(ir, body)
       push!(ts, blocks(ir)[end])
-      IRTools.block!(ir)
+      block!(ir)
       break
     end
     cond = lower!(sc, ir, cond)
     cond = _push!(ir, rcall(:condition, cond))
     c = blocks(ir)[end]
-    t = IRTools.block!(ir)
+    t = block!(ir)
     body!(ir, body)
     push!(ts, blocks(ir)[end])
-    f = IRTools.block!(ir)
-    IRTools.branch!(c, f, unless = cond)
+    f = block!(ir)
+    branch!(c, f, unless = cond)
+    branch!(c, t)
   end
   b = blocks(ir)[end]
   for i = 1:length(ts)
     IRTools.canbranch(ts[i]) &&
       (value ?
-        IRTools.branch!(ts[i], b, vs[i]) :
-        IRTools.branch!(ts[i], b))
+        branch!(ts[i], b, vs[i]) :
+        branch!(ts[i], b))
   end
   value && IRTools.argument!(b, insert = false)
 end
@@ -469,7 +473,7 @@ end
 
 _lower!(sc, ir::IR, ex::AST.Syntax) = lower!(sc, ir, ex, false)
 
-fnsig(ex) = lowerpattern(AST.List(ex.args[1].args))
+fnsig(ex) = lowerpattern(AST.List(ex[2][:]...))
 
 function lowerfn(ex, sig = fnsig(ex))
   sc = Scope(swap = sig.swap)
@@ -481,15 +485,6 @@ function lowerfn(ex, sig = fnsig(ex))
   out = lower!(sc, ir, ex[3])
   out == nothing || swapreturn!(ir, out, sig.swap)
   ir = ir |> pruneblocks! |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
-end
-
-function lowerexpr(ex)
-  sc = Scope()
-  ir = IR()
-  out = lower!(sc, ir, ex)
-  out == nothing || IRTools.return!(ir, out)
-  # return ir |> IRTools.ssa! |> IRTools.prune!
-  return ir
 end
 
 function rewrite_globals(ir::IR)

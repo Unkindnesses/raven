@@ -71,40 +71,39 @@ function locals!(ir::IR)
       elseif isexpr(ex, :ref)
         env[v] = tuples[ex.args[1]][ex.args[2]]
         delete!(ir, v)
+      elseif isexpr(ex, :branch)
+        br = ex
+        if isreturn(br)
+          args = haskey(tuples, arguments(br)[1]) ? tuples[arguments(br)[1]] : arguments(br)
+          ret = ltype.(args)
+          for arg in args
+            insert!(ir, v, rename(arg))
+          end
+          ir[v] = Return()
+        elseif br == IRTools.unreachable
+          ir[v] = unreachable
+        else
+          for (x, y) in zip(arguments(br), arguments(IRTools.block(ir, br.args[1])))
+            if haskey(tuples, x)
+              ls = get!(tuples, y) do
+                [local!(T) for T in IRTools.exprtype(ir, y).parts]
+              end
+              for (xl, yl) in zip(tuples[x], ls)
+                push!(b, xl)
+                push!(b, SetLocal(false, yl.id))
+              end
+            else
+              push!(b, rename(x))
+              push!(b, SetLocal(false, local!(y, ltype(x)).id))
+            end
+          end
+          isconditional(br) && push!(b, rename(br.args[2]))
+          ir[v] = Branch(isconditional(br), br.args[1])
+        end
       else
         error("Unrecognised wasm expression $ex")
       end
     end
-    for br in IRTools.branches(b)
-      if isreturn(br)
-        args = haskey(tuples, arguments(br)[1]) ? tuples[arguments(br)[1]] : arguments(br)
-        ret = ltype.(args)
-        for arg in args
-          push!(b, rename(arg))
-        end
-        push!(b, Return())
-      elseif br.block == 0
-        push!(b, unreachable)
-      else
-        for (x, y) in zip(arguments(br), arguments(IRTools.block(ir, br.block)))
-          if haskey(tuples, x)
-            ls = get!(tuples, y) do
-              [local!(T) for T in IRTools.exprtype(ir, y).parts]
-            end
-            for (xl, yl) in zip(tuples[x], ls)
-              push!(b, xl)
-              push!(b, SetLocal(false, yl.id))
-            end
-          else
-            push!(b, rename(x))
-            push!(b, SetLocal(false, local!(y, ltype(x)).id))
-          end
-        end
-        isconditional(br) && push!(b, rename(br.condition))
-        push!(b, Branch(isconditional(br), br.block))
-      end
-    end
-    empty!(IRTools.branches(b))
   end
   return ir, locals, ret
 end
@@ -172,7 +171,6 @@ flattentype(T::WTuple) = T.parts
 function irfunc(name, ir)
   # @show name
   cfg = CFG(ir)
-  ir = IRTools.explicitbranch!(ir)
   ir, locals, ret = locals!(ir)
   params = flattentype(argtypes(ir))
   locals = locals[length(params)+1:end]

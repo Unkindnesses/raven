@@ -130,6 +130,7 @@ function lowerwasm!(mod::WModule, ir::IR)
         func = lowerwasm!(mod, Ts)
         pr[v] = stmt(xcall(WebAssembly.Call(func), st.expr.args[2:end]...), type = wlayout(ir[v].type))
       end
+    elseif isexpr(st, :branch)
     else
       error("unrecognised $(st.expr.head) expression")
     end

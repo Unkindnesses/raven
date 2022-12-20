@@ -4,17 +4,13 @@ import MacroTools: walk, prewalk, postwalk
 
 xcall(f, args...) = Expr(:call, f, args...)
 
-map(f, br::Branch) = Branch(br, condition = f(br.condition), args = f.(br.args))
-
 function map(f, b::BasicBlock)
   stmts = map(x -> Statement(x, expr = f(x.expr)), b.stmts)
-  branches = map(br -> map(f, br), b.branches)
-  BasicBlock(stmts, b.args, b.argtypes, branches)
+  BasicBlock(stmts, b.args, b.argtypes)
 end
 
 function map!(f, b::BasicBlock)
   map!(x -> Statement(x, expr = f(x.expr)), b.stmts, b.stmts)
-  map!(br -> Branch(br, condition = f(br.condition), args = f.(br.args)), b.branches, b.branches)
   return b
 end
 
@@ -35,7 +31,6 @@ end
 
 walk(st::Statement, inner, outer) = Statement(st, expr = inner(st.expr))
 walk(bb::BasicBlock, inner, outer) = map(inner, bb)
-walk(bb::Branch, inner, outer) = map(inner, bb)
 walk(b::Block, inner, outer) = walk(BasicBlock(b), inner, outer)
 
 walk(ir::IR, inner, outer) = outer(map(inner, ir))

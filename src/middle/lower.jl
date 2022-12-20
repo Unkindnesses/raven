@@ -49,10 +49,6 @@ function globals(mod::RModule, ir::IR)
       insert(stmt(Expr(:global, x.name), type = T))
     end
   end
-  IRTools.branches(pr) do b
-    IRTools.Branch(b, args = [transform(x) for x in b.args],
-                   condition = transform(b.condition))
-  end
   for (v, st) in pr
     ex = st.expr
     if isexpr(ex, :(=))
@@ -484,25 +480,6 @@ end
 
 function casts!(inf::Inference, cx::Compilation, ir, ret)
   pr = IRTools.Pipe(ir)
-  IRTools.branches(pr) do br
-    if isreturn(br)
-      S = exprtype(cx.mod, ir, arguments(br)[1])
-      if S != ret
-        arguments(br)[1] = cast!(cx, pr, S, ret, arguments(br)[1])
-      elseif !(arguments(br)[1] isa Variable)
-        arguments(br)[1] = push!(pr, Expr(:tuple))
-      end
-    else
-      for i = 1:length(arguments(br))
-        S = exprtype(cx.mod, ir, arguments(br)[i])
-        T = blockargtype(cx.mod, block(ir, br.block), i)
-        arguments(br)[i] isa Variable || (arguments(br)[i] = push!(pr, stmt(Expr(:tuple), type = S)))
-        S == T && continue
-        arguments(br)[i] = cast!(cx, pr, S, T, arguments(br)[i])
-      end
-    end
-    return br
-  end
   for (v, st) in pr
     # Cast arguments to wasm primitives
     if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
@@ -517,6 +494,26 @@ function casts!(inf::Inference, cx::Compilation, ir, ret)
         args = [cast!(cx, pr, s, t, x) for (x, s, t) in zip(st.expr.args, S, T)]
         v′ = push!(pr, stmt(xcall(args...), type = st.type))
         replace!(pr, v, v′)
+      end
+    elseif isexpr(st.expr, :branch)
+      br = st.expr
+      if isreturn(br)
+        S = exprtype(cx.mod, ir, arguments(br)[1])
+        if S != ret
+          arguments(br)[1] = cast!(cx, pr, S, ret, arguments(br)[1])
+          pr[v] = br
+        elseif !(arguments(br)[1] isa Variable)
+          arguments(br)[1] = push!(pr, Expr(:tuple))
+        end
+      else
+        for i = 1:length(arguments(br))
+          S = exprtype(cx.mod, ir, arguments(br)[i])
+          T = blockargtype(cx.mod, block(ir, br.args[1]), i)
+          arguments(br)[i] isa Variable || (arguments(br)[i] = push!(pr, stmt(Expr(:tuple), type = S)))
+          S == T && continue
+          arguments(br)[i] = cast!(cx, pr, S, T, arguments(br)[i])
+          pr[v] = br
+        end
       end
     end
   end

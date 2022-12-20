@@ -35,6 +35,7 @@ end
 
 # Variables needed before each block is run, and after each statement is run.
 # Block variables include their arguments.
+# TODO rethink for branch statements
 function liveness(ir)
   result = Dict(v => Set{Variable}() for v in keys(ir))
   result = merge(result, Dict(b.id => Set{Variable}() for b in blocks(ir)))
@@ -44,9 +45,10 @@ function liveness(ir)
     live = liveness_after(b, result)
     for br in branches(b)
       foreach(x -> x isa Variable && push!(live, x), arguments(br))
-      br.condition isa Variable && push!(live, br.condition)
+      br.args[2] isa Variable && push!(live, br.args[2])
     end
     for v in reverse(keys(b))
+      isexpr(ir[v], :branch) && continue
       union!(result[v], live)
       delete!(live, v)
       IRTools.varmap(x -> push!(live, x), b[v])
@@ -113,10 +115,12 @@ function count!(cx, ir, T::Recursive, x, mode)
     unique = push!(ir, stmt(xcall(:blockUnique, ptr), type = rlist(Int32)))
     unique = push!(ir, Expr(:ref, unique, 1))
     branch!(ir, length(blocks(ir))+2, unless = unique)
+    branch!(ir, length(blocks(ir))+1)
     block!(ir)
     T = unroll(T)
     inner = unbox!(ir, T, x, count = false)
     release!(cx, ir, T, inner)
+    branch!(ir, length(blocks(ir))+1)
     block!(ir)
   end
   countptr!(ir, ptr, mode)

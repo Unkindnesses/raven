@@ -17,6 +17,8 @@ var(id::Integer) = Variable(id)
 isvariable(x) = false
 isvariable(::Variable) = true
 
+Base.copy(x::IRTools.Variable) = x
+
 struct Slot
   id::Symbol
   type
@@ -29,30 +31,25 @@ function Base.show(io::IO, s::Slot)
   s.type != Any && print(io, "::", s.type)
 end
 
-struct Branch
-  condition::Any
-  block::Int
-  args::Vector{Any}
+branch(block::Integer, args...; unless = nothing) =
+  Expr(:branch, block, unless, args...)
+
+function arguments(ex::Expr)
+  @assert isexpr(ex, :branch)
+  @view ex.args[3:end]
 end
 
-Branch(br::Branch; condition = br.condition,
-                   block = br.block, args = br.args) =
-  Branch(condition, block, args)
+function isreturn(ex::Expr)
+  @assert isexpr(ex, :branch)
+  ex.args[1] == 0 && length(arguments(ex)) == 1
+end
 
-isreturn(b::Branch) = b.block == 0 && length(b.args) == 1
+function isconditional(ex::Expr)
+  @assert isexpr(ex, :branch)
+  ex.args[2] != nothing
+end
 
-returnvalue(b::Branch) = b.args[1]
-
-isconditional(b::Branch) = b.condition != nothing
-
-Base.:(==)(a::Branch, b::Branch) =
-  (a.condition, a.block, a.args) == (b.condition, b.block, b.args)
-
-Base.copy(br::Branch) = Branch(br.condition, br.block, copy(br.args))
-
-arguments(b::Branch) = b.args
-
-const unreachable = Branch(nothing, 0, [])
+const unreachable = Expr(:branch, 0, nothing)
 
 struct Statement
   expr::Any
@@ -66,20 +63,24 @@ Statement(x; expr = x, type = Any, line = 0) =
 Statement(x::Statement; expr = x.expr, type = x.type, line = x.line) =
   Statement(expr, type, line)
 
+MacroTools.isexpr(st::Statement, ts...) = isexpr(st.expr, ts...)
+
+Base.copy(::Nothing) = nothing
+Base.copy(st::Statement) = Statement(copy(st.expr), st.type, st.line)
+
 const stmt = Statement
 
 struct BasicBlock
     stmts::Vector{Statement}
     args::Vector{Any}
     argtypes::Vector{Any}
-    branches::Vector{Branch}
 end
 
-BasicBlock(stmts = []) = BasicBlock(stmts, [], [], Branch[])
+BasicBlock(stmts = []) = BasicBlock(stmts, [], [])
 
-Base.copy(bb::BasicBlock) = BasicBlock(copy(bb.stmts), copy(bb.args), copy(bb.argtypes), copy.(bb.branches))
+Base.copy(bb::BasicBlock) = BasicBlock(copy.(bb.stmts), copy(bb.args), copy(bb.argtypes))
 
-branches(bb::BasicBlock) = bb.branches
+branches(bb::BasicBlock) = filter(x -> isexpr(x, :branch), map(x -> x.expr, bb.stmts))
 
 arguments(bb::BasicBlock) = bb.args
 
@@ -118,7 +119,7 @@ function deleteblock!(ir::IR, i::Integer)
   if i != length(blocks(ir))+1
     for b in blocks(ir), bi = 1:length(branches(b))
       br = branches(b)[bi]
-      br.block >= i && (branches(b)[bi] = Branch(br, block = br.block-1))
+      br.args[1] >= i && (br.args[1] = br.args[1]-1)
     end
   end
   for (ii, (b, j)) = enumerate(ir.defs)
@@ -149,27 +150,15 @@ canbranch(b::Block) = length(branches(b)) == 0 || isconditional(branches(b)[end]
 
 isreturn(b::Block) = any(isreturn, branches(b))
 
-function explicitbranch!(b::Block)
-  b.id == 1 && return
-  a = block(b.ir, b.id-1)
-  if all(isconditional, branches(a))
-    branch!(a, b.id)
-  end
-  return b
-end
-
-explicitbranch!(ir::IR) = (foreach(explicitbranch!, blocks(ir)); return ir)
-
 function branches(b::Block, c::Block)
-  c.id == b.id+1 && explicitbranch!(c)
-  filter(br -> br.block == c.id, branches(b))
+  filter(br -> br.args[1] == c.id, branches(b))
 end
 
 branches(b::Block, c::Integer) = branches(b, block(b.ir, c))
 
 function returnvalue(b::Block)
   isreturn(branches(b)[end]) || error("Block does not return")
-  return returnvalue(branches(b)[end])
+  return branches(b)[end].args[3]
 end
 
 returntype(b::Block) = exprtype(b.ir, returnvalue(b))
@@ -187,9 +176,8 @@ function argument!(b::Block, value = nothing, t = Any;
   insert!(arguments(b), at, arg)
   insert!(BasicBlock(b).argtypes, at, type)
   if insert
-    explicitbranch!(b)
     for c in blocks(b.ir), br in branches(c)
-      br.block == b.id && insert!(arguments(br), at, value)
+      br.args[1] == b.id && insert!(br.args, at+2, value)
     end
   end
   return arg
@@ -211,7 +199,7 @@ function deletearg!(b::Block, i::Integer)
   deleteat!(arguments(b), i)
   deleteat!(argtypes(b), i)
   for c in blocks(b.ir), br in branches(c)
-    br.block == b.id && deleteat!(arguments(br), i)
+    br.args[1] == b.id && deleteat!(br.args, i+2)
   end
   b.ir.defs[arg.id] = (-1, -1)
   for arg in arguments(b)[i:end]
@@ -250,16 +238,12 @@ getindex(b::Block, i::Variable) = b.ir[i]
 setindex!(b::Block, x::Statement, i::Integer) = (BasicBlock(b).stmts[i] = x)
 setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], expr = x))
 
-branch(block::Integer, args...; unless = nothing) =
-  Branch(unless, block, Any[args...])
-
 branch(block::Block, args...; kw...) = branch(block.id, args...; kw...)
 
 function branch!(b::Block, block, args...; unless = nothing)
   brs = branches(b)
-  unless === nothing && deleteat!(brs, findall(br -> br.condition === nothing, brs))
   args = map(a -> a isa Expr ? push!(b, a) : a, args)
-  push!(brs, branch(block, args...; unless = unless))
+  push!(b, branch(block, args...; unless = unless))
   return b
 end
 
@@ -295,9 +279,8 @@ Base.delete!(b::Block, i::Variable) = delete!(b.ir, i)
 length(b::Block) = count(x -> x[1] == b.id, b.ir.defs)
 
 function successors(b::Block)
-  brs = BasicBlock(b).branches
-  succs = Int[br.block for br in brs if br.block > 0]
-  all(br -> br.condition != nothing, brs) && b.id < length(blocks(b.ir)) && push!(succs, b.id+1)
+  brs = branches(b)
+  succs = Int[br.args[1] for br in brs if br.args[1] > 0]
   return [block(b.ir, succ) for succ in succs]
 end
 
@@ -322,11 +305,20 @@ applyex(f, x::Expr) =
   Expr(x.head, [x isa Expr ? f(x) : x for x in x.args]...)
 applyex(f, x::Statement) = Statement(x, expr = applyex(f, x.expr))
 
-function push!(b::Block, x::Statement)
-  if !isexpr(x.expr, :foreigncall) # needed to avoid https://github.com/MikeInnes/IRTools.jl/issues/30
-    x = applyex(a -> push!(b, Statement(x, expr = a)), x)
+function branch_start(b::BasicBlock)
+  i = length(b.stmts)+1
+  while i > 1 && isexpr(b.stmts[i-1], :branch, Nothing)
+    i -= 1
   end
-  x = Statement(x)
+  return i
+end
+
+function push!(b::Block, x::Statement)
+  bs = branch_start(BasicBlock(b))
+  if !isexpr(x, :branch) && bs <= length(BasicBlock(b).stmts)
+    return insert!(b, bs, x)
+  end
+  x = applyex(a -> push!(b, Statement(x, expr = a)), x)
   push!(BasicBlock(b).stmts, x)
   push!(b.ir.defs, (b.id, length(BasicBlock(b).stmts)))
   return Variable(length(b.ir.defs))
@@ -372,7 +364,6 @@ insertafter!(ir, i, x) = insert!(ir, i, x, after=true)
 Base.empty(ir::IR) = IR(copy(ir.lines), meta = ir.meta)
 
 function Base.permute!(ir::IR, perm::AbstractVector)
-  explicitbranch!(ir)
   permute!(ir.blocks, perm)
   iperm = invperm(perm)
   for v = 1:length(ir.defs)
@@ -435,8 +426,6 @@ mutable struct Pipe
   to::IR
   map::Dict{Any,Any}
   var::Int
-  branch
-  block
 end
 
 var!(p::Pipe) = NewVariable(p.var += 1)
@@ -449,7 +438,7 @@ substitute(p::Pipe, x::Expr) = Expr(x.head, substitute.((p,), x.args)...)
 substitute(p::Pipe) = x -> substitute(p, x)
 
 function Pipe(ir)
-  p = Pipe(ir, IR(copy(ir.lines), meta = ir.meta), Dict(), 0, identity, identity)
+  p = Pipe(ir, IR(copy(ir.lines), meta = ir.meta), Dict(), 0)
   for (x, T) in zip(p.from.blocks[1].args, p.from.blocks[1].argtypes)
     y = argument!(blocks(p.to)[end], nothing, T, insert = false)
     substitute!(p, x, y)
@@ -462,11 +451,7 @@ function pipestate(ir::IR)
   [first.(filter(x -> x[2][1] == b, ks)) for b = 1:length(ir.blocks)]
 end
 
-branches(f, p::Pipe) = (p.branch = f)
-blocks(f, p::Pipe) = (p.block = f)
-
 function iterate(p::Pipe, (ks, b, i) = (pipestate(p.from), 1, 1))
-  i == 1 && b == 1 && p.block(b)
   if i == 1 && b != 1
     for (x, T) in zip(p.from.blocks[b].args, p.from.blocks[b].argtypes)
       y = argument!(blocks(p.to)[end], nothing, T, insert = false)
@@ -474,12 +459,7 @@ function iterate(p::Pipe, (ks, b, i) = (pipestate(p.from), 1, 1))
     end
   end
   if i > length(ks[b])
-    for br in branches(block(p.from, b))
-      br′ = p.branch(br)
-      br′ == nothing || push!(p.to.blocks[end].branches, map(substitute(p), br′))
-    end
     b == length(ks) && return
-    p.block(b)
     block!(p.to)
     return iterate(p, (ks, b+1, 1))
   end
@@ -554,13 +534,6 @@ end
 
 argument!(p::Pipe, a...; kw...) =
   substitute!(p, var!(p), argument!(p.to, a...; kw...))
-
-function branch!(ir::Pipe, b, args...; unless = nothing)
-  args = map(a -> substitute(ir, a), args)
-  cond = substitute(ir, unless)
-  branch!(blocks(ir.to)[end], b, args...; unless = cond)
-  return ir
-end
 
 function block!(p::Pipe)
   block!(p.to)

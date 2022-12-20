@@ -11,9 +11,6 @@ function copyblock!(c, b)
   for (v, st) in b
     env[v] = push!(c, rename(env, st))
   end
-  for br in IRTools.branches(b)
-    push!(branches(c), rename(env, br))
-  end
   return c
 end
 
@@ -102,7 +99,7 @@ function unloop!(ir::IR, l::LoopIR, _bs)
         for i = 1:length(branches(c))
           br = branches(c)[i]
           isreturn(br) && continue
-          branches(c)[i] = IRTools.Branch(br, block = bs[br.block])
+          branches(c)[i].args[1] = bs[br.args[1]]
         end
       end
     end
@@ -132,13 +129,13 @@ function exitBranches(inf, l::LoopIR, b::Block)
   l′ == nothing || error("unimplemented")
   brs = Dict()
   internal = l.bls[2:end]
-  any(((v, st),) -> st.type == ⊥, b) && return brs
+  any(((v, st),) -> !isexpr(st, :branch) && st.type == ⊥, b) && return brs
   for br in openbranches(inf.mod, b)
-    if !(br.block in internal)
-      merge_branchtypes!(brs, Dict(br.block => exprtype(inf.mod, b.ir, br.args)))
+    if !(br.args[1] in internal)
+      merge_branchtypes!(brs, Dict(br.args[1] => exprtype(inf.mod, b.ir, arguments(br))))
     end
-    br.block in internal && br.block > l.bls[b.id] &&
-      merge_branchtypes!(brs, exitBranches(inf, l, block(b.ir, findfirst(==(br.block), l.bls))))
+    br.args[1] in internal && br.args[1] > l.bls[b.id] &&
+      merge_branchtypes!(brs, exitBranches(inf, l, block(b.ir, findfirst(==(br.args[1]), l.bls))))
   end
   return brs
 end

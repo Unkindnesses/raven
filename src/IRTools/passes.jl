@@ -89,7 +89,7 @@ function prune!(ir::IR)
   while !isempty(worklist)
     b = popfirst!(worklist)
     isempty(arguments(b)) && continue
-    brs = filter(br -> br.block == b.id, [br for a in blocks(ir) for br in branches(a)])
+    brs = filter(br -> br.args[1] == b.id, [br for a in blocks(ir) for br in branches(a)])
     isempty(brs) && continue
     # Redundant due to all inputs being the same
     inputs = [setdiff(in, (a,)) for (a, in) in zip(arguments(b), zip(arguments.(brs)...))]
@@ -160,9 +160,6 @@ function ssa!(ir::IR)
       else
         ir[v] = rename(ex)
       end
-    end
-    for i = 1:length(BasicBlock(b).branches)
-      BasicBlock(b).branches[i] = rename(BasicBlock(b).branches[i])
     end
     for (succ, ss) in todo[b.id], br in branches(b, succ)
       append!(br.args, [reaching(b, v) for v in ss])

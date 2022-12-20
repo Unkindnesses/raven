@@ -212,7 +212,7 @@ function trivial_isa(mod, val, T)
   meth = trivial_method(mod, :isa, rlist(val, T))
   meth == nothing && return missing
   ir = meth.func
-  (length(ir) == 0 && length(blocks(ir)) == 1) || return missing
+  (length(ir) == 1 && length(blocks(ir)) == 1) || return missing
   ret = IRTools.returnvalue(block(ir, 1))
   ret isa Global || return missing
   ret = mod.defs[ret.name]
@@ -250,6 +250,7 @@ function dispatcher(inf, func::Symbol, Ts)
       cond = push!(ir, xcall(isnil_method, m))
       cond = push!(ir, rcall(:not, cond))
       branch!(ir, length(blocks(ir))+2; unless = cond)
+      branch!(ir, length(blocks(ir))+1)
       block!(ir)
       m = push!(ir, xcall(notnil_method, m))
       as = []
