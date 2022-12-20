@@ -131,7 +131,15 @@ function mergeFrames(inf, T, F)
   P = inf.frames[sigs[1]].parent.sig
   fr = frame!(inf, Parent(P, recursionLimit), sig...)
   for s in sigs
-    s === sig || (inf.frames[s] = Redirect(sig))
+    s === sig && continue
+    if haskey(inf.frames, s)
+      if inf.frames[s] isa Redirect
+        @assert sig == inf.frames[s].to # TODO figure out whether to move backedges here
+      else
+        union!(fr.edges, inf.frames[s].edges)
+      end
+    end
+    inf.frames[s] = Redirect(sig)
   end
   return fr
 end
