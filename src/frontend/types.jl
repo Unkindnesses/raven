@@ -58,10 +58,9 @@ const ⊥ = Unreachable()
 
 Base.show(io::IO, ::Unreachable) = print(io, "⊥")
 
-# TODO: types should have a sort order
 struct Or
   patterns::NTuple{N,Any} where N
-  Or(xs) = new((xs...,))
+  Or(xs) = new((sort(collect(xs), lt = t_isless)...,))
 end
 
 # Primitive Types
@@ -101,6 +100,10 @@ typedepth(x::VPack) = 1 + typedepth(x.parts)
 typedepth(x::Or) = 1 + maximum(typedepth.(x.patterns), init = 0)
 typedepth(x::Recursive) = 1 + typedepth(x.type)
 typedepth(x::Recur) = 1
+
+# Order
+
+t_isless(x, y) = repr(x) < repr(y)
 
 # Subset
 
