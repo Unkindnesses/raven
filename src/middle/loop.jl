@@ -65,11 +65,6 @@ function unrollall!(l::LoopIR, n = 1)
   return l
 end
 
-function reroll!(l::LoopIR)
-  # TODO: combine entry block types and re-infer
-  @assert length(l.body) == 1
-end
-
 nblocks(b::Block) = (l = loop(b)) == nothing ? 1 : nblocks(l)
 nblocks(b::IR) = sum(nblocks, blocks(b))
 nblocks(b::LoopIR) = sum(nblocks, b.body)
@@ -145,6 +140,16 @@ function exitBranches(inf, l::LoopIR, itr::Int)
   exitBranches(inf, l, block(ir, 1))
 end
 
+function reroll!(l::LoopIR)
+  length(l.body) == 1 && return false
+  first = l.body[1]
+  for ir in l.body[2:end]
+    blockargs!(first, IRTools.argtypes(ir))
+  end
+  resize!(l.body, 1)
+  return true
+end
+
 function checkUnroll(inf, l::LoopIR, itr)
   ir = l.body[itr]
   inputs = argtypes(ir)
@@ -153,12 +158,16 @@ function checkUnroll(inf, l::LoopIR, itr)
     (length(brs) == 1 && !all(issubset.(inputs, brs[l.bls[1]])))
 end
 
-function checkExit(inf, l::LoopIR, path)
-  for (itr, bl) in path.parts
+function checkExit(inf, l::LoopIR, loc)
+  p′ = Tuple{Int,Int}[]
+  for (itr, bl) in loc.path.parts
     if length(l.body) > 1 && !checkUnroll(inf, l, itr)
       reroll!(l)
+      push!(p′, (1, 1))
+      push!(inf.queue, Loc(loc.sig, Path(p′)))
       break
     end
+    push!(p′, (itr, bl))
     l = loop(block(l.body[itr], bl))
   end
 end
@@ -166,8 +175,10 @@ end
 function nextItr!(inf, l::LoopIR, itr)
   if checkUnroll(inf, l, itr)
     itr += 1
+    itr >= 100 && error("loop unroll limit reached")
     length(l.body) < itr && push!(l.body, copy(l.ir))
   else
+    itr = 1
     reroll!(l)
   end
   return itr
@@ -183,9 +194,11 @@ Path() = Path([(1,1)])
 
 function IRTools.block(l::LoopIR, path::Path)
   for (itr, bl) in path.parts[1:end-1]
+    itr > length(l.body) && return
     l = loop(block(l.body[itr], bl))
   end
   itr, bl = path.parts[end]
+  itr > length(l.body) && return
   return block(l.body[itr], bl)
 end
 
@@ -197,12 +210,13 @@ function nextpath(inf, l::LoopIR, p::Path, target::Int)
       push!(p′, (itr, bl))
       l = loop(block(l.body[itr], bl))
       (itr, _) = p.parts[i+1]
-      itr = nextItr!(inf, l, itr)
-      push!(p′, (itr, 1))
-      return Path(p′)
+      itr′ = nextItr!(inf, l, itr)
+      reroll = itr > itr′ == 1
+      push!(p′, (itr′, 1))
+      return Path(p′), reroll
     elseif bl′ != nothing
       push!(p′, (itr, bl′))
-      return Path(p′)
+      return Path(p′), false
     else
       l = loop(block(l.body[itr], bl))
       push!(p′, (itr, bl))

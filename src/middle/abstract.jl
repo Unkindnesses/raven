@@ -171,6 +171,7 @@ function step!(inf::Inference, loc)
   frame = inf.frames[loc.sig]
   frame isa Redirect && return
   bl = block(frame.ir, p)
+  bl == nothing && return
   stmts = keys(bl)
   var = stmts[ip]
   st = bl[var]
@@ -215,7 +216,8 @@ function step!(inf::Inference, loc)
     end
   elseif isexpr(st.expr, :branch)
     brs = openbranches(inf.mod, bl)
-    for br in reverse(brs) # HACK
+    reroll = false
+    for br in brs
       if isreturn(br)
         T = exprtype(inf.mod, bl.ir, IRTools.returnvalue(bl))
         T = union(frame.rettype, T)
@@ -224,14 +226,18 @@ function step!(inf::Inference, loc)
         foreach(loc -> push!(inf.queue, loc), frame.edges)
       else
         args = exprtype(inf.mod, bl.ir, arguments(br))
-        p′ = nextpath(inf, frame.ir, p, br.args[1])
-        if (isempty(args) && !(br.args[1] in frame.seen)) || blockargs!(block(frame.ir, p′), args)
+        p′, reroll = nextpath(inf, frame.ir, p, br.args[1])
+        backedge = br.args[1] < bl.id
+        if reroll || (isempty(args) && !(br.args[1] in frame.seen)) || blockargs!(block(frame.ir, p′), args)
           push!(frame.seen, br.args[1])
-          push!(inf.queue, Loc(loc.sig, p′))
+          # Unroll loops late; try to widen types in the body first, so as not
+          # to unroll too eagerly.
+          p! = (backedge && p′.parts[end][1] != 1) ? pushfirst! : push!
+          p!(inf.queue, Loc(loc.sig, p′))
         end
       end
     end
-    checkExit(inf, frame.ir, p)
+    reroll || checkExit(inf, frame.ir, loc)
   else
     error("Unknown expr type $(st.expr.head)")
   end
