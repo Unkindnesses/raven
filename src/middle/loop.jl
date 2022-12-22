@@ -146,29 +146,31 @@ function exitBranches(inf, l::LoopIR, itr::Int)
 end
 
 function checkUnroll(inf, l::LoopIR, itr)
-  ir = l.body[itr-1]
+  ir = l.body[itr]
   inputs = argtypes(ir)
-  brs = exitBranches(inf, l, itr-1)
-  if length(brs) != 1 || !haskey(brs, l.bls[1]) || all(issubset.(inputs, brs[l.bls[1]]))
-    reroll!(l)
-    return false
-  else
-    length(l.body) < itr && push!(l.body, copy(l.ir))
-    return true
-  end
+  brs = exitBranches(inf, l, itr)
+  !haskey(brs, l.bls[1]) ||
+    (length(brs) == 1 && !all(issubset.(inputs, brs[l.bls[1]])))
 end
 
 function checkExit(inf, l::LoopIR, path)
   for (itr, bl) in path.parts
-    if itr != 1
-      brs = exitBranches(inf, l, itr)
-      if length(brs) > 1 && haskey(brs, l.bls[1])
-        reroll!(l)
-        itr = 1
-      end
+    if length(l.body) > 1 && !checkUnroll(inf, l, itr)
+      reroll!(l)
+      break
     end
     l = loop(block(l.body[itr], bl))
   end
+end
+
+function nextItr!(inf, l::LoopIR, itr)
+  if checkUnroll(inf, l, itr)
+    itr += 1
+    length(l.body) < itr && push!(l.body, copy(l.ir))
+  else
+    reroll!(l)
+  end
+  return itr
 end
 
 # Navigation during inference
@@ -179,24 +181,24 @@ end
 
 Path() = Path([(1,1)])
 
-function IRTools.block(inf, l::LoopIR, path::Path)
+function IRTools.block(l::LoopIR, path::Path)
   for (itr, bl) in path.parts[1:end-1]
     l = loop(block(l.body[itr], bl))
   end
   itr, bl = path.parts[end]
-  if itr > 1 && bl == 1 && !checkUnroll(inf, l, itr)
-    itr -= 1
-    path.parts[end] = (itr, bl)
-  end
   return block(l.body[itr], bl)
 end
 
-function nextpath(l::LoopIR, p::Path, target::Int)
+function nextpath(inf, l::LoopIR, p::Path, target::Int)
   p′ = Tuple{Int,Int}[]
   for (i, (itr, bl)) in enumerate(p.parts)
     bl′ = findfirst(==(target), l.bls)
-    if bl′ == bl # back edge; enter the next loop iteration
-      push!(p′, (itr,bl′), (p.parts[i+1][1]+1,1))
+    if bl′ == bl # back edge
+      push!(p′, (itr, bl))
+      l = loop(block(l.body[itr], bl))
+      (itr, _) = p.parts[i+1]
+      itr = nextItr!(inf, l, itr)
+      push!(p′, (itr, 1))
       return Path(p′)
     elseif bl′ != nothing
       push!(p′, (itr, bl′))

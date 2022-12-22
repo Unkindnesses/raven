@@ -170,7 +170,7 @@ function step!(inf::Inference, loc)
   p, ip = loc.path, loc.ip
   frame = inf.frames[loc.sig]
   frame isa Redirect && return
-  bl = block(inf, frame.ir, p)
+  bl = block(frame.ir, p)
   stmts = keys(bl)
   var = stmts[ip]
   st = bl[var]
@@ -224,8 +224,8 @@ function step!(inf::Inference, loc)
         foreach(loc -> push!(inf.queue, loc), frame.edges)
       else
         args = exprtype(inf.mod, bl.ir, arguments(br))
-        p′ = nextpath(frame.ir, p, br.args[1])
-        if (isempty(args) && !(br.args[1] in frame.seen)) || blockargs!(block(inf, frame.ir, p′), args)
+        p′ = nextpath(inf, frame.ir, p, br.args[1])
+        if (isempty(args) && !(br.args[1] in frame.seen)) || blockargs!(block(frame.ir, p′), args)
           push!(frame.seen, br.args[1])
           push!(inf.queue, Loc(loc.sig, p′))
         end
