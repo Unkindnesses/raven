@@ -131,76 +131,56 @@ issubset(::Unreachable, x::Or) = true
 
 issubset(x::Or, y::Or) = invoke(issubset, Tuple{Or,Any}, x, y)
 
-function issubset(x::SimpleType, y::Recursive)
-  withrecur(y.type) do
-    issubset(x, y.type)
-  end
-end
+issubset(x::SimpleType, y::Recursive) = issubset(x, unroll(y))
 
-function issubset(x::Recursive, y::Recursive)
-  withrecur(y.type) do
-    issubset(x.type, y.type)
-  end
-end
+issubset(x::Recursive, y::Recursive) = issubset(x.type, y)
 
-issubset(x::Recursive, y::Recur) = issubset(x, Recursive(recur()))
+issubset(x::Union{Recursive,Recur}, y::Union{Primitive,Type{<:Primitive}}) = false
 
-issubset(x::Union{Recursive,Recur}, y::SimpleType) = false
+issubset(x::Recursive, y::Union{Pack,VPack}) = issubset(unroll(x), y)
+issubset(x::Recursive, y::Or) = issubset(unroll(x), y)
 
-issubset(x::SimpleType, y::Recur) = issubset(x, recur())
-
-issubset(::Recur, ::Recur) = true
+issubset(::Recur, ::Recursive) = true
 
 # Recursion widening
 # This has two passes, checking for candidacy and then converting internal
 # subtypes to `Recur`. (Some simple internal subtypes don't trigger widening.)
 
-_recursion_candidate(x::Union{Primitive,Type{<:Primitive}}) = false
+_recursion_candidate(T, x::Union{Primitive,Type{<:Primitive}}) = false
 
-_recursion_candidate(x::Pack) = any(_recursion_candidate.(x.parts))
+_recursion_candidate(T, x::Pack) = any(_recursion_candidate.((T,), x.parts))
 
-_recursion_candidate(x::Or) =
-  issubset(x, recur()) || any(_recursion_candidate.(x.patterns))
+_recursion_candidate(T, x::Or) =
+  issubset(x, T) || any(_recursion_candidate.((T,), x.patterns))
 
 recursion_candidate(T) = false
 
-function recursion_candidate(T::Or)
-  withrecur(T) do
-    any(_recursion_candidate.(T.patterns))
-  end
-end
+recursion_candidate(T::Or) = any(_recursion_candidate.((T,), T.patterns))
 
-_makerecursive(x::Or) =
-  issubset(x, recur()) ? Recur() : Or(_makerecursive.(x.patterns))
+_makerecursive(T, x::Or) =
+  issubset(x, T) ? Recur() : Or(_makerecursive.((T,), x.patterns))
 
-_makerecursive(x::Pack) =
-  issubset(x, recur()) ? Recur() : pack(_makerecursive.(x.parts)...)
+_makerecursive(T, x::Pack) =
+  issubset(x, T) ? Recur() : pack(_makerecursive.((T,), x.parts)...)
 
-_makerecursive(x::Union{Primitive,Type{<:Primitive}}) =
-  issubset(x, recur()) ? Recur() : x
+_makerecursive(T, x::Union{Primitive,Type{<:Primitive}}) =
+  issubset(x, T) ? Recur() : x
 
-function makerecursive(T::Or)
-  withrecur(T) do
-    Recursive(Or([pack(tag(x), _makerecursive.(parts(x))...) for x in T.patterns]))
-  end
-end
+makerecursive(T::Or) =
+  Recursive(Or([pack(tag(x), _makerecursive.((T,), parts(x))...)
+                for x in T.patterns]))
 
 recursive(T) = recursion_candidate(T) ? makerecursive(T) : T
 
 # Recursion unrolling
 
-function unroll(T::Recursive, n = 1)
-  n == 0 && return T
-  withrecur(T) do
-    unroll(T.type, n)
-  end
-end
+unroll(S, T::Union{Primitive,Type{<:Primitive}}) = T
 
-unroll(T::Union{Primitive,Type{<:Primitive}}, n) = T
+unroll(S, T::Or) = Or(unroll.((S,), T.patterns))
+unroll(S, T::Pack) = Pack(unroll.((S,), T.parts))
+unroll(S, T::Recur) = S
 
-unroll(T::Or, n) = typeof(T)(unroll.(T.patterns, n))
-unroll(T::Pack, n) = Pack(unroll.(T.parts, n))
-unroll(T::Recur, n) = unroll(recur(), n-1)
+unroll(T::Recursive) = unroll(T, T.type)
 
 # Union
 

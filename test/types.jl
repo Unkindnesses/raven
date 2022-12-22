@@ -1,5 +1,5 @@
 using Raven, Test
-using Raven: Or, Recursive, Recur, pack, union, issubset
+using Raven: Or, Recursive, Recur, pack, union, issubset, unroll
 
 T1 = pack(:Prepend, Or([pack(:Empty), pack(:Prepend, pack(:Empty), Int64)]), Int64)
 T2 = Or([pack(:Empty), pack(:Prepend, pack(:Empty), Int64)])
@@ -18,3 +18,6 @@ T = union(T1, T2)
 Tw = pack(:Prepend, T, Int)
 
 @test issubset(Tw, T)
+
+@test issubset(unroll(T), T)
+@test issubset(T, unroll(T))

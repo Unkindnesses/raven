@@ -86,9 +86,6 @@ end
 
 dynamic_value(k) = task_local_storage()[k][end]
 
-withrecur(f, T) = dynamic_bind(f, :recur, T)
-recur() = dynamic_value(:recur)
-
 withpath(f, p) = dynamic_bind(f, :path, p)
 path() = dynamic_value(:path)
 

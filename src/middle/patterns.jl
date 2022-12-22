@@ -158,15 +158,11 @@ function partial_match(mod, pat::Or, val::Or, path)
 end
 
 function partial_match(mod, pat::Pack, val::Recursive, path)
-  withrecur(val.type) do
-    partial_match(mod, pat, val.type, path)
-  end
+  partial_match(mod, pat, unroll(val), path)
 end
 
 function partial_match(mod, pat::Or, val::Recursive, path)
-  withrecur(val.type) do
-    partial_match(mod, pat, val.type, path)
-  end
+  partial_match(mod, pat, unroll(val), path)
 end
 
 function destruct_isa(p)
