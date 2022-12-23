@@ -19,7 +19,7 @@ function map!(f, b::Block)
 end
 
 function map(f, ir::IR)
-  IR(ir.defs, map.(f, ir.blocks), ir.lines, ir.meta)
+  IR(ir.defs, map.(f, ir.blocks), ir.meta)
 end
 
 function map!(f, ir::IR)
@@ -55,9 +55,4 @@ function exprtype(ir::IR, x::Variable; typeof = Typeof)
   else
     ir.blocks[b].argtypes[-i]
   end
-end
-
-function exprline(ir::IR, x::Variable)
-  b, i = get(ir.defs, x.id, (-1, -1))
-  get(ir.lines, ir[x].line, nothing)
 end

@@ -1,4 +1,3 @@
-using Core.Compiler: LineInfoNode
 import Base: push!, insert!, getindex, setindex!, iterate, length
 
 # We have our own versions of these in order to
@@ -54,19 +53,18 @@ const unreachable = Expr(:branch, 0, nothing)
 struct Statement
   expr::Any
   type::Any
-  line::Int
 end
 
-Statement(x; expr = x, type = Any, line = 0) =
-  Statement(expr, type, line)
+Statement(x; expr = x, type = Any) =
+  Statement(expr, type)
 
-Statement(x::Statement; expr = x.expr, type = x.type, line = x.line) =
-  Statement(expr, type, line)
+Statement(x::Statement; expr = x.expr, type = x.type) =
+  Statement(expr, type)
 
 MacroTools.isexpr(st::Statement, ts...) = isexpr(st.expr, ts...)
 
 Base.copy(::Nothing) = nothing
-Base.copy(st::Statement) = Statement(copy(st.expr), st.type, st.line)
+Base.copy(st::Statement) = Statement(copy(st.expr), st.type)
 
 const stmt = Statement
 
@@ -89,14 +87,12 @@ argtypes(bb::BasicBlock) = bb.argtypes
 struct IR
   defs::Vector{Tuple{Int,Int}}
   blocks::Vector{BasicBlock}
-  lines::Vector{LineInfoNode}
   meta::Any
 end
 
-IR(; meta = nothing) = IR([],[BasicBlock()],[],meta)
-IR(lines::Vector{LineInfoNode}; meta = nothing) = IR([],[BasicBlock()],lines,meta)
+IR(; meta = nothing) = IR([],[BasicBlock()],meta)
 
-Base.copy(ir::IR) = IR(copy(ir.defs), copy.(ir.blocks), copy(ir.lines), ir.meta)
+Base.copy(ir::IR) = IR(copy(ir.defs), copy.(ir.blocks), ir.meta)
 
 length(ir::IR) = sum(x -> x[2] > 0, ir.defs, init = 0)
 
@@ -361,7 +357,7 @@ insert!(b::Block, i::Variable, x; after = false) =
 
 insertafter!(ir, i, x) = insert!(ir, i, x, after=true)
 
-Base.empty(ir::IR) = IR(copy(ir.lines), meta = ir.meta)
+Base.empty(ir::IR) = IR(meta = ir.meta)
 
 function Base.permute!(ir::IR, perm::AbstractVector)
   permute!(ir.blocks, perm)
@@ -380,7 +376,7 @@ function Base.permute!(ir::IR, perm::AbstractVector)
 end
 
 function IR(b::Block)
-  ir = IR(copy(b.ir.defs), [copy(BasicBlock(b))], b.ir.lines, b.ir.meta)
+  ir = IR(copy(b.ir.defs), [copy(BasicBlock(b))], b.ir.meta)
   for i in 1:length(ir.defs)
     if ir.defs[i][1] == b.id
       ir.defs[i] = (1, ir.defs[i][2])
@@ -438,7 +434,7 @@ substitute(p::Pipe, x::Expr) = Expr(x.head, substitute.((p,), x.args)...)
 substitute(p::Pipe) = x -> substitute(p, x)
 
 function Pipe(ir)
-  p = Pipe(ir, IR(copy(ir.lines), meta = ir.meta), Dict(), 0)
+  p = Pipe(ir, IR(meta = ir.meta), Dict(), 0)
   for (x, T) in zip(p.from.blocks[1].args, p.from.blocks[1].argtypes)
     y = argument!(blocks(p.to)[end], nothing, T, insert = false)
     substitute!(p, x, y)
