@@ -269,17 +269,21 @@ function expr(io; quasi = true)
     cur = cursor(io)
     args = tryparse(brackets, io)
     args == nothing && break
-    ex = meta(Call(ex, args...), path(), cur)
+    ex = Call(ex, args...)
+    ex = meta(ex, path(), cur)
   end
   consume_ws(io)
   cur = cursor(io)
   if (op = tryparse(op_token, io)) != nothing
-    ex = Operator(meta(op, path(), cur), ex, parse(io))
+    op = meta(op, path(), cur)
+    ex = Operator(op, ex, parse(io))
+    ex = meta(ex, path(), cur)
   end
   return ex
 end
 
 function _syntax(io; quasi = true)
+  cur = cursor(io)
   name = @try expr(io)
   unwrapToken(name) isa Symbol || return
   !eof(io) || return
@@ -295,7 +299,9 @@ function _syntax(io; quasi = true)
     push!(args, next)
   end
   block || return
-  return Syntax(name, args...)
+  ex = Syntax(name, args...)
+  ex = meta(ex, path(), cur)
+  return ex
 end
 
 # returns `nothing` if there is no valid input (EOF or only whitespace/comments)

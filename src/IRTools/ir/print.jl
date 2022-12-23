@@ -36,6 +36,10 @@ function printargs(io::IO, args, types = [Any for arg in args])
   print(io, ")")
 end
 
+function showline(io::IO, src::Source)
+  printstyled(io, " # ", basename(src.file), ":", src.line, ":", src.col, color = 243)
+end
+
 function show(io::IO, b::Block)
   indent = get(io, :indent, 0)
   bb = BasicBlock(b)
@@ -52,6 +56,7 @@ function show(io::IO, b::Block)
     st.expr == nothing ? print(io, "nothing") :
       print_stmt(io, st.expr)
     st.type == Any || print(io, " :: ", st.type)
+    st.src == nothing || showline(io, st.src)
   end
 end
 

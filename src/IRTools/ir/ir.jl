@@ -50,21 +50,28 @@ end
 
 const unreachable = Expr(:branch, 0, nothing)
 
+struct Source
+  file::String
+  line::Int
+  col::Int
+end
+
 struct Statement
   expr::Any
   type::Any
+  src::Union{Source,Nothing}
 end
 
-Statement(x; expr = x, type = Any) =
-  Statement(expr, type)
+Statement(x; expr = x, type = Any, src = nothing) =
+  Statement(expr, type, src)
 
-Statement(x::Statement; expr = x.expr, type = x.type) =
-  Statement(expr, type)
+Statement(x::Statement; expr = x.expr, type = x.type, src = x.src) =
+  Statement(expr, type, src)
 
 MacroTools.isexpr(st::Statement, ts...) = isexpr(st.expr, ts...)
 
 Base.copy(::Nothing) = nothing
-Base.copy(st::Statement) = Statement(copy(st.expr), st.type)
+Base.copy(st::Statement) = Statement(copy(st.expr), st.type, st.src)
 
 const stmt = Statement
 
@@ -236,10 +243,10 @@ setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], expr = x))
 
 branch(block::Block, args...; kw...) = branch(block.id, args...; kw...)
 
-function branch!(b::Block, block, args...; when = nothing)
+function branch!(b::Block, block, args...; when = nothing, src = nothing)
   brs = branches(b)
   args = map(a -> a isa Expr ? push!(b, a) : a, args)
-  push!(b, branch(block, args...; when))
+  push!(b, stmt(branch(block, args...; when); src))
   return b
 end
 
@@ -248,7 +255,7 @@ function branch!(ir::IR, args...; kw...)
   return ir
 end
 
-return!(ir, x) = branch!(ir, 0, x)
+return!(ir, x; src = nothing) = branch!(ir, 0, x; src)
 
 function getindex(ir::IR, i::Variable)
   b, i = blockidx(ir, i)

@@ -179,6 +179,9 @@ end
 
 # Expr -> IR lowering
 
+IRTools.Source(x::AST.Meta) = Source(x.file, x.loc.line, x.loc.column)
+Base.convert(::Type{Source}, x::AST.Meta) = Source(x)
+
 xcall(args...) = Expr(:call, args...)
 xtuple(args...) = Expr(:tuple, args...)
 xpack(args...) = Expr(:pack, args...)
@@ -239,7 +242,9 @@ swaps(sc::Scope) = sc.swap == nothing ? swaps(sc.parent) : sc.swap
 
 # don't continue lowering after return
 # e.g. `f(return 1)`
-_push!(ir::IR, x) = IRTools.canbranch(blocks(ir)[end]) && push!(ir, x)
+_push!(ir::IR, x::Statement) = IRTools.canbranch(blocks(ir)[end]) && push!(ir, x)
+
+_push!(ir::IR, x::Expr; src = nothing) = _push!(ir, stmt(x; src))
 
 # lower while ignoring return value (if applicable)
 _lower!(sc, ir, x) = lower!(sc, ir, x)
@@ -266,14 +271,14 @@ function lower!(sc, ir::IR, ex::AST.Operator, value = true)
     clauses = ex[1] == :(&&) ? [ex[3], Int32(false)] : [Int32(true), ex[3]]
     lowerif!(sc, ir, If([ex[2], true], clauses), value)
   else
-    r = _push!(ir, xcall(ex[1], xlist(map(x -> lower!(sc, ir, x), ex[2:end])...)))
-    _push!(ir, xpart(r, 1))
+    r = _push!(ir, xcall(ex[1], xlist(map(x -> lower!(sc, ir, x), ex[2:end])...)), src = AST.meta(ex))
+    _push!(ir, xpart(r, 1), src = AST.meta(ex))
   end
 end
 
 _lower!(sc, ir::IR, ex::AST.Operator) = lower!(sc, ir, ex, false)
 
-function argtuple!(sc, ir::IR, args)
+function argtuple!(sc, ir::IR, args, src)
   swaps = []
   parts = []
   idx = 1
@@ -293,20 +298,20 @@ function argtuple!(sc, ir::IR, args)
         push!(as, lower!(sc, ir, arg))
         idx += 1
       end
-      push!(parts, _push!(ir, xlist(as...)))
+      push!(parts, _push!(ir, xlist(as...); src))
     end
   end
   args =
-    isempty(parts) ? xpack(:List) :
+    isempty(parts) ? _push!(ir, xpack(:List)) :
     length(parts) == 1 ? parts[1] :
     _push!(ir, xcall(packcat_method, xlist(parts...)))
   return args, swaps
 end
 
 function lower!(sc, ir::IR, ex::AST.Call)
-  args, swaps = argtuple!(sc, ir, ex[2:end])
-  result = _push!(ir, xcall(lower!(sc, ir, ex[1]), args))
-  val = _push!(ir, xpart(result, 1))
+  args, swaps = argtuple!(sc, ir, ex[2:end], AST.meta(ex))
+  result = _push!(ir, xcall(lower!(sc, ir, ex[1]), args), src = AST.meta(ex))
+  val = _push!(ir, xpart(result, 1), src = AST.meta(ex))
   for (x, i) in swaps
     _push!(ir, Expr(:(=), variable!(sc, x), xpart(result, i+1)))
   end
@@ -316,22 +321,22 @@ end
 function lower!(sc, ir::IR, ex::AST.List)
   # TODO: should use the `tuple` function.
   # But this puts off the need for special argument inference.
-  argtuple!(sc, ir, ex[:])[1]
+  argtuple!(sc, ir, ex[:], AST.meta(ex))[1]
 end
 
-function swapreturn!(ir::IR, val, swaps)
+function swapreturn!(ir::IR, val, swaps, meta)
   if swaps != nothing && !isempty(swaps)
     args = maximum(keys(swaps))
     ret = push!(ir, xlist(val, map(i -> haskey(swaps, i) ? Slot(swaps[i]) : Global(:nil), 1:args)...))
-    return!(ir, ret)
+    return!(ir, ret, src = meta)
   else
-    return!(ir, val)
+    return!(ir, val, src = meta)
   end
 end
 
 function lower!(sc, ir::IR, ex::AST.Return)
   result = lower!(sc, ir, ex[1])
-  swapreturn!(ir, result, swaps(sc))
+  swapreturn!(ir, result, swaps(sc), AST.meta(ex))
   return
 end
 
@@ -362,7 +367,7 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
   header = block!(ir)
   branch!(blocks(ir)[end-1], header)
   cond = lower!(sc, ir, ex[2])
-  cond = _push!(ir, rcall(:condition, cond))
+  cond = _push!(ir, rcall(:condition, cond), src = AST.meta(ex))
   bodyStart = block!(ir)
   _lower!(sc, ir, ex[3][:])
   bodyEnd = blocks(ir)[end]
@@ -375,8 +380,8 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
       br.args[1] == -1 && (br.args[1] = after.id)
     end
   end
-  branch!(header, bodyStart, when = cond)
-  branch!(header, after)
+  branch!(header, bodyStart, when = cond, src = AST.meta(ex))
+  branch!(header, after, src = AST.meta(ex.args[1]))
   IRTools.canbranch(bodyEnd) && branch!(bodyEnd, header)
   return value ? Global(:nil) : nothing
 end
@@ -483,7 +488,7 @@ function lowerfn(ex, sig = fnsig(ex))
     push!(ir, :($(Slot(arg)) = $(argument!(ir))))
   end
   out = lower!(sc, ir, ex[3])
-  out == nothing || swapreturn!(ir, out, sig.swap)
+  out == nothing || swapreturn!(ir, out, sig.swap, nothing)
   ir = ir |> pruneblocks! |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
 end
 

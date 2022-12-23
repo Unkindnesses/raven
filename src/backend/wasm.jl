@@ -128,7 +128,8 @@ function lowerwasm!(mod::WModule, ir::IR)
         pr[v] = stmt(xcall(WebAssembly.unreachable), type = WTuple())
       else
         func = lowerwasm!(mod, Ts)
-        pr[v] = stmt(xcall(WebAssembly.Call(func), st.expr.args[2:end]...), type = wlayout(ir[v].type))
+        pr[v] = stmt(xcall(WebAssembly.Call(func), st.expr.args[2:end]...),
+                     type = wlayout(ir[v].type), src = ir[v].src)
       end
     elseif isexpr(st, :branch)
     else
