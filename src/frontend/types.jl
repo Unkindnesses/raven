@@ -107,40 +107,37 @@ t_isless(x, y) = repr(x) < repr(y)
 
 # Subset
 
-issubset(x, ::Unreachable) = false
-issubset(::Unreachable, x) = true
-issubset(::Unreachable, ::Unreachable) = true
-
-issubset(x::Primitive, y::Primitive) = x == y
-issubset(x::Primitive, T::Type{<:Primitive}) = x isa T
-issubset(x::Type{<:Primitive}, y::Type{<:Primitive}) = x <: y
-issubset(x::Union{Primitive,Type{<:Primitive}}, y::Union{Primitive,Pack}) = false
-
-issubset(x::Pack, y::Pack) = nparts(x) == nparts(y) && all(issubset.(x.parts, y.parts))
-
-issubset(x::VPack, y::VPack) = issubset(tag(x), tag(y)) && issubset(x.parts, y.parts)
-
-issubset(x::Pack, y::VPack) = issubset(tag(x), tag(y)) && all(issubset.(parts(x), (y.parts,)))
-issubset(x::VPack, y::Pack) = false
-
-issubset(x::Or, y) = all(issubset.(x.patterns, (y,)))
-issubset(x, y::Or) = any(issubset.((x,), y.patterns))
-
-issubset(x::Or, ::Unreachable) = false
-issubset(::Unreachable, x::Or) = true
-
-issubset(x::Or, y::Or) = invoke(issubset, Tuple{Or,Any}, x, y)
-
-issubset(x::SimpleType, y::Recursive) = issubset(x, unroll(y))
-
-issubset(x::Recursive, y::Recursive) = issubset(x.type, y)
-
-issubset(x::Union{Recursive,Recur}, y::Union{Primitive,Type{<:Primitive}}) = false
-
-issubset(x::Recursive, y::Union{Pack,VPack}) = issubset(unroll(x), y)
-issubset(x::Recursive, y::Or) = issubset(unroll(x), y)
-
-issubset(::Recur, ::Recursive) = true
+function issubset(x, y)
+  if x == ⊥
+    true
+  elseif y == ⊥
+    false
+  elseif x == y
+    true
+  elseif x isa Primitive && y isa Type{<:Primitive}
+    x isa y
+  elseif x isa Pack && y isa Pack
+    nparts(x) == nparts(y) && all(issubset.(x.parts, y.parts))
+  elseif x isa Pack && y isa VPack
+    issubset(tag(x), tag(y)) && all(issubset.(parts(x), (y.parts,)))
+  elseif x isa VPack && y isa VPack
+    issubset(tag(x), tag(y)) && issubset(x.parts, y.parts)
+  elseif x isa Recursive && y isa Recursive
+    issubset(x.type, y)
+  elseif x isa Recur && y isa Recursive
+    true
+  elseif x isa Recursive
+    issubset(unroll(x), y)
+  elseif y isa Recursive
+    issubset(x, unroll(y))
+  elseif x isa Or
+    all(issubset.(x.patterns, (y,)))
+  elseif y isa Or
+    any(issubset.((x,), y.patterns))
+  else
+    false
+  end
+end
 
 # Recursion widening
 # This has two passes, checking for candidacy and then converting internal
