@@ -1,9 +1,7 @@
 import Base: show
 
-# TODO: real expression printing
 function Base.show(io::IO, x::Variable)
-  bs = get(io, :bindings, Dict())
-  haskey(bs, x) ? print(io, bs[x]) : print(io, "%", x.id)
+  print(io, "%", x.id)
 end
 
 print_stmt(io::IO, ex::Expr) = print_stmt(io::IO, Val(ex.head), ex)
@@ -40,7 +38,6 @@ end
 
 function show(io::IO, b::Block)
   indent = get(io, :indent, 0)
-  bs = get(io, :bindings, Dict())
   bb = BasicBlock(b)
   print(io, tab^indent)
   print(io, b.id, ":")
@@ -49,7 +46,6 @@ function show(io::IO, b::Block)
     printargs(io, bb.args, bb.argtypes)
   end
   for (x, st) in b
-    haskey(bs, x) && continue
     println(io)
     print(io, tab^indent, "  ")
     x == nothing || print(io, string("%", x.id), " = ")
@@ -65,58 +61,4 @@ function show(io::IO, ir::IR)
     println(io)
     show(io, b)
   end
-end
-
-function print_stmt(io::IO, ex::IR)
-  io = IOContext(io, :indent=>get(io, :indent, 0)+2)
-  println(io)
-  show(io, ex)
-end
-
-function print_stmt(io::IO, ::Val{:enter}, ex)
-  print(io, "try #$(ex.args[1])")
-end
-
-function print_stmt(io::IO, ::Val{:leave}, ex)
-  print(io, "end try")
-end
-
-function print_stmt(io::IO, ::Val{:catch}, ex)
-  print(io, "catch $(ex.args[1])")
-  args = ex.args[2:end]
-  if !isempty(args)
-    print(io, " (")
-    join(io, args, ", ")
-    print(io, ")")
-  end
-end
-
-function print_stmt(io::IO, ::Val{:pop_exception}, ex)
-  print(io, "pop exception $(ex.args[1])")
-end
-
-function lambdacx(io, ex)
-  bs = get(io, :bindings, Dict())
-  ir = ex.args[1]
-  args = ex.args[2:end]
-  bs′ = Dict()
-  for (v, st) in ir
-    ex = st.expr
-    if iscall(ex, GlobalRef(Base, :getindex)) &&
-        ex.args[2] == arguments(ir)[1] &&
-        ex.args[3] isa Integer
-      x = args[ex.args[3]]
-      bs′[v] = string(get(bs, x, x), "'")
-    end
-  end
-  return bs′
-end
-
-function print_stmt(io::IO, ::Val{:lambda}, ex)
-  print(io, "λ :")
-  # printargs(io, ex.args[2:end])
-  io = IOContext(io, :indent   => get(io, :indent, 0)+2,
-                     :bindings => lambdacx(io, ex))
-  println(io)
-  print(io, ex.args[1])
 end
