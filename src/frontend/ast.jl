@@ -19,11 +19,11 @@ struct Token{T}
 end
 
 struct Expr{H}
-  _args::Vector{Union{Expr,Token}}
+  args::Vector{Union{Expr,Token}}
   meta::Union{Meta,Nothing}
 end
 
-(a::Expr{H} == b::Expr{H}) where H = a._args == b._args
+(a::Expr{H} == b::Expr{H}) where H = a.args == b.args
 
 wrapToken(x::Atom) = Token(x, nothing)
 wrapToken(x::Union{Expr,Token}) = x
@@ -31,15 +31,15 @@ wrapToken(x::Union{Expr,Token}) = x
 unwrapToken(x::Token) = x.value
 unwrapToken(x::Expr) = x
 
-length(x::Expr) = length(x._args)
-lastindex(x::Expr) = lastindex(x._args)
+length(x::Expr) = length(x.args)
+lastindex(x::Expr) = lastindex(x.args)
 
-getindex(x::Expr, i::Integer) = unwrapToken(x._args[i])
-getindex(x::Expr, i::Union{AbstractArray,Colon}) = unwrapToken.(x._args[i])
+getindex(x::Expr, i::Integer) = unwrapToken(x.args[i])
+getindex(x::Expr, i::Union{AbstractArray,Colon}) = unwrapToken.(x.args[i])
 
 meta(x::Union{Expr,Token}) = x.meta
 
-meta(x::Expr{H}, m::Meta) where H = Expr{H}(x._args, m)
+meta(x::Expr{H}, m::Meta) where H = Expr{H}(x.args, m)
 meta(x::Token, m::Meta) = Token(x.value, m)
 meta(x::Atom, m::Meta) = Token(x, m)
 
