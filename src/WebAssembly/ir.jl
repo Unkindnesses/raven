@@ -168,7 +168,6 @@ flattentype(T::WType) = [T]
 flattentype(T::WTuple) = T.parts
 
 function irfunc(name, ir)
-  # @show name
   cfg = CFG(ir)
   ir, locals, ret = locals!(ir)
   params = flattentype(argtypes(ir))

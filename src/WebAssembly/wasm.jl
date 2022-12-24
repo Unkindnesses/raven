@@ -67,11 +67,6 @@ struct Block <: Instruction
   body::Vector{Instruction}
 end
 
-struct If <: Instruction
-  t::Vector{Instruction}
-  f::Vector{Instruction}
-end
-
 struct Loop <: Instruction
   body::Vector{Instruction}
 end
@@ -150,14 +145,6 @@ struct Module
   data::Vector{Data}
   imports::Vector{Import}
   exports::Vector{Export}
-end
-
-function func(m::Module, name)
-  i = findfirst(f -> f.name == name, m.funcs)
-  i == nothing || return m.funcs[i]
-  i = findfirst(f -> f.as == name, m.imports)
-  i == nothing || return m.imports[i]
-  error("Function $name not found.")
 end
 
 Module(; funcs = [], mems = [], globals = [], data = [], imports = [], exports = []) =

@@ -12,7 +12,7 @@ module Instructions
 
 for x in :[
   Instruction, Const, Nop, Local, SetLocal, Op, Select, Convert, Block,
-  If, Loop, Branch, Call, Return, Unreachable, nop, unreachable,
+  Loop, Branch, Call, Return, Unreachable, nop, unreachable,
   i32, i64, f32, f64
 ].args
   @eval using ..WebAssembly: $x

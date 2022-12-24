@@ -23,20 +23,6 @@ function printwasm_(io, xs, level)
   end
 end
 
-function printwasm(io, x::If, level)
-  level += 1
-  print(io, "if")
-  if !isempty(x.t)
-    print(io, "\n", "  "^level, "(then")
-    printwasm_(io, x.t, level+1)
-  end
-  if !isempty(x.f)
-    print(io, ")\n", "  "^level, "(else")
-    printwasm_(io, x.f, level+1)
-  end
-  print(io, ")")
-end
-
 function printwasm(io, x::Block, level)
   print(io, "block")
   printwasm_(io, x.body, level+1)
