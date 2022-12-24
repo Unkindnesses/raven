@@ -55,7 +55,7 @@ function show(io::IO, b::Block)
     x == nothing || print(io, string("%", x.id), " = ")
     st.expr == nothing ? print(io, "nothing") :
       print_stmt(io, st.expr)
-    st.type == Any || print(io, " :: ", st.type)
+    st.type != Any && !isexpr(st, :branch) && print(io, " :: ", st.type)
     st.src == nothing || showline(io, st.src)
   end
 end

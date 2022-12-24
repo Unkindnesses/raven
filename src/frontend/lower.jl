@@ -482,7 +482,7 @@ fnsig(ex) = lowerpattern(AST.List(ex[2][:]...))
 
 function lowerfn(ex, sig = fnsig(ex))
   sc = Scope(swap = sig.swap)
-  ir = IR()
+  ir = IR(meta = convert(Union{Source,Nothing}, AST.meta(ex)))
   for arg in sig.args
     sc[arg] = Slot(arg)
     push!(ir, :($(Slot(arg)) = $(argument!(ir))))

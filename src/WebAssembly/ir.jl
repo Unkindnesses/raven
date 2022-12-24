@@ -116,7 +116,7 @@ struct Relooping
 end
 
 function pushscope!(rl::Relooping, bl, target)
-  push!(rl.scopes[end].body, bl)
+  instr!(rl.scopes[end], bl)
   push!(rl.scopes, bl)
   push!(rl.targets, target)
   return rl
@@ -133,9 +133,9 @@ function reloop!(rl::Relooping, i::Integer)
   for (v, st) in b
     if st.expr isa Branch
       target = findfirst(b -> b == st.expr.level, reverse(rl.targets))-1
-      push!(rl.scopes[end].body, Branch(st.expr.cond, target))
+      instr!(rl.scopes[end], Branch(st.expr.cond, target), st.src)
     else
-      push!(rl.scopes[end].body, st.expr)
+      instr!(rl.scopes[end], st.expr, st.src)
     end
   end
 end
@@ -156,7 +156,7 @@ function reloop!(rl::Relooping, cs::IRTools.Component)
 end
 
 function reloop(ir, cfg)
-  rl = Relooping(ir, cfg, Any[Block([])], [])
+  rl = Relooping(ir, cfg, Any[Block([],[])], [])
   reloop!(rl, components(cfg))
   @assert length(rl.scopes) == 1
   @assert isempty(rl.targets)
@@ -172,5 +172,5 @@ function irfunc(name, ir)
   ir, locals, ret = locals!(ir)
   params = flattentype(argtypes(ir))
   locals = locals[length(params)+1:end]
-  Func(name, params => ret, locals, reloop(ir, cfg))
+  Func(name, params => ret, locals, reloop(ir, cfg), ir.meta)
 end

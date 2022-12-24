@@ -31,7 +31,7 @@ function loop(bl::Block)
 end
 
 function looped(ir::IR, cs::Component = components(CFG(ir)))
-  out = IR()
+  out = IR(meta = ir.meta)
   blocks = Int[]
   for (i, ch) in enumerate(cs.children)
     bl = i == 1 ? block(out, 1) : block!(out)
@@ -103,7 +103,7 @@ function unloop!(ir::IR, l::LoopIR, _bs)
 end
 
 function unloop(l::LoopIR)
-  ir = IR()
+  ir = IR(meta = l.ir.meta)
   IRTools.deleteblock!(ir, 1)
   bs = Dict{Int,Int}()
   unloop!(ir, l, bs)

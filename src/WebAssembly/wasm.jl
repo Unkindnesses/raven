@@ -63,14 +63,6 @@ struct Convert <: Instruction
   name::Symbol
 end
 
-struct Block <: Instruction
-  body::Vector{Instruction}
-end
-
-struct Loop <: Instruction
-  body::Vector{Instruction}
-end
-
 struct Branch <: Instruction
   cond::Bool
   level::Int
@@ -85,6 +77,24 @@ Branch(l::Integer) = Branch(false, l)
 struct Return <: Instruction end
 
 struct Unreachable <: Instruction end
+
+struct Block <: Instruction
+  body::Vector{Instruction}
+  srcs::Vector{Union{Source,Nothing}}
+end
+
+struct Loop <: Instruction
+  body::Vector{Instruction}
+  srcs::Vector{Union{Source,Nothing}}
+end
+
+function instr!(b::Union{Block,Loop}, it::Instruction, src = nothing)
+  push!(b.body, it)
+  push!(b.srcs, src)
+end
+
+Block(is) = Block(is, [nothing for _ in is])
+Loop(is) = Loop(is, [nothing for _ in is])
 
 const unreachable = Unreachable()
 
@@ -103,6 +113,7 @@ struct Func
   sig::Signature
   locals::Vector{WType}
   body::Block
+  meta
 end
 
 struct Mem

@@ -46,13 +46,13 @@ end
   @test occursin("(global (;0;) (mut i64) (i64.const 0))", compiled_wat(m))
 
   m = WebAssembly.Module(
-    funcs = [Func(:add, [] => [i32], [], Block([Const(Int32(5))]))])
+    funcs = [Func(:add, [] => [i32], [], Block([Const(Int32(5))]), nothing)])
   s = compiled_wat(m)
   @test occursin("func \$add (type 0) (result i32)", s)
   @test occursin("i32.const 5", s)
 
   m = WebAssembly.Module(
-    funcs = [Func(:add, [] => [f64], [], Block([Const(1.0)]))])
+    funcs = [Func(:add, [] => [f64], [], Block([Const(1.0)]), nothing)])
   @test occursin("f64.const 0x1p+0", compiled_wat(m))
 
   m = WebAssembly.Module(
@@ -63,7 +63,7 @@ end
 
   m = WebAssembly.Module(
     exports = [Export(:wasmAdd, :add)],
-    funcs = [Func(:add, [i32] => [i32], [], Block([Const(Int32(5))]))])
+    funcs = [Func(:add, [i32] => [i32], [], Block([Const(Int32(5))]), nothing)])
   @test occursin("(export \"wasmAdd\" (func \$add))", compiled_wat(m))
 end
 

@@ -14,26 +14,32 @@ Base.show(io::IO, i::Unreachable) = print(io, "unreachable")
 
 printwasm(io, x, level) = show(io, x)
 
-function printwasm_(io, xs, level)
-  for x in xs
+function showline(io::IO, src::Source)
+  printstyled(io, " ;; ", basename(src.file), ":", src.line, ":", src.col, color = 243)
+end
+
+function printwasm_(io, xs, ss, level)
+  @assert length(xs) == length(ss)
+  for (x, s) in zip(xs, ss)
     print(io, "\n", "  "^(level))
     print(io, "(")
     printwasm(io, x, level)
     print(io, ")")
+    s == nothing || showline(io, s)
   end
 end
 
 function printwasm(io, x::Block, level)
   print(io, "block")
-  printwasm_(io, x.body, level+1)
+  printwasm_(io, x.body, x.srcs, level+1)
 end
 
 function printwasm(io, x::Loop, level)
   print(io, "loop")
-  printwasm_(io, x.body, level+1)
+  printwasm_(io, x.body, x.srcs, level+1)
 end
 
-Base.show(io::IO, i::Union{Block,Loop,If}) = printwasm(io, i, 0)
+Base.show(io::IO, i::Union{Block,Loop}) = printwasm(io, i, 0)
 
 function printwasm(io, x::Mem, level)
   print(io, "\n", "  "^(level))
@@ -87,7 +93,7 @@ function printwasm(io::IO, f::Func, level)
   printwasm(io, f.sig, level)
   !isempty(f.locals) && print(io, "\n", "  "^level, " ")
   printvars(io, "local", f.locals)
-  printwasm_(io, f.body.body, level + 1)
+  printwasm_(io, f.body.body, f.body.srcs, level + 1)
   print(io, ")")
 end
 
