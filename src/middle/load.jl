@@ -1,6 +1,6 @@
 using LNR
 
-base = joinpath(@__DIR__, "../../base")
+const base = joinpath(@__DIR__, "../../base") |> normpath
 
 function simpleconst(cx::Inference, x)
   x isa Symbol && return cx.mod.defs[x]

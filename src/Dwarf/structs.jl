@@ -34,3 +34,9 @@ end
 function abbrev(d::DIE)
   Abbrev(d.tag, [k => form(k, v) for (k, v) in d.attrs], !isempty(d.children))
 end
+
+struct LineTable
+  lines::Vector{Pair{UInt32,Union{Source,Nothing}}}
+end
+
+offset(lt::LineTable, δ) = LineTable([o-δ => s for (o, s) in lt.lines])

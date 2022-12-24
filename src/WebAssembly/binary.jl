@@ -1,3 +1,5 @@
+using ..Raven.Dwarf: leb128, LineTable, offset
+
 # https://webassembly.github.io/spec/core/binary/instructions.html
 
 struct BinaryContext <: IO
@@ -34,8 +36,6 @@ end
 
 # Numeric values
 
-using ..Raven.Dwarf: leb128
-
 u32(io::IO, x) = leb128(io, UInt32(x))
 
 function u32(x)
@@ -59,23 +59,27 @@ function instr(io::IO, ::Unreachable)
   write(io, 0x00)
 end
 
-function instr(io::IO, bl::Block)
+function instr(io::IO, bl::Block, lt)
   write(io, 0x02)
   write(io, 0x40) # empty type
-  for i in bl.body
-    instr(io, i)
+  for (i, s) in zip(bl.body, bl.srcs)
+    s == nothing || push!(lt.lines, position(io) => s)
+    instr(io, i, lt)
   end
   write(io, 0x0b) # end
 end
 
-function instr(io::IO, bl::Loop)
+function instr(io::IO, bl::Loop, lt)
   write(io, 0x03)
   write(io, 0x40) # empty type
-  for i in bl.body
-    instr(io, i)
+  for (i, s) in zip(bl.body, bl.srcs)
+    s == nothing || push!(lt.lines, position(io) => s)
+    instr(io, i, lt)
   end
   write(io, 0x0b) # end
 end
+
+instr(io, x, lt) = instr(io, x)
 
 function instr(io::IO, br::Branch)
   write(io, 0x0c + br.cond)
@@ -244,26 +248,33 @@ function exports(io::BinaryContext, exs)
 end
 
 function func(io::IO, f)
+  lt = LineTable([])
+  push!(lt.lines, position(io) => f.meta)
   u32(io, length(f.locals))
   for t in f.locals
     u32(io, 1)
     write(io, numtypes[t])
   end
-  for i in f.body.body
-    instr(io, i)
+  for (i, s) in zip(f.body.body, f.body.srcs)
+    s == nothing || push!(lt.lines, position(io) => s)
+    instr(io, i, lt)
   end
   write(io, 0x0B)
+  return lt
 end
 
 function code(io::IO, funcs)
   isempty(funcs) && return 0
+  table = LineTable([])
   write(io, 0x0a) # section id
   withsize(io) do io
     u32(io, length(funcs))
     for f in funcs
-      withsize(io) do io
-        func(io, f)
+      lt = nothing
+      sz = withsize(io) do io
+        lt = func(io, f)
       end
+      append!(table.lines, offset(lt, -(position(io)-sz)).lines)
     end
   end
 end
@@ -316,4 +327,5 @@ function binary(io::IO, m::Module; path)
   sz = code(cx, m.funcs)
   names(cx, m)
   dwarf(cx, path, sz)
+  return
 end
