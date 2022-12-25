@@ -75,7 +75,8 @@ function ln_end_sequence(io)
   write(io, 0x01)
 end
 
-function debug_line(io, path, sz)
+function debug_line(io, lt)
+  files = unique(s.file for (o, s) in lt.lines if s != nothing)
   withsize(io) do io
     write(io, UInt16(4)) # version
     withsize(io) do io # header
@@ -89,17 +90,41 @@ function debug_line(io, path, sz)
       for i in Int8.([0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1])
         write(io, i)
       end
-      emit(io, dirname(path))
+      # dirs go here
       write(io, 0x00)
-      emit(io, basename(path))
-      leb128(io, UInt32(1)) # dir
-      leb128(io, UInt32(0)) # last modified
-      leb128(io, UInt32(0)) # file size
+      for file in files
+        emit(io, isabspath(file) ? file : normpath(joinpath(pwd(), file)))
+        leb128(io, UInt32(1)) # dir
+        leb128(io, UInt32(0)) # last modified
+        leb128(io, UInt32(0)) # file size
+      end
       write(io, 0x00)
     end
-    write(io, 0x01) # copy
-    write(io, 0x02) # advance_pc
-    leb128(io, UInt32(sz))
-    ln_end_sequence(io)
+    lines = [UInt32(0)=>nothing, lt.lines...]
+    for i = 2:length(lines)
+      o, s = lines[i-1]
+      o′, s′ = lines[i]
+      s′ == nothing && continue
+      s == nothing && ((o, s) = (UInt32(0), Source(files[1], 1, 0)))
+      write(io, 0x02) # advance_pc
+      leb128(io, UInt32(o′ - o))
+      if s′.line != s.line
+        write(io, 0x03) # advance_line
+        leb128(io, s′.line - s.line)
+      end
+      if s′.file != s.file
+        write(io, 0x04) # set_file
+        leb128(io, UInt32(findfirst(==(s′.file), files)))
+      end
+      if s′.col != s.col
+        write(io, 0x05) # set_column
+        leb128(io, UInt32(s′.col))
+      end
+      if i == length(lines) || lines[i+1][2] == nothing
+        ln_end_sequence(io)
+      else
+        write(io, 0x01) # copy
+      end
+    end
   end
 end

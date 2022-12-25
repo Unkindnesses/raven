@@ -264,10 +264,10 @@ function func(io::IO, f)
 end
 
 function code(io::IO, funcs)
-  isempty(funcs) && return 0
   table = LineTable([])
+  isempty(funcs) && return 0, table
   write(io, 0x0a) # section id
-  withsize(io) do io
+  sz = withsize(io) do io
     u32(io, length(funcs))
     for f in funcs
       lt = nothing
@@ -277,6 +277,7 @@ function code(io::IO, funcs)
       append!(table.lines, offset(lt, -(position(io)-sz)).lines)
     end
   end
+  return sz, table
 end
 
 function names(io::IO, m)
@@ -302,7 +303,7 @@ function debuginfo(sz)
             [])
 end
 
-function dwarf(io::IO, path, sz)
+function dwarf(io::IO, lt, sz)
   dbg = debuginfo(sz)
   custom(io, ".debug_info") do io
     Dwarf.debug_info(io, dbg)
@@ -311,7 +312,7 @@ function dwarf(io::IO, path, sz)
     Dwarf.debug_abbrev(io, dbg)
   end
   custom(io, ".debug_line") do io
-    Dwarf.debug_line(io, path, sz)
+    Dwarf.debug_line(io, lt)
   end
 end
 
@@ -324,8 +325,8 @@ function binary(io::IO, m::Module; path)
   memories(cx, m.mems)
   globals(cx, m.globals)
   exports(cx, m.exports)
-  sz = code(cx, m.funcs)
+  sz, lt = code(cx, m.funcs)
   names(cx, m)
-  dwarf(cx, path, sz)
+  dwarf(cx, lt, sz)
   return
 end
