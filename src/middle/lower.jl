@@ -34,19 +34,16 @@ frame(inf::Compilation, T) = inf.frames[sig(inf, T)]
 # Global variables
 
 # Turn global references into explicit load instructions
-# TODO this function is horrendously complex for what it does.
-# Should be expressed as a prewalk in the new IRTools.
 function globals(mod::RModule, ir::IR)
   pr = IRTools.Pipe(ir)
-  transform(x, v = nothing) = x
-  function transform(x::Global, v = nothing)
+  function transform(x, v)
+    x isa Global || return x
     T = get(mod, x.name, ⊥)
-    insert = v == nothing ? (x -> push!(pr, x)) : (x -> insert!(pr, v, x))
     if T == ⊥
-      insert(stmt(xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
-                        Expr(:ref, "$(x.name) is not defined")), type = ⊥))
+      insert!(pr, v, stmt(xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
+                          Expr(:ref, "$(x.name) is not defined")), type = ⊥))
     else
-      insert(stmt(Expr(:global, x.name), type = T))
+      insert!(pr, v, stmt(Expr(:global, x.name), type = T))
     end
   end
   for (v, st) in pr
