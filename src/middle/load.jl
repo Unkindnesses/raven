@@ -1,5 +1,7 @@
 using LNR
 
+const include_runtime = true
+
 const base = joinpath(@__DIR__, "../../base") |> normpath
 
 function simpleconst(cx::Inference, x)
@@ -54,9 +56,10 @@ end
 vload(m::Inference, x) = load_expr(m, x)
 
 function finish!(cx::Inference)
+  body = [AST.Call(f) for f in cx.main]
+  include_runtime && push!(body, AST.Call(:checkAllocations))
   fn = AST.Syntax(:fn, AST.Call(:_start),
-                       AST.Block([AST.Call(f) for f in cx.main]...,
-                                 AST.Call(:checkAllocations)))
+                       AST.Block(body...))
   sig = lowerpattern(AST.List())
   method!(cx.mod, :_start, RMethod(:_start, sig, lowerfn(fn, sig)))
 end
@@ -79,11 +82,13 @@ function loadfile(f::String; infer = true, partial = false)
   finish!(cx)
   infer || return cx
   P = Parent((), 1)
-  frame!(cx, P, :malloc!, rlist(Int32))
-  frame!(cx, P, :retain!, rlist(pack(:Ptr, Int32)))
-  frame!(cx, P, :release!, rlist(pack(:Ptr, Int32)))
-  frame!(cx, P, :blockUnique, rlist(pack(:Ptr, Int32)))
-  frame!(cx, P, :println, rlist(String))
+  if include_runtime
+    frame!(cx, P, :malloc!, rlist(Int32))
+    frame!(cx, P, :retain!, rlist(pack(:Ptr, Int32)))
+    frame!(cx, P, :release!, rlist(pack(:Ptr, Int32)))
+    frame!(cx, P, :blockUnique, rlist(pack(:Ptr, Int32)))
+    frame!(cx, P, :println, rlist(String))
+  end
   frame!(cx, P, startmethod(cx.mod))
   infer && infer!(cx; partial)
   return cx
