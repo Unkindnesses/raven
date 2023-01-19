@@ -39,33 +39,46 @@ function emit(io::IO, s::AbstractString)
   write(io, 0x00)
 end
 
+emit(io::IO, s::Symbol) = emit(io, string(s))
+
 emit(io::IO, s::Union{Enum,Integer}) = write(io, s)
+
+function emit(io::IO, die::DIE, as)
+  leb128(io, UInt32(as[abbrev(die)])) # abbreviation code
+  for (k, v) in die.attrs
+    emit(io, v) # attribute value
+  end
+  if !isempty(die.children)
+    for child in die.children
+      emit(io, child, as)
+    end
+    leb128(io, UInt32(0)) # NULL entry terminates children
+  end
+end
 
 # Abbrev section
 
-function debug_abbrev(io::IO, info::DIE)
-  @assert isempty(info.children)
-  x = abbrev(info)
-  leb128(io, UInt32(1)) # abbreviation code
-  leb128(io, x.tag) # tag_compile_unit
-  write(io, x.children) # children
-  for (k, v) in x.attrs
-    leb128(io, k)
-    leb128(io, v)
+function debug_abbrev(io::IO, as)
+  for (i, x) in enumerate(as)
+    leb128(io, UInt32(i)) # abbreviation code
+    leb128(io, x.tag)
+    write(io, x.children)
+    for (k, v) in x.attrs
+      leb128(io, k)
+      leb128(io, v)
+    end
+    write(io, 0x0000) # end attributes
   end
-  write(io, 0x00) # end attributes
+  write(io, 0x00) # end abbreviations
 end
 
-function debug_info(io, info::DIE)
-  @assert isempty(info.children)
+function debug_info(io, info::DIE, as)
+  as = Dict(a => i for (i, a) in enumerate(as))
   withsize(io) do io
     write(io, UInt16(4)) # DWARF version
     write(io, UInt32(0)) # debug_abbrev_offset
     write(io, 0x04) # address_size
-    leb128(io, UInt32(1)) # compile unit abbrev
-    for (k, v) in info.attrs
-      emit(io, v)
-    end
+    emit(io, info, as)
   end
 end
 

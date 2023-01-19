@@ -1,4 +1,10 @@
-using ..Raven.Dwarf: leb128, LineTable, offset
+using ..Raven.Dwarf: leb128, DIE, LineTable, offset
+
+struct Debug
+  size::Int
+  lines::LineTable
+  dies::Vector{DIE}
+end
 
 # https://webassembly.github.io/spec/core/binary/instructions.html
 
@@ -265,7 +271,8 @@ end
 
 function code(io::IO, funcs)
   table = LineTable([])
-  isempty(funcs) && return 0, table
+  dies = DIE[]
+  isempty(funcs) && return Debug(0, table, [])
   write(io, 0x0a) # section id
   sz = withsize(io) do io
     u32(io, length(funcs))
@@ -274,10 +281,17 @@ function code(io::IO, funcs)
       sz = withsize(io) do io
         lt = func(io, f)
       end
-      append!(table.lines, offset(lt, -(position(io)-sz)).lines)
+      low_pc = position(io)-sz
+      high_pc = position(io)
+      append!(table.lines, offset(lt, -low_pc).lines)
+      die = DIE(Dwarf.TAG_subprogram,
+                [Dwarf.AT_name => f.name,
+                 Dwarf.AT_low_pc => UInt32(low_pc),
+                 Dwarf.AT_high_pc => UInt32(high_pc)])
+      push!(dies, die)
     end
   end
-  return sz, table
+  return Debug(sz, table, dies)
 end
 
 function names(io::IO, m)
@@ -293,26 +307,23 @@ function names(io::IO, m)
   end
 end
 
-function debuginfo(sz)
-  Dwarf.DIE(Dwarf.TAG_compile_unit,
+function dwarf(io::IO, info::Debug)
+  die = DIE(Dwarf.TAG_compile_unit,
             [Dwarf.AT_producer => "raven version 0.0.0",
              Dwarf.AT_language => Dwarf.LANG_C99,
              Dwarf.AT_stmt_list => UInt32(0),
              Dwarf.AT_low_pc => UInt32(0),
-             Dwarf.AT_high_pc => UInt32(sz)],
-            [])
-end
-
-function dwarf(io::IO, lt, sz)
-  dbg = debuginfo(sz)
+             Dwarf.AT_high_pc => UInt32(info.size)],
+            info.dies)
+  as = Dwarf.abbrevs(die)
   custom(io, ".debug_info") do io
-    Dwarf.debug_info(io, dbg)
+    Dwarf.debug_info(io, die, as)
   end
   custom(io, ".debug_abbrev") do io
-    Dwarf.debug_abbrev(io, dbg)
+    Dwarf.debug_abbrev(io, as)
   end
   custom(io, ".debug_line") do io
-    Dwarf.debug_line(io, lt)
+    Dwarf.debug_line(io, info.lines)
   end
 end
 
@@ -325,8 +336,8 @@ function binary(io::IO, m::Module; path)
   memories(cx, m.mems)
   globals(cx, m.globals)
   exports(cx, m.exports)
-  sz, lt = code(cx, m.funcs)
+  dbg = code(cx, m.funcs)
   names(cx, m)
-  dwarf(cx, lt, sz)
+  dwarf(cx, dbg)
   return
 end
