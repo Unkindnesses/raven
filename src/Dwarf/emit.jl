@@ -114,28 +114,29 @@ function debug_line(io, lt)
       write(io, 0x00)
     end
     lines = [UInt32(0)=>nothing, lt.lines...]
+    # TODO track offset separately, so the loop can `continue` without getting
+    # confused
     for i = 2:length(lines)
       o, s = lines[i-1]
       o′, s′ = lines[i]
-      s′ == nothing && continue
       s == nothing && ((o, s) = (UInt32(0), Source(files[1], 1, 0)))
       write(io, 0x02) # advance_pc
       leb128(io, UInt32(o′ - o))
-      if s′.line != s.line
-        write(io, 0x03) # advance_line
-        leb128(io, s′.line - s.line)
-      end
-      if s′.file != s.file
-        write(io, 0x04) # set_file
-        leb128(io, UInt32(findfirst(==(s′.file), files)))
-      end
-      if s′.col != s.col
-        write(io, 0x05) # set_column
-        leb128(io, UInt32(s′.col))
-      end
-      if i == length(lines) || lines[i+1][2] == nothing
+      if s′ == nothing
         ln_end_sequence(io)
       else
+        if s′.line != s.line
+          write(io, 0x03) # advance_line
+          leb128(io, s′.line - s.line)
+        end
+        if s′.file != s.file
+          write(io, 0x04) # set_file
+          leb128(io, UInt32(findfirst(==(s′.file), files)))
+        end
+        if s′.col != s.col
+          write(io, 0x05) # set_column
+          leb128(io, UInt32(s′.col))
+        end
         write(io, 0x01) # copy
       end
     end

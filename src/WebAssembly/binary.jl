@@ -323,8 +323,10 @@ function dwarf(io::IO, info::Debug)
   custom(io, ".debug_abbrev") do io
     Dwarf.debug_abbrev(io, as)
   end
-  custom(io, ".debug_line") do io
-    Dwarf.debug_line(io, info.lines)
+  if !all(x -> x[2] == nothing, info.lines.lines)
+    custom(io, ".debug_line") do io
+      Dwarf.debug_line(io, info.lines)
+    end
   end
 end
 
