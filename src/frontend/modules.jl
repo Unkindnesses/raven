@@ -34,3 +34,10 @@ function method!(mod::RModule, name::Symbol, m::RMethod)
 end
 
 @forward RModule.defs Base.getindex, Base.setindex!, Base.haskey, Base.get
+
+struct FuncInfo
+  name::Symbol
+  source::Union{Source,Nothing}
+end
+
+FuncInfo(name) = FuncInfo(name, nothing)

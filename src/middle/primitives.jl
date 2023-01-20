@@ -137,7 +137,7 @@ lowerPrimitive[notnil_method] = function (cx, pr, ir, v)
 end
 
 function symstring_ir(T::Or)
-  ir = IR()
+  ir = IR(meta = FuncInfo(:symstring))
   x = argument!(ir, type = T)
   union_cases!(ir, T, x) do S, _
     @assert S isa Symbol

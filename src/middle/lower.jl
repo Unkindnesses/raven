@@ -109,7 +109,7 @@ end
 function partir(x, i)
   i <: Int64 || error("Only Int64 indexes are supported.")
   T = partial_part(x, i)
-  ir = IR()
+  ir = IR(meta = FuncInfo(:part))
   vx = argument!(ir, type = x)
   vi = argument!(ir, type = i)
   xlayout = layout(x)
@@ -147,7 +147,7 @@ function partmethod!(cx::Compilation, x, i)
 end
 
 function union_partir(x::Or, i)
-  ir = IR()
+  ir = IR(meta = FuncInfo(:part))
   retT = partial_part(x, i)
   vx = argument!(ir, type = x)
   vi = argument!(ir, type = i)
@@ -244,7 +244,7 @@ end
 function packcat_ir(T::Pack)
   T′ = packcat(parts(T)...)
   @assert layout(T′.parts) == () || T′.parts == Int64
-  ir = IR()
+  ir = IR(meta = FuncInfo(:packcat))
   xs = argument!(ir, type = T)
   if layout(T′.parts) == ()
     push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
@@ -315,7 +315,7 @@ end
 # ======
 
 function nparts_ir(x::Or)
-  ir = IR()
+  ir = IR(meta = FuncInfo(:nparts))
   retT = partial_nparts(x)
   vx = argument!(ir, type = x)
   union_cases!(ir, x, vx) do T, val
@@ -426,7 +426,7 @@ end
 cast_method = RMethod(:cast, lowerpattern(rvx"args"), nothing, false)
 
 function castir(cx, from::Or, to)
-  ir = IR()
+  ir = IR(meta = FuncInfo(:cast))
   x = argument!(ir, type = from)
   union_cases!(ir, from, x) do T, val
     cast!(cx, ir, T, to, val)

@@ -255,7 +255,7 @@ end
 
 function func(io::IO, f)
   lt = LineTable([])
-  push!(lt.lines, position(io) => f.meta)
+  push!(lt.lines, position(io) => f.meta.source)
   u32(io, length(f.locals))
   for t in f.locals
     u32(io, 1)
@@ -285,7 +285,7 @@ function code(io::IO, funcs)
       high_pc = position(io)
       append!(table.lines, offset(lt, -low_pc).lines)
       die = DIE(Dwarf.TAG_subprogram,
-                [Dwarf.AT_name => f.name,
+                [Dwarf.AT_name => f.meta.name,
                  Dwarf.AT_low_pc => UInt32(low_pc),
                  Dwarf.AT_high_pc => UInt32(high_pc)])
       push!(dies, die)

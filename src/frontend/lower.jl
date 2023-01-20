@@ -482,7 +482,8 @@ fnsig(ex) = lowerpattern(AST.List(ex[2][:]...))
 
 function lowerfn(ex, sig = fnsig(ex))
   sc = Scope(swap = sig.swap)
-  ir = IR(meta = convert(Union{Source,Nothing}, AST.meta(ex)))
+  name = ex[2][1]
+  ir = IR(meta = FuncInfo(name, AST.meta(ex)))
   for arg in sig.args
     sc[arg] = Slot(arg)
     push!(ir, :($(Slot(arg)) = $(argument!(ir))))
@@ -510,9 +511,9 @@ function rewrite_globals(ir::IR)
   return ir
 end
 
-function lower_toplevel(ex, defs = [])
+function lower_toplevel(ex, name, defs = [])
   sc = GlobalScope(defs)
-  ir = IR()
+  ir = IR(meta = FuncInfo(name, AST.meta(ex)))
   _lower!(sc, ir, ex)
   IRTools.return!(ir, Global(:nil))
   ir = rewrite_globals(ir)

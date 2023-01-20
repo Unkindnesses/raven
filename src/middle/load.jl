@@ -27,7 +27,7 @@ end
 function load_expr(cx::Inference, x)
   fname = Symbol(:__main, length(cx.main))
   defs = collect(keys(cx.mod.defs))
-  method!(cx.mod, fname, RMethod(fname, lowerpattern(AST.List()), lower_toplevel(x, defs)))
+  method!(cx.mod, fname, RMethod(fname, lowerpattern(AST.List()), lower_toplevel(x, fname, defs)))
   push!(cx.main, fname)
 end
 

@@ -127,7 +127,7 @@ function count!(cx, ir, T::Recursive, x, mode)
 end
 
 function count_ir(cx, T, mode)
-  ir = IR()
+  ir = IR(meta = FuncInfo(Symbol(mode)))
   x = argument!(ir, type = T)
   count!(cx, ir, T, x, mode)
   return!(ir, push!(ir, stmt(xtuple(), type = nil)))

@@ -230,7 +230,7 @@ function indexer!(ir::IR, arg, path)
 end
 
 function dispatcher(inf, func::Symbol, Ts)
-  ir = IR()
+  ir = IR(meta = FuncInfo(func, nothing))
   args = argument!(ir)
   for meth in reverse(inf.mod.methods[func])
     m = partial_match(inf.mod, meth.sig.pattern, Ts)
