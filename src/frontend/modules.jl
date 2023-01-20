@@ -38,6 +38,8 @@ end
 struct FuncInfo
   name::Symbol
   source::Union{Source,Nothing}
+  trampoline::Bool
 end
 
-FuncInfo(name) = FuncInfo(name, nothing)
+FuncInfo(name, source = nothing; trampoline = false) =
+  FuncInfo(name, source, trampoline)

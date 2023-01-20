@@ -29,6 +29,7 @@ const byteforms =
 
 form(x::Union{AbstractString,Symbol}) = FORM_string
 form(x::Union{Enum,Integer}) = byteforms[sizeof(x)]
+form(x::Bool) = FORM_flag
 
 function form(attr, v)
   haskey(attrforms, attr) || return form(v)

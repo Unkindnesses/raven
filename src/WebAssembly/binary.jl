@@ -288,6 +288,7 @@ function code(io::IO, funcs)
                 [Dwarf.AT_name => f.meta.name,
                  Dwarf.AT_low_pc => UInt32(low_pc),
                  Dwarf.AT_high_pc => UInt32(high_pc)])
+      f.meta.trampoline && push!(die.attrs, Dwarf.AT_trampoline => true)
       push!(dies, die)
     end
   end
