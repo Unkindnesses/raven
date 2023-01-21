@@ -511,9 +511,9 @@ function rewrite_globals(ir::IR)
   return ir
 end
 
-function lower_toplevel(ex, name, defs = [])
+function lower_toplevel(ex, name, src, defs = [])
   sc = GlobalScope(defs)
-  ir = IR(meta = FuncInfo(name, AST.meta(ex)))
+  ir = IR(meta = FuncInfo(name, src))
   _lower!(sc, ir, ex)
   IRTools.return!(ir, Global(:nil))
   ir = rewrite_globals(ir)

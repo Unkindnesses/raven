@@ -24,17 +24,17 @@ function load_import(cx, x)
   open(io -> loadfile(cx, io; path), path)
 end
 
-function load_expr(cx::Inference, x)
+function load_expr(cx::Inference, x; src)
   fname = Symbol(:__main, length(cx.main))
   defs = collect(keys(cx.mod.defs))
-  method!(cx.mod, fname, RMethod(fname, lowerpattern(AST.List()), lower_toplevel(x, fname, defs)))
+  method!(cx.mod, fname, RMethod(fname, lowerpattern(AST.List()), lower_toplevel(x, fname, src, defs)))
   push!(cx.main, fname)
 end
 
-function vload(cx::Inference, x::AST.Syntax)
+function vload(cx::Inference, x::AST.Syntax; src)
   x[1] == :import && return load_import(cx, x)
-  x[1] == :bundle && return vload(cx, datamacro(x))
-  x[1] == :fn || return load_expr(cx, x)
+  x[1] == :bundle && return vload(cx, datamacro(x); src)
+  x[1] == :fn || return load_expr(cx, x; src)
   sig = x[2]
   f = sig[1]
   args = AST.List(sig[2:end]...)
@@ -43,17 +43,17 @@ function vload(cx::Inference, x::AST.Syntax)
   return f
 end
 
-vload(cx::Inference, x::AST.Block) = foreach(x -> vload(cx, x), x[:])
+vload(cx::Inference, x::AST.Block; src) = foreach(x -> vload(cx, x; src), x[:])
 
-function vload(cx::Inference, x::AST.Operator)
+function vload(cx::Inference, x::AST.Operator; src)
   if x[1] == :(=) && x[2] isa Symbol && (c = simpleconst(cx, x[3])) != nothing
     cx.mod.defs[x[2]] = c
   else
-    load_expr(cx, x)
+    load_expr(cx, x; src)
   end
 end
 
-vload(m::Inference, x) = load_expr(m, x)
+vload(m::Inference, x; src) = load_expr(m, x; src)
 
 function finish!(cx::Inference)
   body = [AST.Call(f) for f in cx.main]
@@ -66,9 +66,11 @@ end
 
 function loadfile(cx::Inference, io::IO; path)
   io = LineNumberingReader(io)
-  Parse.stmts(io)
-  while (ex = parse(io; path)) != nothing
-    vload(cx, ex)
+  while true
+    Parse.stmts(io)
+    cur = cursor(io)
+    (ex = parse(io; path)) == nothing && break
+    vload(cx, ex, src = Source(path, cur.line, cur.column))
     Parse.stmts(io)
   end
 end
