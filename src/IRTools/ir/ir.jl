@@ -60,18 +60,19 @@ struct Statement
   expr::Any
   type::Any
   src::Union{Source,Nothing}
+  bp::Bool
 end
 
-Statement(x; expr = x, type = Any, src = nothing) =
-  Statement(expr, type, src)
+Statement(x; expr = x, type = Any, src = nothing, bp = false) =
+  Statement(expr, type, src, bp)
 
-Statement(x::Statement; expr = x.expr, type = x.type, src = x.src) =
-  Statement(expr, type, src)
+Statement(x::Statement; expr = x.expr, type = x.type, src = x.src, bp = x.bp) =
+  Statement(expr, type, src, bp)
 
 MacroTools.isexpr(st::Statement, ts...) = isexpr(st.expr, ts...)
 
 Base.copy(::Nothing) = nothing
-Base.copy(st::Statement) = Statement(copy(st.expr), st.type, st.src)
+Base.copy(st::Statement) = Statement(copy(st.expr), st.type, st.src, st.bp)
 
 const stmt = Statement
 
@@ -321,7 +322,7 @@ function push!(b::Block, x::Statement)
   if !isexpr(x, :branch) && bs <= length(BasicBlock(b).stmts)
     return insert!(b, bs, x)
   end
-  x = applyex(a -> push!(b, Statement(x, expr = a)), x)
+  x = applyex(a -> push!(b, Statement(a, src = x.src)), x)
   push!(BasicBlock(b).stmts, x)
   push!(b.ir.defs, (b.id, length(BasicBlock(b).stmts)))
   return Variable(length(b.ir.defs))

@@ -1,3 +1,10 @@
+struct LineInfo
+  src::Source
+  bp::Bool
+end
+
+LineInfo(s::Source) = LineInfo(s, false)
+
 struct DIE
   tag::Tag
   attrs::Vector{Pair{Attr,Any}}
@@ -51,7 +58,7 @@ end
 abbrevs(die::DIE) = collect(abbrevs!(die, Set{Abbrev}()))
 
 struct LineTable
-  lines::Vector{Pair{UInt32,Union{Source,Nothing}}}
+  lines::Vector{Pair{UInt32,Union{LineInfo,Nothing}}}
 end
 
 offset(lt::LineTable, δ) = LineTable([o-δ => s for (o, s) in lt.lines])

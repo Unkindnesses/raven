@@ -244,7 +244,7 @@ swaps(sc::Scope) = sc.swap == nothing ? swaps(sc.parent) : sc.swap
 # e.g. `f(return 1)`
 _push!(ir::IR, x::Statement) = IRTools.canbranch(blocks(ir)[end]) && push!(ir, x)
 
-_push!(ir::IR, x::Expr; src = nothing) = _push!(ir, stmt(x; src))
+_push!(ir::IR, x::Expr; src = nothing, bp = false) = _push!(ir, stmt(x; src, bp))
 
 # lower while ignoring return value (if applicable)
 _lower!(sc, ir, x) = lower!(sc, ir, x)
@@ -271,7 +271,7 @@ function lower!(sc, ir::IR, ex::AST.Operator, value = true)
     clauses = ex[1] == :(&&) ? [ex[3], Int32(false)] : [Int32(true), ex[3]]
     lowerif!(sc, ir, If([ex[2], true], clauses), value)
   else
-    r = _push!(ir, xcall(ex[1], xlist(map(x -> lower!(sc, ir, x), ex[2:end])...)), src = AST.meta(ex))
+    r = _push!(ir, xcall(ex[1], xlist(map(x -> lower!(sc, ir, x), ex[2:end])...)), src = AST.meta(ex), bp = true)
     _push!(ir, xpart(r, 1), src = AST.meta(ex))
   end
 end
@@ -310,7 +310,8 @@ end
 
 function lower!(sc, ir::IR, ex::AST.Call)
   args, swaps = argtuple!(sc, ir, ex[2:end], AST.meta(ex))
-  result = _push!(ir, xcall(lower!(sc, ir, ex[1]), args), src = AST.meta(ex))
+  result = _push!(ir, xcall(lower!(sc, ir, ex[1]), args),
+                  src = AST.meta(ex), bp = true)
   val = _push!(ir, xpart(result, 1), src = AST.meta(ex))
   for (x, i) in swaps
     _push!(ir, Expr(:(=), variable!(sc, x), xpart(result, i+1)))

@@ -128,14 +128,16 @@ function popscope!(rl::Relooping)
   return
 end
 
+lineinfo(st) = st.src == nothing ? nothing : LineInfo(st.src, st.bp)
+
 function reloop!(rl::Relooping, i::Integer)
   b = blocks(rl.ir)[i]
   for (v, st) in b
     if st.expr isa Branch
       target = findfirst(b -> b == st.expr.level, reverse(rl.targets))-1
-      instr!(rl.scopes[end], Branch(st.expr.cond, target), st.src)
+      instr!(rl.scopes[end], Branch(st.expr.cond, target), lineinfo(st))
     else
-      instr!(rl.scopes[end], st.expr, st.src)
+      instr!(rl.scopes[end], st.expr, lineinfo(st))
     end
   end
 end

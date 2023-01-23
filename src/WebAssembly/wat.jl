@@ -14,8 +14,9 @@ Base.show(io::IO, i::Unreachable) = print(io, "unreachable")
 
 printwasm(io, x, level) = show(io, x)
 
-function showline(io::IO, src::Source)
-  printstyled(io, " ;; ", basename(src.file), ":", src.line, ":", src.col, color = 243)
+function showline(io::IO, li::LineInfo)
+  printstyled(io, " ;; ", basename(li.src.file), ":", li.src.line, ":", li.src.col, color = 243)
+  li.bp && printstyled(io, " 🔴", color = 243)
 end
 
 function printwasm_(io, xs, ss, level)

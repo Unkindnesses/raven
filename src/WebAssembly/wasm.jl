@@ -80,12 +80,12 @@ struct Unreachable <: Instruction end
 
 struct Block <: Instruction
   body::Vector{Instruction}
-  srcs::Vector{Union{Source,Nothing}}
+  srcs::Vector{Union{LineInfo,Nothing}}
 end
 
 struct Loop <: Instruction
   body::Vector{Instruction}
-  srcs::Vector{Union{Source,Nothing}}
+  srcs::Vector{Union{LineInfo,Nothing}}
 end
 
 function instr!(b::Union{Block,Loop}, it::Instruction, src = nothing)

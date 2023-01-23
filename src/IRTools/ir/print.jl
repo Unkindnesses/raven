@@ -36,8 +36,10 @@ function printargs(io::IO, args, types = [Any for arg in args])
   print(io, ")")
 end
 
-function showline(io::IO, src::Source)
-  printstyled(io, " # ", basename(src.file), ":", src.line, ":", src.col, color = 243)
+function showline(io::IO, src::Source, bp::Bool)
+  printstyled(io, " # ", color = 243)
+  printstyled(io, basename(src.file), ":", src.line, ":", src.col, color = 243)
+  bp && printstyled(io, " 🔴", color = 243)
 end
 
 function show(io::IO, b::Block)
@@ -56,7 +58,7 @@ function show(io::IO, b::Block)
     st.expr == nothing ? print(io, "nothing") :
       print_stmt(io, st.expr)
     st.type != Any && !isexpr(st, :branch) && print(io, " :: ", st.type)
-    st.src == nothing || showline(io, st.src)
+    st.src == nothing || showline(io, st.src, st.bp)
   end
 end
 

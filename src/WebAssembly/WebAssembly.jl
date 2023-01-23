@@ -1,8 +1,8 @@
 module WebAssembly
 
+using ..Dwarf
 using MacroTools: @forward
-using ..Raven.Dwarf
-using ..IRTools: Source
+using ..Dwarf: LineInfo
 
 include("wasm.jl")
 include("wat.jl")

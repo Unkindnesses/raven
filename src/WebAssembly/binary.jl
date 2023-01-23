@@ -255,7 +255,7 @@ end
 
 function func(io::IO, f)
   lt = LineTable([])
-  push!(lt.lines, position(io) => f.meta.source)
+  push!(lt.lines, position(io) => f.meta.source == nothing ? nothing : LineInfo(f.meta.source))
   u32(io, length(f.locals))
   for t in f.locals
     u32(io, 1)
