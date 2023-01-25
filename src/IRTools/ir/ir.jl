@@ -244,10 +244,10 @@ setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], expr = x))
 
 branch(block::Block, args...; kw...) = branch(block.id, args...; kw...)
 
-function branch!(b::Block, block, args...; when = nothing, src = nothing)
+function branch!(b::Block, block, args...; when = nothing, src = nothing, bp = false)
   brs = branches(b)
   args = map(a -> a isa Expr ? push!(b, a) : a, args)
-  push!(b, stmt(branch(block, args...; when); src))
+  push!(b, stmt(branch(block, args...; when); src, bp))
   return b
 end
 
@@ -256,7 +256,7 @@ function branch!(ir::IR, args...; kw...)
   return ir
 end
 
-return!(ir, x; src = nothing) = branch!(ir, 0, x; src)
+return!(ir, x; src = nothing, bp = false) = branch!(ir, 0, x; src, bp)
 
 function getindex(ir::IR, i::Variable)
   b, i = blockidx(ir, i)

@@ -325,19 +325,19 @@ function lower!(sc, ir::IR, ex::AST.List)
   argtuple!(sc, ir, ex[:], AST.meta(ex))[1]
 end
 
-function swapreturn!(ir::IR, val, swaps, meta)
+function swapreturn!(ir::IR, val, swaps, src; bp = false)
   if swaps != nothing && !isempty(swaps)
     args = maximum(keys(swaps))
     ret = push!(ir, xlist(val, map(i -> haskey(swaps, i) ? Slot(swaps[i]) : Global(:nil), 1:args)...))
-    return!(ir, ret, src = meta)
+    return!(ir, ret; src, bp)
   else
-    return!(ir, val, src = meta)
+    return!(ir, val; src, bp)
   end
 end
 
 function lower!(sc, ir::IR, ex::AST.Return)
   result = lower!(sc, ir, ex[1])
-  swapreturn!(ir, result, swaps(sc), AST.meta(ex))
+  swapreturn!(ir, result, swaps(sc), AST.meta(ex), bp = true)
   return
 end
 
