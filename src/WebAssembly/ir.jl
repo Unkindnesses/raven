@@ -35,6 +35,7 @@ function locals!(ir::IR)
   for b in blocks(ir)
     for (v, st) in b
       ex = st.expr
+      src = st.src
       if ex isa Variable
         delete!(ir, v)
         _env = haskey(tuples, ex) ? tuples : env
@@ -47,15 +48,16 @@ function locals!(ir::IR)
       elseif isexpr(ex, :call)
         for arg in ex.args[2:end]
           haskey(tuples, arg) ?
-            [insert!(ir, v, tuples[arg][i]) for i in 1:length(tuples[arg])] :
-            insert!(ir, v, rename(arg))
+            [insert!(ir, v, stmt(tuples[arg][i]; src))
+             for i in 1:length(tuples[arg])] :
+            insert!(ir, v, stmt(rename(arg); src))
         end
         ir[v] = ex.args[1]::Instruction
         if st.type isa WTuple
-          tuples[v] = [(l = local!(T); insertafter!(ir, v, SetLocal(false, l.id)); l)
+          tuples[v] = [(l = local!(T); insertafter!(ir, v, stmt(SetLocal(false, l.id); src)); l)
                        for T in st.type.parts]
         else
-          insertafter!(ir, v, SetLocal(false, local!(v, st.type).id))
+          insertafter!(ir, v, stmt(SetLocal(false, local!(v, st.type).id); src))
         end
       elseif isexpr(ex, :tuple)
         ps = []
@@ -77,7 +79,7 @@ function locals!(ir::IR)
           args = haskey(tuples, arguments(br)[1]) ? tuples[arguments(br)[1]] : arguments(br)
           ret = ltype.(args)
           for arg in args
-            insert!(ir, v, rename(arg))
+            insert!(ir, v, stmt(rename(arg); src))
           end
           ir[v] = Return()
         elseif br == IRTools.unreachable
@@ -89,15 +91,15 @@ function locals!(ir::IR)
                 [local!(T) for T in IRTools.exprtype(ir, y).parts]
               end
               for (xl, yl) in zip(tuples[x], ls)
-                push!(b, xl)
-                push!(b, SetLocal(false, yl.id))
+                push!(b, stmt(xl; src))
+                push!(b, stmt(SetLocal(false, yl.id); src))
               end
             else
-              push!(b, rename(x))
-              push!(b, SetLocal(false, local!(y, ltype(x)).id))
+              push!(b, stmt(rename(x); src))
+              push!(b, stmt(SetLocal(false, local!(y, ltype(x)).id); src))
             end
           end
-          isconditional(br) && push!(b, rename(br.args[2]))
+          isconditional(br) && push!(b, stmt(rename(br.args[2]); src))
           ir[v] = Branch(isconditional(br), br.args[1])
         end
       else
