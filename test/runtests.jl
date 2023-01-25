@@ -15,8 +15,8 @@ end
 end
 
 if !Sys.iswindows()
-  @testset "Dwarf" begin
-    include("dwarf.jl")
+  @testset "Debug" begin
+    include("debug/runtests.jl")
   end
 end
 

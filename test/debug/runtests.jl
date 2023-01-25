@@ -1,13 +1,13 @@
 using Raven, Test
-using Raven: pscmd
 
+include("utils.jl")
 
 let
-  out = String(read(pscmd(`llvm-dwarfdump $(@__DIR__)/compiled/structures.wasm`)))
+  out = dwarfdump("$(@__DIR__)/../compiled/structures.wasm")
   @test occursin("DW_AT_producer\t(\"raven version 0.0.0\")", out)
   @test occursin("DW_AT_language\t(DW_LANG_C99)", out)
 
-  out = String(read(pscmd(`llvm-dwarfdump --verify $(@__DIR__)/compiled/structures.wasm`)))
+  out = dwarf_verify("$(@__DIR__)/../compiled/structures.wasm")
   @test !occursin("warning", out)
   @test occursin("No errors.", out)
 end
