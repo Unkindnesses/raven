@@ -2,12 +2,28 @@ using Raven, Test
 
 include("utils.jl")
 
-let
-  out = dwarfdump("$(@__DIR__)/../compiled/structures.wasm")
+Raven.compile("$(@__DIR__)/src/pow.rv")
+
+pow_wasm = "$(@__DIR__)/src/pow.wasm"
+
+@testset "Basic info" begin
+  out = dwarfdump(pow_wasm)
   @test occursin("DW_AT_producer\t(\"raven version 0.0.0\")", out)
   @test occursin("DW_AT_language\t(DW_LANG_C99)", out)
+end
 
-  out = dwarf_verify("$(@__DIR__)/../compiled/structures.wasm")
+@testset "Verify" begin
+  out = dwarf_verify(pow_wasm)
   @test !occursin("warning", out)
   @test occursin("No errors.", out)
+end
+
+@testset "Line info" begin
+  i = only(callsites(pow_wasm, "pow:1")) - code_offset(pow_wasm)
+  lt = linetable(pow_wasm)
+  li = lineinfo(lt, 0x856)
+  @test endswith(li.file, "test/debug/src/pow.rv")
+  @test li.line == 10
+  @test li.column == 12
+  @test li.bp
 end

@@ -1,0 +1,10 @@
+fn pow(x, n: Int64) {
+  r = one(x)
+  while n > 0 {
+    n = n - one(n)
+    r = r * x
+  }
+  return r
+}
+
+println(pow(widen(2), widen(3)))
