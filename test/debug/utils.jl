@@ -26,7 +26,7 @@ function linetable(f)
   s = String(read(`llvm-dwarfdump --debug-line $f`))
   files = eachmatch(r"file_names\[[\s\d]+\]:\s+name: \"(.*)\"", s)
   files = [m.captures[1] for m in files]
-  lines = eachmatch(r"(0x\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+\d+\s+\d+ *([\w ]*)\n", s)
+  lines = eachmatch(r"(0x[\w\d]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+\d+\s+\d+ *([\w ]*)\n", s)
   [parse(UInt32, m.captures[1]) =>
     occursin(m.captures[5], "end_sequence") ? nothing :
        LineInfo(files[parse(Int, m.captures[4])],

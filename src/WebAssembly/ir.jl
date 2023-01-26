@@ -146,12 +146,12 @@ end
 
 function reloop!(rl::Relooping, cs::IRTools.Component)
   # Insert blocks for forward jumps
-  for i in length(cs.children):-1:1
+  for i in length(cs.children):-1:2
     pushscope!(rl, Block([]), entries(cs.children[i])[1])
   end
   for i in 1:length(cs.children)
     # Pop forward jumps to this block
-    popscope!(rl)
+    i == 1 || popscope!(rl)
     cs.children[i] isa Component && pushscope!(rl, Loop([]), entries(cs.children[i])[1])
     # Block body
     reloop!(rl, cs.children[i])
