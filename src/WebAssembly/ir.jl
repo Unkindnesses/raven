@@ -110,6 +110,25 @@ function locals!(ir::IR)
   return ir, locals, ret
 end
 
+# When stepping over, debuggers will go to either the next line or the next
+# is_stmt, whichever comes first. To avoid stepping to each call twice, we
+# find contiguous sequences of instrs with the same source location, and move
+# any breakpoint to the top of the sequence.
+function shiftbps!(ir)
+  for bl in IRTools.blocks(ir)
+    ip, src = nothing, nothing
+    for (v, st) in bl
+      if st.src != src
+        ip, src = v, st.src
+      elseif src != nothing && st.bp
+        ir[ip] = stmt(ir[ip], bp = true)
+        ir[v]  = stmt(ir[v],  bp = false)
+      end
+    end
+  end
+  return ir
+end
+
 struct Relooping
   ir::IR
   cfg::CFG
@@ -174,6 +193,7 @@ flattentype(T::WTuple) = T.parts
 function irfunc(name, ir)
   cfg = CFG(ir)
   ir, locals, ret = locals!(ir)
+  ir = shiftbps!(ir)
   params = flattentype(argtypes(ir))
   locals = locals[length(params)+1:end]
   Func(name, params => ret, locals, reloop(ir, cfg), ir.meta)

@@ -28,7 +28,7 @@ function linetable(f)
   files = [m.captures[1] for m in files]
   lines = eachmatch(r"(0x[\w\d]+)\s+(\d+)\s+(\d+)\s+(\d+)\s+\d+\s+\d+ *([\w ]*)\n", s)
   [parse(UInt32, m.captures[1]) =>
-    occursin(m.captures[5], "end_sequence") ? nothing :
+    occursin("end_sequence", m.captures[5]) ? nothing :
        LineInfo(files[parse(Int, m.captures[4])],
                 parse(Int, m.captures[2]),
                 parse(Int, m.captures[3]),

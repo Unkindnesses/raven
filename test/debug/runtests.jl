@@ -25,5 +25,4 @@ end
   @test endswith(li.file, "test/debug/src/pow.rv")
   @test li.line == 10
   @test li.column == 12
-  @test li.bp
 end
