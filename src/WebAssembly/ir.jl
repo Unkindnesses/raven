@@ -15,19 +15,16 @@ function Base.show(io::IO, t::WTuple)
   print(io, ")")
 end
 
-# TODO: simpler to treat all variables as potential tuples
 function locals(ir::IR)
   locals = WType[]
   ret = WType[]
   env = Dict()
-  tuples = Dict()
-  rename(x::Variable) = env[x]
-  rename(x::Real) = Const(x)
-  rename(x::Union{Const,Local,GetGlobal}) = x
-  ltype(x) = rename(x) isa Const ? WType(rename(x)) : locals[rename(x).id+1]
+  parts(x::Variable) = env[x]
+  parts(x::Real) = [Const(x)]
+  parts(x::GetGlobal) = [x] # assume globals are immutable
   local!(T) = (push!(locals, T); Local(length(locals)-1))
-  local!(v, T) = get!(() -> local!(T), env, v)
-  local!(v, T::WTuple) = tuples[v] = local!.(T.parts)
+  local!(v, T) = get!(() -> [local!(T)], env, v)
+  local!(v, T::WTuple) = get!(() -> local!.(T.parts), env, v)
   for (arg, T) in zip(arguments(ir), argtypes(ir))
     local!(arg, T)
   end
@@ -37,69 +34,45 @@ function locals(ir::IR)
     src = st.src
     if ex isa Variable
       delete!(pr, v)
-      _env = haskey(tuples, ex) ? tuples : env
-      _env[v] = _env[ex]
+      env[v] = env[ex]
     elseif ex == unreachable
       # leave it alone
     elseif !isexpr(ex)
       delete!(pr, v)
-      env[v] = Const(ex)
+      env[v] = [Const(ex)]
     elseif isexpr(ex, :call)
-      for arg in ex.args[2:end]
-        haskey(tuples, arg) ?
-          [insert!(pr, v, stmt(tuples[arg][i]; src))
-           for i in 1:length(tuples[arg])] :
-          insert!(pr, v, stmt(rename(arg); src))
+      for arg in ex.args[2:end], i in 1:length(parts(arg))
+        insert!(pr, v, stmt(parts(arg)[i]; src))
       end
       pr[v] = ex.args[1]::Instruction
-      if st.type isa WTuple
-        tuples[v] = [local!(T) for T in st.type.parts]
-        foreach(l -> push!(pr, stmt(SetLocal(false, l.id); src)), reverse(tuples[v]))
-      else
-        push!(pr, stmt(SetLocal(false, local!(v, st.type).id); src))
-      end
+      ls = local!(v, st.type)
+      foreach(l -> push!(pr, stmt(SetLocal(false, l.id); src)), reverse(ls))
     elseif isexpr(ex, :tuple)
-      ps = []
-      for arg in ex.args
-        if haskey(tuples, arg)
-          append!(ps, tuples[arg])
-        else
-          push!(ps, rename(arg))
-        end
-      end
-      tuples[v] = ps
+      env[v] = vcat([parts(x) for x in ex.args]...)
       delete!(pr, v)
     elseif isexpr(ex, :ref)
-      env[v] = tuples[ex.args[1]][ex.args[2]]
+      env[v] = [parts(ex.args[1])[ex.args[2]]]
       delete!(pr, v)
     elseif isexpr(ex, :branch)
-      br = ex
-      if isreturn(br)
-        args = haskey(tuples, arguments(br)[1]) ? tuples[arguments(br)[1]] : arguments(br)
-        ret = ltype.(args)
-        for arg in args
-          insert!(pr, v, stmt(rename(arg); src))
+      if isreturn(ex)
+        x = arguments(ex)[1]
+        ret = [p isa Const ? WType(p) : locals[p.id+1] for p in parts(x)]
+        for arg in parts(x)
+          insert!(pr, v, stmt(arg; src))
         end
         pr[v] = Return()
-      elseif br == IRTools.unreachable
+      elseif ex == IRTools.unreachable
         pr[v] = unreachable
       else
-        for (x, y) in zip(arguments(br), arguments(IRTools.block(ir, br.args[1])))
-          if haskey(tuples, x)
-            ls = get!(tuples, y) do
-              [local!(T) for T in IRTools.exprtype(ir, y).parts]
-            end
-            for (xl, yl) in zip(tuples[x], ls)
-              push!(pr, stmt(xl; src))
-              push!(pr, stmt(SetLocal(false, yl.id); src))
-            end
-          else
-            push!(pr, stmt(rename(x); src))
-            push!(pr, stmt(SetLocal(false, local!(y, ltype(x)).id); src))
+        for (x, y) in zip(arguments(ex), arguments(IRTools.block(ir, ex.args[1])))
+          ls = local!(y, IRTools.exprtype(ir, y))
+          for (xl, yl) in zip(parts(x), ls)
+            push!(pr, stmt(xl; src))
+            push!(pr, stmt(SetLocal(false, yl.id); src))
           end
         end
-        isconditional(br) && push!(pr, stmt(rename(br.args[2]); src))
-        pr[v] = Branch(isconditional(br), br.args[1])
+        isconditional(ex) && push!(pr, stmt(only(parts(ex.args[2])); src))
+        pr[v] = Branch(isconditional(ex), ex.args[1])
       end
     else
       error("Unrecognised wasm expression $ex")

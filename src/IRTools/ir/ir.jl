@@ -193,7 +193,7 @@ argument!(ir::IR, a...; kw...) =
 function emptyargs!(b::Block)
   empty!(arguments(b))
   for c in blocks(b.ir), br in branches(c)
-    br.block == b.id && empty!(arguments(br))
+    br.args[1] == b.id && empty!(arguments(br))
   end
   return
 end
