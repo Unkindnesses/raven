@@ -509,7 +509,7 @@ end
 
 function Base.delete!(p::Pipe, v)
   v′ = substitute(p, v)
-  delete!(p.map, v)
+  p.map[v] = Variable(0)
   if islastdef(p.to, v′)
     pop!(p.to.defs)
     pop!(p.to.blocks[end].stmts)

@@ -1,6 +1,6 @@
 using ..IRTools
 using ..IRTools: IR, CFG, Variable, isexpr, stmt, argument!, return!, xcall, block!,
-  branch!, blocks, insertafter!, arguments, argtypes, isreturn, isconditional
+  branch!, blocks, arguments, argtypes, isreturn, isconditional
 using ..IRTools: Component, components, entries, successors
 
 struct WTuple
@@ -16,8 +16,7 @@ function Base.show(io::IO, t::WTuple)
 end
 
 # TODO: simpler to treat all variables as potential tuples
-# Or better, strip out tuples before register allocation
-function locals!(ir::IR)
+function locals(ir::IR)
   locals = WType[]
   ret = WType[]
   env = Dict()
@@ -32,81 +31,82 @@ function locals!(ir::IR)
   for (arg, T) in zip(arguments(ir), argtypes(ir))
     local!(arg, T)
   end
-  for b in blocks(ir)
-    for (v, st) in b
-      ex = st.expr
-      src = st.src
-      if ex isa Variable
-        delete!(ir, v)
-        _env = haskey(tuples, ex) ? tuples : env
-        _env[v] = _env[ex]
-      elseif ex == unreachable
-        # leave it alone
-      elseif !isexpr(ex)
-        delete!(ir, v)
-        env[v] = Const(ex)
-      elseif isexpr(ex, :call)
-        for arg in ex.args[2:end]
-          haskey(tuples, arg) ?
-            [insert!(ir, v, stmt(tuples[arg][i]; src))
-             for i in 1:length(tuples[arg])] :
-            insert!(ir, v, stmt(rename(arg); src))
-        end
-        ir[v] = ex.args[1]::Instruction
-        if st.type isa WTuple
-          tuples[v] = [(l = local!(T); insertafter!(ir, v, stmt(SetLocal(false, l.id); src)); l)
-                       for T in st.type.parts]
-        else
-          insertafter!(ir, v, stmt(SetLocal(false, local!(v, st.type).id); src))
-        end
-      elseif isexpr(ex, :tuple)
-        ps = []
-        for arg in ex.args
-          if haskey(tuples, arg)
-            append!(ps, tuples[arg])
-          else
-            push!(ps, rename(arg))
-          end
-        end
-        tuples[v] = ps
-        delete!(ir, v)
-      elseif isexpr(ex, :ref)
-        env[v] = tuples[ex.args[1]][ex.args[2]]
-        delete!(ir, v)
-      elseif isexpr(ex, :branch)
-        br = ex
-        if isreturn(br)
-          args = haskey(tuples, arguments(br)[1]) ? tuples[arguments(br)[1]] : arguments(br)
-          ret = ltype.(args)
-          for arg in args
-            insert!(ir, v, stmt(rename(arg); src))
-          end
-          ir[v] = Return()
-        elseif br == IRTools.unreachable
-          ir[v] = unreachable
-        else
-          for (x, y) in zip(arguments(br), arguments(IRTools.block(ir, br.args[1])))
-            if haskey(tuples, x)
-              ls = get!(tuples, y) do
-                [local!(T) for T in IRTools.exprtype(ir, y).parts]
-              end
-              for (xl, yl) in zip(tuples[x], ls)
-                push!(b, stmt(xl; src))
-                push!(b, stmt(SetLocal(false, yl.id); src))
-              end
-            else
-              push!(b, stmt(rename(x); src))
-              push!(b, stmt(SetLocal(false, local!(y, ltype(x)).id); src))
-            end
-          end
-          isconditional(br) && push!(b, stmt(rename(br.args[2]); src))
-          ir[v] = Branch(isconditional(br), br.args[1])
-        end
-      else
-        error("Unrecognised wasm expression $ex")
+  pr = IRTools.Pipe(ir)
+  for (v, st) in pr
+    ex = st.expr
+    src = st.src
+    if ex isa Variable
+      delete!(pr, v)
+      _env = haskey(tuples, ex) ? tuples : env
+      _env[v] = _env[ex]
+    elseif ex == unreachable
+      # leave it alone
+    elseif !isexpr(ex)
+      delete!(pr, v)
+      env[v] = Const(ex)
+    elseif isexpr(ex, :call)
+      for arg in ex.args[2:end]
+        haskey(tuples, arg) ?
+          [insert!(pr, v, stmt(tuples[arg][i]; src))
+           for i in 1:length(tuples[arg])] :
+          insert!(pr, v, stmt(rename(arg); src))
       end
+      pr[v] = ex.args[1]::Instruction
+      if st.type isa WTuple
+        tuples[v] = [local!(T) for T in st.type.parts]
+        foreach(l -> push!(pr, stmt(SetLocal(false, l.id); src)), reverse(tuples[v]))
+      else
+        push!(pr, stmt(SetLocal(false, local!(v, st.type).id); src))
+      end
+    elseif isexpr(ex, :tuple)
+      ps = []
+      for arg in ex.args
+        if haskey(tuples, arg)
+          append!(ps, tuples[arg])
+        else
+          push!(ps, rename(arg))
+        end
+      end
+      tuples[v] = ps
+      delete!(pr, v)
+    elseif isexpr(ex, :ref)
+      env[v] = tuples[ex.args[1]][ex.args[2]]
+      delete!(pr, v)
+    elseif isexpr(ex, :branch)
+      br = ex
+      if isreturn(br)
+        args = haskey(tuples, arguments(br)[1]) ? tuples[arguments(br)[1]] : arguments(br)
+        ret = ltype.(args)
+        for arg in args
+          insert!(pr, v, stmt(rename(arg); src))
+        end
+        pr[v] = Return()
+      elseif br == IRTools.unreachable
+        pr[v] = unreachable
+      else
+        for (x, y) in zip(arguments(br), arguments(IRTools.block(ir, br.args[1])))
+          if haskey(tuples, x)
+            ls = get!(tuples, y) do
+              [local!(T) for T in IRTools.exprtype(ir, y).parts]
+            end
+            for (xl, yl) in zip(tuples[x], ls)
+              push!(pr, stmt(xl; src))
+              push!(pr, stmt(SetLocal(false, yl.id); src))
+            end
+          else
+            push!(pr, stmt(rename(x); src))
+            push!(pr, stmt(SetLocal(false, local!(y, ltype(x)).id); src))
+          end
+        end
+        isconditional(br) && push!(pr, stmt(rename(br.args[2]); src))
+        pr[v] = Branch(isconditional(br), br.args[1])
+      end
+    else
+      error("Unrecognised wasm expression $ex")
     end
   end
+  ir = IRTools.finish(pr)
+  foreach(bl -> IRTools.emptyargs!(bl), blocks(ir))
   return ir, locals, ret
 end
 
@@ -192,9 +192,9 @@ flattentype(T::WTuple) = T.parts
 
 function irfunc(name, ir)
   cfg = CFG(ir)
-  ir, locals, ret = locals!(ir)
+  ir, ls, ret = locals(ir)
   ir = shiftbps!(ir)
   params = flattentype(argtypes(ir))
-  locals = locals[length(params)+1:end]
-  Func(name, params => ret, locals, reloop(ir, cfg), ir.meta)
+  ls = ls[length(params)+1:end]
+  Func(name, params => ret, ls, reloop(ir, cfg), ir.meta)
 end
