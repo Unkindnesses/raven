@@ -55,6 +55,8 @@ Op(x::WType, op::Symbol) = Op(Symbol(x, ".", op))
 
 Base.getproperty(x::WType, op::Symbol) = Op(x, op)
 
+struct Drop <: Instruction end
+
 struct Select <: Instruction end
 
 struct Convert <: Instruction

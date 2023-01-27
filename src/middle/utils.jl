@@ -75,7 +75,6 @@ function trim_unreachable!(ir)
       end
     elseif flag
       delete!(pr, v)
-      replace!(pr, v, nothing) # slight kludge, pipes should support this
     elseif st.type == ⊥
       flag = true
     end
