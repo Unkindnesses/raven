@@ -23,7 +23,7 @@ using ..IRTools: Variable
 
 # Given two paths of equal length, prefer `drop` to `local.set`.
 pathcost(p) =
-  reduce(.+, (i isa SetLocal && !i.tee ? (1, 1) : (1, 0) for i in p), init = (0, 0))
+  reduce(.+, (i isa Drop ? (0, 1) : (1, 0) for i in p), init = (0, 0))
 
 struct Locals
   stack::Vector{Variable}
@@ -42,7 +42,8 @@ set(ls::Locals) = Locals(ls.stack[1:end-1], push!(copy(ls.store), top(ls)))
 tee(ls::Locals) = Locals(ls.stack, push!(copy(ls.store), top(ls)))
 load(ls::Locals, v) = Locals([ls.stack..., v], ls.store)
 
-matches(state::Locals, target::Locals) =
+matches(state::Locals, target::Locals; strict = false) =
+  (!strict || length(state.stack) == length(target.stack)) &&
   top(state, length(target.stack)) == target.stack &&
   state.stack[end-length(target.stack)+1:end] == target.stack &&
   all(v -> v in state.stack[1:end-length(target.stack)] ||
@@ -53,7 +54,7 @@ matches(state::Locals, target::Locals) =
 heuristic(state::Locals, target::Locals) =
   count(x -> !(x in top(state, length(target.stack))), target.stack)
 
-function stackshuffle(locals::Locals, target::Locals)
+function stackshuffle(locals::Locals, target::Locals; strict = false)
   unstored = unique(locals.stack)
   paths = Dict{Locals,Vector{Instruction}}()
   q = PriorityQueue{Locals,Tuple{Int,Int}}()
@@ -65,7 +66,7 @@ function stackshuffle(locals::Locals, target::Locals)
   visit!(locals, [])
   while true
     locals = dequeue!(q)
-    matches(locals, target) && return paths[locals], locals
+    matches(locals, target; strict) && return paths[locals], locals
     if !isempty(locals.stack)
       visit!(drop(locals), [paths[locals]..., Drop()])
       visit!(set(locals), [paths[locals]..., SetLocal(false, top(locals).id)])

@@ -28,10 +28,17 @@ end
   state = Locals([Variable(6), Variable(3), Variable(2)])
   target = Locals([Variable(3), Variable(4)], Set([Variable(3)]))
   @test stackshuffle(state, target)[1] == [Drop(), SetLocal(true, 3), Local(4)]
+  @test stackshuffle(state, target, strict = true)[1] ==
+    [Drop(), SetLocal(false, 3), Drop(), Local(3), Local(4)]
 
   state = Locals([Variable(3)])
   target = Locals([Variable(3), Variable(3)])
   @test stackshuffle(state, target)[1] == [SetLocal(true, 3), Local(3)]
+
+  state = Locals([Variable(1), Variable(2)])
+  target = Locals([])
+  @test stackshuffle(state, target)[1] == []
+  stackshuffle(state, target, strict = true) == [Drop(), Drop()]
 end
 
 function compiled_wat(m)
