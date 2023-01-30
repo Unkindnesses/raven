@@ -21,10 +21,6 @@
 using DataStructures: PriorityQueue, dequeue!
 using ..IRTools: Variable
 
-# Given two paths of equal length, prefer `drop` to `local.set`.
-pathcost(p) =
-  reduce(.+, (i isa Drop ? (0, 1) : (1, 0) for i in p), init = (0, 0))
-
 struct Locals
   stack::Vector{Variable}
   store::Set{Variable}
@@ -52,27 +48,30 @@ matches(state::Locals, target::Locals; strict = false) =
 
 # Lower bound number of ops needed to reach target
 heuristic(state::Locals, target::Locals) =
-  count(x -> !(x in top(state, length(target.stack))), target.stack)
+  length(setdiff(target.stack, top(state, length(target.stack))))
 
 function stackshuffle(locals::Locals, target::Locals; strict = false)
-  unstored = unique(locals.stack)
+  stored = setdiff(target.stack, locals.stack)
   paths = Dict{Locals,Vector{Instruction}}()
-  q = PriorityQueue{Locals,Tuple{Int,Int}}()
+  q = PriorityQueue{Locals,Int}()
   function visit!(locals, path)
     haskey(paths, locals) && return
     paths[locals] = path
-    q[locals] = pathcost(path) .+ (heuristic(locals, target),0)
+    q[locals] = length(path) + heuristic(locals, target)
   end
   visit!(locals, [])
   while true
     locals = dequeue!(q)
     matches(locals, target; strict) && return paths[locals], locals
     if !isempty(locals.stack)
-      visit!(drop(locals), [paths[locals]..., Drop()])
+      if !(top(locals) in union(target.stack, target.store))
+        visit!(drop(locals), [paths[locals]..., Drop()])
+        continue
+      end
       visit!(set(locals), [paths[locals]..., SetLocal(false, top(locals).id)])
       visit!(tee(locals), [paths[locals]..., SetLocal(true, top(locals).id)])
     end
-    for v in union(setdiff(target.stack, unstored), locals.store)
+    for v in union(stored, locals.store)
       visit!(load(locals, v), [paths[locals]..., Local(v.id)])
     end
   end
