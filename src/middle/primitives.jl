@@ -1,5 +1,6 @@
 # Core primitives – pack, packcat, part and nparts – are dealt with in
-# middle-end lowering, but we define type inference here.
+# middle-end lowering, but we define type inference here, and implement some
+# simple built-in functions.
 
 partial_part(data::Union{Pack,Primitive,Type{<:Primitive}}, i::Integer) =
   0 <= i <= nparts(data) ? part(data, i) : ⊥
@@ -80,12 +81,15 @@ function primitives!(mod)
   return mod
 end
 
-# Primitive lowering
-# Invoked from middle-end lowering
+# Primitive implementations
+# Invoked from middle-end lowering. `inline` primitives replace the call with a
+# definition. `outline` ones return a lowered IR fragment, to be called as a
+# normal function.
 
-const lowerPrimitive = IdDict{RMethod,Any}()
+const inlinePrimitive = IdDict{RMethod,Any}()
+const outlinePrimitive = IdDict{RMethod,Any}()
 
-lowerPrimitive[widen_method] = function (cx, pr, ir, v)
+inlinePrimitive[widen_method] = function (pr, ir, v)
   T = exprtype(ir, ir[v].expr.args[2])
   val = T isa Integer ? T : ir[v].expr.args[2]
   pr[v] = val
@@ -94,7 +98,7 @@ end
 symoverlap(x::Symbol, ys::Or) = [i for (i, y) in enumerate(ys.patterns) if x == y]
 symoverlap(xs::Or, y::Symbol) = symoverlap(y, xs)
 
-lowerPrimitive[shortcutEquals_method] = function (cx, pr, ir, v)
+inlinePrimitive[shortcutEquals_method] = function (pr, ir, v)
   if isvalue(ir[v].type)
     pr[v] = Expr(:tuple)
   else # symbol case
@@ -108,7 +112,7 @@ lowerPrimitive[shortcutEquals_method] = function (cx, pr, ir, v)
   end
 end
 
-lowerPrimitive[isnil_method] = function (cx, pr, ir, v)
+inlinePrimitive[isnil_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
   T = exprtype(ir, x)
   if ir[v].type isa Int32
@@ -121,7 +125,7 @@ lowerPrimitive[isnil_method] = function (cx, pr, ir, v)
   isreftype(T) && push!(pr, Expr(:release, x))
 end
 
-lowerPrimitive[notnil_method] = function (cx, pr, ir, v)
+inlinePrimitive[notnil_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
   T = exprtype(ir, x)
   if T == ir[v].type
@@ -136,7 +140,13 @@ lowerPrimitive[notnil_method] = function (cx, pr, ir, v)
   end
 end
 
-function symstring_ir(T::Or)
+inlinePrimitive[symstring_method] = function (pr, ir, v)
+  if ir[v].type isa String
+    pr[v] = Expr(:tuple)
+  end
+end
+
+outlinePrimitive[symstring_method] = function (T::Or)
   ir = IR(meta = FuncInfo(:symstring))
   x = argument!(ir, type = T)
   union_cases!(ir, T, x) do S, _
@@ -144,16 +154,4 @@ function symstring_ir(T::Or)
     Expr(:ref, String(S))
   end
   return ir
-end
-
-lowerPrimitive[symstring_method] = function (cx, pr, ir, v)
-  if ir[v].type isa String
-    pr[v] = Expr(:tuple)
-  else
-    T = exprtype(ir, ir[v].expr.args[2])
-    S = (symstring_method, T)
-    if !haskey(cx, S)
-      cx[S] = symstring_ir(T)
-    end
-  end
 end

@@ -83,7 +83,7 @@ function sublayout(T, i)
   offset .+ (1:length)
 end
 
-lowerPrimitive[pack_method] = function (cx, pr, ir, v)
+inlinePrimitive[pack_method] = function (pr, ir, v)
   # Arguments are turned into a tuple when calling any function, so this
   # is just a cast.
   @assert layout(ir[v].type) == layout(exprtype(ir, ir[v].expr.args[2]))
@@ -130,15 +130,7 @@ function partir(x, i)
   return ir
 end
 
-function partmethod!(cx::Cache, x, i)
-  T = (part_method, x, i)
-  haskey(cx, T) && return cx[T][1]
-  ir = partir(x, i)
-  cx[T] = ir
-  return
-end
-
-function union_partir(x::Or, i)
+function partir(x::Or, i)
   ir = IR(meta = FuncInfo(:part))
   retT = partial_part(x, i)
   vx = argument!(ir, type = x)
@@ -148,19 +140,13 @@ function union_partir(x::Or, i)
     ret = indexer!(ir, T, i, val, vi)
     isreftype(partial_part(T, i)) && push!(ir, Expr(:retain, ret))
     isreftype(T) && push!(ir, Expr(:release, val))
-    ret = cast!(nothing, ir, partial_part(T, i), retT, ret)
+    ret = cast!(ir, partial_part(T, i), retT, ret)
     return ret
   end
   return ir
 end
 
-function union_partmethod!(cx::Cache, x, i)
-  T = (part_method, x, i)
-  haskey(cx, T) && return
-  ir = union_partir(x, i)
-  cx[T] = ir
-  return
-end
+outlinePrimitive[part_method] = partir
 
 function indexer!(ir, s::String, i::Int, _, _)
   @assert i == 1
@@ -205,13 +191,11 @@ function indexer!(ir, T::VPack, I::Union{Int,Type{Int64}}, x, i)
   return v
 end
 
-lowerPrimitive[part_method] = function (cx, pr, ir, v)
+inlinePrimitive[part_method] = function (pr, ir, v)
   x, i = ir[v].expr.args[2:end]
   T, I = exprtype(ir, [x, i])
   if T isa Pack && I isa Type{<:Integer}
-    partmethod!(cx, T, I)
   elseif T isa Or
-    union_partmethod!(cx, T, I)
   elseif T isa Recursive
     T = unroll(T)
     delete!(pr, v)
@@ -219,7 +203,6 @@ lowerPrimitive[part_method] = function (cx, pr, ir, v)
     y = push!(pr, stmt(xcall(part_method, x′, i), type = ir[v].type))
     replace!(pr, v, y)
     @assert T isa Or
-    union_partmethod!(cx, T, I)
     isreftype(ir[v].type) && push!(pr, Expr(:release, y))
   else
     delete!(pr, v)
@@ -233,7 +216,7 @@ end
 # packcat
 # =======
 
-function packcat_ir(T::Pack)
+outlinePrimitive[packcat_method] = function (T::Pack)
   T′ = packcat(parts(T)...)
   @assert layout(T′.parts) == () || T′.parts == Int64
   ir = IR(meta = FuncInfo(:packcat))
@@ -283,48 +266,31 @@ function packcat_ir(T::Pack)
   return ir
 end
 
-function packcat_method!(cx::Cache, T)
-  S = (packcat_method, T)
-  haskey(cx, S) && return
-  ir = packcat_ir(T)
-  cx[S] = ir
-  return
-end
-
-lowerPrimitive[packcat_method] = function (cx, pr, ir, v)
+inlinePrimitive[packcat_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
   S = exprtype(ir, x)
   T = ir[v].type
   if S isa Pack && T isa Pack
     @assert layout(S) == layout(T)
     pr[v] = Expr(:cast, x)
-  else
-    packcat_method!(cx, S)
   end
 end
 
 # nparts
 # ======
 
-function nparts_ir(x::Or)
+outlinePrimitive[nparts_method] = function (x::Or)
   ir = IR(meta = FuncInfo(:nparts))
   retT = partial_nparts(x)
   vx = argument!(ir, type = x)
   union_cases!(ir, x, vx) do T, val
     # TODO possibly insert `nparts_method` calls and redo lowering
     ret = nparts!(ir, T, val)
-    ret = cast!(nothing, ir, partial_nparts(T), retT, ret)
+    ret = cast!(ir, partial_nparts(T), retT, ret)
     isreftype(T) && push!(ir, Expr(:release, val))
     return ret
   end
   return ir
-end
-
-function nparts_method!(cx::Cache, x)
-  T = (nparts_method, x)
-  haskey(cx, T) && return
-  cx[T] = nparts_ir(x)
-  return
 end
 
 function nparts!(ir, T::Pack, x)
@@ -336,11 +302,10 @@ function nparts!(ir, T::VPack, x)
   push!(ir, xcall(WIntrinsic(i64.extend_i32_s, i64), sz))
 end
 
-lowerPrimitive[nparts_method] = function (cx, pr, ir, v)
+inlinePrimitive[nparts_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
   T = exprtype(ir, x)
   if T isa Or
-    nparts_method!(cx, T)
   elseif T isa Recursive
     T = unroll(T)
     delete!(pr, v)
@@ -348,7 +313,6 @@ lowerPrimitive[nparts_method] = function (cx, pr, ir, v)
     y = push!(pr, stmt(xcall(nparts_method, x′), type = Int64))
     replace!(pr, v, y)
     @assert T isa Or
-    nparts_method!(cx, T)
     isreftype(ir[v].type) && push!(pr, Expr(:release, y))
   else
     delete!(pr, v)
@@ -357,7 +321,7 @@ lowerPrimitive[nparts_method] = function (cx, pr, ir, v)
   end
 end
 
-function lowerdata(cx, ir)
+function lowerdata(ir)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     if isexpr(st.expr, :pack)
@@ -367,8 +331,8 @@ function lowerdata(cx, ir)
     elseif isexpr(st.expr, :call)
       st.expr.args[1] isa WIntrinsic && continue
       F = exprtype(ir, st.expr.args[1])
-      if haskey(lowerPrimitive, F)
-        lowerPrimitive[F](cx, pr, ir, v)
+      if haskey(inlinePrimitive, F)
+        inlinePrimitive[F](pr, ir, v)
       end
     end
   end
@@ -415,33 +379,16 @@ end
 # Used as a key for generated methods
 cast_method = RMethod(:cast, lowerpattern(rvx"args"), nothing, false)
 
-function castir(cx, from::Or, to)
-  ir = IR(meta = FuncInfo(:cast))
-  x = argument!(ir, type = from)
-  union_cases!(ir, from, x) do T, val
-    cast!(cx, ir, T, to, val)
-  end
-  return ir
-end
-
-function castmethod!(cx::Cache, from, to)
-  sig = (cast_method, from)
-  haskey(cx, sig) && return
-  cx[sig] = castir(cx, from, to)
-  return
-end
-
-function cast!(cx, ir, from, to, x)
+function cast!(ir, from, to, x)
   (to == ⊥ || from == ⊥ || from == to) && return x
   if from isa Number && to == typeof(from)
     from
   elseif from isa Or
-    castmethod!(cx, from, to)
-    push!(ir, stmt(xcall(cast_method, x), type = to))
+    error("casting Or not implemented")
   elseif from isa Pack && to isa Pack
     @assert nparts(from) == nparts(to)
     parts = [indexer!(ir, from, i, x, nothing) for i = 0:nparts(from)]
-    parts = [cast!(cx, ir, part(from, i), part(to, i), parts[i+1]) for i = 0:nparts(from)]
+    parts = [cast!(ir, part(from, i), part(to, i), parts[i+1]) for i = 0:nparts(from)]
     push!(ir, stmt(Expr(:tuple, parts...), type = to))
   elseif from == rlist() && to isa VPack
     margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rlist(Int32)))
@@ -458,14 +405,14 @@ function cast!(cx, ir, from, to, x)
                                         for (j, p) in enumerate(to.patterns)])...))
   elseif from isa Pack && to isa Recursive
     to = unroll(to)
-    x = cast!(cx, ir, from, to, x)
+    x = cast!(ir, from, to, x)
     box!(ir, to, x)
   else
     error("unsupported cast: $(repr(from)) -> $(repr(to))")
   end
 end
 
-function casts!(inf::Cache, cx::Cache, ir, ret)
+function casts!(inf::Cache, ir, ret)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     # Cast arguments to wasm primitives
@@ -479,7 +426,7 @@ function casts!(inf::Cache, cx::Cache, ir, ret)
       if !partial && !any(==(⊥), S) && inf[S] isa Redirect
         T = sig(inf, S)
         delete!(pr, v)
-        args = [cast!(cx, pr, s, t, x) for (x, s, t) in zip(st.expr.args, S, T)]
+        args = [cast!(pr, s, t, x) for (x, s, t) in zip(st.expr.args, S, T)]
         v′ = push!(pr, stmt(xcall(args...), type = st.type))
         replace!(pr, v, v′)
       end
@@ -488,7 +435,7 @@ function casts!(inf::Cache, cx::Cache, ir, ret)
       if isreturn(br)
         S = exprtype(ir, arguments(br)[1])
         if S != ret
-          arguments(br)[1] = cast!(cx, pr, S, ret, arguments(br)[1])
+          arguments(br)[1] = cast!(pr, S, ret, arguments(br)[1])
           pr[v] = br
         elseif !(arguments(br)[1] isa Variable)
           arguments(br)[1] = push!(pr, Expr(:tuple))
@@ -499,7 +446,7 @@ function casts!(inf::Cache, cx::Cache, ir, ret)
           T = blockargtype(block(ir, br.args[1]), i)
           arguments(br)[i] isa Variable || (arguments(br)[i] = push!(pr, stmt(Expr(:tuple), type = S)))
           S == T && continue
-          arguments(br)[i] = cast!(cx, pr, S, T, arguments(br)[i])
+          arguments(br)[i] = cast!(pr, S, T, arguments(br)[i])
           pr[v] = br
         end
       end
@@ -508,19 +455,24 @@ function casts!(inf::Cache, cx::Cache, ir, ret)
   return IRTools.finish(pr)
 end
 
-function lowerir(inf, cx, ir, ret)
+function lowerir(inf, ir, ret)
   # Inference expands block args, so prune them here
   ir = prune!(unloop(ir))
   ir = globals(ir)
   ir = trim_unreachable!(ir)
-  ir = lowerdata(cx, ir)
-  ir = casts!(inf, cx, ir, ret)
+  ir = lowerdata(ir)
+  ir = casts!(inf, ir, ret)
   return ir
 end
 
 function lowerir(inf::Cache)
-  Cache{Any,Union{Redirect,IR}}() do cx, k
-    fr = inf[k]
-    fr isa Redirect ? fr : lowerir(inf, cx, fr.ir, fr.rettype)
+  Cache{Any,Union{Redirect,IR}}() do cx, sig
+    if haskey(outlinePrimitive, sig[1])
+      outlinePrimitive[sig[1]](sig[2:end]...)
+    elseif inf[sig] isa Redirect
+      inf[sig]
+    else
+      lowerir(inf, inf[sig].ir, inf[sig].rettype)
+    end
   end
 end
