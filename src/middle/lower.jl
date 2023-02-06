@@ -17,13 +17,6 @@
 # variable is used later; it should be used liberally by any code that works
 # with internals. `retain` is mainly used by indexing.
 
-struct Compilation
-  mod::RModule
-  frames::IdDict{Any,Union{IR,Redirect}}
-end
-
-Compilation(mod::RModule) = Compilation(mod, IdDict{Any,IR}())
-
 function sig(inf::Compilation, T)
   fr = inf.frames[T]
   fr isa Redirect ? sig(inf, fr.to) : T
@@ -370,8 +363,6 @@ function lowerdata(cx, ir)
   for (v, st) in pr
     if isexpr(st.expr, :pack)
       # remove constants, which have zero width
-      # TODO: better to do this based on type, even though it doesn't come up
-      # yet
       args = filter(x -> x isa Variable, st.expr.args)
       pr[v] = Expr(:tuple, args...)
     elseif isexpr(st.expr, :call)
@@ -475,7 +466,7 @@ function cast!(cx, ir, from, to, x)
   end
 end
 
-function casts!(inf::Inference, cx::Compilation, ir, ret)
+function casts!(inf::Compilation, cx::Compilation, ir, ret)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     # Cast arguments to wasm primitives
@@ -485,7 +476,8 @@ function casts!(inf::Inference, cx::Compilation, ir, ret)
       pr[v] = xcall(st.expr.args[1], [T isa Integer ? T : x for (x, T) in zip(args, Ts)]...)
     elseif isexpr(st.expr, :call)
       S = (exprtype(cx.mod, ir, st.expr.args)...,)
-      if get(inf.frames, S, nothing) isa Redirect
+      partial = S[1] isa RMethod && S[1].partial
+      if !partial && !any(==(⊥), S) && inf.frames[S] isa Redirect
         T = sig(inf, S)
         delete!(pr, v)
         args = [cast!(cx, pr, s, t, x) for (x, s, t) in zip(st.expr.args, S, T)]
@@ -521,17 +513,15 @@ function lowerir(inf, cx, ir, ret)
   # Inference expands block args, so prune them here
   ir = prune!(unloop(ir))
   ir = trim_unreachable!(ir)
-  ir = globals(cx.mod, ir)
+  ir = globals(inf.mod, ir)
   ir = lowerdata(cx, ir)
   ir = casts!(inf, cx, ir, ret)
   return ir
 end
 
-function lowerir(inf::Inference)
-  comp = Compilation(inf.mod)
-  for (k, fr) in inf.frames
-    comp.frames[k] =
-      fr isa Redirect ? fr : lowerir(inf, comp, fr.ir, fr.rettype)
+function lowerir(inf::Compilation)
+  Compilation{IR}(inf.mod) do cx, k
+    fr = inf.frames[k]
+    fr isa Redirect ? fr : lowerir(inf, cx, fr.ir, fr.rettype)
   end
-  return refcounts(comp)
 end

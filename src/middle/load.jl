@@ -82,26 +82,14 @@ function loadfile(cx::LoadState, io::IO; path)
   end
 end
 
-function loadfile(f::String; infer = true, partial = false)
+function loadfile(f::String; partial = false)
   mod = RModule()
   cx = LoadState(mod)
   path = "$base/base.rv"
   open(io -> loadfile(cx, io; path), path)
   open(io -> loadfile(cx, io, path = f), f)
   finish!(cx)
-  infer || return cx
-  inf = Inference(mod)
-  P = Parent((), 1)
-  if include_runtime
-    frame!(inf, P, :malloc!, rlist(Int32))
-    frame!(inf, P, :retain!, rlist(pack(:Ptr, Int32)))
-    frame!(inf, P, :release!, rlist(pack(:Ptr, Int32)))
-    frame!(inf, P, :blockUnique, rlist(pack(:Ptr, Int32)))
-    frame!(inf, P, :println, rlist(String))
-  end
-  frame!(inf, P, startmethod(inf.mod))
-  infer && infer!(inf; partial)
-  return inf
+  return cx.mod
 end
 
 startmethod(mod) = mod.methods[:_start][1]

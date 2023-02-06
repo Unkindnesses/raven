@@ -1,3 +1,23 @@
+# Cache
+
+import Base: getindex, setindex!, haskey, get
+
+struct Cache{K,V}
+  default::Any
+  data::IdDict{K,V}
+end
+
+Cache{K,V}(f) where {K,V} = Cache{K,V}(f, Dict{K,V}())
+
+setindex!(c::Cache{K,V}, v::V, k::K) where {K,V} = c.data[k] = v
+
+getindex(c::Cache{K,V}, k::K) where {K,V} =
+  haskey(c.data, k) ? c.data[k] : (c.data[k] = c.default(c, k))
+
+haskey(c::Cache, k) = haskey(c.data, k)
+
+get(c::Cache, k, v) = get(c.data, k, v)
+
 # Unique Work Queue
 
 struct WorkQueue{T}

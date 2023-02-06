@@ -199,7 +199,7 @@ function binary(m::WebAssembly.Module, file; path)
 end
 
 function emitwasm(file, out)
-  mod, strings = wasmmodule(lowerir(loadfile(file)))
+  mod, strings = file |> loadfile |> infer |> lowerir |> refcounts |> wasmmodule
   binary(mod, out; path = normpath(joinpath(pwd(), file)))
   return strings
 end
