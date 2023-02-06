@@ -113,6 +113,7 @@ function frame!(inf, P, meth::RMethod, Ts...)
   if P.depth > recursionLimit
     mergeFrames(inf, P.sig, (meth, Ts...))
   else
+    meth.func isa IR || error("No IR for $meth: $Ts")
     irframe!(inf, P, (meth, Ts...), meth.func, Ts...)
   end
 end

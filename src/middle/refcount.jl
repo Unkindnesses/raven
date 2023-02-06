@@ -83,33 +83,33 @@ function countptr!(ir, ptr, mode)
   push!(ir, stmt(xcall(f, ptr), type = nil))
 end
 
-function count!(cx, ir, T::Pack, x, mode)
+function count!(ir, T::Pack, x, mode)
   for i = 0:nparts(T)
     isreftype(part(T, i)) || continue
     p = indexer!(ir, T, i, x, nothing)
     f = mode == retain ? retain! : release!
-    f(cx, ir, part(T, i), p)
+    f(ir, p)
   end
 end
 
-function count!(cx, ir, T::VPack, x, mode)
+function count!(ir, T::VPack, x, mode)
   # TODO release children
   ptr = push!(ir, stmt(Expr(:ref, x, 2), type = rlist(pack(:Ptr, Int32))))
   countptr!(ir, ptr, mode)
 end
 
-function count!(cx, ir, T::Or, x, mode)
+function count!(ir, T::Or, x, mode)
   union_cases!(ir, T, x) do T, x
     f = mode == retain ? retain! : release!
     if isreftype(T)
-      f(cx, ir, T, x)
+      f(ir, x)
     else
       push!(ir, stmt(Expr(:tuple), type = nil))
     end
   end
 end
 
-function count!(cx, ir, T::Recursive, x, mode)
+function count!(ir, T::Recursive, x, mode)
   ptr = push!(ir, stmt(Expr(:ref, x, 1), type = rlist(pack(:Ptr, Int32))))
   if mode == release
     unique = push!(ir, stmt(xcall(:blockUnique, ptr), type = rlist(Int32)))
@@ -119,49 +119,39 @@ function count!(cx, ir, T::Recursive, x, mode)
     block!(ir)
     T = unroll(T)
     inner = unbox!(ir, T, x, count = false)
-    release!(cx, ir, T, inner)
+    release!(ir, inner)
     branch!(ir, length(blocks(ir))+1)
     block!(ir)
   end
   countptr!(ir, ptr, mode)
 end
 
-function count_ir(cx, T, mode)
+function count_ir(T, mode)
   ir = IR(meta = FuncInfo(Symbol(mode)))
   x = argument!(ir, type = T)
-  count!(cx, ir, T, x, mode)
+  count!(ir, T, x, mode)
   return!(ir, push!(ir, stmt(xtuple(), type = nil)))
 end
 
-function retain!(cx, ir, T, x)
-  sig = (retain_method, T)
-  if !haskey(cx, sig)
-    cx[sig] = IR()
-    cx[sig] = count_ir(cx, T, retain)
-  end
+function retain!(ir, x)
   push!(ir, stmt(xcall(retain_method, x), type = nil))
 end
 
-function release!(cx, ir, T, x)
-  sig = (release_method, T)
-  if !haskey(cx, sig)
-    cx[sig] = IR()
-    cx[sig] = count_ir(cx, T, release)
-  end
+function release!(ir, x)
   push!(ir, stmt(xcall(release_method, x), type = nil))
 end
 
 # Actually insert counting instructions into code
 # ===============================================
 
-function refcounts!(cx, ir)
+function refcounts!(ir)
   lv = liveness(ir)
   isref(v) = isreftype(IRTools.exprtype(ir, v))
   # Would be better to do this as part of the pipe – fix this in IRTools2.
   for b in IRTools.blocks(ir)
     # TODO: could pushfirst! to free earlier, but this causes issues with multiple
     # statements. This is an issue if the block errors.
-    rel(x) = isref(x) && release!(cx, b, IRTools.exprtype(ir, x), x)
+    rel(x) = isref(x) && release!(b, x)
     # unused block arguments
     foreach(rel, filter(x -> !(x in lv[b.id]), arguments(b)))
     # conditionally dropped variables
@@ -177,7 +167,7 @@ function refcounts!(cx, ir)
         x isa Variable && isref(x) || continue
         ret = isglobal(ir, x) + count(==(x), arguments(br)) - !(x in lafter)
         for _ = 1:ret
-          retain!(cx, b, IRTools.exprtype(ir, x), x)
+          retain!(b, x)
         end
       end
     end
@@ -188,12 +178,12 @@ function refcounts!(cx, ir)
       delete!(pr, v)
       x = st.expr.args[1]
       isref(x) && !(x in lv[v]) || continue
-      release!(cx, pr, IRTools.exprtype(ir, x), x)
+      release!(pr, x)
     elseif isexpr(st.expr, :retain)
       delete!(pr, v)
       x = st.expr.args[1]
       isref(x) && x in lv[v] || continue
-      retain!(cx, pr, IRTools.exprtype(ir, x), x)
+      retain!(pr, x)
     elseif isexpr(st.expr, :call, :tuple) && haskey(lv, v)
       delete!(pr, v)
       # reused argument
@@ -201,13 +191,13 @@ function refcounts!(cx, ir)
         x isa Variable && isref(x) || continue
         ret = isglobal(ir, x) + count(==(x), st.expr.args) - !(x in lv[v])
         for _ = 1:ret
-          retain!(cx, pr, IRTools.exprtype(ir, x), x)
+          retain!(pr, x)
         end
       end
       v′ = push!(pr, st)
       replace!(pr, v, v′)
       # dropped variable
-      isref(v) && (v in lv[v] || release!(cx, pr, IRTools.exprtype(ir, v), v′))
+      isref(v) && (v in lv[v] || release!(pr, v′))
     end
   end
   ir = IRTools.finish(pr)
@@ -215,8 +205,12 @@ function refcounts!(cx, ir)
 end
 
 function refcounts(c::Cache)
-  Cache{Any,Union{Redirect,IR}}() do cx, k
-    ir = c[k]
-    cx[k] = ir isa Redirect ? ir : refcounts!(cx, copy(ir))
+  Cache{Any,Union{Redirect,IR}}() do cx, sig
+    if sig[1] in (retain_method, release_method)
+      count_ir(sig[2], sig[1] == retain_method ? retain : release)
+    else
+      ir = c[sig]
+      ir isa Redirect ? ir : refcounts!(copy(ir))
+    end
   end
 end
