@@ -204,7 +204,10 @@ end
 
 struct Global
   name::Symbol
+  type::Any
 end
+
+Global(name::Symbol) = Global(name, ⊥)
 
 Base.show(io::IO, g::Global) = print(io, g.name)
 

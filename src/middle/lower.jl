@@ -27,16 +27,15 @@ frame(inf::Compilation, T) = inf.frames[sig(inf, T)]
 # Global variables
 
 # Turn global references into explicit load instructions
-function globals(mod::RModule, ir::IR)
+function globals(ir::IR)
   pr = IRTools.Pipe(ir)
   function transform(x, v)
     x isa Global || return x
-    T = get(mod, x.name, ⊥)
-    if T == ⊥
+    if x.type == ⊥
       insert!(pr, v, stmt(xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
                           Expr(:ref, "$(x.name) is not defined")), type = ⊥))
     else
-      insert!(pr, v, stmt(Expr(:global, x.name), type = T))
+      insert!(pr, v, stmt(Expr(:global, x.name), type = x.type))
     end
   end
   for (v, st) in pr
@@ -87,7 +86,7 @@ end
 lowerPrimitive[pack_method] = function (cx, pr, ir, v)
   # Arguments are turned into a tuple when calling any function, so this
   # is just a cast.
-  @assert layout(ir[v].type) == layout(exprtype(cx.mod, ir, ir[v].expr.args[2]))
+  @assert layout(ir[v].type) == layout(exprtype(ir, ir[v].expr.args[2]))
   pr[v] = ir[v].expr.args[2]
 end
 
@@ -208,7 +207,7 @@ end
 
 lowerPrimitive[part_method] = function (cx, pr, ir, v)
   x, i = ir[v].expr.args[2:end]
-  T, I = exprtype(cx.mod, ir, [x, i])
+  T, I = exprtype(ir, [x, i])
   if T isa Pack && I isa Type{<:Integer}
     partmethod!(cx, T, I)
   elseif T isa Or
@@ -226,7 +225,7 @@ lowerPrimitive[part_method] = function (cx, pr, ir, v)
     delete!(pr, v)
     y = indexer!(pr, T, I, x, i)
     replace!(pr, v, y)
-    isreftype(exprtype(cx.mod, ir, v)) && push!(pr, Expr(:retain, y))
+    isreftype(exprtype(ir, v)) && push!(pr, Expr(:retain, y))
     isreftype(T) && push!(pr, Expr(:release, x))
   end
 end
@@ -253,7 +252,7 @@ function packcat_ir(T::Pack)
   size = push!(ir, xcall(WIntrinsic(i32.wrap_i64, i32), size))
   bytes = push!(ir, xcall(WIntrinsic(i32.mul, i32), size, Int32(8)))
   margs = push!(ir, stmt(Expr(:tuple, bytes), type = rlist(Int32)))
-  ptr = push!(ir, stmt(xcall(Global(:malloc!), margs), type = Int32))
+  ptr = push!(ir, stmt(xcall(Global(:malloc!, :malloc!), margs), type = Int32))
   pos = ptr
   for i in 1:nparts(T)
     P = part(T, i)
@@ -294,7 +293,7 @@ end
 
 lowerPrimitive[packcat_method] = function (cx, pr, ir, v)
   x = ir[v].expr.args[2]
-  S = exprtype(cx.mod, ir, x)
+  S = exprtype(ir, x)
   T = ir[v].type
   if S isa Pack && T isa Pack
     @assert layout(S) == layout(T)
@@ -339,7 +338,7 @@ end
 
 lowerPrimitive[nparts_method] = function (cx, pr, ir, v)
   x = ir[v].expr.args[2]
-  T = exprtype(cx.mod, ir, x)
+  T = exprtype(ir, x)
   if T isa Or
     nparts_method!(cx, T)
   elseif T isa Recursive
@@ -367,7 +366,7 @@ function lowerdata(cx, ir)
       pr[v] = Expr(:tuple, args...)
     elseif isexpr(st.expr, :call)
       st.expr.args[1] isa WIntrinsic && continue
-      F = exprtype(cx.mod, ir, st.expr.args[1])
+      F = exprtype(ir, st.expr.args[1])
       if haskey(lowerPrimitive, F)
         lowerPrimitive[F](cx, pr, ir, v)
       end
@@ -378,13 +377,13 @@ end
 
 # Casts
 
-blockargtype(mod::RModule, bl, i) = exprtype(mod, bl.ir, arguments(bl)[i])
+blockargtype(bl, i) = exprtype(bl.ir, arguments(bl)[i])
 
 function box!(ir, T, x)
   l = layout(T)
   bytes = sum(sizeof.(l))
   margs = push!(ir, stmt(Expr(:tuple, Int32(bytes)), type = rlist(Int32)))
-  ptr = push!(ir, stmt(xcall(Global(:malloc!), margs), type = Int32))
+  ptr = push!(ir, stmt(xcall(Global(:malloc!, :malloc!), margs), type = Int32))
   pos = ptr
   for (i, T) in enumerate(cat_layout(l))
     push!(ir, xcall(WIntrinsic(WType(T).store, WTuple()), pos, Expr(:ref, x, i)))
@@ -446,7 +445,7 @@ function cast!(cx, ir, from, to, x)
     push!(ir, stmt(Expr(:tuple, parts...), type = to))
   elseif from == rlist() && to isa VPack
     margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rlist(Int32)))
-    ptr = push!(ir, stmt(xcall(Global(:malloc!), margs), type = Int32))
+    ptr = push!(ir, stmt(xcall(Global(:malloc!, :malloc!), margs), type = Int32))
     push!(ir, stmt(Expr(:tuple, Int32(0), ptr), type = to))
   elseif from isa String && to == String
     indexer!(ir, from, 1, nothing, nothing)
@@ -472,10 +471,10 @@ function casts!(inf::Compilation, cx::Compilation, ir, ret)
     # Cast arguments to wasm primitives
     if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
       args = st.expr.args[2:end]
-      Ts = exprtype(cx.mod, ir, args)
+      Ts = exprtype(ir, args)
       pr[v] = xcall(st.expr.args[1], [T isa Integer ? T : x for (x, T) in zip(args, Ts)]...)
     elseif isexpr(st.expr, :call)
-      S = (exprtype(cx.mod, ir, st.expr.args)...,)
+      S = (exprtype(ir, st.expr.args)...,)
       partial = S[1] isa RMethod && S[1].partial
       if !partial && !any(==(⊥), S) && inf.frames[S] isa Redirect
         T = sig(inf, S)
@@ -487,7 +486,7 @@ function casts!(inf::Compilation, cx::Compilation, ir, ret)
     elseif isexpr(st.expr, :branch)
       br = st.expr
       if isreturn(br)
-        S = exprtype(cx.mod, ir, arguments(br)[1])
+        S = exprtype(ir, arguments(br)[1])
         if S != ret
           arguments(br)[1] = cast!(cx, pr, S, ret, arguments(br)[1])
           pr[v] = br
@@ -496,8 +495,8 @@ function casts!(inf::Compilation, cx::Compilation, ir, ret)
         end
       else
         for i = 1:length(arguments(br))
-          S = exprtype(cx.mod, ir, arguments(br)[i])
-          T = blockargtype(cx.mod, block(ir, br.args[1]), i)
+          S = exprtype(ir, arguments(br)[i])
+          T = blockargtype(block(ir, br.args[1]), i)
           arguments(br)[i] isa Variable || (arguments(br)[i] = push!(pr, stmt(Expr(:tuple), type = S)))
           S == T && continue
           arguments(br)[i] = cast!(cx, pr, S, T, arguments(br)[i])
@@ -512,8 +511,8 @@ end
 function lowerir(inf, cx, ir, ret)
   # Inference expands block args, so prune them here
   ir = prune!(unloop(ir))
+  ir = globals(ir)
   ir = trim_unreachable!(ir)
-  ir = globals(inf.mod, ir)
   ir = lowerdata(cx, ir)
   ir = casts!(inf, cx, ir, ret)
   return ir

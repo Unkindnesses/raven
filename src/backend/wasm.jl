@@ -100,7 +100,7 @@ function lowerwasm!(mod::WModule, ir::IR)
       pr[v] = stringid!(mod, st.expr.args[1])
     elseif isexpr(st.expr, :tuple, :ref)
     elseif isexpr(st.expr, :cast)
-      @assert layout(st.type) == layout(exprtype(mod.inf.mod, ir, st.expr.args[1]))
+      @assert layout(st.type) == layout(exprtype(ir, st.expr.args[1]))
       pr[v] = st.expr.args[1]
     elseif isexpr(st.expr, :global)
       g = Global(st.expr.args[1])
@@ -123,15 +123,12 @@ function lowerwasm!(mod::WModule, ir::IR)
         IRTools.push!(pr, stmt(xcall(WebAssembly.unreachable), type = WTuple()))
       end
     elseif isexpr(st.expr, :call)
-      Ts = (exprtype(mod.inf.mod, ir, st.expr.args)...,)
-      if any(x -> x == ⊥, Ts)
-        pr[v] = stmt(xcall(WebAssembly.unreachable), type = WTuple())
-      else
-        func = lowerwasm!(mod, Ts)
-        pr[v] = stmt(st,
-                     expr = xcall(WebAssembly.Call(func), st.expr.args[2:end]...),
-                     type = wlayout(st.type))
-      end
+      Ts = (exprtype(ir, st.expr.args)...,)
+      @assert !any(==(⊥), Ts)
+      func = lowerwasm!(mod, Ts)
+      pr[v] = stmt(st,
+                   expr = xcall(WebAssembly.Call(func), st.expr.args[2:end]...),
+                   type = wlayout(st.type))
     elseif isexpr(st, :branch)
     else
       error("unrecognised $(st.expr.head) expression")

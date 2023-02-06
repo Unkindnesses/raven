@@ -57,7 +57,7 @@ reachable(b::IRTools.Block) =
   any(((v, st),) -> !isexpr(st, :branch) && st.type == ⊥, b) ? Set(b.id) :
     reduce(Base.union, [Set(b.id),
                         [reachable(block(b.ir, br.args[1]))
-                         for br in openbranches(nothing, b)
+                         for br in openbranches(b)
                          if br.args[1] > b.id]...])
 
 reachable(ir::IR) = reachable(block(ir, 1))
@@ -85,7 +85,7 @@ function trim_unreachable!(ir)
       elseif br.args[2] == nothing
         flag = true
       else
-        cond = exprtype(nothing, ir, br.args[2])
+        cond = exprtype(ir, br.args[2])
         if cond == false
           delete!(pr, v)
         elseif cond == true

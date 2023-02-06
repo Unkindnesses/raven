@@ -1,12 +1,12 @@
 const recursionLimit = 10
 
-_typeof(mod, x) = error("invalid constant $x::$(typeof(x))")
-_typeof(mod, x::Union{Number,String,Symbol,RMethod,Pack}) = x
-_typeof(mod, x::AST.Quote) = x[1]
-_typeof(mod, x::Global) = get(mod, x.name, ⊥)
+_typeof(x) = error("invalid constant $x::$(typeof(x))")
+_typeof(x::Union{Number,String,Symbol,RMethod,Pack}) = x
+_typeof(x::AST.Quote) = x[1]
+_typeof(x::Global) = x.type
 
-exprtype(mod, ir, x) = IRTools.exprtype(ir, x, typeof = x -> _typeof(mod, x))
-exprtype(mod, ir, xs::AbstractVector) = map(x -> exprtype(mod, ir, x), xs)
+exprtype(ir, x) = IRTools.exprtype(ir, x, typeof = _typeof)
+exprtype(ir, xs::AbstractVector) = map(x -> exprtype(ir, x), xs)
 
 function prepare_ir!(ir)
   ir = ir |> IRTools.expand!
@@ -144,7 +144,7 @@ function mergeFrames(inf, T, F)
 end
 
 function infercall!(inf, loc, block, ex)
-  Ts = exprtype(inf.mod, block.ir, ex.args)
+  Ts = exprtype(block.ir, ex.args)
   any(==(⊥), Ts) && return ⊥
   P = Parent(loc.sig, recursionDepth(inf, loc.sig, Ts[1]))
   fr = frame!(inf, P, Ts...)
@@ -153,11 +153,11 @@ function infercall!(inf, loc, block, ex)
   return fr.rettype
 end
 
-function openbranches(mod, bl)
+function openbranches(bl)
   brs = []
   for br in IRTools.branches(bl)
     br.args[2] == nothing && (push!(brs, br); break)
-    cond = exprtype(mod, bl.ir, br.args[2])
+    cond = exprtype(bl.ir, br.args[2])
     cond == false && continue
     cond == true && (push!(brs, br); break)
     push!(brs, br)
@@ -174,38 +174,43 @@ function step!(inf::Inference, loc)
   stmts = keys(bl)
   var = stmts[ip]
   st = bl[var]
-  for g in (isexpr(st.expr, :(=)) ? st.expr.args[2:end] : st.expr.args)
-    g isa Global && push!(global_edges(inf, g.name), loc)
+  for i in (isexpr(st, :(=)) ? 2 : 1):length(st.expr.args)
+    g = st.expr.args[i]
+    g isa Global || continue
+    push!(global_edges(inf, g.name), loc)
+    T = get(inf.mod, g.name, ⊥)
+    T == ⊥ && return
+    st.expr.args[i] = Global(g.name, T)
   end
-  if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
+  if isexpr(st, :call) && st.expr.args[1] isa WIntrinsic
     op = st.expr.args[1].op
     T = rvtype(st.expr.args[1].ret)
-    Ts = exprtype(inf.mod, bl.ir, st.expr.args[2:end])
+    Ts = exprtype(bl.ir, st.expr.args[2:end])
     if all(isvalue, Ts) && haskey(wasmPartials, op)
       T = wasmPartials[op](Ts...)
     end
     bl.ir[var] = Statement(bl[var], type = T)
     push!(inf.queue, next(loc))
-  elseif isexpr(st.expr, :call)
+  elseif isexpr(st, :call)
     T = infercall!(inf, loc, bl, st.expr)
     if T != ⊥
       bl.ir[var] = Statement(bl[var], type = T)
       push!(inf.queue, next(loc))
     end
-  elseif isexpr(st.expr, :pack)
-    Ts = exprtype(inf.mod, bl.ir, st.expr.args)
+  elseif isexpr(st, :pack)
+    Ts = exprtype(bl.ir, st.expr.args)
     if !any(==(⊥), Ts)
       bl.ir[var] = Statement(bl[var], type = pack(Ts...))
       push!(inf.queue, next(loc))
     end
-  elseif isexpr(st.expr, :loop)
+  elseif isexpr(st, :loop)
     l = loop(bl)
     if blockargs!(l.body[1], argtypes(bl))
       push!(inf.queue, Loc(loc.sig, Path([p.parts..., (1,1)])))
     end
-  elseif isexpr(st.expr, :(=)) && st.expr.args[1] isa Global
+  elseif isexpr(st, :(=)) && st.expr.args[1] isa Global
     x = st.expr.args[1].name
-    T = exprtype(inf.mod, bl.ir, st.expr.args[2])
+    T = exprtype(bl.ir, st.expr.args[2])
     T = union(get!(inf.mod.defs, x, ⊥), T)
     bl.ir[var] = Statement(bl[var], type = T)
     push!(inf.queue, next(loc))
@@ -213,19 +218,19 @@ function step!(inf::Inference, loc)
       inf.mod.defs[x] = T
       foreach(loc -> push!(inf.queue, loc), global_edges(inf, x))
     end
-  elseif isexpr(st.expr, :branch)
-    brs = openbranches(inf.mod, bl)
+  elseif isexpr(st, :branch)
+    brs = openbranches(bl)
     reroll = false
     for br in brs
       if isreturn(br)
-        T = exprtype(inf.mod, bl.ir, IRTools.returnvalue(bl))
+        T = exprtype(bl.ir, IRTools.returnvalue(bl))
         T = union(frame.rettype, T)
         T == frame.rettype && return
         frame.rettype = T
         foreach(loc -> push!(inf.queue, loc), frame.edges)
       else
-        args = exprtype(inf.mod, bl.ir, arguments(br))
-        p′, reroll = nextpath(inf, frame.ir, p, br.args[1])
+        args = exprtype(bl.ir, arguments(br))
+        p′, reroll = nextpath(frame.ir, p, br.args[1])
         backedge = br.args[1] < bl.id
         if reroll || (isempty(args) && !(br.args[1] in frame.seen)) || blockargs!(block(frame.ir, p′), args)
           push!(frame.seen, br.args[1])
@@ -236,7 +241,7 @@ function step!(inf::Inference, loc)
         end
       end
     end
-    reroll || checkExit(inf, frame.ir, loc)
+    reroll || checkExit(inf.queue, frame.ir, loc)
   else
     error("Unknown expr type $(st.expr.head)")
   end

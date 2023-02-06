@@ -119,25 +119,25 @@ function merge_branchtypes!(a, b)
   return a
 end
 
-function exitBranches(inf, l::LoopIR, b::Block)
+function exitBranches(l::LoopIR, b::Block)
   l′ = loop(b)
   l′ == nothing || error("unimplemented")
   brs = Dict()
   internal = l.bls[2:end]
   any(((v, st),) -> !isexpr(st, :branch) && st.type == ⊥, b) && return brs
-  for br in openbranches(inf.mod, b)
+  for br in openbranches(b)
     if !(br.args[1] in internal)
-      merge_branchtypes!(brs, Dict(br.args[1] => exprtype(inf.mod, b.ir, arguments(br))))
+      merge_branchtypes!(brs, Dict(br.args[1] => exprtype(b.ir, arguments(br))))
     end
     br.args[1] in internal && br.args[1] > l.bls[b.id] &&
-      merge_branchtypes!(brs, exitBranches(inf, l, block(b.ir, findfirst(==(br.args[1]), l.bls))))
+      merge_branchtypes!(brs, exitBranches(l, block(b.ir, findfirst(==(br.args[1]), l.bls))))
   end
   return brs
 end
 
-function exitBranches(inf, l::LoopIR, itr::Int)
+function exitBranches(l::LoopIR, itr::Int)
   ir = l.body[itr]
-  exitBranches(inf, l, block(ir, 1))
+  exitBranches(l, block(ir, 1))
 end
 
 function reroll!(l::LoopIR)
@@ -150,21 +150,21 @@ function reroll!(l::LoopIR)
   return true
 end
 
-function checkUnroll(inf, l::LoopIR, itr)
+function checkUnroll(l::LoopIR, itr)
   ir = l.body[itr]
   inputs = argtypes(ir)
-  brs = exitBranches(inf, l, itr)
+  brs = exitBranches(l, itr)
   !haskey(brs, l.bls[1]) ||
     (length(brs) == 1 && !all(issubset.(inputs, brs[l.bls[1]])))
 end
 
-function checkExit(inf, l::LoopIR, loc)
+function checkExit(q, l::LoopIR, loc)
   p′ = Tuple{Int,Int}[]
   for (itr, bl) in loc.path.parts
-    if length(l.body) > 1 && !checkUnroll(inf, l, itr)
+    if length(l.body) > 1 && !checkUnroll(l, itr)
       reroll!(l)
       push!(p′, (1, 1))
-      push!(inf.queue, Loc(loc.sig, Path(p′)))
+      push!(q, Loc(loc.sig, Path(p′)))
       break
     end
     push!(p′, (itr, bl))
@@ -172,8 +172,8 @@ function checkExit(inf, l::LoopIR, loc)
   end
 end
 
-function nextItr!(inf, l::LoopIR, itr)
-  if checkUnroll(inf, l, itr)
+function nextItr!(l::LoopIR, itr)
+  if checkUnroll(l, itr)
     itr += 1
     itr >= 100 && error("loop unroll limit reached")
     length(l.body) < itr && push!(l.body, copy(l.ir))
@@ -202,7 +202,7 @@ function IRTools.block(l::LoopIR, path::Path)
   return block(l.body[itr], bl)
 end
 
-function nextpath(inf, l::LoopIR, p::Path, target::Int)
+function nextpath(l::LoopIR, p::Path, target::Int)
   p′ = Tuple{Int,Int}[]
   for (i, (itr, bl)) in enumerate(p.parts)
     bl′ = findfirst(==(target), l.bls)
@@ -210,7 +210,7 @@ function nextpath(inf, l::LoopIR, p::Path, target::Int)
       push!(p′, (itr, bl))
       l = loop(block(l.body[itr], bl))
       (itr, _) = p.parts[i+1]
-      itr′ = nextItr!(inf, l, itr)
+      itr′ = nextItr!(l, itr)
       reroll = itr > itr′ == 1
       push!(p′, (itr′, 1))
       return Path(p′), reroll

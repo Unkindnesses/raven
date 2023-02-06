@@ -86,7 +86,7 @@ end
 const lowerPrimitive = IdDict{RMethod,Any}()
 
 lowerPrimitive[widen_method] = function (cx, pr, ir, v)
-  T = exprtype(cx.mod, ir, ir[v].expr.args[2])
+  T = exprtype(ir, ir[v].expr.args[2])
   val = T isa Integer ? T : ir[v].expr.args[2]
   pr[v] = val
 end
@@ -99,7 +99,7 @@ lowerPrimitive[shortcutEquals_method] = function (cx, pr, ir, v)
     pr[v] = Expr(:tuple)
   else # symbol case
     a, b = ir[v].expr.args[2:3]
-    Ta, Tb = exprtype(cx.mod, ir, [a, b])
+    Ta, Tb = exprtype(ir, [a, b])
     Tb isa Or && ((a, Ta, b, Tb) = (b, Tb, a, Ta))
     ov = symoverlap(Ta, Tb)
     length(ov) == 1 || error("not implemented")
@@ -110,7 +110,7 @@ end
 
 lowerPrimitive[isnil_method] = function (cx, pr, ir, v)
   x = ir[v].expr.args[2]
-  T = exprtype(cx.mod, ir, x)
+  T = exprtype(ir, x)
   if ir[v].type isa Int32
     pr[v] = ir[v].type
   else
@@ -123,7 +123,7 @@ end
 
 lowerPrimitive[notnil_method] = function (cx, pr, ir, v)
   x = ir[v].expr.args[2]
-  T = exprtype(cx.mod, ir, x)
+  T = exprtype(ir, x)
   if T == ir[v].type
     pr[v] = x
   elseif ir[v].type == ⊥
@@ -150,7 +150,7 @@ lowerPrimitive[symstring_method] = function (cx, pr, ir, v)
   if ir[v].type isa String
     pr[v] = Expr(:tuple)
   else
-    T = exprtype(cx, ir, ir[v].expr.args[2])
+    T = exprtype(ir, ir[v].expr.args[2])
     S = (symstring_method, T)
     if !haskey(cx.frames, S)
       cx.frames[S] = symstring_ir(T)
