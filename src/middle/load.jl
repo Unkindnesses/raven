@@ -1,10 +1,17 @@
 using LNR
 
+struct LoadState
+  mod::RModule
+  main::Vector{Any}
+end
+
+LoadState(mod) = LoadState(mod, [])
+
 const include_runtime = true
 
 const base = joinpath(@__DIR__, "../../base") |> normpath
 
-function simpleconst(cx::Inference, x)
+function simpleconst(cx::LoadState, x)
   x isa Symbol && return cx.mod.defs[x]
   x isa Primitive && return x
   x isa AST.Quote && return x[1]
@@ -24,14 +31,14 @@ function load_import(cx, x)
   open(io -> loadfile(cx, io; path), path)
 end
 
-function load_expr(cx::Inference, x; src)
+function load_expr(cx::LoadState, x; src)
   fname = Symbol(:__main, length(cx.main))
   defs = collect(keys(cx.mod.defs))
   method!(cx.mod, fname, RMethod(fname, lowerpattern(AST.List()), lower_toplevel(x, fname, src, defs)))
   push!(cx.main, fname)
 end
 
-function vload(cx::Inference, x::AST.Syntax; src)
+function vload(cx::LoadState, x::AST.Syntax; src)
   x[1] == :import && return load_import(cx, x)
   x[1] == :bundle && return vload(cx, datamacro(x); src)
   x[1] == :fn || return load_expr(cx, x; src)
@@ -43,9 +50,9 @@ function vload(cx::Inference, x::AST.Syntax; src)
   return f
 end
 
-vload(cx::Inference, x::AST.Block; src) = foreach(x -> vload(cx, x; src), x[:])
+vload(cx::LoadState, x::AST.Block; src) = foreach(x -> vload(cx, x; src), x[:])
 
-function vload(cx::Inference, x::AST.Operator; src)
+function vload(cx::LoadState, x::AST.Operator; src)
   if x[1] == :(=) && x[2] isa Symbol && (c = simpleconst(cx, x[3])) != nothing
     cx.mod.defs[x[2]] = c
   else
@@ -53,9 +60,9 @@ function vload(cx::Inference, x::AST.Operator; src)
   end
 end
 
-vload(m::Inference, x; src) = load_expr(m, x; src)
+vload(m::LoadState, x; src) = load_expr(m, x; src)
 
-function finish!(cx::Inference)
+function finish!(cx::LoadState)
   body = [AST.Call(f) for f in cx.main]
   include_runtime && push!(body, AST.Call(:checkAllocations))
   fn = AST.Syntax(:fn, AST.Call(:_start),
@@ -64,7 +71,7 @@ function finish!(cx::Inference)
   method!(cx.mod, :_start, RMethod(:_start, sig, lowerfn(fn, sig)))
 end
 
-function loadfile(cx::Inference, io::IO; path)
+function loadfile(cx::LoadState, io::IO; path)
   io = LineNumberingReader(io)
   while true
     Parse.stmts(io)
@@ -77,23 +84,24 @@ end
 
 function loadfile(f::String; infer = true, partial = false)
   mod = RModule()
-  cx = Inference(mod)
+  cx = LoadState(mod)
   path = "$base/base.rv"
   open(io -> loadfile(cx, io; path), path)
   open(io -> loadfile(cx, io, path = f), f)
   finish!(cx)
   infer || return cx
+  inf = Inference(mod)
   P = Parent((), 1)
   if include_runtime
-    frame!(cx, P, :malloc!, rlist(Int32))
-    frame!(cx, P, :retain!, rlist(pack(:Ptr, Int32)))
-    frame!(cx, P, :release!, rlist(pack(:Ptr, Int32)))
-    frame!(cx, P, :blockUnique, rlist(pack(:Ptr, Int32)))
-    frame!(cx, P, :println, rlist(String))
+    frame!(inf, P, :malloc!, rlist(Int32))
+    frame!(inf, P, :retain!, rlist(pack(:Ptr, Int32)))
+    frame!(inf, P, :release!, rlist(pack(:Ptr, Int32)))
+    frame!(inf, P, :blockUnique, rlist(pack(:Ptr, Int32)))
+    frame!(inf, P, :println, rlist(String))
   end
-  frame!(cx, P, startmethod(cx.mod))
-  infer && infer!(cx; partial)
-  return cx
+  frame!(inf, P, startmethod(inf.mod))
+  infer && infer!(inf; partial)
+  return inf
 end
 
 startmethod(mod) = mod.methods[:_start][1]

@@ -73,11 +73,10 @@ struct Inference
   mod::RModule
   frames::IdDict{Any,Union{Frame,Redirect}}
   globals::Dict{Symbol,Set{Loc}}
-  main::Vector{Any}
   queue::WorkQueue{Loc}
 end
 
-Inference(mod::RModule) = Inference(mod, Dict(), Dict(), [], WorkQueue{Loc}())
+Inference(mod::RModule) = Inference(mod, Dict(), Dict(), WorkQueue{Loc}())
 
 global_edges(inf::Inference, name::Symbol) =
   get!(() -> Set{Loc}(), inf.globals, name)

@@ -6,7 +6,7 @@ sigmatch(sig, func, Ts) =
   (sig[1] isa RMethod ? sig[2:end] == (Ts...,) :
    sig[2] == rlist(Ts...))
 
-function code_lowered(cx::Inference, func)
+function code_lowered(cx::LoadState, func)
   return IdDict(meth.sig.pattern => meth.func for meth in cx.mod.methods[func])
 end
 
