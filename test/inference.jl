@@ -6,7 +6,7 @@ function loadsrc(src)
   try
     mod = Raven.loadfile(tmp)
     inf = Raven.infer(mod)
-    inf.frames[(Raven.startmethod(mod),)]
+    inf[(Raven.startmethod(mod),)]
     return inf
   finally
     rm(tmp)
@@ -25,7 +25,7 @@ let
     }
     pow(2, 3)
     """)
-  fs = filter(inf.frames.data) do (sig, fr)
+  fs = filter(inf.data) do (sig, fr)
     sig[1] isa Raven.RMethod && sig[1].name == :pow
   end |> collect
   @test fs[1][2].rettype == 8
@@ -43,7 +43,7 @@ let
     fn main() { fib(20) }
     main()
     """)
-  fs = filter(inf.frames.data) do (sig, fr)
+  fs = filter(inf.data) do (sig, fr)
     sig[1] isa Raven.RMethod && sig[1].name == :main
   end |> collect
   @test fs[1][2].rettype == Int64

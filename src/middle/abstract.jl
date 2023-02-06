@@ -299,23 +299,15 @@ function infer!(inf::Inference; partial = false)
   return inf
 end
 
-struct Compilation{T}
-  mod::RModule
-  frames::Cache{Any,Union{T,Redirect}}
-end
-
-Compilation{T}(f, mod::RModule) where T =
-  Compilation{T}(mod, Cache{Any,Union{T,Redirect}}((ch, sig) -> f(Compilation(mod, ch), sig)))
-
 function infer(mod::RModule; partial = false)
   inf = Inference(mod)
-  Compilation{Frame}(mod) do ch, sig
+  Cache{Any,Union{Redirect,Frame}}() do ch, sig
     frame!(inf, Parent((), 1), sig...)
     haskey(inf.frames, sig) || error("Can't infer types for $sig")
     infer!(inf; partial)
     for (k, fr) in inf.frames
-      haskey(ch.frames, k) || (ch.frames[k] = fr)
+      haskey(ch, k) || (ch[k] = fr)
     end
-    return ch.frames[sig]
+    return ch[sig]
   end
 end

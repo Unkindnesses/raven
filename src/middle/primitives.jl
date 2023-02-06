@@ -152,8 +152,8 @@ lowerPrimitive[symstring_method] = function (cx, pr, ir, v)
   else
     T = exprtype(ir, ir[v].expr.args[2])
     S = (symstring_method, T)
-    if !haskey(cx.frames, S)
-      cx.frames[S] = symstring_ir(T)
+    if !haskey(cx, S)
+      cx[S] = symstring_ir(T)
     end
   end
 end

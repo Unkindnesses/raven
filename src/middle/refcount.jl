@@ -135,18 +135,18 @@ end
 
 function retain!(cx, ir, T, x)
   sig = (retain_method, T)
-  if !haskey(cx.frames, sig)
-    cx.frames[sig] = IR()
-    cx.frames[sig] = count_ir(cx, T, retain)
+  if !haskey(cx, sig)
+    cx[sig] = IR()
+    cx[sig] = count_ir(cx, T, retain)
   end
   push!(ir, stmt(xcall(retain_method, x), type = nil))
 end
 
 function release!(cx, ir, T, x)
   sig = (release_method, T)
-  if !haskey(cx.frames, sig)
-    cx.frames[sig] = IR()
-    cx.frames[sig] = count_ir(cx, T, release)
+  if !haskey(cx, sig)
+    cx[sig] = IR()
+    cx[sig] = count_ir(cx, T, release)
   end
   push!(ir, stmt(xcall(release_method, x), type = nil))
 end
@@ -214,9 +214,9 @@ function refcounts!(cx, ir)
   return ir
 end
 
-function refcounts(c::Compilation)
-  Compilation{IR}(c.mod) do cx, k
-    ir = c.frames[k]
-    cx.frames[k] = ir isa Redirect ? ir : refcounts!(cx, copy(ir))
+function refcounts(c::Cache)
+  Cache{Any,Union{Redirect,IR}}() do cx, k
+    ir = c[k]
+    cx[k] = ir isa Redirect ? ir : refcounts!(cx, copy(ir))
   end
 end

@@ -59,7 +59,7 @@ function wparts(x)
 end
 
 struct WModule
-  inf::Compilation
+  inf::Cache
   symbols::Dict{Symbol,Int}
   strings::Vector{String}
   funcs::IdDict{Any,Tuple{Symbol,Union{IR,Nothing}}}
@@ -161,14 +161,14 @@ default_imports = [
   WebAssembly.Import(:support, :fromRef, :jsunbox, [i32] => [f64]),
   WebAssembly.Import(:support, :equal, :jseq, [i32, i32] => [i32])]
 
-function wasm_ir(inf::Compilation)
+function wasm_ir(inf::Cache, start)
   mod = WModule(inf)
-  lowerwasm!(mod, (startmethod(inf.mod),))
+  lowerwasm!(mod, (start,))
   return mod
 end
 
-function wasmmodule(inf::Compilation)
-  mod = wasm_ir(inf)
+function wasmmodule(inf::Cache, start)
+  mod = wasm_ir(inf, start)
   strings = mod.strings
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
   sort!(fs, by = f -> f.name)
@@ -196,7 +196,9 @@ function binary(m::WebAssembly.Module, file; path)
 end
 
 function emitwasm(file, out)
-  mod, strings = file |> loadfile |> infer |> lowerir |> refcounts |> wasmmodule
+  mod = loadfile(file)
+  comp = mod |> infer |> lowerir |> refcounts
+  mod, strings = wasmmodule(comp, startmethod(mod))
   binary(mod, out; path = normpath(joinpath(pwd(), file)))
   return strings
 end

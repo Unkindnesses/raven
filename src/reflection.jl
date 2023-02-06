@@ -10,20 +10,20 @@ function code_lowered(cx::RModule, func)
   return IdDict(meth.sig.pattern => meth.func for meth in cx.methods[func])
 end
 
-function code_typed(cx::RModule, func...)
-  cx = infer(cx)
-  cx |> lowerir |> refcounts |> wasmmodule
-  IdDict{Any,IR}(sig => unloop(fr.ir) for (sig, fr) in cx.frames.data if fr isa Frame && sigmatch(sig, func...))
+function code_typed(mod::RModule, func...)
+  cx = infer(mod)
+  cx |> lowerir |> refcounts |> (x -> wasmmodule(x, startmethod(mod)))
+  IdDict{Any,IR}(sig => unloop(fr.ir) for (sig, fr) in cx.data if fr isa Frame && sigmatch(sig, func...))
 end
 
-function code_final(cx::RModule, func...)
-  cx = cx |> infer |> lowerir |> refcounts
-  wasmmodule(cx)
-  IdDict{Any,IR}(sig => ir for (sig, ir) in cx.frames.data if sigmatch(sig, func...))
+function code_final(mod::RModule, func...)
+  cx = mod |> infer |> lowerir |> refcounts
+  wasmmodule(cx, startmethod(mod))
+  IdDict{Any,IR}(sig => ir for (sig, ir) in cx.data if sigmatch(sig, func...))
 end
 
 function code_wasm(cx::RModule, func)
-  mod = cx |> infer |> lowerir |> refcounts |> wasm_ir
+  mod = cx |> infer |> lowerir |> refcounts |> (x -> wasm_ir(x, startmethod(cx)))
   IdDict{Any,IR}(sig => fr[2] for (sig, fr) in mod.funcs if sigmatch(sig, func))
 end
 

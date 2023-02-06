@@ -17,12 +17,12 @@
 # variable is used later; it should be used liberally by any code that works
 # with internals. `retain` is mainly used by indexing.
 
-function sig(inf::Compilation, T)
-  fr = inf.frames[T]
+function sig(inf::Cache, T)
+  fr = inf[T]
   fr isa Redirect ? sig(inf, fr.to) : T
 end
 
-frame(inf::Compilation, T) = inf.frames[sig(inf, T)]
+frame(inf::Cache, T) = inf[sig(inf, T)]
 
 # Global variables
 
@@ -130,11 +130,11 @@ function partir(x, i)
   return ir
 end
 
-function partmethod!(cx::Compilation, x, i)
+function partmethod!(cx::Cache, x, i)
   T = (part_method, x, i)
-  haskey(cx.frames, T) && return cx.frames[T][1]
+  haskey(cx, T) && return cx[T][1]
   ir = partir(x, i)
-  cx.frames[T] = ir
+  cx[T] = ir
   return
 end
 
@@ -154,11 +154,11 @@ function union_partir(x::Or, i)
   return ir
 end
 
-function union_partmethod!(cx::Compilation, x, i)
+function union_partmethod!(cx::Cache, x, i)
   T = (part_method, x, i)
-  haskey(cx.frames, T) && return
+  haskey(cx, T) && return
   ir = union_partir(x, i)
-  cx.frames[T] = ir
+  cx[T] = ir
   return
 end
 
@@ -283,11 +283,11 @@ function packcat_ir(T::Pack)
   return ir
 end
 
-function packcat_method!(cx::Compilation, T)
+function packcat_method!(cx::Cache, T)
   S = (packcat_method, T)
-  haskey(cx.frames, S) && return
+  haskey(cx, S) && return
   ir = packcat_ir(T)
-  cx.frames[S] = ir
+  cx[S] = ir
   return
 end
 
@@ -320,10 +320,10 @@ function nparts_ir(x::Or)
   return ir
 end
 
-function nparts_method!(cx::Compilation, x)
+function nparts_method!(cx::Cache, x)
   T = (nparts_method, x)
-  haskey(cx.frames, T) && return
-  cx.frames[T] = nparts_ir(x)
+  haskey(cx, T) && return
+  cx[T] = nparts_ir(x)
   return
 end
 
@@ -424,10 +424,10 @@ function castir(cx, from::Or, to)
   return ir
 end
 
-function castmethod!(cx::Compilation, from, to)
+function castmethod!(cx::Cache, from, to)
   sig = (cast_method, from)
-  haskey(cx.frames, sig) && return
-  cx.frames[sig] = castir(cx, from, to)
+  haskey(cx, sig) && return
+  cx[sig] = castir(cx, from, to)
   return
 end
 
@@ -465,7 +465,7 @@ function cast!(cx, ir, from, to, x)
   end
 end
 
-function casts!(inf::Compilation, cx::Compilation, ir, ret)
+function casts!(inf::Cache, cx::Cache, ir, ret)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     # Cast arguments to wasm primitives
@@ -476,7 +476,7 @@ function casts!(inf::Compilation, cx::Compilation, ir, ret)
     elseif isexpr(st.expr, :call)
       S = (exprtype(ir, st.expr.args)...,)
       partial = S[1] isa RMethod && S[1].partial
-      if !partial && !any(==(⊥), S) && inf.frames[S] isa Redirect
+      if !partial && !any(==(⊥), S) && inf[S] isa Redirect
         T = sig(inf, S)
         delete!(pr, v)
         args = [cast!(cx, pr, s, t, x) for (x, s, t) in zip(st.expr.args, S, T)]
@@ -518,9 +518,9 @@ function lowerir(inf, cx, ir, ret)
   return ir
 end
 
-function lowerir(inf::Compilation)
-  Compilation{IR}(inf.mod) do cx, k
-    fr = inf.frames[k]
+function lowerir(inf::Cache)
+  Cache{Any,Union{Redirect,IR}}() do cx, k
+    fr = inf[k]
     fr isa Redirect ? fr : lowerir(inf, cx, fr.ir, fr.rettype)
   end
 end
