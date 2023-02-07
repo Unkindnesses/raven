@@ -101,6 +101,12 @@ function instr(io::IO, c::Call)
   u32(io, io.funcs[c.name])
 end
 
+function instr(io::IO, c::CallIndirect)
+  write(io, 0x11)
+  u32(io, io.types[c.sig])
+  u32(io, c.table)
+end
+
 function instr(io::IO, v::Local)
   write(io, 0x20)
   u32(io, v.id)
@@ -132,6 +138,11 @@ end
 
 function instr(io::IO, x::Op)
   write(io, opcodes[x])
+end
+
+function expr(io::IO, x)
+  instr(io, x)
+  write(io, 0x0b)
 end
 
 # Modules
@@ -208,6 +219,19 @@ function functions(io::BinaryContext, funcs)
   end
 end
 
+function tables(io::BinaryContext, ts)
+  isempty(ts) && return
+  write(io, 0x04) # section id
+  withsize(io) do io
+    u32(io, length(ts))
+    for t in ts
+      write(io, 0x70) # funcref
+      write(io, 0x00)
+      u32(io, t.min)
+    end
+  end
+end
+
 function memories(io::IO, mems)
   isempty(mems) && return
   @assert length(mems) == 1
@@ -249,6 +273,23 @@ function exports(io::BinaryContext, exs)
       name(io, ex.as)
       write(io, 0x00) # func export
       u32(io, io.funcs[ex.name])
+    end
+  end
+end
+
+function elems(io::BinaryContext, es)
+  isempty(es) && return
+  write(io, 0x09) # section id
+  withsize(io) do io
+    u32(io, length(es))
+    for e in es
+      @assert e.table == 0
+      u32(io, 0)
+      expr(io, Const(UInt32(0)))
+      u32(io, length(e.data))
+      for f in e.data
+        u32(io, io.funcs[f])
+      end
     end
   end
 end
@@ -336,9 +377,11 @@ function binary(io::IO, m::Module; path)
   types(cx, m)
   imports(cx, m.imports)
   functions(cx, m.funcs)
+  tables(cx, m.tables)
   memories(cx, m.mems)
   globals(cx, m.globals)
   exports(cx, m.exports)
+  elems(cx, m.elems)
   dbg = code(cx, m.funcs)
   names(cx, m)
   dwarf(cx, dbg)

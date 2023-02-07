@@ -62,6 +62,7 @@ struct WModule
   inf::Cache
   symbols::Dict{Symbol,Int}
   strings::Vector{String}
+  table::Vector{Symbol}
   funcs::IdDict{Any,Tuple{Symbol,Union{IR,Nothing}}}
   globals::Dict{Global,Vector{Int}}
   gtypes::Vector{WType}
@@ -80,6 +81,14 @@ function stringid!(mod::WModule, s::String)
   return Int32(length(mod.strings)-1)
 end
 
+function funcid!(mod::WModule, f, I, O)
+  name = lowerwasm!(mod, (f, I))
+  i = findfirst(s -> s === name, mod.table)
+  i === nothing || return Int32(i-1)
+  push!(mod.table, name)
+  return Int32(length(mod.table)-1)
+end
+
 function global!(mod::WModule, g::Global, T)
   get!(mod.globals, g) do
     start = sum([length(gs) for gs in values(mod.globals)])
@@ -89,7 +98,7 @@ function global!(mod::WModule, g::Global, T)
   end
 end
 
-WModule(inf) = WModule(inf, Dict(), [], Dict(), Dict(), [])
+WModule(inf) = WModule(inf, Dict(), [], [], Dict(), Dict(), [])
 
 function lowerwasm!(mod::WModule, ir::IR)
   pr = IRTools.Pipe(ir)
@@ -98,6 +107,8 @@ function lowerwasm!(mod::WModule, ir::IR)
       pr[v] = stmt(st.expr, type = wlayout(st.type))
     elseif isexpr(st.expr, :ref) && st.expr.args[1] isa String
       pr[v] = stringid!(mod, st.expr.args[1])
+    elseif isexpr(st.expr, :func)
+      pr[v] = funcid!(mod, st.expr.args...)
     elseif isexpr(st.expr, :tuple, :ref)
     elseif isexpr(st.expr, :cast)
       @assert layout(st.type) == layout(exprtype(ir, st.expr.args[1]))
@@ -128,6 +139,13 @@ function lowerwasm!(mod::WModule, ir::IR)
       func = lowerwasm!(mod, Ts)
       pr[v] = stmt(st,
                    expr = xcall(WebAssembly.Call(func), st.expr.args[2:end]...),
+                   type = wlayout(st.type))
+    elseif isexpr(st.expr, :call_indirect)
+      f, args = st.expr.args
+      I = wlayout(exprtype(ir, args)) |> WebAssembly.flattentype
+      O = wlayout(st.type) |> WebAssembly.flattentype
+      pr[v] = stmt(st,
+                   expr = xcall(WebAssembly.CallIndirect(I => O, 0), args, f),
                    type = wlayout(st.type))
     elseif isexpr(st, :branch)
     else
@@ -177,6 +195,8 @@ function wasmmodule(inf::Cache, start)
     imports = default_imports,
     exports = [WebAssembly.Export(:_start, Symbol("_start:method:1"))],
     globals = [WebAssembly.Global(t) for t in mod.gtypes],
+    tables = [WebAssembly.Table(length(mod.table))],
+    elems = [WebAssembly.Elem(0, mod.table)],
     mems = [WebAssembly.Mem(0)])
   return mod, strings
 end

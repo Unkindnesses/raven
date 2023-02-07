@@ -13,6 +13,13 @@ Base.show(io::IO, i::Branch)      = print(io, i.cond ? "br_if " : "br ", i.level
 Base.show(io::IO, i::Return)      = print(io, "return")
 Base.show(io::IO, i::Unreachable) = print(io, "unreachable")
 
+function Base.show(io::IO, i::CallIndirect)
+  # TODO table idx
+  print(io, "call_indirect")
+  printvars(io, "param", i.sig.params)
+  printvars(io, "result", i.sig.result)
+end
+
 printwasm(io, x, level) = show(io, x)
 
 function showline(io::IO, li::LineInfo)

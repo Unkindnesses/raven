@@ -15,6 +15,11 @@ WType(T::WType) = T
 
 jltype(x::WType) = [Int32, Int64, Float32, Float64][Int(x)+1]
 
+struct Signature
+  params::Vector{WType}
+  result::Vector{WType}
+end
+
 abstract type Instruction end
 
 struct Const <: Instruction
@@ -74,6 +79,11 @@ struct Call <: Instruction
   name::Symbol
 end
 
+struct CallIndirect <: Instruction
+  sig::Signature
+  table::UInt32
+end
+
 Branch(l::Integer) = Branch(false, l)
 
 struct Return <: Instruction end
@@ -100,11 +110,6 @@ Loop(is) = Loop(is, [nothing for _ in is])
 
 const unreachable = Unreachable()
 
-struct Signature
-  params::Vector{WType}
-  result::Vector{WType}
-end
-
 Base.:(==)(a::Signature, b::Signature) = a.params == b.params && a.result == b.result
 Base.hash(s::Signature, h::UInt) = hash((0xa0029abae2de0ab6, s.params, s.result), h)
 
@@ -116,6 +121,10 @@ struct Func
   locals::Vector{WType}
   body::Block
   meta
+end
+
+struct Table
+  min::UInt32
 end
 
 struct Mem
@@ -132,6 +141,11 @@ end
 
 Global(val::Number, mut = true) = Global(WType(typeof(val)), mut, Const(val))
 Global(T::WType, mut = true) = Global(jltype(T)(0), mut)
+
+struct Elem
+  table::UInt32
+  data::Vector{Symbol}
+end
 
 struct Data
   memidx::UInt32
@@ -154,11 +168,13 @@ end
 struct Module
   funcs::Vector{Func}
   mems::Vector{Mem}
+  tables::Vector{Table}
   globals::Vector{Global}
+  elems::Vector{Elem}
   data::Vector{Data}
   imports::Vector{Import}
   exports::Vector{Export}
 end
 
-Module(; funcs = [], mems = [], globals = [], data = [], imports = [], exports = []) =
-  Module(funcs, mems, globals, data, imports, exports)
+Module(; funcs = [], mems = [], tables = [], globals = [], elems = [], data = [], imports = [], exports = []) =
+  Module(funcs, mems, tables, globals, elems, data, imports, exports)

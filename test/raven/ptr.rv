@@ -2,3 +2,8 @@ p = Ptr(widen(5))
 a = addr(p)
 
 println(Int64(a) == 5)
+
+I = [Int64, Int64]
+O = Int64
+f = function(+, I, O)
+println(invoke(f, I, O, 3, 5) == 8)

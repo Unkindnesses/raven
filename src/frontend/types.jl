@@ -67,7 +67,10 @@ end
 
 Primitive = Union{Int64,Int32,Float64,Float32,Symbol,String}
 
+const fromSymbol = Dict{Symbol,Type}()
+
 for T in :[Int64, Int32, Float64, Float32, Symbol].args
+  @eval fromSymbol[$(QuoteNode(T))] = $T
   @eval part(x::Union{$T,Type{$T}}, i::Integer) =
           i == 0 ? $(QuoteNode(T)) :
           i == 1 ? x :
@@ -258,6 +261,15 @@ end
 symbolValues(x::Union{Primitive,Type{<:Primitive},Pack}) = []
 symbolValues(x::Symbol) = [x]
 symbolValues(x::Or) = reduce(vcat, map(symbolValues, x.patterns))
+
+# Raven value -> compiler type
+
+rvtype(x::Symbol) = fromSymbol[x]
+
+function rvtype(x::Pack)
+  @assert tag(x) == :List
+  return pack(tag(x), rvtype.(parts(x))...)
+end
 
 # Printing
 

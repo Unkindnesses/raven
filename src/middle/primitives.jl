@@ -65,6 +65,12 @@ isnil_method = RMethod(:isnil, lowerpattern(rvx"[x]"), partial_isnil, true)
 notnil_method = RMethod(:notnil, lowerpattern(rvx"[x]"), partial_notnil, true)
 symstring_method = RMethod(:symstring, lowerpattern(rvx"[x: Symbol]"), partial_symstring, true)
 
+partial_function(f, I, O) = Int32
+partial_invoke(f, I, O, xs...) = rvtype(O)
+
+function_method = RMethod(:function, lowerpattern(rvx"[f, I, O]"), partial_function, true)
+invoke_method = RMethod(:invoke, lowerpattern(rvx"[f: Int32, I, O, xs...]"), partial_invoke, true)
+
 function primitives!(mod)
   mod[Symbol("false")] = Int32(0)
   mod[Symbol("true")] = Int32(1)
@@ -78,6 +84,9 @@ function primitives!(mod)
   method!(mod, :isnil, isnil_method)
   method!(mod, :notnil, notnil_method)
   method!(mod, :symstring, symstring_method)
+
+  method!(mod, :function, function_method)
+  method!(mod, :invoke, invoke_method)
   return mod
 end
 
@@ -154,4 +163,21 @@ outlinePrimitive[symstring_method] = function (T::Or)
     Expr(:ref, String(S))
   end
   return ir
+end
+
+inlinePrimitive[function_method] = function (pr, ir, v)
+  f, I, O = exprtype(ir, ir[v].expr.args[2:end])
+  @assert all(isvalue, (f, I, O))
+  pr[v] = Expr(:func, f, rvtype(I), rvtype(O))
+end
+
+inlinePrimitive[invoke_method] = function (pr, ir, v)
+  f = ir[v].expr.args[2]
+  I, O, args = exprtype(ir, ir[v].expr.args[3:end])
+  I, O = rvtype.((I, O))
+  @assert issubset(exprtype(ir, args), I)
+  delete!(pr, v)
+  args = cast!(pr, exprtype(ir, args), I, args)
+  v′ = push!(pr, stmt(ir[v], expr = Expr(:call_indirect, f, args)))
+  replace!(pr, v, v′)
 end
