@@ -38,3 +38,15 @@ fn i32store!(p: Ptr, x: Int32) {
   a = addr(p)
   wasm { (i32.store)(a: i32, x: i32) }
 }
+
+fn Function(f, I, O) {
+  ptr = function(f, I, O)
+  Function(ptr, I, O)
+}
+
+bundle { Function(f: Int32, I, O) }
+
+fn invoke(f: Function, xs...) {
+  Function(f, I, O) = f
+  invoke(f, I, O, xs...)
+}

@@ -165,6 +165,8 @@ outlinePrimitive[symstring_method] = function (T::Or)
   return ir
 end
 
+# UB if inferred output type is not `O`
+# TODO wrap with a type check / conversion
 inlinePrimitive[function_method] = function (pr, ir, v)
   f, I, O = exprtype(ir, ir[v].expr.args[2:end])
   @assert all(isvalue, (f, I, O))
@@ -175,6 +177,7 @@ inlinePrimitive[invoke_method] = function (pr, ir, v)
   f = ir[v].expr.args[2]
   I, O, args = exprtype(ir, ir[v].expr.args[3:end])
   I, O = rvtype.((I, O))
+  # TODO conversion
   @assert issubset(exprtype(ir, args), I)
   delete!(pr, v)
   args = cast!(pr, exprtype(ir, args), I, args)

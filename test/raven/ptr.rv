@@ -3,7 +3,7 @@ a = addr(p)
 
 println(Int64(a) == 5)
 
-I = [Int64, Int64]
-O = Int64
-f = function(+, I, O)
-println(invoke(f, I, O, 3, 5) == 8)
+let {
+  f = Function(+, [Int64, Int64], Int64)
+  println(invoke(f, 3, 5) == 8)
+}
