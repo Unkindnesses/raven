@@ -103,21 +103,21 @@ WModule(inf) = WModule(inf, Dict(), [], [], Dict(), Dict(), [])
 function lowerwasm!(mod::WModule, ir::IR)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
-    if !isexpr(st.expr)
+    if !isexpr(st)
       pr[v] = stmt(st.expr, type = wlayout(st.type))
-    elseif isexpr(st.expr, :ref) && st.expr.args[1] isa String
+    elseif isexpr(st, :ref) && st.expr.args[1] isa String
       pr[v] = stringid!(mod, st.expr.args[1])
-    elseif isexpr(st.expr, :func)
+    elseif isexpr(st, :func)
       pr[v] = funcid!(mod, st.expr.args...)
-    elseif isexpr(st.expr, :tuple, :ref)
-    elseif isexpr(st.expr, :cast)
+    elseif isexpr(st, :tuple, :ref)
+    elseif isexpr(st, :cast)
       @assert layout(st.type) == layout(exprtype(ir, st.expr.args[1]))
       pr[v] = st.expr.args[1]
-    elseif isexpr(st.expr, :global)
+    elseif isexpr(st, :global)
       g = Global(st.expr.args[1])
       l = global!(mod, g, st.type)
       pr[v] = Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
-    elseif isexpr(st.expr, :(=)) && (g = st.expr.args[1]) isa Global
+    elseif isexpr(st, :(=)) && (g = st.expr.args[1]) isa Global
       delete!(pr, v)
       l = global!(mod, g, st.type)
       for i in 1:length(l)
@@ -126,21 +126,21 @@ function lowerwasm!(mod::WModule, ir::IR)
           (p = push!(pr, Expr(:ref, p, i)))
         push!(pr, stmt(xcall(WebAssembly.SetGlobal(l[i]), p), type = WTuple()))
       end
-    elseif isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
+    elseif isexpr(st, :call) && st.expr.args[1] isa WIntrinsic
       int = st.expr.args[1]
       ex = xcall(int.op, st.expr.args[2:end]...)
       pr[v] = stmt(st.expr, expr = ex, type = int.ret == ⊥ ? WTuple() : int.ret)
       if int.ret == ⊥
         IRTools.push!(pr, stmt(xcall(WebAssembly.unreachable), type = WTuple()))
       end
-    elseif isexpr(st.expr, :call)
+    elseif isexpr(st, :call)
       Ts = (exprtype(ir, st.expr.args)...,)
       @assert !any(==(⊥), Ts)
       func = lowerwasm!(mod, Ts)
       pr[v] = stmt(st,
                    expr = xcall(WebAssembly.Call(func), st.expr.args[2:end]...),
                    type = wlayout(st.type))
-    elseif isexpr(st.expr, :call_indirect)
+    elseif isexpr(st, :call_indirect)
       f, args = st.expr.args
       I = wlayout(exprtype(ir, args)) |> WebAssembly.flattentype
       O = wlayout(st.type) |> WebAssembly.flattentype

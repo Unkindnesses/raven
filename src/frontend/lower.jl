@@ -500,7 +500,7 @@ end
 function rewrite_globals(ir::IR)
   gs = []
   for (v, st) in ir
-    if isexpr(st.expr, :(=)) && (g = st.expr.args[1]) isa Global
+    if isexpr(st, :(=)) && (g = st.expr.args[1]) isa Global
       g in gs || push!(gs, g)
     end
   end

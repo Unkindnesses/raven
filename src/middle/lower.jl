@@ -324,11 +324,11 @@ end
 function lowerdata(ir)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
-    if isexpr(st.expr, :pack)
+    if isexpr(st, :pack)
       # remove constants, which have zero width
       args = filter(x -> x isa Variable, st.expr.args)
       pr[v] = Expr(:tuple, args...)
-    elseif isexpr(st.expr, :call)
+    elseif isexpr(st, :call)
       st.expr.args[1] isa WIntrinsic && continue
       F = exprtype(ir, st.expr.args[1])
       if haskey(inlinePrimitive, F)
@@ -416,11 +416,11 @@ function casts!(inf::Cache, ir, ret)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     # Cast arguments to wasm primitives
-    if isexpr(st.expr, :call) && st.expr.args[1] isa WIntrinsic
+    if isexpr(st, :call) && st.expr.args[1] isa WIntrinsic
       args = st.expr.args[2:end]
       Ts = exprtype(ir, args)
       pr[v] = xcall(st.expr.args[1], [T isa Integer ? T : x for (x, T) in zip(args, Ts)]...)
-    elseif isexpr(st.expr, :call)
+    elseif isexpr(st, :call)
       S = (exprtype(ir, st.expr.args)...,)
       partial = S[1] isa RMethod && S[1].partial
       if !partial && !any(==(⊥), S) && inf[S] isa Redirect
@@ -430,7 +430,7 @@ function casts!(inf::Cache, ir, ret)
         v′ = push!(pr, stmt(xcall(args...), type = st.type))
         replace!(pr, v, v′)
       end
-    elseif isexpr(st.expr, :branch)
+    elseif isexpr(st, :branch)
       br = st.expr
       if isreturn(br)
         S = exprtype(ir, arguments(br)[1])

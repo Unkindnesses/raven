@@ -174,17 +174,17 @@ function refcounts!(ir)
   end
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
-    if isexpr(st.expr, :release)
+    if isexpr(st, :release)
       delete!(pr, v)
       x = st.expr.args[1]
       isref(x) && !(x in lv[v]) || continue
       release!(pr, x)
-    elseif isexpr(st.expr, :retain)
+    elseif isexpr(st, :retain)
       delete!(pr, v)
       x = st.expr.args[1]
       isref(x) && x in lv[v] || continue
       retain!(pr, x)
-    elseif isexpr(st.expr, :call, :tuple) && haskey(lv, v)
+    elseif isexpr(st, :call, :tuple) && haskey(lv, v)
       delete!(pr, v)
       # reused argument
       for x in unique(st.expr.args)
