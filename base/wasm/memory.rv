@@ -39,6 +39,8 @@ fn i32store!(p: Ptr, x: Int32) {
   wasm { (i32.store)(a: i32, x: i32) }
 }
 
+# Function pointer
+
 fn Function(f, I, O) {
   ptr = function(f, I, O)
   Function(ptr, I, O)
@@ -50,3 +52,9 @@ fn invoke(f: Function, xs...) {
   Function(f, I, O) = f
   invoke(f, I, O, xs...)
 }
+
+# Managed pointer
+
+bundle { Ref(p: Ptr) }
+
+fn Ref(n: Int64) { Ref(malloc!(Int32(n))) }

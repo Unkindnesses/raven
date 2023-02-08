@@ -61,9 +61,11 @@ function liveness(ir)
   return result
 end
 
+isrefobj(x::Pack) = tag(x) == :Ref
+
 isreftype(::Union{Primitive,Type,Unreachable}) = false
 isreftype(xs::Or) = any(isreftype, xs.patterns)
-isreftype(xs::Pack) = any(isreftype, xs.parts)
+isreftype(xs::Pack) = isrefobj(xs) || any(isreftype, xs.parts)
 isreftype(x::VPack) = layout(x.parts) != ()
 isreftype(x::Recursive) = true
 
@@ -78,17 +80,31 @@ isglobal(ir, v) = haskey(ir, v) && isexpr(ir[v].expr, :global)
 retain_method = RMethod(:retain, lowerpattern(rvx"args"), nothing, false)
 release_method = RMethod(:release, lowerpattern(rvx"args"), nothing, false)
 
+function retain!(ir, x)
+  push!(ir, stmt(xcall(retain_method, x), type = nil))
+end
+
+function release!(ir, x)
+  push!(ir, stmt(xcall(release_method, x), type = nil))
+end
+
 function countptr!(ir, ptr, mode)
   f = mode == retain ? :retain! : :release!
   push!(ir, stmt(xcall(f, ptr), type = nil))
 end
 
 function count!(ir, T::Pack, x, mode)
-  for i = 0:nparts(T)
-    isreftype(part(T, i)) || continue
-    p = indexer!(ir, T, i, x, nothing)
-    f = mode == retain ? retain! : release!
-    f(ir, p)
+  if isrefobj(T)
+    @assert layout(T) == (Int32,)
+    ptr = push!(ir, stmt(Expr(:ref, x, 1), type = rlist(partial_part(T, 1))))
+    countptr!(ir, ptr, mode)
+  else
+    for i = 0:nparts(T)
+      isreftype(part(T, i)) || continue
+      p = indexer!(ir, T, i, x, nothing)
+      f = mode == retain ? retain! : release!
+      f(ir, p)
+    end
   end
 end
 
@@ -133,16 +149,8 @@ function count_ir(T, mode)
   return!(ir, push!(ir, stmt(xtuple(), type = nil)))
 end
 
-function retain!(ir, x)
-  push!(ir, stmt(xcall(retain_method, x), type = nil))
-end
-
-function release!(ir, x)
-  push!(ir, stmt(xcall(release_method, x), type = nil))
-end
-
-# Actually insert counting instructions into code
-# ===============================================
+# Insert counting instructions
+# ============================
 
 function refcounts!(ir)
   lv = liveness(ir)
