@@ -1,8 +1,8 @@
 using Raven, Test
 using Raven: Or, Recursive, Recur, pack, union, issubset, unroll
 
-T1 = pack(:Prepend, Or([pack(:Empty), pack(:Prepend, pack(:Empty), Int64)]), Int64)
-T2 = Or([pack(:Empty), pack(:Prepend, pack(:Empty), Int64)])
+T1 = Or([pack(:Empty), pack(:Prepend, pack(:Empty), Int64)])
+T2 = pack(:Prepend, Or([pack(:Empty), pack(:Prepend, pack(:Empty), Int64)]), Int64)
 
 T = union(T1, T2)
 
