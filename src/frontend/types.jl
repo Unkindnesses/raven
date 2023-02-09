@@ -67,6 +67,9 @@ end
 
 Primitive = Union{Int64,Int32,Float64,Float32,Symbol,String}
 
+const JSObject = pack(:JSObject, pack(:Ref, pack(:Ptr, Int32)))
+const RString = pack(:String, JSObject)
+
 const fromSymbol = Dict{Symbol,Type}()
 
 for T in :[Int64, Int32, Float64, Float32, Symbol].args
@@ -81,10 +84,10 @@ end
 
 part(s::Union{String,Type{String}}, i::Integer) =
   i == 0 ? :String :
-  i == 1 ? pack(:JSObject, Int32) :
+  i == 1 ? JSObject :
   error("Tried to access part $i of 1")
 
-allparts(s::Union{String,Type{String}}) = (:String, pack(:JSObject, Int32))
+allparts(s::Union{String,Type{String}}) = (:String, JSObject)
 
 nparts(s::Union{String,Type{String}}) = 1
 

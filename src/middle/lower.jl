@@ -72,7 +72,7 @@ cat_layout(x::Tuple) = x
 cat_layout(x, xs...) = (cat_layout(x)..., cat_layout(xs...)...)
 
 layout(T::Type{<:Primitive}) = T
-layout(::Type{String}) = layout(pack(:String, pack(:JSObject, Int32)))
+layout(::Type{String}) = layout(pack(:String, JSObject))
 layout(x::Union{Primitive,AST.Quote,Unreachable}) = ()
 layout(x::Pack) = cat_layout(layout.(x.parts)...)
 layout(x::VPack) = (Int32, Int32) # size, pointer
@@ -152,13 +152,19 @@ function partir(x::Or, i)
   return ir
 end
 
-outlinePrimitive[part_method] = partir
-
-function indexer!(ir, s::String, i::Int, _, _)
+function partir(s::String, i)
   @assert i == 1
+  ir = IR(meta = FuncInfo(:part))
+  argument!(ir, type = s)
+  argument!(ir, type = i)
   # Punt to the backend to decide how strings get IDd
-  push!(ir, Expr(:ref, s))
+  id = push!(ir, stmt(Expr(:ref, s), type = rlist(Int32)))
+  o = push!(ir, stmt(xcall(:JSObject, id), type = JSObject))
+  return!(ir, o)
+  return ir
 end
+
+outlinePrimitive[part_method] = partir
 
 function indexer!(ir, ::Type{String}, i::Int, s, _)
   @assert i == 1
@@ -201,6 +207,7 @@ inlinePrimitive[part_method] = function (pr, ir, v)
   T, I = exprtype(ir, [x, i])
   if T isa Pack && I isa Type{<:Integer}
   elseif T isa Or
+  elseif T isa String
   elseif T isa Recursive
     T = unroll(T)
     delete!(pr, v)
@@ -398,7 +405,7 @@ function cast!(ir, from, to, x)
     ptr = push!(ir, stmt(xcall(Global(:malloc!, :malloc!), margs), type = Int32))
     push!(ir, stmt(Expr(:tuple, Int32(0), ptr), type = to))
   elseif from isa String && to == String
-    indexer!(ir, from, 1, nothing, nothing)
+    string!(ir, from)
   elseif to isa Or
     i = findfirst(==(from), to.patterns)
     @assert i != nothing

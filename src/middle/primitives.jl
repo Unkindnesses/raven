@@ -155,12 +155,17 @@ inlinePrimitive[symstring_method] = function (pr, ir, v)
   end
 end
 
+function string!(ir, s)
+  s = push!(ir, stmt(Expr(:tuple), type = s))
+  push!(ir, stmt(xcall(part_method, s, 1), type = RString))
+end
+
 outlinePrimitive[symstring_method] = function (T::Or)
   ir = IR(meta = FuncInfo(:symstring))
   x = argument!(ir, type = T)
   union_cases!(ir, T, x) do S, _
     @assert S isa Symbol
-    Expr(:ref, String(S))
+    string!(ir, string(S))
   end
   return ir
 end

@@ -1,8 +1,14 @@
-bundle { JSObject(ref: Int32) }
+bundle { JSObject(ref: Ref) }
+
+fn JSObject(id: Int32) {
+  r = Ref(8)
+  i32store!(pointer(r), id)
+  return JSObject(r)
+}
 
 fn jsref(x) { jsref(tojs(x)) }
 
-fn jsref(obj: JSObject) { part(obj, 1) }
+fn jsref(JSObject(ref)) { i32load(pointer(ref)) }
 
 fn global() {
   ref = (wasm { call(`jsglobal`): i32 })
