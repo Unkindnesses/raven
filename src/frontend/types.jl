@@ -267,8 +267,15 @@ symbolValues(x::Or) = reduce(vcat, map(symbolValues, x.patterns))
 rvtype(x::Symbol) = fromSymbol[x]
 
 function rvtype(x::Pack)
-  @assert tag(x) == :List
-  return pack(tag(x), rvtype.(parts(x))...)
+  if tag(x) == :List
+    pack(tag(x), rvtype.(parts(x))...)
+  elseif tag(x) == :Pack
+    pack(rvtype.(parts(x))...)
+  elseif tag(x) == :Literal
+    return part(x, 1)
+  else
+    error("Unrecognised type $x")
+  end
 end
 
 # Printing

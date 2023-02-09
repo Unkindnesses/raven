@@ -41,6 +41,9 @@ fn i32store!(p: Ptr, x: Int32) {
 
 # Function pointer
 
+TPtr = Pack(Literal(`Ptr`), Int32)
+TNil = Pack(Literal(`Nil`))
+
 fn Function(f, I, O) {
   ptr = function(f, I, O)
   Function(ptr, I, O)
@@ -55,6 +58,21 @@ fn invoke(f: Function, xs...) {
 
 # Managed pointer
 
+fn preserve(x) { nil }
+
 bundle { Ref(p: Ptr) }
 
-fn Ref(n: Int64) { Ref(malloc!(Int32(n))) }
+fn Ref(n: Int64) {
+  ptr = malloc!(Int32(n+8))
+  i32store!(ptr, Int32(-1))
+  return Ref(ptr)
+}
+
+fn pointer(Ref(ptr)) { ptr+8 }
+
+fn cleanup!(r: Ref(ptr), func) {
+  f = function(func, [TPtr], TNil)
+  i32store!(ptr, f)
+  preserve(r) # retain r until cleanup is set
+  return
+}

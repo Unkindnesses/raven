@@ -174,9 +174,8 @@ inlinePrimitive[function_method] = function (pr, ir, v)
 end
 
 inlinePrimitive[invoke_method] = function (pr, ir, v)
-  f = ir[v].expr.args[2]
-  I, O, args = exprtype(ir, ir[v].expr.args[3:end])
-  I, O = rvtype.((I, O))
+  f, I, O, args = ir[v].expr.args[2:end]
+  I, O = rvtype.(exprtype(ir, [I, O]))
   # TODO conversion
   @assert issubset(exprtype(ir, args), I)
   delete!(pr, v)

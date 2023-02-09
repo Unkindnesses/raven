@@ -95,9 +95,16 @@ end
 
 function count!(ir, T::Pack, x, mode)
   if isrefobj(T)
-    @assert layout(T) == (Int32,)
-    ptr = push!(ir, stmt(Expr(:ref, x, 1), type = rlist(partial_part(T, 1))))
-    countptr!(ir, ptr, mode)
+    P = partial_part(T, 1)
+    ptr = indexer!(ir, T, 1, x, nothing)
+    ptr = push!(ir, stmt(Expr(:tuple, ptr), type = rlist(P)))
+    if mode == release
+      cleanup = push!(ir, stmt(xcall(:i32load, ptr), type = Int32))
+      args = push!(ir, stmt(Expr(:tuple, ptr, cleanup), type = rlist(P, Int32)))
+      push!(ir, stmt(xcall(:release!, args), type = nil))
+    else
+      push!(ir, stmt(xcall(:retain!, ptr), type = nil))
+    end
   else
     for i = 0:nparts(T)
       isreftype(part(T, i)) || continue

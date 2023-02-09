@@ -147,15 +147,19 @@ fn retain!(p: Ptr) {
   return
 }
 
-fn release!(p: Ptr) {
+fn release!(p: Ptr, f: Int32) {
   p = p - headerSize
   n = getBlockUsed(p)
   if (n == Int32(0)) {
     panic("Memory management fault: release")
+  } else if ((n == Int32(1)) && (f != Int32(-1))) {
+    invoke(Function(f, [TPtr], TNil), (p + headerSize) + 8)
   }
   # Setting to 0 equates to freeing
   setBlockUsed!(p, n-Int32(1))
 }
+
+fn release!(p: Ptr) { release!(p, widen(Int32(-1))) }
 
 fn allocationCount() {
   i = 0
