@@ -130,10 +130,12 @@ path() = dynamic_value(:path)
 struct Options
   # checkAllocations() call after main
   memcheck::Bool
+  # Use JS interop for error handling
+  jspanic::Bool
 end
 
-Options(; memcheck = true) =
-  Options(memcheck)
+Options(; memcheck = true, jspanic = true) =
+  Options(memcheck, jspanic)
 
 withoptions(f, p) = dynamic_bind(f, :options, p)
 options() = dynamic_value(:options, Options())::Options

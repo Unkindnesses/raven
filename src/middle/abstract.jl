@@ -229,6 +229,7 @@ function step!(inf::Inference, loc)
         T == frame.rettype && return
         frame.rettype = T
         foreach(loc -> push!(inf.queue, loc), frame.edges)
+      elseif isunreachable(br)
       else
         args = exprtype(bl.ir, arguments(br))
         p′, reroll = nextpath(frame.ir, p, br.args[1])

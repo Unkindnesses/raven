@@ -43,6 +43,11 @@ function isreturn(ex::Expr)
   ex.args[1] == 0 && length(arguments(ex)) == 1
 end
 
+function isunreachable(ex::Expr)
+  @assert isexpr(ex, :branch)
+  ex.args[1] == 0 && length(arguments(ex)) == 0
+end
+
 function isconditional(ex::Expr)
   @assert isexpr(ex, :branch)
   ex.args[2] != nothing
@@ -256,7 +261,9 @@ function branch!(ir::IR, args...; kw...)
   return ir
 end
 
-return!(ir, x; src = nothing, bp = false) = branch!(ir, 0, x; src, bp)
+return!(ir, x; kw...) = branch!(ir, 0, x; kw...)
+
+unreachable!(ir; kw...) = branch!(ir, 0; kw...)
 
 function getindex(ir::IR, i::Variable)
   b, i = blockidx(ir, i)

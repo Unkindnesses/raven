@@ -93,7 +93,7 @@ function unloop!(ir::IR, l::LoopIR, _bs)
         copyblock!(c, b)
         for i = 1:length(branches(c))
           br = branches(c)[i]
-          isreturn(br) && continue
+          (isreturn(br) || isunreachable(br)) && continue
           branches(c)[i].args[1] = bs[br.args[1]]
         end
       end

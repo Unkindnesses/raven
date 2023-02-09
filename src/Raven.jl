@@ -8,7 +8,7 @@ using MacroTools: @q, @forward, isexpr
 
 using .IRTools, .Dwarf, .WebAssembly
 using .IRTools: IR, Variable, Statement, Variable, argument!, block, blocks, arguments, argtypes,
-  block, isreturn, branches, prune!, return!, branch!, block!, stmt, predecessors, successors,
+  block, isreturn, isunreachable, branches, prune!, return!, unreachable!, branch!, block!, stmt, predecessors, successors,
   Slot, isvariable, Source
 
 include("frontend/ast.jl")
