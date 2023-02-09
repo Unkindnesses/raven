@@ -7,8 +7,6 @@ end
 
 LoadState(mod) = LoadState(mod, [])
 
-const include_runtime = true
-
 const base = joinpath(@__DIR__, "../../base") |> normpath
 
 function simpleconst(cx::LoadState, x)
@@ -64,7 +62,7 @@ vload(m::LoadState, x; src) = load_expr(m, x; src)
 
 function finish!(cx::LoadState)
   body = [AST.Call(f) for f in cx.main]
-  include_runtime && push!(body, AST.Call(:checkAllocations))
+  options().memcheck && push!(body, AST.Call(:checkAllocations))
   fn = AST.Syntax(:fn, AST.Call(:_start),
                        AST.Block(body...))
   sig = lowerpattern(AST.List())

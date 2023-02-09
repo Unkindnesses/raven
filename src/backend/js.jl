@@ -13,17 +13,19 @@ function emitjs(path, wasm, strings)
   end
 end
 
-function compile(file, dir = dirname(file))
+function compile(file, opts = Options(); dir = dirname(file))
   path, _ = splitext(file)
   name = basename(path)
   mkpath(dir)
-  strings = emitwasm(file, joinpath(dir, "$name.wasm"))
-  emitjs(joinpath(dir, "$name.js"), "$name.wasm", strings)
+  withoptions(opts) do
+    strings = emitwasm(file, joinpath(dir, "$name.wasm"))
+    emitjs(joinpath(dir, "$name.js"), "$name.wasm", strings)
+  end
   return
 end
 
-function exec(file)
-  compile(file)
+function exec(file, opts = Options())
+  compile(file, opts)
   run(`node $(splitext(file)[1]).js`)
   return
 end

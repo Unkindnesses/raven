@@ -116,8 +116,27 @@ end
 
 dynamic_value(k) = task_local_storage()[k][end]
 
+function dynamic_value(k, default)
+  tls = task_local_storage()
+  (!haskey(tls, k) || isempty(tls[k])) ? default :
+  tls[k][end]
+end
+
 withpath(f, p) = dynamic_bind(f, :path, p)
 path() = dynamic_value(:path)
+
+# Compiler options
+
+struct Options
+  # checkAllocations() call after main
+  memcheck::Bool
+end
+
+Options(; memcheck = true) =
+  Options(memcheck)
+
+withoptions(f, p) = dynamic_bind(f, :options, p)
+options() = dynamic_value(:options, Options())::Options
 
 # Union splitting
 

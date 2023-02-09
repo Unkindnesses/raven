@@ -3,7 +3,7 @@ using Raven, Test
 cd(@__DIR__)
 
 function output(test)
-  Raven.compile("raven/$test.rv", "compiled")
+  Raven.compile("raven/$test.rv", dir = "compiled")
   String(read(`node compiled/$test.js`))
 end
 
@@ -12,7 +12,7 @@ result(test) = parse.(Bool, split(output(test)))
 passes(test) = parse(Bool, result(test))
 
 function result_code(test)
-  Raven.compile("raven/$test.rv", "compiled")
+  Raven.compile("raven/$test.rv", dir = "compiled")
   p = run(`node compiled/$test.js`, wait = false)
   wait(p); p.exitcode
 end
