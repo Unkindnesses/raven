@@ -82,14 +82,14 @@ for T in :[Int64, Int32, Float64, Float32, Symbol].args
   @eval allparts(x::Union{$T,Type{$T}}) = ($(QuoteNode(T)),x)
 end
 
-part(s::Union{String,Type{String}}, i::Integer) =
+part(s::String, i::Integer) =
   i == 0 ? :String :
   i == 1 ? JSObject :
   error("Tried to access part $i of 1")
 
-allparts(s::Union{String,Type{String}}) = (:String, JSObject)
+allparts(s::String) = (:String, JSObject)
 
-nparts(s::Union{String,Type{String}}) = 1
+nparts(s::String) = 1
 
 isvalue(x) = false
 isvalue(x::Primitive) = true
@@ -193,12 +193,10 @@ typekey(x::Symbol) = (:Symbol, x)
 partial_eltype(x::Pack) = reduce(union, parts(x), init = ⊥)
 partial_eltype(x::VPack) = x.parts
 
-const NonSymbol = Union{Float32,Float64,Int32,Int64,String}
-
-union(x::T, y::T) where T<:NonSymbol = x == y ? x : T
-union(x::T, y::Type{T}) where T<:NonSymbol = T
-union(x::Type{T}, y::T) where T<:NonSymbol = T
-union(x::Type{T}, y::Type{T}) where T<:NonSymbol = T
+union(x::T, y::T) where T<:Number = x == y ? x : T
+union(x::T, y::Type{T}) where T<:Number = T
+union(x::Type{T}, y::T) where T<:Number = T
+union(x::Type{T}, y::Type{T}) where T<:Number = T
 
 function union(x, y)
   if x == ⊥

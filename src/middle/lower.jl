@@ -72,7 +72,6 @@ cat_layout(x::Tuple) = x
 cat_layout(x, xs...) = (cat_layout(x)..., cat_layout(xs...)...)
 
 layout(T::Type{<:Primitive}) = T
-layout(::Type{String}) = layout(pack(:String, JSObject))
 layout(x::Union{Primitive,AST.Quote,Unreachable}) = ()
 layout(x::Pack) = cat_layout(layout.(x.parts)...)
 layout(x::VPack) = (Int32, Int32) # size, pointer
@@ -165,11 +164,6 @@ function partir(s::String, i)
 end
 
 outlinePrimitive[part_method] = partir
-
-function indexer!(ir, ::Type{String}, i::Int, s, _)
-  @assert i == 1
-  push!(ir, Expr(:ref, s, 1))
-end
 
 function indexer!(ir, T::Pack, i::Int, x, _)
   if 0 <= i <= nparts(T)
@@ -404,7 +398,7 @@ function cast!(ir, from, to, x)
     margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rlist(Int32)))
     ptr = push!(ir, stmt(xcall(Global(:malloc!, :malloc!), margs), type = Int32))
     push!(ir, stmt(Expr(:tuple, Int32(0), ptr), type = to))
-  elseif from isa String && to == String
+  elseif from isa String && to == RString
     string!(ir, from)
   elseif to isa Or
     i = findfirst(==(from), to.patterns)

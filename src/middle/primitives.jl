@@ -52,7 +52,7 @@ function partial_notnil(x::Or)
 end
 
 partial_symstring(x::Symbol) = String(x)
-partial_symstring(x::Or) = String
+partial_symstring(x::Or) = RString
 
 pack_method = RMethod(:pack, lowerpattern(rvx"args"), args -> pack(parts(args)...), true)
 part_method = RMethod(:part, lowerpattern(rvx"[data, i]"), partial_part, true)
