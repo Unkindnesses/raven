@@ -177,7 +177,8 @@ default_imports = [
   WebAssembly.Import(:support, :panic, :panic, [i32] => []),
   WebAssembly.Import(:support, :createRef, :jsbox, [f64] => [i32]),
   WebAssembly.Import(:support, :fromRef, :jsunbox, [i32] => [f64]),
-  WebAssembly.Import(:support, :equal, :jseq, [i32, i32] => [i32])]
+  WebAssembly.Import(:support, :equal, :jseq, [i32, i32] => [i32]),
+  WebAssembly.Import(:support, :release, :jsfree, [i32] => [])]
 
 function wasm_ir(inf::Cache, start)
   mod = WModule(inf)

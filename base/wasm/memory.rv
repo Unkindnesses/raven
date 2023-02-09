@@ -58,7 +58,7 @@ fn invoke(f: Function, xs...) {
 
 # Managed pointer
 
-fn preserve(x) { nil }
+fn preserve(x...) { nil }
 
 bundle { Ref(p: Ptr) }
 

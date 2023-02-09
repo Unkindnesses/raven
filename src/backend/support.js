@@ -4,6 +4,7 @@ let idcounter = 0;
 const table = {};
 
 function createRef(obj) {
+  if (idcounter >= 4294967295) throw new Error("too many JSRefs");
   const ref = idcounter++;
   table[ref] = obj;
   return ref;
@@ -14,9 +15,14 @@ function fromRef(ref) {
 }
 
 function registerStrings(ss) {
+  nStrings = ss.length;
   for (const s of ss) {
     const ref = createRef(s);
   }
+}
+
+function release(ref) {
+  if (ref >= nStrings) delete table[ref];
 }
 
 function global() {
@@ -26,7 +32,7 @@ function global() {
 function property(obj, prop) {
   const r = fromRef(obj)[fromRef(prop)];
   if (r === undefined) {
-    throw new Error(`No such property ${prop}`);
+    throw new Error(`No such property ${fromRef(prop)}`);
   }
   return createRef(r);
 }
@@ -53,7 +59,7 @@ function panic(obj) {
 
 const support = {global, property, call,
                  createRef, fromRef, panic,
-                 equal};
+                 equal, release};
 
 async function loadWasm(f) {
   let imports = {support};
@@ -70,4 +76,6 @@ async function main() {
     console.error(e);
     process.exit(1);
   }
+  if (Object.keys(table).length !== nStrings)
+    throw new Error("Memory management fault: JSObject");
 }

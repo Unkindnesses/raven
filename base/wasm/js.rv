@@ -1,10 +1,19 @@
+fn jsfree(ptr: Ptr) {
+  id = i32load(ptr)
+  wasm { call(`jsfree`, id: i32) }
+  return
+}
+
 bundle { JSObject(ref: Ref) }
 
 fn JSObject(id: Int32) {
   r = Ref(8)
   i32store!(pointer(r), id)
+  cleanup!(r, jsfree)
   return JSObject(r)
 }
+
+fn tojs(x: JSObject) { x }
 
 fn jsref(x) { jsref(tojs(x)) }
 
@@ -16,31 +25,36 @@ fn global() {
 }
 
 fn property(obj, prop) {
-  obj = jsref(obj)
-  prop = jsref(prop)
-  ref = (wasm { call(`jsproperty`, obj: i32, prop: i32): i32 })
+  obj = tojs(obj)
+  prop = tojs(prop)
+  ref = (wasm { call(`jsproperty`, jsref(obj): i32, jsref(prop): i32): i32 })
+  preserve(obj, prop)
   return JSObject(ref)
 }
 
 fn call(obj, meth) {
-  obj = jsref(obj)
-  meth = jsref(meth)
-  ref = (wasm { call(`jscall0`, obj: i32, meth: i32): i32 })
+  obj = tojs(obj)
+  meth = tojs(meth)
+  ref = (wasm { call(`jscall0`, jsref(obj): i32, jsref(meth): i32): i32 })
+  preserve(obj, meth)
   return JSObject(ref)
 }
 
 fn call(obj, meth, x) {
-  obj = jsref(obj)
-  meth = jsref(meth)
-  x = jsref(x)
-  ref = (wasm { call(`jscall1`, obj: i32, meth: i32, x: i32): i32 })
+  obj = tojs(obj)
+  meth = tojs(meth)
+  x = tojs(x)
+  ref = (wasm { call(`jscall1`, jsref(obj): i32, jsref(meth): i32, jsref(x): i32): i32 })
+  preserve(obj, meth, x)
   return JSObject(ref)
 }
 
 fn equal(a: JSObject, b: JSObject) {
-  a = jsref(a)
-  b = jsref(b)
-  wasm { call(`jseq`, a: i32, b: i32): i32 }
+  a = tojs(a)
+  b = tojs(b)
+  result = wasm { call(`jseq`, jsref(a): i32, jsref(b): i32): i32 }
+  preserve(a, b)
+  return result
 }
 
 fn new(T) {
@@ -60,11 +74,14 @@ fn tojs(x: Int32) { tojs(Float64(x)) }
 
 fn Float64(x: JSObject) {
   ref = jsref(x)
-  wasm { call(`jsunbox`, ref: i32): f64 }
+  x = wasm { call(`jsunbox`, ref: i32): f64 }
+  preserve(x)
+  return x
 }
 
 fn panic(s: String) {
   ref = jsref(s)
+  # TODO preserve s
   wasm { call(`panic`, ref: i32): unreachable }
 }
 
