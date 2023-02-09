@@ -24,27 +24,34 @@ end
 
 frame(inf::Cache, T) = inf[sig(inf, T)]
 
+# Panic
+
+function panic!(ir, s)
+  s = push!(ir, stmt(Expr(:ref, s), type = Int32))
+  push!(ir, stmt(xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s), type = ⊥))
+end
+
 # Global variables
 
 # Turn global references into explicit load instructions
 function globals(ir::IR)
   pr = IRTools.Pipe(ir)
-  function transform(x, v)
+  function transform(x)
     x isa Global || return x
     if x.type == ⊥
-      insert!(pr, v, stmt(xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
-                          Expr(:ref, "$(x.name) is not defined")), type = ⊥))
+      panic!(pr, "$(x.name) is not defined")
     else
-      insert!(pr, v, stmt(Expr(:global, x.name), type = x.type))
+      push!(pr, stmt(Expr(:global, x.name), type = x.type))
     end
   end
   for (v, st) in pr
     ex = st.expr
-    if isexpr(ex, :(=))
-      pr[v] = Expr(ex.head, ex.args[1], transform.(ex.args[2:end], (v,))...)
-    elseif isexpr(ex)
-      pr[v] = Expr(ex.head, transform.(ex.args, (v,))...)
-    end
+    delete!(pr, v)
+    ex = isexpr(ex, :(=)) ?
+      Expr(ex.head, ex.args[1], transform.(ex.args[2:end])...) :
+      Expr(ex.head, transform.(ex.args)...)
+    v′ = push!(pr, stmt(ir[v], expr = ex))
+    replace!(pr, v, v′)
   end
   return IRTools.finish(pr)
 end
@@ -125,8 +132,7 @@ function partir(x, i)
     return!(ir, y)
     block!(ir)
   end
-  push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
-                  Expr(:ref, "Invalid index for $x")))
+  panic!(ir, "Invalid index for $x")
   return ir
 end
 
@@ -169,8 +175,7 @@ function indexer!(ir, T::Pack, i::Int, x, _)
       push!(ir, stmt(Expr(:tuple, _part.(range)...), type = part(T, i)))
     end
   else
-    s = push!(ir, Expr(:ref, "Invalid index $i for $T"))
-    push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s))
+    panic!(ir, "Invalid index $i for $T")
   end
 end
 
@@ -222,8 +227,7 @@ outlinePrimitive[packcat_method] = function (T::Pack)
   ir = IR(meta = FuncInfo(:packcat))
   xs = argument!(ir, type = T)
   if layout(T′.parts) == ()
-    push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
-                    Expr(:ref, "unsupported")))
+    panic!(ir, "unsupported")
     return ir
   end
   ps = [indexer!(ir, T, i, xs, i) for i in 1:nparts(T)]
@@ -248,8 +252,7 @@ outlinePrimitive[packcat_method] = function (T::Pack)
       end
     elseif P isa VPack
       if P.parts != Int64
-        push!(ir, xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥),
-                        Expr(:ref, "unsupported")))
+        panic!(ir, "unsupported")
       end
       sz = push!(ir, Expr(:ref, ps[i], 1))
       src = push!(ir, Expr(:ref, ps[i], 2))

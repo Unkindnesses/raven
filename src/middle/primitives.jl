@@ -141,8 +141,8 @@ inlinePrimitive[notnil_method] = function (pr, ir, v)
     pr[v] = x
   elseif ir[v].type == ⊥
     # TODO make sure `not` in dispatcher infers
-    s = insert!(pr, v, Expr(:ref, "notnil(nil)"))
-    pr[v] = xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s)
+    delete!(pr, v)
+    replace!(pr, v, panic!(pr, "notnil(nil)"))
   else
     @assert T isa Or && !(ir[v].type isa Or)
     pr[v] = Expr(:tuple, [insert!(pr, v, Expr(:ref, x, i)) for i = 2:length(layout(T))]...)
