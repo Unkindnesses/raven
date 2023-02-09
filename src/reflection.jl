@@ -13,7 +13,7 @@ end
 function code_typed(mod::RModule, func...)
   cx = infer(mod)
   cx |> lowerir |> refcounts |> (x -> wasmmodule(x, startmethod(mod)))
-  IdDict{Any,IR}(sig => unloop(fr.ir) for (sig, fr) in cx.data if fr isa Frame && sigmatch(sig, func...))
+  IdDict{Any,IR}(sig => fr[1] for (sig, fr) in cx.data if !(fr isa Redirect) && sigmatch(sig, func...))
 end
 
 function code_final(mod::RModule, func...)

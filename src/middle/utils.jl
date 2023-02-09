@@ -9,6 +9,8 @@ end
 
 Cache{K,V}(f) where {K,V} = Cache{K,V}(f, Dict{K,V}())
 
+Cache(f) = Cache{Any,Any}(f)
+
 setindex!(c::Cache{K,V}, v::V, k::K) where {K,V} = c.data[k] = v
 
 getindex(c::Cache{K,V}, k::K) where {K,V} =

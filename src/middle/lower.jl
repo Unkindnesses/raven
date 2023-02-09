@@ -456,8 +456,6 @@ function casts!(inf::Cache, ir, ret)
 end
 
 function lowerir(inf, ir, ret)
-  # Inference expands block args, so prune them here
-  ir = prune!(unloop(ir))
   ir = globals(ir)
   ir = trim_unreachable!(ir)
   ir = lowerdata(ir)
@@ -472,7 +470,7 @@ function lowerir(inf::Cache)
     elseif inf[sig] isa Redirect
       inf[sig]
     else
-      lowerir(inf, inf[sig].ir, inf[sig].rettype)
+      lowerir(inf, inf[sig]...)
     end
   end
 end

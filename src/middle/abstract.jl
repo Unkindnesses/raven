@@ -303,12 +303,18 @@ end
 
 function infer(mod::RModule; partial = false)
   inf = Inference(mod)
-  Cache{Any,Union{Redirect,Frame}}() do ch, sig
+  Cache() do ch, sig
     frame!(inf, Parent((), 1), sig...)
     haskey(inf.frames, sig) || error("Can't infer types for $sig")
     infer!(inf; partial)
     for (k, fr) in inf.frames
-      haskey(ch, k) || (ch[k] = fr)
+      haskey(ch, k) && continue
+      if fr isa Redirect
+        ch[k] = fr
+      else
+        ir = prune!(unloop(fr.ir))
+        ch[k] = ir => fr.rettype
+      end
     end
     return ch[sig]
   end
