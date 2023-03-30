@@ -1,4 +1,4 @@
-using .WebAssembly: WType, WTuple, i32, i64, f32, f64
+using .WebAssembly: WType, WTuple, i32, i64, f32, f64, externref
 
 # WASM partial primitives
 # These are supposed to be defined in Raven, but we don't yet have a mechanism
@@ -94,7 +94,7 @@ function global!(mod::WModule, g::Global, T)
     start = sum([length(gs) for gs in values(mod.globals)])
     l = wparts(T)
     append!(mod.gtypes, l)
-    collect(start:start+length(l)-1)
+    collect(start .+ (1:length(l)))
   end
 end
 
@@ -191,11 +191,17 @@ function wasmmodule(inf::Cache, start)
   strings = mod.strings
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
   sort!(fs, by = f -> f.name)
+  start = WebAssembly.Func(:_start, [externref]=>[], [],
+    WebAssembly.Block([
+      WebAssembly.Local(0),
+      WebAssembly.SetGlobal(0),
+      WebAssembly.Call(Symbol("_start:method:1"))]),
+    FuncInfo(:_start, trampoline = true))
   mod = WebAssembly.Module(
-    funcs = fs,
+    funcs = [start, fs...],
     imports = default_imports,
-    exports = [WebAssembly.Export(:_start, Symbol("_start:method:1"))],
-    globals = [WebAssembly.Global(t) for t in mod.gtypes],
+    exports = [WebAssembly.Export(:_start, :_start)],
+    globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in mod.gtypes]...],
     tables = [WebAssembly.Table(length(mod.table))],
     elems = [WebAssembly.Elem(0, mod.table)],
     mems = [WebAssembly.Mem(0)])

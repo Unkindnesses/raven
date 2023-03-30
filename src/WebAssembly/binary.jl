@@ -57,7 +57,7 @@ end
 
 # Instruction / type assignments
 
-numtypes = Dict(i32 => 0x7f, i64 => 0x7e, f32 => 0x7d, f64 => 0x7c)
+const numtypes = Dict(i32 => 0x7f, i64 => 0x7e, f32 => 0x7d, f64 => 0x7c, externref => 0x6f)
 
 include("opcodes.jl")
 
@@ -134,6 +134,11 @@ function instr(io::IO, x::Const)
   else
     write(io, x.val)
   end
+end
+
+function instr(io::IO, x::RefNull)
+  write(io, 0xd0)
+  write(io, numtypes[x.type])
 end
 
 function instr(io::IO, x::Op)

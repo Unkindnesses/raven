@@ -1,4 +1,4 @@
-@enum WType i32 i64 f32 f64
+@enum WType i32 i64 f32 f64 externref
 
 WType(::Type{Int32}) = i32
 WType(::Type{Int64}) = i64
@@ -30,6 +30,10 @@ Const(x::UInt32) = Const(reinterpret(Int32, x))
 Const(x::UInt64) = Const(reinterpret(Int64, x))
 
 WType(x::Const) = WType(typeof(x.val))
+
+struct RefNull <: Instruction
+  type::WType
+end
 
 struct Nop <: Instruction end
 
@@ -140,7 +144,10 @@ struct Global
 end
 
 Global(val::Number, mut = true) = Global(WType(typeof(val)), mut, Const(val))
-Global(T::WType, mut = true) = Global(jltype(T)(0), mut)
+Global(T::WType, mut = true) =
+  T == externref ?
+    Global(T, mut, RefNull(T)) :
+    Global(jltype(T)(0), mut)
 
 struct Elem
   table::UInt32

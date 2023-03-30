@@ -2,9 +2,11 @@ using Raven, Test
 
 cd(@__DIR__)
 
+const node = `node --experimental-wasm-stack-switching`
+
 function output(test)
   Raven.compile("raven/$test.rv", dir = "compiled")
-  String(read(`node compiled/$test.js`))
+  String(read(`$node compiled/$test.js`))
 end
 
 result(test) = parse.(Bool, split(output(test)))
@@ -13,7 +15,7 @@ passes(test) = parse(Bool, result(test))
 
 function result_code(test)
   Raven.compile("raven/$test.rv", dir = "compiled")
-  p = run(`node compiled/$test.js`, wait = false)
+  p = run(`$node compiled/$test.js`, wait = false)
   wait(p); p.exitcode
 end
 

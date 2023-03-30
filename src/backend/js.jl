@@ -26,6 +26,6 @@ end
 
 function exec(file, opts = Options())
   compile(file, opts)
-  run(`node $(splitext(file)[1]).js`)
+  run(`node --experimental-wasm-stack-switching $(splitext(file)[1]).js`)
   return
 end

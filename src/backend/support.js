@@ -70,8 +70,13 @@ async function loadWasm(f) {
 
 async function main() {
   let {_start} = await loadWasm(__dirname + '/' + wasmFile);
+  _start = new WebAssembly.Function(
+    {parameters: [], results: ['externref']},
+    _start,
+    {promising: 'first'}
+  );
   try {
-    _start();
+    await _start();
   } catch (e) {
     console.error(e);
     process.exit(1);
