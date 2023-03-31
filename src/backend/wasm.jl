@@ -131,7 +131,7 @@ function lowerwasm!(mod::WModule, ir::IR)
     elseif isexpr(st, :call) && st.expr.args[1] isa WIntrinsic
       int = st.expr.args[1]
       ex = xcall(int.op, st.expr.args[2:end]...)
-      pr[v] = stmt(st.expr, expr = ex, type = int.ret == ⊥ ? WTuple() : int.ret)
+      pr[v] = stmt(st, expr = ex, type = int.ret == ⊥ ? WTuple() : int.ret)
       if int.ret == ⊥
         IRTools.push!(pr, stmt(xcall(WebAssembly.unreachable), type = WTuple()))
       end

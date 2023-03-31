@@ -465,10 +465,11 @@ function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
   elseif ex[1] == :if
     lowerif!(sc, ir, If(ex), value)
   elseif ex[1] == :wasm
+    src = AST.meta(ex)
     ex = ex[2][1]
     op = intrinsic(ex)
     args = lower!.((sc,), (ir,), intrinsic_args(ex))
-    push!(ir, xcall(op, args...))
+    _push!(ir, xcall(op, args...); src, bp = true)
   elseif ex[1] == :import
     push!(ir, Expr(:import, importpath(ex)))
   elseif ex[1] == :let
