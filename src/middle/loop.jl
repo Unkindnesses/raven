@@ -151,6 +151,7 @@ function reroll!(l::LoopIR)
 end
 
 function checkUnroll(l::LoopIR, itr)
+  itr >= 8 && return false
   ir = l.body[itr]
   inputs = argtypes(ir)
   brs = exitBranches(l, itr)
@@ -175,7 +176,6 @@ end
 function nextItr!(l::LoopIR, itr)
   if checkUnroll(l, itr)
     itr += 1
-    itr >= 100 && error("loop unroll limit reached")
     length(l.body) < itr && push!(l.body, copy(l.ir))
   else
     itr = 1
