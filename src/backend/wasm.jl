@@ -35,6 +35,8 @@ function intrinsic(ex)
   op = ex[1]
   if op == :call
     WIntrinsic(WebAssembly.Call(ex[2][1]), typ)
+  elseif op == rvx"global.get"
+    WIntrinsic(WebAssembly.GetGlobal(ex[2]::Integer), typ)
   else
     namify(x::Symbol) = x
     namify(x::AST.Operator) = Symbol(join(namify.(x[2:end]), x[1]))
@@ -177,6 +179,7 @@ default_imports = [
   WebAssembly.Import(:support, :panic, :panic, [i32] => []),
   WebAssembly.Import(:support, :createRef, :jsbox, [f64] => [i32]),
   WebAssembly.Import(:support, :fromRef, :jsunbox, [i32] => [f64]),
+  WebAssembly.Import(:support, :await, :jsawait, [externref, i32] => [i32]),
   WebAssembly.Import(:support, :equal, :jseq, [i32, i32] => [i32]),
   WebAssembly.Import(:support, :release, :jsfree, [i32] => [])]
 

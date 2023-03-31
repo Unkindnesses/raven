@@ -23,11 +23,7 @@ fn print(x: Symbol) {
   print("`")
 }
 
-fn print(x: Int32) {
-  print(string(x))
-}
-
-fn print(x: Int64) {
+fn print(x: Int32 | Int64 | Float32 | Float64) {
   print(string(x))
 }
 

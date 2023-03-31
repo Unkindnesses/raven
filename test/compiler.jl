@@ -23,7 +23,7 @@ fails(test) = result_code(test) == 1
 
 @testset for test in [:pow, :ptr, :relu, :complex, :structures, :swap,
                       :splat, :scope, :malloc0, :malloc1, :malloc2,
-                      :patterns, :string, :sieve]
+                      :patterns, :string, :sieve, :async]
   for r in result(test)
     @test r
   end

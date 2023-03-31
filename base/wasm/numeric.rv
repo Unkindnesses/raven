@@ -102,6 +102,14 @@ fn (a: Int32) == (b: Int32) {
   wasm { (i32.eq)(a: i32, b: i32): i32 }
 }
 
+fn (a: Float64) == (b: Float64) {
+  wasm { (f64.eq)(a: f64, b: f64): i32 }
+}
+
+fn (a: Float32) == (b: Float32) {
+  wasm { (f32.eq)(a: f32, b: f32): i32 }
+}
+
 fn not(x: Int32) {
   wasm { (i32.eqz)(x: i32): i32 }
 }

@@ -14,6 +14,12 @@ function fromRef(ref) {
   return table[ref];
 }
 
+let await = new WebAssembly.Function(
+    {parameters: ['externref', 'i32'], results: ['i32']},
+    async ref => createRef(await fromRef(ref)),
+    {suspending: "first"}
+);
+
 function registerStrings(ss) {
   nStrings = ss.length;
   for (const s of ss) {
@@ -57,9 +63,20 @@ function panic(obj) {
   throw new Error(obj);
 }
 
+globalThis.sleep = async function (n) {
+  return new Promise(resolve => {
+      setTimeout(() => { resolve() }, n * 1000)
+  });
+}
+
+// TODO: used for testing, remove
+globalThis.dummyPromise = async function (n) {
+  return new Promise(resolve => resolve(n));
+}
+
 const support = {global, property, call,
                  createRef, fromRef, panic,
-                 equal, release};
+                 equal, release, await};
 
 async function loadWasm(f) {
   let imports = {support};

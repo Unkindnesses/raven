@@ -13,7 +13,9 @@ WType(s::Symbol) = wtypenames[s]
 
 WType(T::WType) = T
 
-jltype(x::WType) = [Int32, Int64, Float32, Float64][Int(x)+1]
+abstract type ExternRef end
+
+jltype(x::WType) = [Int32, Int64, Float32, Float64, ExternRef][Int(x)+1]
 
 struct Signature
   params::Vector{WType}

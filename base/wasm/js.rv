@@ -49,6 +49,13 @@ fn call(obj, meth, x) {
   return JSObject(ref)
 }
 
+fn await(obj: JSObject) {
+  susp = wasm { (global.get)(0): externref }
+  ref = wasm { call(`jsawait`, susp: externref, jsref(obj): i32): i32 }
+  preserve(obj)
+  return JSObject(ref)
+}
+
 fn equal(a: JSObject, b: JSObject) {
   a = tojs(a)
   b = tojs(b)
@@ -72,10 +79,9 @@ fn tojs(x: Float64) {
 fn tojs(x: Int64) { tojs(Float64(x)) }
 fn tojs(x: Int32) { tojs(Float64(x)) }
 
-fn Float64(x: JSObject) {
-  ref = jsref(x)
-  x = wasm { call(`jsunbox`, ref: i32): f64 }
-  preserve(x)
+fn Float64(obj: JSObject) {
+  x = wasm { call(`jsunbox`, jsref(obj): i32): f64 }
+  preserve(obj)
   return x
 }
 
@@ -85,11 +91,7 @@ fn panic(s: String) {
   wasm { call(`panic`, ref: i32): unreachable }
 }
 
-fn string(x: Int32) {
-  String(call(x, "toString"))
-}
-
-fn string(x: Int64) {
+fn string(x: Int32 | Int64 | Float32 | Float64) {
   String(call(x, "toString"))
 }
 
@@ -103,5 +105,10 @@ fn _print(x: String) {
 fn println(x: JSObject) {
   console = property(global(), "console")
   call(console, "log", x)
+  return
+}
+
+fn sleep(n) {
+  await(call(global(), "sleep", n))
   return
 }

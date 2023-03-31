@@ -6,8 +6,6 @@ using LNR
 
 const Atom = Union{String,Symbol,Int64,Float64}
 
-abstract type Head end
-
 struct Meta
   file::String
   loc::Cursor
@@ -23,6 +21,7 @@ struct Expr{H}
   meta::Union{Meta,Nothing}
 end
 
+(a::Token == b::Token) = a.value == b.value
 (a::Expr{H} == b::Expr{H}) where H = a.args == b.args
 
 wrapToken(x::Atom) = Token(x, nothing)
