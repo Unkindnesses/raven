@@ -30,4 +30,4 @@ julia> Raven.exec("test.rv")
 [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
 ```
 
-See also [complex numbers](base/numbers/complex.rv) or [malloc](base/wasm/malloc.rv).
+See also [complex numbers](common/numbers/complex.rv) or [malloc](common/wasm/malloc.rv).

@@ -7,7 +7,7 @@ end
 
 LoadState(mod) = LoadState(mod, [])
 
-const base = joinpath(@__DIR__, "../../base") |> normpath
+const common = joinpath(@__DIR__, "../../common") |> normpath
 
 function simpleconst(cx::LoadState, x)
   x isa Symbol && return cx.mod.defs[x]
@@ -25,7 +25,7 @@ function importpath(x)
 end
 
 function load_import(cx, x)
-  path = "$base/$(importpath(x)).rv"
+  path = "$common/$(importpath(x)).rv"
   open(io -> loadfile(cx, io; path), path)
 end
 
@@ -83,7 +83,7 @@ end
 function loadfile(f::String; partial = false)
   mod = RModule()
   cx = LoadState(mod)
-  path = "$base/base.rv"
+  path = "$common/common.rv"
   open(io -> loadfile(cx, io; path), path)
   open(io -> loadfile(cx, io, path = f), f)
   finish!(cx)
