@@ -34,7 +34,7 @@ function intrinsic(ex)
   end
   op = ex[1]
   if op == :call
-    WIntrinsic(WebAssembly.Call(ex[2][1]), typ)
+    WIntrinsic(WebAssembly.Call(Symbol(ex[2])), typ)
   elseif op == rvx"global.get"
     WIntrinsic(WebAssembly.GetGlobal(ex[2]::Integer), typ)
   else

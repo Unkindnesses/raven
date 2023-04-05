@@ -8,11 +8,11 @@ bundle Pattern {
   And(p, q)
 }
 
-fn match(val, pack(`Hole`)) {
+fn match(val, pack(id"Hole")) {
   return simpledict()
 }
 
-fn match(val, pack(`Literal`, pat)) {
+fn match(val, pack(id"Literal", pat)) {
   if (pat == val) {
     return simpledict()
   } else {
@@ -20,7 +20,7 @@ fn match(val, pack(`Literal`, pat)) {
   }
 }
 
-fn match(val, pack(`Trait`, pat)) {
+fn match(val, pack(id"Trait", pat)) {
   if isa(val, pat) {
     return simpledict()
   } else {
@@ -28,7 +28,7 @@ fn match(val, pack(`Trait`, pat)) {
   }
 }
 
-fn match(val, pack(`Bind`, name)) {
+fn match(val, pack(id"Bind", name)) {
   bs = simpledict()
   setkey(&bs, name, val)
   return bs
@@ -54,11 +54,11 @@ fn match(xs, p: Pack) {
   return bs
 }
 
-fn match(val, pack(`Constructor`, name, args...)) {
+fn match(val, pack(id"Constructor", name, args...)) {
   match(val, constructorPattern(name, args...))
 }
 
-fn match(val, pack(`And`, p, q)) {
+fn match(val, pack(id"And", p, q)) {
   bs = match(val, p)
   isnil(bs) && return
   cs = match(val, q)

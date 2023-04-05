@@ -3,7 +3,7 @@
 
 bundle { Pair(a, b) }
 
-fn print(pack(`Pair`, a, b)) {
+fn print(pack(id"Pair", a, b)) {
   print(a)
   print(" => ")
   print(b)

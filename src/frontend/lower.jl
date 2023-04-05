@@ -73,9 +73,11 @@ function _lowerpattern(ex, as)
   if ex isa Symbol
     ex == :_ || ex in as || push!(as, ex)
     return ex == :_ ? hole : Bind(ex)
-  elseif ex isa Union{Primitive,AST.Quote}
-    ex isa AST.Quote && (ex = ex[1])
+  elseif ex isa Primitive
     return Literal(ex)
+  elseif ex isa AST.Template
+    @assert ex[1] == :id
+    return Literal(Symbol(ex[2]))
   elseif ex isa AST.List
     pack(Literal(:List), map(x -> _lowerpattern(x, as), ex.args)...)
   elseif ex isa AST.Operator && ex[1] == :(:)
@@ -134,6 +136,7 @@ allspecs(ex::AST.Block) = reduce(vcat, allspecs.(ex[:]))
 allspecs(ex::AST.Operator) =
   ex[1] == :| ? reduce(vcat, allspecs.(ex[2:end])) : [ex]
 
+# TODO put Ids directly into the AST, rather than going through Template nodes
 function datamacro(ex::AST.Syntax)
   super, specs = length(ex) == 2 ? (nothing, ex[2]) : (ex[2], ex[3])
   specs = allspecs(specs)
@@ -145,19 +148,19 @@ function datamacro(ex::AST.Syntax)
     args = spec[2:end]
     push!(body, AST.Syntax(:fn, spec,
                                 AST.Block(
-                                 AST.Call(:pack, AST.Quote(name), namify.(args)...))))
-    push!(body, AST.Syntax(:fn, AST.Call(:isa, AST.Call(:pack, AST.Quote(name), args...),
-                                               AST.Quote(name)),
+                                 AST.Call(:pack, AST.Template(:id, string(name)), namify.(args)...))))
+    push!(body, AST.Syntax(:fn, AST.Call(:isa, AST.Call(:pack, AST.Template(:id, string(name)), args...),
+                                               AST.Template(:id, string(name))),
                                 AST.Block(Symbol("true"))))
-    push!(body, AST.Syntax(:fn, AST.Call(:constructorPattern, AST.Quote(name), namify.(args)...),
+    push!(body, AST.Syntax(:fn, AST.Call(:constructorPattern, AST.Template(:id, string(name)), namify.(args)...),
                                 AST.Block(
-                                  AST.Call(:And, AST.Call(:Trait, AST.Quote(name)),
-                                                 AST.Call(:Pack, AST.Call(:Literal, AST.Quote(name)), namify.(args)...)))))
+                                  AST.Call(:And, AST.Call(:Trait, AST.Template(:id, string(name))),
+                                                 AST.Call(:Pack, AST.Call(:Literal, AST.Template(:id, string(name))), namify.(args)...)))))
   end
   if super != nothing
-    push!(body, AST.Operator(:(=), super, AST.Quote(super)))
+    push!(body, AST.Operator(:(=), super, AST.Template(:id, string(super))))
     push!(body, AST.Syntax(:fn, AST.Call(:isa, AST.Operator(:(:), :_, AST.Operator(:|, names...)),
-                                               AST.Quote(super)),
+                                               AST.Template(:id, string(super))),
                                 AST.Block(Symbol("true"))))
   end
   return AST.Block(body...)
@@ -253,7 +256,6 @@ _push!(ir::IR, x::Expr; src = nothing, bp = false) = _push!(ir, stmt(x; src, bp)
 _lower!(sc, ir, x) = lower!(sc, ir, x)
 
 lower!(sc, ir::IR, x::Union{Integer,String,Pack}) = x
-lower!(sc, ir::IR, x::AST.Quote) = AST.Quote(x[1])
 lower!(sc, ir::IR, x::Symbol) = sc[x]
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? nothing : (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
@@ -344,6 +346,11 @@ function lower!(sc, ir::IR, ex::AST.Return)
   return
 end
 
+function lower!(sc, ir::IR, ex::AST.Template)
+  @assert ex[1] == :id
+  return AST.Quote(Symbol(ex[2]))
+end
+
 function lower!(sc, ir::IR, ex::AST.Break)
   branch!(ir, -1)
   return
@@ -413,7 +420,7 @@ function If(b::AST.Syntax)
   end
   if cond[end] !== true
     push!(cond, true)
-    push!(body, AST.Call(:pack, AST.Quote(:Nil)))
+    push!(body, AST.Call(:pack, AST.Template(:id, "Nil")))
   end
   return If(cond, body)
 end

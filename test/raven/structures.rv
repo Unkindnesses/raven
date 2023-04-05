@@ -58,32 +58,32 @@ let {
 
 let {
   d = simpledict()
-  setkey(&d, `a`, 7)
-  setkey(&d, `b`, 5)
-  setkey(&d, `b`, "foo")
+  setkey(&d, id"a", 7)
+  setkey(&d, id"b", 5)
+  setkey(&d, id"b", "foo")
 
   println(length(d) == 2)
 
-  println(getkey(d, `a`) == 7)
-  println(getkey(d, `b`) == "foo")
-  println(haskey(d, `b`))
-  println(not(haskey(d, `c`)))
+  println(getkey(d, id"a") == 7)
+  println(getkey(d, id"b") == "foo")
+  println(haskey(d, id"b"))
+  println(not(haskey(d, id"c")))
 
-  println(not(isnil(merge(d, `b`, "foo"))))
-  println(isnil(merge(d, `b`, "bar")))
-  println(not(isnil(merge(d, `c`, 9))))
+  println(not(isnil(merge(d, id"b", "foo"))))
+  println(isnil(merge(d, id"b", "bar")))
+  println(not(isnil(merge(d, id"c", 9))))
 
-  println(not(isnil(merge(d, `a`, widen(7)))))
-  println(isnil(merge(d, `a`, widen(8))))
+  println(not(isnil(merge(d, id"a", widen(7)))))
+  println(isnil(merge(d, id"a", widen(8))))
 }
 
 let {
-  b1 = seq(Pair(`a`, 1), Pair(`b`, 2))
-  b2 = seq(Pair(`b`, widen(2)), Pair(`d`, 3))
+  b1 = seq(Pair(id"a", 1), Pair(id"b", 2))
+  b2 = seq(Pair(id"b", widen(2)), Pair(id"d", 3))
   println(not(isnil(merge(&b1, b2))))
 
-  b1 = seq(Pair(`a`, 1), Pair(`b`, 2))
-  b2 = seq(Pair(`b`, widen(3)), Pair(`d`, 3))
+  b1 = seq(Pair(id"a", 1), Pair(id"b", 2))
+  b2 = seq(Pair(id"b", widen(3)), Pair(id"d", 3))
   println(isnil(merge(&b1, b2)))
 }
 

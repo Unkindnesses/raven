@@ -12,7 +12,7 @@ const common = joinpath(@__DIR__, "../../common") |> normpath
 function simpleconst(cx::LoadState, x)
   x isa Symbol && return cx.mod.defs[x]
   x isa Primitive && return x
-  x isa AST.Quote && return x[1]
+  x isa AST.Template && x[1] == :id && return Symbol(x[2])
   return
 end
 

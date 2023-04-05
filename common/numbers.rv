@@ -1,16 +1,16 @@
-Int32   = `Int32`
-Int64   = `Int64`
-Float32 = `Float32`
-Float64 = `Float64`
+Int32   = id"Int32"
+Int64   = id"Int64"
+Float32 = id"Float32"
+Float64 = id"Float64"
 
-fn isa(pack(`Int32`, _), `Int32`) { true }
-fn isa(pack(`Int64`, _), `Int64`) { true }
-fn isa(pack(`Float32`, _), `Float32`) { true }
-fn isa(pack(`Float64`, _), `Float64`) { true }
+fn isa(pack(id"Int32", _), id"Int32") { true }
+fn isa(pack(id"Int64", _), id"Int64") { true }
+fn isa(pack(id"Float32", _), id"Float32") { true }
+fn isa(pack(id"Float64", _), id"Float64") { true }
 
-Integer = `Integer`
+Integer = id"Integer"
 
-fn isa(_: Int32 | Int64, `Integer`) { true }
+fn isa(_: Int32 | Int64, id"Integer") { true }
 
 import { numbers.complex }
 

@@ -2,7 +2,7 @@ bundle { IndexIterator(xs, i: Int64) }
 
 fn IndexIterator(xs) { IndexIterator(xs, 1) }
 
-fn iterate(&itr: pack(`IndexIterator`, xs, i)) {
+fn iterate(&itr: pack(id"IndexIterator", xs, i)) {
   if (i > length(xs)) {
     return nil
   } else {
@@ -17,8 +17,8 @@ bundle { Range(start, stop) }
 
 fn range(start, stop) { Range(start, stop) }
 
-fn length(pack(`Range`, start, stop)) { (stop-start)+1 }
+fn length(pack(id"Range", start, stop)) { (stop-start)+1 }
 
-fn get(pack(`Range`, start, stop), i) { (i - 1) + start }
+fn get(pack(id"Range", start, stop), i) { (i - 1) + start }
 
 fn iterator(xs: Range) { IndexIterator(xs) }

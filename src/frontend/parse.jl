@@ -6,7 +6,8 @@ module Parse
 
 using LNR
 using ..AST: Expr, Return, Break, Continue, List, Splat, Call,
-  Operator, Block, Syntax, Quote, Swap, Meta, meta, unwrapToken
+  Operator, Block, Syntax, Quote, Template, Swap, Meta, meta,
+  unwrapToken
 using ..Raven: withpath, path
 
 struct ParseError
@@ -199,6 +200,15 @@ end
 
 # Parsing
 
+function template(io::IO)
+  name = symbol(io)
+  name == nothing && return
+  eof(io) && return
+  s = string(io)
+  s == nothing && return
+  return Template(name, s)
+end
+
 bracketmap = Dict(
   '(' => ')',
   '[' => ']',
@@ -247,7 +257,7 @@ end
 
 function ret(io)
   symbol(io) == :return || return
-  tryparse(stmt, io) != nothing && return Return(Call(:pack, Quote(:Nil)))
+  tryparse(stmt, io) != nothing && return Return(Call(:pack, Template(:id, "Nil")))
   Return(expr(io))
 end
 
@@ -262,7 +272,7 @@ function expr(io; quasi = true)
   consume_ws(io)
   cur = cursor(io)
   quot = quasi ? quotation : nop
-  ex = parseone(io, ret, _break, symbol, swap, string, number, op_token, quot, grouping, _tuple, _block)
+  ex = parseone(io, ret, _break, template, symbol, swap, string, number, op_token, quot, grouping, _tuple, _block)
   ex == nothing && throw(ParseError("Unexpected character $(read(io))", loc(io)))
   ex = meta(ex, path(), cur)
   while true

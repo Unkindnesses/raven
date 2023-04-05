@@ -45,7 +45,7 @@ meta(x::Atom, m::Meta) = Token(x, m)
 meta(x, args...) = meta(x, Meta(args...))
 
 for T in :[Return, Break, Continue, List, Splat, Call, Operator, Swap, Block,
-           Syntax, Quote].args
+           Syntax, Quote, Template].args
   @eval begin
     const $T = Expr{$(QuoteNode(T))}
     (::Type{$T})(args::Union{Expr,Token,Atom}...) = $T([wrapToken.(args)...], nothing)
@@ -71,7 +71,8 @@ const Ctx = ShowContext
 
 showline(io, x::Meta) = print(io, " # ", basename(x.file), ":", x.loc.line)
 
-_show(io::Ctx, x::Union{Symbol,Number,String}) = print(io, x)
+_show(io::Ctx, x::Union{Symbol,Number}) = print(io, x)
+_show(io::Ctx, x::String) = show(io.io, x)
 
 function _show(io::Ctx, x::Return)
   print(io, "return ")
@@ -140,6 +141,11 @@ function _show(io::Ctx, x::Syntax)
       print(io, " ")
     end
   end
+end
+
+function _show(io::Ctx, x::Template)
+  _show(io, x[1])
+  _show(io, x[2])
 end
 
 Base.show(io::IO, x::Expr) = _show(ShowContext(io), x)

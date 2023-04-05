@@ -41,8 +41,8 @@ fn i32store!(p: Ptr, x: Int32) {
 
 # Function pointer
 
-TPtr = Pack(Literal(`Ptr`), Int32)
-TNil = Pack(Literal(`Nil`))
+TPtr = Pack(Literal(id"Ptr"), Int32)
+TNil = Pack(Literal(id"Nil"))
 
 fn Function(f, I, O) {
   ptr = function(f, I, O)

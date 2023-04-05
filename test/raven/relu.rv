@@ -38,13 +38,13 @@ println(test(widen(true)) == "true")
 println(test(widen(true)) != "false")
 println(test(widen(false)) == "false")
 
-println(`foo` == `foo`)
-println(`foo` != `bar`)
+println(id"foo" == id"foo")
+println(id"foo" != id"bar")
 
 let {
-  x = if widen(true) { `foo` } else { `bar` }
-  println(x == `foo`)
-  println(x != `bar`)
-  println(`foo` == x)
-  println(`bar` != x)
+  x = if widen(true) { id"foo" } else { id"bar" }
+  println(x == id"foo")
+  println(x != id"bar")
+  println(id"foo" == x)
+  println(id"bar" != x)
 }
