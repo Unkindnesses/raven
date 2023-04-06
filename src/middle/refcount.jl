@@ -61,7 +61,7 @@ function liveness(ir)
   return result
 end
 
-isrefobj(x::Pack) = tag(x) == id"Ref"
+isrefobj(x::Pack) = tag(x) == tag"Ref"
 
 isreftype(::Union{Primitive,Type,Unreachable}) = false
 isreftype(xs::Or) = any(isreftype, xs.patterns)
@@ -89,7 +89,7 @@ function release!(ir, x)
 end
 
 function countptr!(ir, ptr, mode)
-  f = mode == retain ? id"retain!" : id"release!"
+  f = mode == retain ? tag"retain!" : tag"release!"
   push!(ir, stmt(xcall(f, ptr), type = nil))
 end
 
@@ -99,11 +99,11 @@ function count!(ir, T::Pack, x, mode)
     ptr = indexer!(ir, T, 1, x, nothing)
     ptr = push!(ir, stmt(Expr(:tuple, ptr), type = rlist(P)))
     if mode == release
-      cleanup = push!(ir, stmt(xcall(id"i32load", ptr), type = Int32))
+      cleanup = push!(ir, stmt(xcall(tag"i32load", ptr), type = Int32))
       args = push!(ir, stmt(Expr(:tuple, ptr, cleanup), type = rlist(P, Int32)))
-      push!(ir, stmt(xcall(id"release!", args), type = nil))
+      push!(ir, stmt(xcall(tag"release!", args), type = nil))
     else
-      push!(ir, stmt(xcall(id"retain!", ptr), type = nil))
+      push!(ir, stmt(xcall(tag"retain!", ptr), type = nil))
     end
   else
     for i = 0:nparts(T)
@@ -117,7 +117,7 @@ end
 
 function count!(ir, T::VPack, x, mode)
   # TODO release children
-  ptr = push!(ir, stmt(Expr(:ref, x, 2), type = rlist(pack(id"Ptr", Int32))))
+  ptr = push!(ir, stmt(Expr(:ref, x, 2), type = rlist(pack(tag"Ptr", Int32))))
   countptr!(ir, ptr, mode)
 end
 
@@ -133,9 +133,9 @@ function count!(ir, T::Or, x, mode)
 end
 
 function count!(ir, T::Recursive, x, mode)
-  ptr = push!(ir, stmt(Expr(:ref, x, 1), type = rlist(pack(id"Ptr", Int32))))
+  ptr = push!(ir, stmt(Expr(:ref, x, 1), type = rlist(pack(tag"Ptr", Int32))))
   if mode == release
-    unique = push!(ir, stmt(xcall(id"blockUnique", ptr), type = rlist(Int32)))
+    unique = push!(ir, stmt(xcall(tag"blockUnique", ptr), type = rlist(Int32)))
     unique = push!(ir, Expr(:ref, unique, 1))
     branch!(ir, length(blocks(ir))+1, when = unique)
     branch!(ir, length(blocks(ir))+2)
@@ -150,7 +150,7 @@ function count!(ir, T::Recursive, x, mode)
 end
 
 function count_ir(T, mode)
-  ir = IR(meta = FuncInfo(Id(Symbol(mode))))
+  ir = IR(meta = FuncInfo(Tag(Symbol(mode))))
   x = argument!(ir, type = T)
   count!(ir, T, x, mode)
   return!(ir, push!(ir, stmt(xtuple(), type = nil)))

@@ -22,21 +22,21 @@ end
 
 struct RModule
   defs::Dict{Symbol,Any}
-  methods::Dict{Id,Vector{RMethod}}
+  methods::Dict{Tag,Vector{RMethod}}
 end
 
 RModule() = primitives!(RModule(Dict{Symbol,Any}(), Dict{Symbol,IR}()))
 
 function method!(mod::RModule, name::Symbol, m::RMethod)
-  mod.defs[name] = Id(name)
-  push!(get!(mod.methods, Id(name), RMethod[]), m)
+  mod.defs[name] = Tag(name)
+  push!(get!(mod.methods, Tag(name), RMethod[]), m)
   return
 end
 
 @forward RModule.defs Base.getindex, Base.setindex!, Base.haskey, Base.get
 
 struct FuncInfo
-  name::Id
+  name::Tag
   source::Union{Source,Nothing}
   trampoline::Bool
 end

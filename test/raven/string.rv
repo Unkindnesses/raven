@@ -2,9 +2,9 @@ println(concat("a", "b") == "ab")
 
 fn eitherSym(x) {
   if x {
-    return id"foo"
+    return tag"foo"
   } else {
-    return id"bar"
+    return tag"bar"
   }
 }
 

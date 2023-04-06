@@ -1,7 +1,7 @@
 const recursionLimit = 10
 
 _typeof(x) = error("invalid constant $x::$(typeof(x))")
-_typeof(x::Union{Number,String,Id,RMethod,Pack}) = x
+_typeof(x::Union{Number,String,Tag,RMethod,Pack}) = x
 _typeof(x::Global) = x.type
 
 exprtype(ir, x) = IRTools.exprtype(ir, x, typeof = _typeof)

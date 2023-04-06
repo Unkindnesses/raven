@@ -38,13 +38,13 @@ println(test(widen(true)) == "true")
 println(test(widen(true)) != "false")
 println(test(widen(false)) == "false")
 
-println(id"foo" == id"foo")
-println(id"foo" != id"bar")
+println(tag"foo" == tag"foo")
+println(tag"foo" != tag"bar")
 
 let {
-  x = if widen(true) { id"foo" } else { id"bar" }
-  println(x == id"foo")
-  println(x != id"bar")
-  println(id"foo" == x)
-  println(id"bar" != x)
+  x = if widen(true) { tag"foo" } else { tag"bar" }
+  println(x == tag"foo")
+  println(x != tag"bar")
+  println(tag"foo" == x)
+  println(tag"bar" != x)
 }

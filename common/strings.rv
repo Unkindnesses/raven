@@ -10,10 +10,10 @@ fn (a: String) == (b: String) {
   shortcutEquals(a, b) || equal(tojs(a), tojs(b))
 }
 
-fn string(x: Id) {
+fn string(x: Tag) {
   symstring(x)
 }
 
-fn (a: Id) == (b: Id) {
+fn (a: Tag) == (b: Tag) {
   shortcutEquals(a, b)
 }

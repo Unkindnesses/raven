@@ -17,7 +17,7 @@ fn print(x) {
 
 fn print(s: String) { _print(s) }
 
-fn print(x: Id) {
+fn print(x: Tag) {
   print("id'") # TODO: escaping
   print(string(x))
   print("'")

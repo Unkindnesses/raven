@@ -1,25 +1,25 @@
 # Symbolic identifiers
 
-struct Id
+struct Tag
   path::NTuple{N,Symbol} where N
 end
 
-Id(parts::Symbol...) = Id((parts...,))
+Tag(parts::Symbol...) = Tag((parts...,))
 
-Base.string(id::Id) = join(id.path, ".")
+Base.string(id::Tag) = join(id.path, ".")
 
-Base.Symbol(id::Id) = Symbol(string(id))
+Base.Symbol(id::Tag) = Symbol(string(id))
 
-function Base.show(io::IO, id::Id)
-  print(io, "id\"")
+function Base.show(io::IO, id::Tag)
+  print(io, "tag\"")
   join(io, id.path, ".")
   print(io, "\"")
 end
 
-Id(s::String) = Id(Symbol.(split(s, "."))...)
+Tag(s::String) = Tag(Symbol.(split(s, "."))...)
 
-macro id_str(ex)
-  Id(ex)
+macro tag_str(ex)
+  Tag(ex)
 end
 
 # Types
@@ -30,7 +30,7 @@ end
 
 pack(x...) = Pack((x...,))
 
-nil = pack(id"Nil")
+nil = pack(tag"Nil")
 
 nparts(x::Pack) = length(x.parts)-1
 part(x::Pack, i) = x.parts[i+1]
@@ -53,7 +53,7 @@ end
 
 tag(x::VPack) = x.tag
 
-rlist(xs...) = pack(id"List", xs...)
+rlist(xs...) = pack(tag"List", xs...)
 
 packcat(x) = x
 packcat(x, y) = pack(tag(x), parts(x)..., parts(y)...)
@@ -89,17 +89,17 @@ end
 
 # Primitive Types
 
-Primitive = Union{Int64,Int32,Float64,Float32,Id,String}
+Primitive = Union{Int64,Int32,Float64,Float32,Tag,String}
 
-const JSObject = pack(id"JSObject", pack(id"Ref", pack(id"Ptr", Int32)))
-const RString = pack(id"String", JSObject)
+const JSObject = pack(tag"JSObject", pack(tag"Ref", pack(tag"Ptr", Int32)))
+const RString = pack(tag"String", JSObject)
 
-const fromSymbol = Dict{Id,Type}()
+const fromSymbol = Dict{Tag,Type}()
 
-for T in :[Int64, Int32, Float64, Float32, Id].args
-  @eval fromSymbol[$(Id(T))] = $T
+for T in :[Int64, Int32, Float64, Float32, Tag].args
+  @eval fromSymbol[$(Tag(T))] = $T
   @eval part(x::Union{$T,Type{$T}}, i::Integer) =
-          i == 0 ? $(Id(T)) :
+          i == 0 ? $(Tag(T)) :
           i == 1 ? x :
           error("Tried to access part $i of 1")
   @eval nparts(x::Union{$T,Type{$T}}) = 1
@@ -107,7 +107,7 @@ for T in :[Int64, Int32, Float64, Float32, Id].args
 end
 
 part(s::String, i::Integer) =
-  i == 0 ? id"String" :
+  i == 0 ? tag"String" :
   i == 1 ? JSObject :
   error("Tried to access part $i of 1")
 
@@ -212,7 +212,7 @@ unroll(T::Recursive) = unroll(T, T.type)
 # Union
 
 typekey(x) = tag(x)
-typekey(x::Id) = (id"Id", x)
+typekey(x::Tag) = (tag"Tag", x)
 
 partial_eltype(x::Pack) = reduce(union, parts(x), init = ⊥)
 partial_eltype(x::VPack) = x.parts
@@ -243,7 +243,7 @@ function union(x, y)
     T = Or([j == i ? union(y, ps[j]) : ps[j] for j = 1:length(ps)])
     return T == x ? T : recursive(T)
   elseif typekey(x) == typekey(y)
-    if x isa Id && y isa Id
+    if x isa Tag && y isa Tag
       return x
     elseif x isa VPack || y isa VPack || nparts(x) != nparts(y)
       return VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))
@@ -258,19 +258,19 @@ end
 # Internal symbols
 
 symbolValues(x::Union{Primitive,Type{<:Primitive},Pack}) = []
-symbolValues(x::Id) = [x]
+symbolValues(x::Tag) = [x]
 symbolValues(x::Or) = reduce(vcat, map(symbolValues, x.patterns))
 
 # Raven value -> compiler type
 
-rvtype(x::Id) = fromSymbol[x]
+rvtype(x::Tag) = fromSymbol[x]
 
 function rvtype(x::Pack)
-  if tag(x) == id"List"
+  if tag(x) == tag"List"
     pack(tag(x), rvtype.(parts(x))...)
-  elseif tag(x) == id"Pack"
+  elseif tag(x) == tag"Pack"
     pack(rvtype.(parts(x))...)
-  elseif tag(x) == id"Literal"
+  elseif tag(x) == tag"Literal"
     return part(x, 1)
   else
     error("Unrecognised type $x")

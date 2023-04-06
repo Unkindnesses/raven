@@ -107,7 +107,7 @@ end
 function partir(x, i)
   i <: Int64 || error("Only Int64 indexes are supported.")
   T = partial_part(x, i)
-  ir = IR(meta = FuncInfo(id"part"))
+  ir = IR(meta = FuncInfo(tag"part"))
   vx = argument!(ir, type = x)
   vi = argument!(ir, type = i)
   xlayout = layout(x)
@@ -136,7 +136,7 @@ function partir(x, i)
 end
 
 function partir(x::Or, i)
-  ir = IR(meta = FuncInfo(id"part"))
+  ir = IR(meta = FuncInfo(tag"part"))
   retT = partial_part(x, i)
   vx = argument!(ir, type = x)
   vi = argument!(ir, type = i)
@@ -153,12 +153,12 @@ end
 
 function partir(s::String, i)
   @assert i == 1
-  ir = IR(meta = FuncInfo(id"part"))
+  ir = IR(meta = FuncInfo(tag"part"))
   argument!(ir, type = s)
   argument!(ir, type = i)
   # Punt to the backend to decide how strings get IDd
   id = push!(ir, stmt(Expr(:ref, s), type = rlist(Int32)))
-  o = push!(ir, stmt(xcall(id"JSObject", id), type = JSObject))
+  o = push!(ir, stmt(xcall(tag"JSObject", id), type = JSObject))
   return!(ir, o)
   return ir
 end
@@ -225,7 +225,7 @@ end
 outlinePrimitive[packcat_method] = function (T::Pack)
   T′ = packcat(parts(T)...)
   @assert layout(T′.parts) == () || T′.parts == Int64
-  ir = IR(meta = FuncInfo(id"packcat"))
+  ir = IR(meta = FuncInfo(tag"packcat"))
   xs = argument!(ir, type = T)
   if layout(T′.parts) == ()
     panic!(ir, "unsupported")
@@ -240,7 +240,7 @@ outlinePrimitive[packcat_method] = function (T::Pack)
   size = push!(ir, xcall(WIntrinsic(i32.wrap_i64, i32), size))
   bytes = push!(ir, xcall(WIntrinsic(i32.mul, i32), size, Int32(8)))
   margs = push!(ir, stmt(Expr(:tuple, bytes), type = rlist(Int32)))
-  ptr = push!(ir, stmt(xcall(Global(:malloc!, id"malloc!"), margs), type = Int32))
+  ptr = push!(ir, stmt(xcall(Global(:malloc!, tag"malloc!"), margs), type = Int32))
   pos = ptr
   for i in 1:nparts(T)
     P = part(T, i)
@@ -284,7 +284,7 @@ end
 # ======
 
 outlinePrimitive[nparts_method] = function (x::Or)
-  ir = IR(meta = FuncInfo(id"nparts"))
+  ir = IR(meta = FuncInfo(tag"nparts"))
   retT = partial_nparts(x)
   vx = argument!(ir, type = x)
   union_cases!(ir, x, vx) do T, val
@@ -351,7 +351,7 @@ function box!(ir, T, x)
   l = layout(T)
   bytes = sum(sizeof.(l))
   margs = push!(ir, stmt(Expr(:tuple, Int32(bytes)), type = rlist(Int32)))
-  ptr = push!(ir, stmt(xcall(Global(:malloc!, id"malloc!"), margs), type = Int32))
+  ptr = push!(ir, stmt(xcall(Global(:malloc!, tag"malloc!"), margs), type = Int32))
   pos = ptr
   for (i, T) in enumerate(cat_layout(l))
     push!(ir, xcall(WIntrinsic(WType(T).store, WTuple()), pos, Expr(:ref, x, i)))
@@ -396,7 +396,7 @@ function cast!(ir, from, to, x)
     push!(ir, stmt(Expr(:tuple, parts...), type = to))
   elseif from == rlist() && to isa VPack
     margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rlist(Int32)))
-    ptr = push!(ir, stmt(xcall(Global(:malloc!, id"malloc!"), margs), type = Int32))
+    ptr = push!(ir, stmt(xcall(Global(:malloc!, tag"malloc!"), margs), type = Int32))
     push!(ir, stmt(Expr(:tuple, Int32(0), ptr), type = to))
   elseif from isa String && to == RString
     string!(ir, from)

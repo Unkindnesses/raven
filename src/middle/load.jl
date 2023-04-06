@@ -12,7 +12,7 @@ const common = joinpath(@__DIR__, "../../common") |> normpath
 function simpleconst(cx::LoadState, x)
   x isa Symbol && return cx.mod.defs[x]
   x isa Primitive && return x
-  x isa AST.Template && x[1] == :id && return Id(x[2])
+  x isa AST.Template && x[1] == :tag && return Tag(x[2])
   return
 end
 
@@ -90,4 +90,4 @@ function loadfile(f::String; partial = false)
   return cx.mod
 end
 
-startmethod(mod) = mod.methods[id"_start"][1]
+startmethod(mod) = mod.methods[tag"_start"][1]

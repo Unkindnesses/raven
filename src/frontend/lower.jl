@@ -46,15 +46,15 @@ Base.:(==)(a::Or, b::Or) = a.patterns == b.patterns
 
 # Raven versions
 
-rvpattern(::Hole) = pack(id"Hole")
+rvpattern(::Hole) = pack(tag"Hole")
 rvpattern(x::Primitive) = x
-rvpattern(x::Literal) = pack(id"Literal", x.value)
-rvpattern(x::Bind) = pack(id"Bind", Id(x.name))
-rvpattern(xs::Pack) = pack(id"Pack", rvpattern.(xs.parts)...)
-rvpattern(xs::And) = pack(id"And", rvpattern.(xs.patterns)...)
+rvpattern(x::Literal) = pack(tag"Literal", x.value)
+rvpattern(x::Bind) = pack(tag"Bind", Tag(x.name))
+rvpattern(xs::Pack) = pack(tag"Pack", rvpattern.(xs.parts)...)
+rvpattern(xs::And) = pack(tag"And", rvpattern.(xs.patterns)...)
 # TODO these should be runtime lookups
-rvpattern(x::Trait) = pack(id"Trait", Id(x.pattern))
-rvpattern(xs::Constructor) = pack(id"Constructor", Id(xs.func), rvpattern.(xs.args)...)
+rvpattern(x::Trait) = pack(tag"Trait", Tag(x.pattern))
+rvpattern(xs::Constructor) = pack(tag"Constructor", Tag(xs.func), rvpattern.(xs.args)...)
 
 # Pattern lowering
 
@@ -77,10 +77,10 @@ function _lowerpattern(ex, as)
   elseif ex isa Primitive
     return Literal(ex)
   elseif ex isa AST.Template
-    @assert ex[1] == :id
-    return Literal(Id(ex[2]))
+    @assert ex[1] == :tag
+    return Literal(Tag(ex[2]))
   elseif ex isa AST.List
-    pack(Literal(id"List"), map(x -> _lowerpattern(x, as), ex.args)...)
+    pack(Literal(tag"List"), map(x -> _lowerpattern(x, as), ex.args)...)
   elseif ex isa AST.Operator && ex[1] == :(:)
     name, T = ex[2:end]
     if name == :_
@@ -116,7 +116,7 @@ function _lowersig(ex, as, swaps)
       _lowerpattern(x, as)
     end
   end
-  pack(Literal(id"List"), args...)
+  pack(Literal(tag"List"), args...)
 end
 
 function lowerpattern(ex)
@@ -149,19 +149,19 @@ function datamacro(ex::AST.Syntax)
     args = spec[2:end]
     push!(body, AST.Syntax(:fn, spec,
                                 AST.Block(
-                                 AST.Call(:pack, AST.Template(:id, string(name)), namify.(args)...))))
-    push!(body, AST.Syntax(:fn, AST.Call(:isa, AST.Call(:pack, AST.Template(:id, string(name)), args...),
-                                               AST.Template(:id, string(name))),
+                                 AST.Call(:pack, AST.Template(:tag, string(name)), namify.(args)...))))
+    push!(body, AST.Syntax(:fn, AST.Call(:isa, AST.Call(:pack, AST.Template(:tag, string(name)), args...),
+                                               AST.Template(:tag, string(name))),
                                 AST.Block(Symbol("true"))))
-    push!(body, AST.Syntax(:fn, AST.Call(:constructorPattern, AST.Template(:id, string(name)), namify.(args)...),
+    push!(body, AST.Syntax(:fn, AST.Call(:constructorPattern, AST.Template(:tag, string(name)), namify.(args)...),
                                 AST.Block(
-                                  AST.Call(:And, AST.Call(:Trait, AST.Template(:id, string(name))),
-                                                 AST.Call(:Pack, AST.Call(:Literal, AST.Template(:id, string(name))), namify.(args)...)))))
+                                  AST.Call(:And, AST.Call(:Trait, AST.Template(:tag, string(name))),
+                                                 AST.Call(:Pack, AST.Call(:Literal, AST.Template(:tag, string(name))), namify.(args)...)))))
   end
   if super != nothing
-    push!(body, AST.Operator(:(=), super, AST.Template(:id, string(super))))
+    push!(body, AST.Operator(:(=), super, AST.Template(:tag, string(super))))
     push!(body, AST.Syntax(:fn, AST.Call(:isa, AST.Operator(:(:), :_, AST.Operator(:|, names...)),
-                                               AST.Template(:id, string(super))),
+                                               AST.Template(:tag, string(super))),
                                 AST.Block(Symbol("true"))))
   end
   return AST.Block(body...)
@@ -189,13 +189,13 @@ Base.convert(::Type{Source}, x::AST.Meta) = Source(x)
 xcall(args...) = Expr(:call, args...)
 xtuple(args...) = Expr(:tuple, args...)
 xpack(args...) = Expr(:pack, args...)
-xlist(args...) = xpack(id"List", args...)
+xlist(args...) = xpack(tag"List", args...)
 xpart(x, i) = xcall(part_method, x, i)
 
 rcall(f, args...) = xpart(xcall(f, xlist(args...)), 1)
 
 function IRTools.print_stmt(io::IO, ::Val{:pack}, ex)
-  if ex.args[1] == id"List"
+  if ex.args[1] == tag"List"
     print(io, "[")
     join(io, [sprint(vprint, x) for x in ex.args[2:end]], ", ")
     print(io, "]")
@@ -308,7 +308,7 @@ function argtuple!(sc, ir::IR, args, src)
     end
   end
   args =
-    isempty(parts) ? _push!(ir, xpack(id"List")) :
+    isempty(parts) ? _push!(ir, xpack(tag"List")) :
     length(parts) == 1 ? parts[1] :
     _push!(ir, xcall(packcat_method, xlist(parts...)))
   return args, swaps
@@ -348,8 +348,8 @@ function lower!(sc, ir::IR, ex::AST.Return)
 end
 
 function lower!(sc, ir::IR, ex::AST.Template)
-  @assert ex[1] == :id
-  return Id(ex[2])
+  @assert ex[1] == :tag
+  return Tag(ex[2])
 end
 
 function lower!(sc, ir::IR, ex::AST.Break)
@@ -360,16 +360,16 @@ end
 function lowermatch!(sc, ir::IR, val, pat)
   sig = lowerpattern(pat)
   pat = rvpattern(sig.pattern)
-  m = push!(ir, rcall(id"match", val, pat))
+  m = push!(ir, rcall(tag"match", val, pat))
   isnil = push!(ir, xcall(isnil_method, m))
   branch!(ir, length(blocks(ir))+1, when = isnil)
   branch!(ir, length(blocks(ir))+2)
   block!(ir)
-  push!(ir, rcall(id"panic", "match failed: $(sig.pattern)"))
+  push!(ir, rcall(tag"panic", "match failed: $(sig.pattern)"))
   block!(ir)
   m = push!(ir, xcall(notnil_method, m))
   for arg in sig.args
-    push!(ir, Expr(:(=), variable!(sc, arg), rcall(id"getkey", m, Id(arg))))
+    push!(ir, Expr(:(=), variable!(sc, arg), rcall(tag"getkey", m, Tag(arg))))
   end
   return m
 end
@@ -379,7 +379,7 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
   header = block!(ir)
   branch!(blocks(ir)[end-1], header)
   cond = lower!(sc, ir, ex[2])
-  cond = _push!(ir, rcall(id"condition", cond), src = AST.meta(ex))
+  cond = _push!(ir, rcall(tag"condition", cond), src = AST.meta(ex))
   bodyStart = block!(ir)
   _lower!(sc, ir, ex[3][:])
   bodyEnd = blocks(ir)[end]
@@ -421,7 +421,7 @@ function If(b::AST.Syntax)
   end
   if cond[end] !== true
     push!(cond, true)
-    push!(body, AST.Call(:pack, AST.Template(:id, "Nil")))
+    push!(body, AST.Call(:pack, AST.Template(:tag, "Nil")))
   end
   return If(cond, body)
 end
@@ -442,7 +442,7 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
       break
     end
     cond = lower!(sc, ir, cond)
-    cond = _push!(ir, rcall(id"condition", cond))
+    cond = _push!(ir, rcall(tag"condition", cond))
     c = blocks(ir)[end]
     t = block!(ir)
     body!(ir, body)
@@ -496,7 +496,7 @@ fnsig(ex) = lowerpattern(AST.List(ex[2][:]...))
 function lowerfn(ex, sig = fnsig(ex))
   sc = Scope(swap = sig.swap)
   name = ex[2][1]
-  ir = IR(meta = FuncInfo(Id(name), AST.meta(ex)))
+  ir = IR(meta = FuncInfo(Tag(name), AST.meta(ex)))
   for arg in sig.args
     sc[arg] = Slot(arg)
     push!(ir, :($(Slot(arg)) = $(argument!(ir))))
@@ -526,7 +526,7 @@ end
 
 function lower_toplevel(ex, name, src, defs = [])
   sc = GlobalScope(defs)
-  ir = IR(meta = FuncInfo(Id(name), src))
+  ir = IR(meta = FuncInfo(Tag(name), src))
   _lower!(sc, ir, ex)
   IRTools.return!(ir, Global(:nil))
   ir = rewrite_globals(ir)

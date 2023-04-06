@@ -257,7 +257,7 @@ end
 
 function ret(io)
   symbol(io) == :return || return
-  tryparse(stmt, io) != nothing && return Return(Call(:pack, Template(:id, "Nil")))
+  tryparse(stmt, io) != nothing && return Return(Call(:pack, Template(:tag, "Nil")))
   Return(expr(io))
 end
 

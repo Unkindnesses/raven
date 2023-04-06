@@ -10,9 +10,9 @@ fn identity(x) { x }
 fn (_ == _) { false }
 fn isa(_, _) { false }
 
-Id = id"Id"
+Tag = tag"Tag"
 
-fn isa(pack(id"Id", _), id"Id") { true }
+fn isa(pack(tag"Tag", _), tag"Tag") { true }
 
 fn (x |> f) { f(x) }
 
