@@ -44,14 +44,14 @@ partial_isnil(x::Pack) = Int32(x == nil)
 partial_isnil(x::Or) = any(==(nil), x.patterns) ? Int32 : Int32(0)
 
 # Duct tape until the thatcher algorithm works.
-partial_notnil(x::Pack) = tag(x) == :Nil ? ⊥ : x
+partial_notnil(x::Pack) = tag(x) == id"Nil" ? ⊥ : x
 
 function partial_notnil(x::Or)
-  ps = filter(x -> tag(x) != :Nil, x.patterns)
+  ps = filter(x -> tag(x) != id"Nil", x.patterns)
   return length(ps) == 1 ? ps[1] : Or(ps)
 end
 
-partial_symstring(x::Symbol) = String(x)
+partial_symstring(x::Id) = string(x)
 partial_symstring(x::Or) = RString
 
 pack_method = RMethod(:pack, lowerpattern(rvx"args"), args -> pack(parts(args)...), true)
@@ -63,7 +63,7 @@ shortcutEquals_method = RMethod(:shortcutEquals, lowerpattern(rvx"[a, b]"), part
 
 isnil_method = RMethod(:isnil, lowerpattern(rvx"[x]"), partial_isnil, true)
 notnil_method = RMethod(:notnil, lowerpattern(rvx"[x]"), partial_notnil, true)
-symstring_method = RMethod(:symstring, lowerpattern(rvx"[x: Symbol]"), partial_symstring, true)
+symstring_method = RMethod(:symstring, lowerpattern(rvx"[x: Id]"), partial_symstring, true)
 
 partial_function(f, I, O) = Int32
 partial_invoke(f, I, O, xs...) = rvtype(O)
@@ -104,8 +104,8 @@ inlinePrimitive[widen_method] = function (pr, ir, v)
   pr[v] = val
 end
 
-symoverlap(x::Symbol, ys::Or) = [i for (i, y) in enumerate(ys.patterns) if x == y]
-symoverlap(xs::Or, y::Symbol) = symoverlap(y, xs)
+symoverlap(x::Id, ys::Or) = [i for (i, y) in enumerate(ys.patterns) if x == y]
+symoverlap(xs::Or, y::Id) = symoverlap(y, xs)
 
 inlinePrimitive[shortcutEquals_method] = function (pr, ir, v)
   if isvalue(ir[v].type)
@@ -161,10 +161,10 @@ function string!(ir, s)
 end
 
 outlinePrimitive[symstring_method] = function (T::Or)
-  ir = IR(meta = FuncInfo(:symstring))
+  ir = IR(meta = FuncInfo(id"symstring"))
   x = argument!(ir, type = T)
   union_cases!(ir, T, x) do S, _
-    @assert S isa Symbol
+    @assert S isa Id
     string!(ir, string(S))
   end
   return ir

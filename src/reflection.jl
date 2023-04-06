@@ -1,5 +1,5 @@
 ismethod(m, name) = m isa RMethod && m.name == name
-sigmatch(sig, func) = sig[1] == func || ismethod(sig[1], func)
+sigmatch(sig, func) = Symbol(sig[1]) == func || ismethod(sig[1], func)
 
 sigmatch(sig, func, Ts) =
   sigmatch(sig, func) &&
@@ -7,7 +7,7 @@ sigmatch(sig, func, Ts) =
    sig[2] == rlist(Ts...))
 
 function code_lowered(cx::RModule, func)
-  return IdDict(meth.sig.pattern => meth.func for meth in cx.methods[func])
+  return IdDict(meth.sig.pattern => meth.func for meth in cx.methods[Id(func)])
 end
 
 function code_typed(mod::RModule, func...)

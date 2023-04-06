@@ -1,8 +1,7 @@
 const recursionLimit = 10
 
 _typeof(x) = error("invalid constant $x::$(typeof(x))")
-_typeof(x::Union{Number,String,Symbol,RMethod,Pack}) = x
-_typeof(x::AST.Quote) = x[1]
+_typeof(x::Union{Number,String,Id,RMethod,Pack}) = x
 _typeof(x::Global) = x.type
 
 exprtype(ir, x) = IRTools.exprtype(ir, x, typeof = _typeof)
@@ -120,7 +119,7 @@ end
 
 function frame!(inf, P, F, Ts)
   haskey(inf.frames, (F, Ts)) && return frame(inf, (F, Ts))
-  irframe!(inf, P, (F, Ts), dispatcher(inf, F, Ts), Ts)
+  irframe!(inf, P, (F, Ts), dispatcher(inf.mod, F, Ts), Ts)
 end
 
 # TODO some methods become unreachable, remove them somewhere?

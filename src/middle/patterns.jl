@@ -73,7 +73,7 @@ end
 function partial_match(mod, pat::Trait, val, path)
   (haskey(mod, pat.pattern) && isvalue(mod[pat.pattern])) || return missing
   T = mod[pat.pattern]
-  r = trivial_isa(mod, val, pat.pattern)
+  r = trivial_isa(mod, val, T)
   r === true ? Dict() : r === false ? nothing : missing
 end
 
@@ -111,10 +111,10 @@ end
 function partial_match(mod, pat::Pack, val::SimpleType, path)
   bs = Dict()
   i = 0
-  shortcut_literals(pat, val) && return nothing
+  shortcut_literals(pat, val) && return
   while true
     i <= nparts(val) || break
-    i <= nparts(pat) || return nothing
+    i <= nparts(pat) || return
     if pat[i] == Repeat(hole)
       break
     elseif isslurp(pat[i])
@@ -191,7 +191,7 @@ function partial_ismatch(mod, pat, val)
   return result isa AbstractDict
 end
 
-function trivial_method(mod, func::Symbol, Ts)
+function trivial_method(mod, func::Id, Ts)
   for meth in reverse(mod.methods[func])
     m = partial_match(mod, meth.sig.pattern, Ts)
     if m === nothing
@@ -204,8 +204,8 @@ function trivial_method(mod, func::Symbol, Ts)
   end
 end
 
-function trivial_isa(mod, val, T)
-  meth = trivial_method(mod, :isa, rlist(val, T))
+function trivial_isa(mod, val, T::Id)
+  meth = trivial_method(mod, id"isa", rlist(val, T))
   meth == nothing && return missing
   ir = meth.func
   (length(ir) == 1 && length(blocks(ir)) == 1) || return missing
@@ -229,11 +229,11 @@ function indexer!(ir::IR, arg, path)
   arg = indexer!(ir, arg, rest)
 end
 
-function dispatcher(inf, func::Symbol, Ts)
+function dispatcher(mod, func::Id, Ts)
   ir = IR(meta = FuncInfo(func, trampoline = true))
   args = argument!(ir)
-  for meth in reverse(inf.mod.methods[func])
-    m = partial_match(inf.mod, meth.sig.pattern, Ts)
+  for meth in reverse(mod.methods[func])
+    m = partial_match(mod, meth.sig.pattern, Ts)
     if m === nothing
       continue
     elseif m isa AbstractDict
@@ -242,16 +242,16 @@ function dispatcher(inf, func::Symbol, Ts)
       return!(ir, result)
       return ir
     else
-      m = push!(ir, rcall(:match, args, rvpattern(meth.sig.pattern)))
+      m = push!(ir, rcall(id"match", args, rvpattern(meth.sig.pattern)))
       cond = push!(ir, xcall(isnil_method, m))
-      cond = push!(ir, rcall(:not, cond))
+      cond = push!(ir, rcall(id"not", cond))
       branch!(ir, length(blocks(ir))+1, when = cond)
       branch!(ir, length(blocks(ir))+2)
       block!(ir)
       m = push!(ir, xcall(notnil_method, m))
       as = []
       for arg in meth.sig.args
-        push!(as, push!(ir, rcall(:getkey, m, arg)))
+        push!(as, push!(ir, rcall(id"getkey", m, Id(arg))))
       end
       result = push!(ir, xcall(meth, as...))
       isempty(meth.sig.swap) && (result = push!(ir, xlist(result)))
@@ -259,11 +259,11 @@ function dispatcher(inf, func::Symbol, Ts)
       block!(ir)
     end
   end
-  if func == :panic && issubset(Ts, rlist(String))
+  if func == id"panic" && issubset(Ts, rlist(String))
     error("Compiler fault: couldn't guarantee panic method matches")
   end
   if options().jspanic
-    push!(ir, xcall(:panic, xlist("No matching method: $func: $Ts")))
+    push!(ir, xcall(id"panic", xlist("No matching method: $func: $Ts")))
   end
   unreachable!(ir)
   return ir

@@ -46,14 +46,15 @@ Base.:(==)(a::Or, b::Or) = a.patterns == b.patterns
 
 # Raven versions
 
-rvpattern(::Hole) = pack(:Hole)
+rvpattern(::Hole) = pack(id"Hole")
 rvpattern(x::Primitive) = x
-rvpattern(x::Literal) = pack(:Literal, x.value)
-rvpattern(x::Bind) = pack(:Bind, x.name)
-rvpattern(x::Trait) = pack(:Trait, x.pattern)
-rvpattern(xs::Pack) = pack(:Pack, rvpattern.(xs.parts)...)
-rvpattern(xs::And) = pack(:And, rvpattern.(xs.patterns)...)
-rvpattern(xs::Constructor) = pack(:Constructor, xs.func, rvpattern.(xs.args)...)
+rvpattern(x::Literal) = pack(id"Literal", x.value)
+rvpattern(x::Bind) = pack(id"Bind", Id(x.name))
+rvpattern(xs::Pack) = pack(id"Pack", rvpattern.(xs.parts)...)
+rvpattern(xs::And) = pack(id"And", rvpattern.(xs.patterns)...)
+# TODO these should be runtime lookups
+rvpattern(x::Trait) = pack(id"Trait", Id(x.pattern))
+rvpattern(xs::Constructor) = pack(id"Constructor", Id(xs.func), rvpattern.(xs.args)...)
 
 # Pattern lowering
 
@@ -77,9 +78,9 @@ function _lowerpattern(ex, as)
     return Literal(ex)
   elseif ex isa AST.Template
     @assert ex[1] == :id
-    return Literal(Symbol(ex[2]))
+    return Literal(Id(ex[2]))
   elseif ex isa AST.List
-    pack(Literal(:List), map(x -> _lowerpattern(x, as), ex.args)...)
+    pack(Literal(id"List"), map(x -> _lowerpattern(x, as), ex.args)...)
   elseif ex isa AST.Operator && ex[1] == :(:)
     name, T = ex[2:end]
     if name == :_
@@ -115,7 +116,7 @@ function _lowersig(ex, as, swaps)
       _lowerpattern(x, as)
     end
   end
-  pack(Literal(:List), args...)
+  pack(Literal(id"List"), args...)
 end
 
 function lowerpattern(ex)
@@ -188,13 +189,13 @@ Base.convert(::Type{Source}, x::AST.Meta) = Source(x)
 xcall(args...) = Expr(:call, args...)
 xtuple(args...) = Expr(:tuple, args...)
 xpack(args...) = Expr(:pack, args...)
-xlist(args...) = xpack(:List, args...)
+xlist(args...) = xpack(id"List", args...)
 xpart(x, i) = xcall(part_method, x, i)
 
 rcall(f, args...) = xpart(xcall(f, xlist(args...)), 1)
 
 function IRTools.print_stmt(io::IO, ::Val{:pack}, ex)
-  if ex.args[1] == :List
+  if ex.args[1] == id"List"
     print(io, "[")
     join(io, [sprint(vprint, x) for x in ex.args[2:end]], ", ")
     print(io, "]")
@@ -276,7 +277,7 @@ function lower!(sc, ir::IR, ex::AST.Operator, value = true)
     clauses = ex[1] == :(&&) ? [ex[3], Int32(false)] : [Int32(true), ex[3]]
     lowerif!(sc, ir, If([ex[2], true], clauses), value)
   else
-    r = _push!(ir, xcall(ex[1], xlist(map(x -> lower!(sc, ir, x), ex[2:end])...)), src = AST.meta(ex), bp = true)
+    r = _push!(ir, xcall(lower!(sc, ir, ex[1]), xlist(map(x -> lower!(sc, ir, x), ex[2:end])...)), src = AST.meta(ex), bp = true)
     _push!(ir, xpart(r, 1), src = AST.meta(ex))
   end
 end
@@ -307,7 +308,7 @@ function argtuple!(sc, ir::IR, args, src)
     end
   end
   args =
-    isempty(parts) ? _push!(ir, xpack(:List)) :
+    isempty(parts) ? _push!(ir, xpack(id"List")) :
     length(parts) == 1 ? parts[1] :
     _push!(ir, xcall(packcat_method, xlist(parts...)))
   return args, swaps
@@ -348,7 +349,7 @@ end
 
 function lower!(sc, ir::IR, ex::AST.Template)
   @assert ex[1] == :id
-  return AST.Quote(Symbol(ex[2]))
+  return Id(ex[2])
 end
 
 function lower!(sc, ir::IR, ex::AST.Break)
@@ -359,16 +360,16 @@ end
 function lowermatch!(sc, ir::IR, val, pat)
   sig = lowerpattern(pat)
   pat = rvpattern(sig.pattern)
-  m = push!(ir, rcall(:match, val, pat))
+  m = push!(ir, rcall(id"match", val, pat))
   isnil = push!(ir, xcall(isnil_method, m))
   branch!(ir, length(blocks(ir))+1, when = isnil)
   branch!(ir, length(blocks(ir))+2)
   block!(ir)
-  push!(ir, rcall(:panic, "match failed: $(sig.pattern)"))
+  push!(ir, rcall(id"panic", "match failed: $(sig.pattern)"))
   block!(ir)
   m = push!(ir, xcall(notnil_method, m))
   for arg in sig.args
-    push!(ir, Expr(:(=), variable!(sc, arg), rcall(:getkey, m, arg)))
+    push!(ir, Expr(:(=), variable!(sc, arg), rcall(id"getkey", m, Id(arg))))
   end
   return m
 end
@@ -378,7 +379,7 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
   header = block!(ir)
   branch!(blocks(ir)[end-1], header)
   cond = lower!(sc, ir, ex[2])
-  cond = _push!(ir, rcall(:condition, cond), src = AST.meta(ex))
+  cond = _push!(ir, rcall(id"condition", cond), src = AST.meta(ex))
   bodyStart = block!(ir)
   _lower!(sc, ir, ex[3][:])
   bodyEnd = blocks(ir)[end]
@@ -441,7 +442,7 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
       break
     end
     cond = lower!(sc, ir, cond)
-    cond = _push!(ir, rcall(:condition, cond))
+    cond = _push!(ir, rcall(id"condition", cond))
     c = blocks(ir)[end]
     t = block!(ir)
     body!(ir, body)
@@ -495,7 +496,7 @@ fnsig(ex) = lowerpattern(AST.List(ex[2][:]...))
 function lowerfn(ex, sig = fnsig(ex))
   sc = Scope(swap = sig.swap)
   name = ex[2][1]
-  ir = IR(meta = FuncInfo(name, AST.meta(ex)))
+  ir = IR(meta = FuncInfo(Id(name), AST.meta(ex)))
   for arg in sig.args
     sc[arg] = Slot(arg)
     push!(ir, :($(Slot(arg)) = $(argument!(ir))))
@@ -525,7 +526,7 @@ end
 
 function lower_toplevel(ex, name, src, defs = [])
   sc = GlobalScope(defs)
-  ir = IR(meta = FuncInfo(name, src))
+  ir = IR(meta = FuncInfo(Id(name), src))
   _lower!(sc, ir, ex)
   IRTools.return!(ir, Global(:nil))
   ir = rewrite_globals(ir)

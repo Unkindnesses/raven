@@ -1,3 +1,27 @@
+# Symbolic identifiers
+
+struct Id
+  path::NTuple{N,Symbol} where N
+end
+
+Id(parts::Symbol...) = Id((parts...,))
+
+Base.string(id::Id) = join(id.path, ".")
+
+Base.Symbol(id::Id) = Symbol(string(id))
+
+function Base.show(io::IO, id::Id)
+  print(io, "id\"")
+  join(io, id.path, ".")
+  print(io, "\"")
+end
+
+Id(s::String) = Id(Symbol.(split(s, "."))...)
+
+macro id_str(ex)
+  Id(ex)
+end
+
 # Types
 
 struct Pack{N}
@@ -6,7 +30,7 @@ end
 
 pack(x...) = Pack((x...,))
 
-nil = pack(:Nil)
+nil = pack(id"Nil")
 
 nparts(x::Pack) = length(x.parts)-1
 part(x::Pack, i) = x.parts[i+1]
@@ -29,7 +53,7 @@ end
 
 tag(x::VPack) = x.tag
 
-rlist(xs...) = pack(:List, xs...)
+rlist(xs...) = pack(id"List", xs...)
 
 packcat(x) = x
 packcat(x, y) = pack(tag(x), parts(x)..., parts(y)...)
@@ -65,17 +89,17 @@ end
 
 # Primitive Types
 
-Primitive = Union{Int64,Int32,Float64,Float32,Symbol,String}
+Primitive = Union{Int64,Int32,Float64,Float32,Id,String}
 
-const JSObject = pack(:JSObject, pack(:Ref, pack(:Ptr, Int32)))
-const RString = pack(:String, JSObject)
+const JSObject = pack(id"JSObject", pack(id"Ref", pack(id"Ptr", Int32)))
+const RString = pack(id"String", JSObject)
 
-const fromSymbol = Dict{Symbol,Type}()
+const fromSymbol = Dict{Id,Type}()
 
-for T in :[Int64, Int32, Float64, Float32, Symbol].args
-  @eval fromSymbol[$(QuoteNode(T))] = $T
+for T in :[Int64, Int32, Float64, Float32, Id].args
+  @eval fromSymbol[$(Id(T))] = $T
   @eval part(x::Union{$T,Type{$T}}, i::Integer) =
-          i == 0 ? $(QuoteNode(T)) :
+          i == 0 ? $(Id(T)) :
           i == 1 ? x :
           error("Tried to access part $i of 1")
   @eval nparts(x::Union{$T,Type{$T}}) = 1
@@ -83,7 +107,7 @@ for T in :[Int64, Int32, Float64, Float32, Symbol].args
 end
 
 part(s::String, i::Integer) =
-  i == 0 ? :String :
+  i == 0 ? id"String" :
   i == 1 ? JSObject :
   error("Tried to access part $i of 1")
 
@@ -188,7 +212,7 @@ unroll(T::Recursive) = unroll(T, T.type)
 # Union
 
 typekey(x) = tag(x)
-typekey(x::Symbol) = (:Symbol, x)
+typekey(x::Id) = (id"Id", x)
 
 partial_eltype(x::Pack) = reduce(union, parts(x), init = ⊥)
 partial_eltype(x::VPack) = x.parts
@@ -219,7 +243,7 @@ function union(x, y)
     T = Or([j == i ? union(y, ps[j]) : ps[j] for j = 1:length(ps)])
     return T == x ? T : recursive(T)
   elseif typekey(x) == typekey(y)
-    if x isa Symbol && y isa Symbol
+    if x isa Id && y isa Id
       return x
     elseif x isa VPack || y isa VPack || nparts(x) != nparts(y)
       return VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))
@@ -234,19 +258,19 @@ end
 # Internal symbols
 
 symbolValues(x::Union{Primitive,Type{<:Primitive},Pack}) = []
-symbolValues(x::Symbol) = [x]
+symbolValues(x::Id) = [x]
 symbolValues(x::Or) = reduce(vcat, map(symbolValues, x.patterns))
 
 # Raven value -> compiler type
 
-rvtype(x::Symbol) = fromSymbol[x]
+rvtype(x::Id) = fromSymbol[x]
 
 function rvtype(x::Pack)
-  if tag(x) == :List
+  if tag(x) == id"List"
     pack(tag(x), rvtype.(parts(x))...)
-  elseif tag(x) == :Pack
+  elseif tag(x) == id"Pack"
     pack(rvtype.(parts(x))...)
-  elseif tag(x) == :Literal
+  elseif tag(x) == id"Literal"
     return part(x, 1)
   else
     error("Unrecognised type $x")
@@ -288,8 +312,6 @@ function vprint(io::IO, s::VPack)
 end
 
 vprint(io::IO, ::Type{T}) where T = print(io, "_: $T")
-
-vprint(io::IO, x::Symbol) = print(io, "`", x, "`")
 
 vprint(io::IO, x::AST.Expr) = print(io, "`", x, "`")
 

@@ -4,7 +4,7 @@ using Raven, Raven.WebAssembly, Test
 using Raven.WebAssembly.Instructions
 import Raven.WebAssembly: Func, Mem, Import, Export, Global, leb128, binary
 import Raven.WebAssembly: Variable, Locals, Local, SetLocal, Drop, stackshuffle
-using Raven: FuncInfo, pscmd
+using Raven: FuncInfo, pscmd, @id_str
 
 function leb128(x)
   io = IOBuffer()
@@ -64,13 +64,13 @@ end
   @test occursin("(global (;0;) (mut i64) (i64.const 0))", compiled_wat(m))
 
   m = WebAssembly.Module(
-    funcs = [Func(:add, [] => [i32], [], Block([Const(Int32(5))]), FuncInfo(:add))])
+    funcs = [Func(:add, [] => [i32], [], Block([Const(Int32(5))]), FuncInfo(id"add"))])
   s = compiled_wat(m)
   @test occursin("func \$add (type 0) (result i32)", s)
   @test occursin("i32.const 5", s)
 
   m = WebAssembly.Module(
-    funcs = [Func(:add, [] => [f64], [], Block([Const(1.0)]), FuncInfo(:add))])
+    funcs = [Func(:add, [] => [f64], [], Block([Const(1.0)]), FuncInfo(id"add"))])
   @test occursin("f64.const 0x1p+0", compiled_wat(m))
 
   m = WebAssembly.Module(
@@ -81,7 +81,7 @@ end
 
   m = WebAssembly.Module(
     exports = [Export(:wasmAdd, :add)],
-    funcs = [Func(:add, [i32] => [i32], [], Block([Const(Int32(5))]), FuncInfo(:add))])
+    funcs = [Func(:add, [i32] => [i32], [], Block([Const(Int32(5))]), FuncInfo(id"add"))])
   @test occursin("(export \"wasmAdd\" (func \$add))", compiled_wat(m))
 end
 

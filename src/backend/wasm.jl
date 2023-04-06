@@ -16,7 +16,7 @@ wasmPartials[i64.lt_s] = (a, b) -> Int32(a<b)
 wasmPartials[i32.eqz] = x -> Int32(x==0)
 
 rvtype(x::WType) = WebAssembly.jltype(x)
-rvtype(x::WTuple) = pack(:List, map(rvtype, x.parts)...)
+rvtype(x::WTuple) = pack(id"List", map(rvtype, x.parts)...)
 rvtype(::typeof(⊥)) = ⊥
 
 struct WIntrinsic
@@ -163,8 +163,8 @@ end
 
 function lowerwasm!(mod::WModule, T)
   haskey(mod.funcs, T) && return mod.funcs[T][1]
-  f = T[1]::Union{Symbol,RMethod}
-  id = name(mod, f isa Symbol ? f : Symbol(f.name, ":method"))
+  f = T[1]::Union{Id,RMethod}
+  id = name(mod, f isa Id ? Symbol(f) : Symbol(f.name, ":method"))
   mod.funcs[T] = (id, nothing)
   ir = lowerwasm!(mod, frame(mod.inf, T))
   mod.funcs[T] = (id, ir)
@@ -199,7 +199,7 @@ function wasmmodule(inf::Cache, start)
       WebAssembly.Local(0),
       WebAssembly.SetGlobal(0),
       WebAssembly.Call(Symbol("_start:method:1"))]),
-    FuncInfo(:_start, trampoline = true))
+    FuncInfo(id"_start", trampoline = true))
   mod = WebAssembly.Module(
     funcs = [start, fs...],
     imports = default_imports,

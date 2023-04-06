@@ -1,12 +1,12 @@
 using Raven, Test
-using Raven: Or, Recursive, Recur, pack, union, issubset, unroll
+using Raven: @id_str, Or, Recursive, Recur, pack, union, issubset, unroll
 
-T1 = Or([pack(:Empty), pack(:Prepend, pack(:Empty), Int64)])
-T2 = pack(:Prepend, Or([pack(:Empty), pack(:Prepend, pack(:Empty), Int64)]), Int64)
+T1 = Or([pack(id"Empty"), pack(id"Prepend", pack(id"Empty"), Int64)])
+T2 = pack(id"Prepend", Or([pack(id"Empty"), pack(id"Prepend", pack(id"Empty"), Int64)]), Int64)
 
 T = union(T1, T2)
 
-@test T == Recursive(Or([pack(:Empty), pack(:Prepend, Recur(), Int)]))
+@test T == Recursive(Or([pack(id"Empty"), pack(id"Prepend", Recur(), Int)]))
 
 @test issubset(T1, T)
 @test issubset(T2, T)
@@ -15,7 +15,7 @@ T = union(T1, T2)
 
 @test union(T, T) == T
 
-Tw = pack(:Prepend, T, Int)
+Tw = pack(id"Prepend", T, Int)
 
 @test issubset(Tw, T)
 

@@ -331,7 +331,7 @@ function code(io::IO, funcs)
       high_pc = position(io)
       append!(table.lines, offset(lt, -low_pc).lines)
       die = DIE(Dwarf.TAG_subprogram,
-                [Dwarf.AT_name => f.meta.name,
+                [Dwarf.AT_name => Symbol(f.meta.name),
                  Dwarf.AT_low_pc => UInt32(low_pc),
                  Dwarf.AT_high_pc => UInt32(high_pc)])
       f.meta.trampoline && push!(die.attrs, Dwarf.AT_trampoline => true)
