@@ -12,7 +12,7 @@ Integer = tag"Integer"
 
 fn isa(_: Int32 | Int64, tag"Integer") { true }
 
-import { numbers.complex }
+include { "numbers/complex.rv" }
 
 fn Int64(x: Int64) { x }
 

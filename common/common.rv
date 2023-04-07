@@ -25,12 +25,12 @@ nil = Nil()
 
 fn (_: Nil) == (_: Nil) { true }
 
-import { patterns }
-import { iterate }
-import { print }
-import { wasm }
-import { numbers }
-import { structures.list }
-import { structures.sequence }
-import { structures.simpledict }
-import { strings }
+include { "patterns.rv" }
+include { "iterate.rv" }
+include { "print.rv" }
+include { "wasm.rv" }
+include { "numbers.rv" }
+include { "structures/list.rv" }
+include { "structures/sequence.rv" }
+include { "structures/simpledict.rv" }
+include { "strings.rv" }

@@ -16,16 +16,8 @@ function simpleconst(cx::LoadState, x)
   return
 end
 
-function importpath(x)
-  modname(x::AST.Operator) = Base.string(modname(x[2]), ".", modname(x[3]))
-  modname(x::Symbol) = Base.string(x)
-  name = x[2][1]
-  name = modname(name)
-  path = replace(name, "."=>"/")
-end
-
-function load_import(cx, x)
-  path = "$common/$(importpath(x)).rv"
+function load_include(cx, x)
+  path = "$common/$(x[2][1])"
   open(io -> loadfile(cx, io; path), path)
 end
 
@@ -37,7 +29,7 @@ function load_expr(cx::LoadState, x; src)
 end
 
 function vload(cx::LoadState, x::AST.Syntax; src)
-  x[1] == :import && return load_import(cx, x)
+  x[1] == :include && return load_include(cx, x)
   x[1] == :bundle && return vload(cx, datamacro(x); src)
   x[1] == :fn || return load_expr(cx, x; src)
   sig = x[2]

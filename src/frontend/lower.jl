@@ -478,8 +478,6 @@ function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
     op = intrinsic(ex)
     args = lower!.((sc,), (ir,), intrinsic_args(ex))
     _push!(ir, xcall(op, args...); src, bp = true)
-  elseif ex[1] == :import
-    push!(ir, Expr(:import, importpath(ex)))
   elseif ex[1] == :let
     lowerlet!(sc, ir, ex, value)
   elseif ex[1] == :for
