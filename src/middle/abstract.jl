@@ -52,6 +52,11 @@ mutable struct Frame
   rettype
 end
 
+mutable struct GlobalFrame
+  edges::Set{Loc}
+  type
+end
+
 struct Redirect
   to::Tuple
 end
@@ -71,14 +76,20 @@ end
 struct Inference
   mod::RModule
   frames::IdDict{Any,Union{Frame,Redirect}}
-  globals::Dict{Symbol,Set{Loc}}
+  globals::Dict{Symbol,GlobalFrame}
   queue::WorkQueue{Loc}
 end
 
-Inference(mod::RModule) = Inference(mod, Dict(), Dict(), WorkQueue{Loc}())
+function Inference(mod::RModule)
+  gs = Dict{Symbol,GlobalFrame}()
+  for (x, T) in mod.defs
+    gs[x] = GlobalFrame(Set{Loc}(), T)
+  end
+  Inference(mod, Dict(), gs, WorkQueue{Loc}())
+end
 
-global_edges(inf::Inference, name::Symbol) =
-  get!(() -> Set{Loc}(), inf.globals, name)
+gframe(inf::Inference, name::Symbol) =
+  get!(() -> GlobalFrame(Set{Loc}(), ⊥), inf.globals, name)
 
 function sig(inf::Inference, T)
   T == () && return ()
@@ -177,10 +188,10 @@ function step!(inf::Inference, loc)
   for i in (isexpr(st, :(=)) ? 2 : 1):length(st.expr.args)
     g = st.expr.args[i]
     g isa Global || continue
-    push!(global_edges(inf, g.name), loc)
-    T = get(inf.mod, g.name, ⊥)
-    T == ⊥ && return
-    st.expr.args[i] = Global(g.name, T)
+    fr = gframe(inf, g.name)
+    push!(fr.edges, loc)
+    fr.type == ⊥ && return
+    st.expr.args[i] = Global(g.name, fr.type)
   end
   if isexpr(st, :call) && st.expr.args[1] isa WIntrinsic
     op = st.expr.args[1].op
@@ -210,13 +221,14 @@ function step!(inf::Inference, loc)
     end
   elseif isexpr(st, :(=)) && st.expr.args[1] isa Global
     x = st.expr.args[1].name
+    fr = gframe(inf, x)
     T = exprtype(bl.ir, st.expr.args[2])
-    T = union(get!(inf.mod.defs, x, ⊥), T)
+    T = union(fr.type, T)
     bl.ir[var] = Statement(bl[var], type = T)
     push!(inf.queue, next(loc))
-    if inf.mod.defs[x] != T
-      inf.mod.defs[x] = T
-      foreach(loc -> push!(inf.queue, loc), global_edges(inf, x))
+    if fr.type != T
+      fr.type = T
+      foreach(loc -> push!(inf.queue, loc), fr.edges)
     end
   elseif isexpr(st, :branch)
     brs = openbranches(bl)
