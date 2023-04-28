@@ -7,7 +7,14 @@ end
 
 dwarfdump(f) = String(read(`llvm-dwarfdump $f`))
 
-dwarf_verify(f) = String(read(`llvm-dwarfdump --verify $f`))
+function output(cmd)
+  io = IOBuffer()
+  pipeline(cmd, stdout = io, stderr = io) |> run
+  return String(read(seek(io, 0)))
+end
+
+dwarf_verify(f) = output(`llvm-dwarfdump --verify $f`)
+dwarf_verify_lines(f) = output(`llvm-dwarfdump --debug-line --verify $f`)
 
 headers(f) = String(read(`wasm-objdump -h $f`))
 

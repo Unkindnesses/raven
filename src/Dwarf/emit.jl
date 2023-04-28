@@ -107,7 +107,7 @@ function debug_line(io, lt)
       write(io, 0x00)
       for file in files
         emit(io, isabspath(file) ? file : normpath(joinpath(pwd(), file)))
-        leb128(io, UInt32(1)) # dir
+        leb128(io, UInt32(0)) # dir
         leb128(io, UInt32(0)) # last modified
         leb128(io, UInt32(0)) # file size
       end
@@ -143,5 +143,6 @@ function debug_line(io, lt)
         write(io, 0x01) # copy
       end
     end
+    lines[end][2] == nothing || ln_end_sequence(io)
   end
 end

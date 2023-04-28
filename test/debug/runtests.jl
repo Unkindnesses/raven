@@ -16,6 +16,9 @@ end
   out = dwarf_verify(pow_wasm)
   @test !occursin("warning", out)
   @test occursin("No errors.", out)
+  out = dwarf_verify_lines(pow_wasm)
+  @test !occursin("warning", out)
+  @test occursin("No errors.", out)
 end
 
 @testset "Line info" begin
