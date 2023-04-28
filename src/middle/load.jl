@@ -23,9 +23,10 @@ end
 
 function load_expr(cx::LoadState, x; src)
   fname = Symbol(:__main, length(cx.main))
-  # TODO need to register non-simpleconst globals for scoping to be correct
-  defs = collect(keys(cx.mod.defs))
-  method!(cx.mod, fname, RMethod(Tag(fname), lowerpattern(AST.List()), lower_toplevel(x, fname, src, defs)))
+  env = collect(keys(cx.mod.defs))
+  ir, defs = lower_toplevel(x, fname, src, env)
+  foreach(x -> get!(cx.mod.defs, x, ⊥), defs)
+  method!(cx.mod, fname, RMethod(Tag(fname), lowerpattern(AST.List()), ir))
   push!(cx.main, fname)
 end
 

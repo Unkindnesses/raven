@@ -13,3 +13,11 @@ let {
 }
 
 println(x == 2)
+
+y = widen(1)
+
+let {
+  y = 2
+}
+
+println(y == 2)

@@ -18,9 +18,9 @@ fn copy(x: Int64, &y: Int64) {
 }
 
 let {
-  a = 3
-  b = 5
-  copy(&a, &b) # TODO disallow this
-  println(a == nil)
-  println(b == 3)
+  c = 3
+  d = 5
+  copy(&c, &d) # TODO disallow this
+  println(c == nil)
+  println(d == 3)
 }

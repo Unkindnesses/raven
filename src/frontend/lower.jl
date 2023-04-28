@@ -216,15 +216,16 @@ Global(name::Symbol) = Global(name, ⊥)
 Base.show(io::IO, g::Global) = print(io, g.name)
 
 struct GlobalScope
-  defs::Vector{Symbol}
+  env::Set{Symbol}
+  def::Set{Symbol}
 end
 
-GlobalScope() = GlobalScope([])
+GlobalScope(env = Set()) = GlobalScope(env, Set())
 
 Base.getindex(g::GlobalScope, x::Symbol) = Global(x)
-Base.haskey(sc::GlobalScope, x::Symbol) = x in sc.defs
+Base.haskey(sc::GlobalScope, x::Symbol) = x in sc.env
 
-variable!(sc::GlobalScope, name) = Global(name)
+variable!(sc::GlobalScope, name) = (push!(sc.def, name); Global(name))
 
 swaps(sc::GlobalScope) = nothing
 
@@ -522,11 +523,11 @@ function rewrite_globals(ir::IR)
   return ir
 end
 
-function lower_toplevel(ex, name, src, defs = [])
-  sc = GlobalScope(defs)
+function lower_toplevel(ex, name, src, env = [])
+  sc = GlobalScope(Set(env))
   ir = IR(meta = FuncInfo(Tag(name), src))
   _lower!(sc, ir, ex)
   IRTools.return!(ir, Global(:nil))
   ir = rewrite_globals(ir)
-  return ir |> IRTools.ssa! |> IRTools.prune!
+  return ir |> IRTools.ssa! |> IRTools.prune!, sc.def
 end

@@ -1,8 +1,12 @@
-xs = seq(widen(1), widen(2), widen(3))
-println(sum(xs) == 6)
+let {
+  xs = seq(widen(1), widen(2), widen(3))
+  println(sum(xs) == 6)
+}
 
-ys = [4, widen(5)]
-println((part(ys, widen(1)) + part(ys, widen(2))) == 4+5)
+let {
+  ys = [4, widen(5)]
+  println((part(ys, widen(1)) + part(ys, widen(2))) == 4+5)
+}
 
 fn range(n) {
   xs = []
