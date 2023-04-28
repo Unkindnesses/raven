@@ -23,8 +23,9 @@ end
 
 function load_expr(cx::LoadState, x; src)
   fname = Symbol(:__main, length(cx.main))
+  # TODO need to register non-simpleconst globals for scoping to be correct
   defs = collect(keys(cx.mod.defs))
-  method!(cx.mod, fname, RMethod(fname, lowerpattern(AST.List()), lower_toplevel(x, fname, src, defs)))
+  method!(cx.mod, fname, RMethod(Tag(fname), lowerpattern(AST.List()), lower_toplevel(x, fname, src, defs)))
   push!(cx.main, fname)
 end
 
@@ -33,10 +34,10 @@ function vload(cx::LoadState, x::AST.Syntax; src)
   x[1] == :bundle && return vload(cx, datamacro(x); src)
   x[1] == :fn || return load_expr(cx, x; src)
   sig = x[2]
-  f = sig[1]
+  f = sig[1]::Symbol
   args = AST.List(sig[2:end]...)
   sig = lowerpattern(args)
-  method!(cx.mod, f, RMethod(f, sig, lowerfn(x, sig)))
+  method!(cx.mod, f, RMethod(Tag(f), sig, lowerfn(x, sig)))
   return f
 end
 
@@ -58,7 +59,7 @@ function finish!(cx::LoadState)
   fn = AST.Syntax(:fn, AST.Call(:_start),
                        AST.Block(body...))
   sig = lowerpattern(AST.List())
-  method!(cx.mod, :_start, RMethod(:_start, sig, lowerfn(fn, sig)))
+  method!(cx.mod, :_start, RMethod(tag"_start", sig, lowerfn(fn, sig)))
 end
 
 function loadfile(cx::LoadState, io::IO; path)
@@ -73,7 +74,8 @@ function loadfile(cx::LoadState, io::IO; path)
 end
 
 function loadfile(f::String; partial = false)
-  mod = RModule()
+  mod = RModule(tag"")
+  prelude!(mod)
   cx = LoadState(mod)
   path = "$common/common.rv"
   open(io -> loadfile(cx, io; path), path)

@@ -164,7 +164,7 @@ end
 function lowerwasm!(mod::WModule, T)
   haskey(mod.funcs, T) && return mod.funcs[T][1]
   f = T[1]::Union{Tag,RMethod}
-  id = name(mod, f isa Tag ? Symbol(f) : Symbol(f.name, ":method"))
+  id = name(mod, f isa Tag ? Symbol(f) : Symbol(Symbol(f.name), ":method"))
   mod.funcs[T] = (id, nothing)
   ir = lowerwasm!(mod, frame(mod.inf, T))
   mod.funcs[T] = (id, ir)

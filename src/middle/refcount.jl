@@ -77,8 +77,8 @@ isglobal(ir, v) = haskey(ir, v) && isexpr(ir[v].expr, :global)
 @enum CountMode retain release
 
 # Used as a key for generated methods
-retain_method = RMethod(:retain, lowerpattern(rvx"args"), nothing, false)
-release_method = RMethod(:release, lowerpattern(rvx"args"), nothing, false)
+retain_method = RMethod(tag"retain", lowerpattern(rvx"args"), nothing, false)
+release_method = RMethod(tag"release", lowerpattern(rvx"args"), nothing, false)
 
 function retain!(ir, x)
   push!(ir, stmt(xcall(retain_method, x), type = nil))

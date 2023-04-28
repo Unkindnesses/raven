@@ -16,7 +16,10 @@ function Base.show(io::IO, id::Tag)
   print(io, "\"")
 end
 
-Tag(s::String) = Tag(Symbol.(split(s, "."))...)
+Tag(s::String) = Tag(Symbol.(split(s, ".", keepempty=false))...)
+
+path(t::Tag) = Tag(t.path[1:end-1]...)
+name(t::Tag) = t.path[end]
 
 macro tag_str(ex)
   Tag(ex)

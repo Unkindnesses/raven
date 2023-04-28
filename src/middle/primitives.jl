@@ -54,41 +54,37 @@ end
 partial_symstring(x::Tag) = string(x)
 partial_symstring(x::Or) = RString
 
-pack_method = RMethod(:pack, lowerpattern(rvx"args"), args -> pack(parts(args)...), true)
-part_method = RMethod(:part, lowerpattern(rvx"[data, i]"), partial_part, true)
-nparts_method = RMethod(:nparts, lowerpattern(rvx"[x]"), partial_nparts, true)
-packcat_method = RMethod(:packcat, lowerpattern(rvx"args"), args -> packcat(parts(args)...), true)
-widen_method = RMethod(:widen, lowerpattern(rvx"[x]"), partial_widen, true)
-shortcutEquals_method = RMethod(:shortcutEquals, lowerpattern(rvx"[a, b]"), partial_shortcutEquals, true)
-
-isnil_method = RMethod(:isnil, lowerpattern(rvx"[x]"), partial_isnil, true)
-notnil_method = RMethod(:notnil, lowerpattern(rvx"[x]"), partial_notnil, true)
-symstring_method = RMethod(:symstring, lowerpattern(rvx"[x: Tag]"), partial_symstring, true)
-
 partial_function(f, I, O) = Int32
 partial_invoke(f, I, O, xs...) = rvtype(O)
 
-function_method = RMethod(:function, lowerpattern(rvx"[f, I, O]"), partial_function, true)
-invoke_method = RMethod(:invoke, lowerpattern(rvx"[f: Int32, I, O, xs...]"), partial_invoke, true)
+pack_method = RMethod(tag"common.core.pack", lowerpattern(rvx"args"), args -> pack(parts(args)...), true)
+part_method = RMethod(tag"common.core.part", lowerpattern(rvx"[data, i]"), partial_part, true)
+nparts_method = RMethod(tag"common.core.nparts", lowerpattern(rvx"[x]"), partial_nparts, true)
+packcat_method = RMethod(tag"common.core.packcat", lowerpattern(rvx"args"), args -> packcat(parts(args)...), true)
+widen_method = RMethod(tag"common.core.widen", lowerpattern(rvx"[x]"), partial_widen, true)
+shortcutEquals_method = RMethod(tag"common.core.shortcutEquals", lowerpattern(rvx"[a, b]"), partial_shortcutEquals, true)
 
-function primitives!(mod)
-  mod[Symbol("false")] = Int32(0)
-  mod[Symbol("true")] = Int32(1)
-  method!(mod, :pack, pack_method)
-  method!(mod, :part, part_method)
-  method!(mod, :nparts, nparts_method)
-  method!(mod, :packcat, packcat_method)
-  method!(mod, :widen, widen_method)
-  method!(mod, :shortcutEquals, shortcutEquals_method)
+isnil_method = RMethod(tag"common.core.isnil", lowerpattern(rvx"[x]"), partial_isnil, true)
+notnil_method = RMethod(tag"common.core.notnil", lowerpattern(rvx"[x]"), partial_notnil, true)
+symstring_method = RMethod(tag"common.core.symstring", lowerpattern(rvx"[x: Tag]"), partial_symstring, true)
 
-  method!(mod, :isnil, isnil_method)
-  method!(mod, :notnil, notnil_method)
-  method!(mod, :symstring, symstring_method)
+function_method = RMethod(tag"common.core.function", lowerpattern(rvx"[f, I, O]"), partial_function, true)
+# TODO Has to be in main because Raven overloads from there
+invoke_method = RMethod(tag"common.core", tag"invoke", lowerpattern(rvx"[f: Int32, I, O, xs...]"), partial_invoke, true)
 
-  method!(mod, :function, function_method)
-  method!(mod, :invoke, invoke_method)
-  return mod
-end
+const primitives = [
+  pack_method,
+  part_method,
+  nparts_method,
+  packcat_method,
+  widen_method,
+  shortcutEquals_method,
+  isnil_method,
+  notnil_method,
+  symstring_method,
+  function_method,
+  invoke_method,
+]
 
 # Primitive implementations
 # Invoked from middle-end lowering. `inline` primitives replace the call with a
@@ -187,4 +183,27 @@ inlinePrimitive[invoke_method] = function (pr, ir, v)
   args = cast!(pr, exprtype(ir, args), I, args)
   v′ = push!(pr, stmt(ir[v], expr = Expr(:call_indirect, f, args)))
   replace!(pr, v, v′)
+end
+
+# Core module / prelude
+
+function core()
+  mod = RModule(tag"common.core")
+  mod[Symbol("false")] = Int32(0)
+  mod[Symbol("true")] = Int32(1)
+  for meth in primitives
+    # TODO: do defs/exports in Raven
+    f = name(meth.name)
+    mod.defs[f] = meth.name
+    push!(mod.exports, f)
+    method!(mod, meth)
+  end
+  push!(mod.exports, Symbol("true"))
+  push!(mod.exports, Symbol("false"))
+  return mod
+end
+
+function prelude!(mod)
+  import!(mod, core(), [map(m -> name(m.name), primitives)..., Symbol("true"), Symbol("false")])
+  return mod
 end

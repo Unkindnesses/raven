@@ -1,4 +1,5 @@
 using Raven, Test
+using Raven: @tag_str
 
 function loadsrc(src)
   tmp = tempname() * ".rv"
@@ -26,7 +27,7 @@ let
     pow(2, 3)
     """)
   fs = filter(inf.data) do (sig, fr)
-    sig[1] isa Raven.RMethod && sig[1].name == :pow
+    sig[1] isa Raven.RMethod && sig[1].name == tag"pow"
   end |> collect
   @test fs[1][2][2] == 8
 end
@@ -44,7 +45,7 @@ let
     main()
     """)
   fs = filter(inf.data) do (sig, fr)
-    sig[1] isa Raven.RMethod && sig[1].name == :main
+    sig[1] isa Raven.RMethod && sig[1].name == tag"main"
   end |> collect
   @test fs[1][2][2] == Int64
 end
