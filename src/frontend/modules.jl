@@ -60,11 +60,6 @@ function method!(mod::RModule, m::RMethod)
   return
 end
 
-function method!(mod::RModule, name::Symbol, m::RMethod)
-  mod.defs[name] = m.name
-  method!(mod, m)
-end
-
 function import!(mod::RModule, from::RModule, vars)
   from.name in mod.methods.modules || merge!(mod.methods, from.methods)
   for var in vars

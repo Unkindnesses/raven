@@ -26,20 +26,25 @@ function load_expr(cx::LoadState, x; src)
   env = collect(keys(cx.mod.defs))
   ir, defs = lower_toplevel(x, fname, src, env)
   foreach(x -> get!(cx.mod.defs, x, ⊥), defs)
-  method!(cx.mod, fname, RMethod(Tag(fname), lowerpattern(AST.List()), ir))
+  cx.mod.defs[fname] = Tag(fname)
+  method!(cx.mod, RMethod(Tag(fname), lowerpattern(AST.List()), ir))
   push!(cx.main, fname)
 end
+
+isfn(x) = x[1] == :fn || ((x[1], x[2]) == (:extend, :fn))
 
 function vload(cx::LoadState, x::AST.Syntax; src)
   x[1] == :include && return load_include(cx, x)
   x[1] == :bundle && return vload(cx, datamacro(x); src)
-  x[1] == :fn || return load_expr(cx, x; src)
-  sig = x[2]
-  f = sig[1]::Symbol
-  args = AST.List(sig[2:end]...)
-  sig = lowerpattern(args)
-  method!(cx.mod, f, RMethod(Tag(f), sig, lowerfn(x, sig)))
-  return f
+  isfn(x) || return load_expr(cx, x; src)
+  extend = x[1] == :extend
+  sig, body = extend ? x[3:end] : x[2:end]
+  var = sig[1]::Symbol
+  tag = extend ? cx.mod.defs[var]::Tag : Tag(var)
+  cx.mod.defs[sig[1]::Symbol] = tag
+  sig = lowerpattern(AST.List(sig[2:end]...))
+  method!(cx.mod, RMethod(tag, sig, lowerfn(tag, sig, body, meta = AST.meta(x))))
+  return
 end
 
 vload(cx::LoadState, x::AST.Block; src) = foreach(x -> vload(cx, x; src), x[:])
@@ -55,12 +60,11 @@ end
 vload(m::LoadState, x; src) = load_expr(m, x; src)
 
 function finish!(cx::LoadState)
-  body = [AST.Call(f) for f in cx.main]
-  options().memcheck && push!(body, AST.Call(:checkAllocations))
-  fn = AST.Syntax(:fn, AST.Call(:_start),
-                       AST.Block(body...))
+  body = AST.Block([AST.Call(f) for f in cx.main]...)
+  options().memcheck && push!(body.args, AST.Call(:checkAllocations))
   sig = lowerpattern(AST.List())
-  method!(cx.mod, :_start, RMethod(tag"_start", sig, lowerfn(fn, sig)))
+  cx.mod.defs[:_start] = tag"_start"
+  method!(cx.mod, RMethod(tag"_start", sig, lowerfn(tag"_start", sig, body)))
 end
 
 function loadfile(cx::LoadState, io::IO; path)

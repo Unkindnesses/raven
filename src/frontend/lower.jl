@@ -492,15 +492,14 @@ _lower!(sc, ir::IR, ex::AST.Syntax) = lower!(sc, ir, ex, false)
 
 fnsig(ex) = lowerpattern(AST.List(ex[2][:]...))
 
-function lowerfn(ex, sig = fnsig(ex))
+function lowerfn(name::Tag, sig::Signature, body::AST.Expr; meta = nothing)
   sc = Scope(swap = sig.swap)
-  name = ex[2][1]
-  ir = IR(meta = FuncInfo(Tag(name), AST.meta(ex)))
+  ir = IR(meta = FuncInfo(name, meta))
   for arg in sig.args
     sc[arg] = Slot(arg)
     push!(ir, :($(Slot(arg)) = $(argument!(ir))))
   end
-  out = lower!(sc, ir, ex[3])
+  out = lower!(sc, ir, body)
   out == nothing || swapreturn!(ir, out, sig.swap, nothing)
   ir = ir |> pruneblocks! |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
 end
