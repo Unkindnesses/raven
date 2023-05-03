@@ -69,8 +69,7 @@ notnil_method = RMethod(tag"common.core.notnil", lowerpattern(rvx"[x]"), partial
 symstring_method = RMethod(tag"common.core.symstring", lowerpattern(rvx"[x: Tag]"), partial_symstring, true)
 
 function_method = RMethod(tag"common.core.function", lowerpattern(rvx"[f, I, O]"), partial_function, true)
-# TODO Has to be in main because Raven overloads from there
-invoke_method = RMethod(tag"common.core", tag"invoke", lowerpattern(rvx"[f: Int32, I, O, xs...]"), partial_invoke, true)
+invoke_method = RMethod(tag"common.core.invoke", lowerpattern(rvx"[f: Int32, I, O, xs...]"), partial_invoke, true)
 
 const primitives = [
   pack_method,
