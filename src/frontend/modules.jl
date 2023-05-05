@@ -1,3 +1,8 @@
+struct Binding
+  mod::Tag
+  name::Symbol
+end
+
 struct Signature
   pattern
   args::Vector{Symbol}

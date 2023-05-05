@@ -206,26 +206,29 @@ function IRTools.print_stmt(io::IO, ::Val{:pack}, ex)
   end
 end
 
+# TODO this is hacky; global loads should be a statement
 struct Global
-  name::Symbol
+  name::Binding
   type::Any
 end
 
-Global(name::Symbol) = Global(name, ⊥)
+Global(name::Binding) = Global(name, ⊥)
+Global(mod::Tag, name::Symbol, type = ⊥) = Global(Binding(mod, name), type)
 
 Base.show(io::IO, g::Global) = print(io, g.name)
 
 struct GlobalScope
+  mod::Tag
   env::Set{Symbol}
   def::Set{Symbol}
 end
 
-GlobalScope(env = Set()) = GlobalScope(env, Set())
+GlobalScope(mod::Tag, env = Set()) = GlobalScope(mod, env, Set())
 
-Base.getindex(g::GlobalScope, x::Symbol) = Global(x)
+Base.getindex(g::GlobalScope, x::Symbol) = Global(g.mod, x)
 Base.haskey(sc::GlobalScope, x::Symbol) = x in sc.env
 
-variable!(sc::GlobalScope, name) = (push!(sc.def, name); Global(name))
+variable!(sc::GlobalScope, name) = (push!(sc.def, name); sc[name])
 
 swaps(sc::GlobalScope) = nothing
 
@@ -236,7 +239,7 @@ struct Scope
 end
 
 Scope(parent; swap = nothing) = Scope(parent, Dict{Symbol,Any}(), swap)
-Scope(; swap = nothing) = Scope(GlobalScope(); swap)
+Scope(mod::Tag; swap = nothing) = Scope(GlobalScope(mod); swap)
 
 @forward Scope.env Base.setindex!
 
@@ -335,7 +338,7 @@ end
 function swapreturn!(ir::IR, val, swaps, src; bp = false)
   if swaps != nothing && !isempty(swaps)
     args = maximum(keys(swaps))
-    ret = push!(ir, xlist(val, map(i -> haskey(swaps, i) ? Slot(swaps[i]) : Global(:nil), 1:args)...))
+    ret = push!(ir, xlist(val, map(i -> haskey(swaps, i) ? Slot(swaps[i]) : Global(tag"", :nil), 1:args)...))
     return!(ir, ret; src, bp)
   else
     return!(ir, val; src, bp)
@@ -396,7 +399,7 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
   branch!(header, bodyStart, when = cond, src = AST.meta(ex))
   branch!(header, after, src = AST.meta(ex.args[1]))
   IRTools.canbranch(bodyEnd) && branch!(bodyEnd, header)
-  return value ? Global(:nil) : nothing
+  return value ? Global(tag"", :nil) : nothing
 end
 
 struct If
@@ -492,9 +495,9 @@ _lower!(sc, ir::IR, ex::AST.Syntax) = lower!(sc, ir, ex, false)
 
 fnsig(ex) = lowerpattern(AST.List(ex[2][:]...))
 
-function lowerfn(name::Tag, sig::Signature, body::AST.Expr; meta = nothing)
-  sc = Scope(swap = sig.swap)
-  ir = IR(meta = FuncInfo(name, meta))
+function lowerfn(mod::Tag, sig::Signature, body::AST.Expr; meta::FuncInfo = nothing)
+  sc = Scope(mod, swap = sig.swap)
+  ir = IR(; meta)
   for arg in sig.args
     sc[arg] = Slot(arg)
     push!(ir, :($(Slot(arg)) = $(argument!(ir))))
@@ -511,7 +514,7 @@ function rewrite_globals(ir::IR)
       g in gs || push!(gs, g)
     end
   end
-  slots = Dict(g => Slot(g.name) for g in gs)
+  slots = Dict(g => Slot(g.name.name) for g in gs)
   ir = IRTools.prewalk(x -> get(slots, x, x), ir)
   for g in reverse(gs)
     pushfirst!(ir, :($(slots[g]) = $g))
@@ -522,11 +525,11 @@ function rewrite_globals(ir::IR)
   return ir
 end
 
-function lower_toplevel(ex, name, src, env = [])
-  sc = GlobalScope(Set(env))
-  ir = IR(meta = FuncInfo(Tag(name), src))
+function lower_toplevel(mod::Tag, ex; meta = nothing, env = [])
+  sc = GlobalScope(mod, Set(env))
+  ir = IR(; meta)
   _lower!(sc, ir, ex)
-  IRTools.return!(ir, Global(:nil))
+  IRTools.return!(ir, Global(tag"", :nil))
   ir = rewrite_globals(ir)
   return ir |> IRTools.ssa! |> IRTools.prune!, sc.def
 end

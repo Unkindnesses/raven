@@ -76,19 +76,19 @@ end
 struct Inference
   mod::RModule
   frames::IdDict{Any,Union{Frame,Redirect}}
-  globals::Dict{Symbol,GlobalFrame}
+  globals::Dict{Binding,GlobalFrame}
   queue::WorkQueue{Loc}
 end
 
 function Inference(mod::RModule)
-  gs = Dict{Symbol,GlobalFrame}()
+  gs = Dict{Binding,GlobalFrame}()
   for (x, T) in mod.defs
-    gs[x] = GlobalFrame(Set{Loc}(), T)
+    gs[Binding(mod.name, x)] = GlobalFrame(Set{Loc}(), T)
   end
   Inference(mod, Dict(), gs, WorkQueue{Loc}())
 end
 
-gframe(inf::Inference, name::Symbol) =
+gframe(inf::Inference, name::Binding) =
   get!(() -> GlobalFrame(Set{Loc}(), ⊥), inf.globals, name)
 
 function sig(inf::Inference, T)

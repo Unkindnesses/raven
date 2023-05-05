@@ -211,7 +211,8 @@ function trivial_isa(mod, val, T::Tag)
   (length(ir) == 1 && length(blocks(ir)) == 1) || return missing
   ret = IRTools.returnvalue(block(ir, 1))
   ret isa Global || return missing
-  ret = mod.defs[ret.name]
+  @assert ret.name.mod == mod.name
+  ret = mod.defs[ret.name.name]
   ret isa Int32 || return missing
   return Bool(ret)
 end

@@ -22,13 +22,13 @@ function load_include(cx, x)
 end
 
 function load_expr(cx::LoadState, x; src)
-  fname = Symbol(:__main, length(cx.main))
+  fname = Tag(Symbol(:__main, length(cx.main)))
   env = collect(keys(cx.mod.defs))
-  ir, defs = lower_toplevel(x, fname, src, env)
+  ir, defs = lower_toplevel(cx.mod.name, x; env, meta = FuncInfo(fname, src))
   foreach(x -> get!(cx.mod.defs, x, ⊥), defs)
-  cx.mod.defs[fname] = Tag(fname)
-  method!(cx.mod, RMethod(Tag(fname), lowerpattern(AST.List()), ir))
-  push!(cx.main, fname)
+  cx.mod.defs[name(fname)] = fname
+  method!(cx.mod, RMethod(fname, lowerpattern(AST.List()), ir))
+  push!(cx.main, name(fname))
 end
 
 isfn(x) = x[1] == :fn || ((x[1], x[2]) == (:extend, :fn))
@@ -43,7 +43,7 @@ function vload(cx::LoadState, x::AST.Syntax; src)
   tag = extend ? cx.mod.defs[var]::Tag : Tag(var)
   cx.mod.defs[sig[1]::Symbol] = tag
   sig = lowerpattern(AST.List(sig[2:end]...))
-  method!(cx.mod, RMethod(tag, sig, lowerfn(tag, sig, body, meta = AST.meta(x))))
+  method!(cx.mod, RMethod(tag, sig, lowerfn(cx.mod.name, sig, body, meta = FuncInfo(tag, AST.meta(x)))))
   return
 end
 
@@ -64,7 +64,7 @@ function finish!(cx::LoadState)
   options().memcheck && push!(body.args, AST.Call(:checkAllocations))
   sig = lowerpattern(AST.List())
   cx.mod.defs[:_start] = tag"_start"
-  method!(cx.mod, RMethod(tag"_start", sig, lowerfn(tag"_start", sig, body)))
+  method!(cx.mod, RMethod(tag"_start", sig, lowerfn(cx.mod.name, sig, body, meta = FuncInfo(tag"_start"))))
 end
 
 function loadfile(cx::LoadState, io::IO; path)
