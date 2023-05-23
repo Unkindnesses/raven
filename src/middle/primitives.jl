@@ -202,7 +202,8 @@ function core()
   return mod
 end
 
-function prelude!(mod)
-  import!(mod, core(), [map(m -> name(m.name), primitives)..., Symbol("true"), Symbol("false")])
+function prelude!(comp::Compilation, mod::RModule)
+  core = comp.mods[tag"common.core"]
+  import!(mod, core, [map(m -> name(m.name), primitives)..., Symbol("true"), Symbol("false")])
   return mod
 end

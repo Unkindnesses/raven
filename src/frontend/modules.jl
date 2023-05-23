@@ -76,6 +76,21 @@ end
 
 @forward RModule.defs Base.getindex, Base.setindex!, Base.haskey, Base.get
 
+struct Compilation
+  mods::Dict{Tag,RModule}
+end
+
+function module!(c::Compilation, mod)
+  c.mods[mod.name] = mod
+  return
+end
+
+function Compilation()
+  c = Compilation(Dict())
+  module!(c, core())
+  return c
+end
+
 # For debugging
 struct FuncInfo
   name::Tag

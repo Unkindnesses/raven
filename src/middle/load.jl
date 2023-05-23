@@ -1,11 +1,12 @@
 using LNR
 
 struct LoadState
+  comp::Compilation
   mod::RModule
   main::Vector{Any}
 end
 
-LoadState(mod) = LoadState(mod, [])
+LoadState(comp, mod) = LoadState(comp, mod, [])
 
 const common = joinpath(@__DIR__, "../../common") |> normpath
 
@@ -79,9 +80,10 @@ function loadfile(cx::LoadState, io::IO; path)
 end
 
 function loadfile(f::String; partial = false)
-  mod = RModule(tag"")
-  prelude!(mod)
-  cx = LoadState(mod)
+  comp = Compilation()
+  main = RModule(tag"")
+  prelude!(comp, main)
+  cx = LoadState(comp, main)
   path = "$common/common.rv"
   open(io -> loadfile(cx, io; path), path)
   open(io -> loadfile(cx, io, path = f), f)
