@@ -3,7 +3,7 @@ using LNR
 struct LoadState
   comp::Compilation
   mod::RModule
-  main::Vector{Any}
+  main::Vector{Tag}
 end
 
 LoadState(comp, mod) = LoadState(comp, mod, [])
@@ -23,13 +23,12 @@ function load_include(cx, x)
 end
 
 function load_expr(cx::LoadState, x; src)
-  fname = Tag(Symbol(:__main, length(cx.main)))
+  fname = Tag(cx.mod.name, Symbol(:__main, length(cx.main)))
   env = collect(keys(cx.mod.defs))
   ir, defs = lower_toplevel(cx.mod.name, x; env, meta = FuncInfo(fname, src))
   foreach(x -> get!(cx.mod.defs, x, ⊥), defs)
-  cx.mod.defs[name(fname)] = fname
   method!(cx.mod, RMethod(fname, lowerpattern(AST.List()), ir))
-  push!(cx.main, name(fname))
+  push!(cx.main, fname)
 end
 
 isfn(x) = x[1] == :fn || ((x[1], x[2]) == (:extend, :fn))
@@ -61,11 +60,10 @@ end
 vload(m::LoadState, x; src) = load_expr(m, x; src)
 
 function finish!(cx::LoadState)
-  body = AST.Block([AST.Call(f) for f in cx.main]...)
+  body = AST.Block([AST.Call(AST.Template(:tag, string(f))) for f in cx.main]...)
   options().memcheck && push!(body.args, AST.Call(:checkAllocations))
   sig = lowerpattern(AST.List())
-  cx.mod.defs[:_start] = tag"_start"
-  method!(cx.mod, RMethod(tag"_start", sig, lowerfn(cx.mod.name, sig, body, meta = FuncInfo(tag"_start"))))
+  method!(cx.mod, RMethod(tag"common.core.main", sig, lowerfn(cx.mod.name, sig, body, meta = FuncInfo(tag"_start"))))
 end
 
 function loadfile(cx::LoadState, io::IO; path)
@@ -104,5 +102,5 @@ function load(f::String)
   return comp
 end
 
-startmethod(mod::RModule) = mod.methods[tag"_start"][1]
+startmethod(mod::RModule) = mod.methods[tag"common.core.main"][1]
 startmethod(cmp::Compilation) = startmethod(cmp.mods[tag""])

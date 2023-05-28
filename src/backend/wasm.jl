@@ -198,8 +198,8 @@ function wasmmodule(inf::Cache, start)
     WebAssembly.Block([
       WebAssembly.Local(0),
       WebAssembly.SetGlobal(0),
-      WebAssembly.Call(Symbol("_start:method:1"))]),
-    FuncInfo(tag"_start", trampoline = true))
+      WebAssembly.Call(Symbol("common.core.main:method:1"))]),
+    FuncInfo(tag"common.core.main", trampoline = true))
   mod = WebAssembly.Module(
     funcs = [start, fs...],
     imports = default_imports,
