@@ -91,7 +91,6 @@ main(comp::Compilation) = comp[tag""]
 
 function Compilation()
   c = Compilation(Dict())
-  module!(c, core())
   return c
 end
 

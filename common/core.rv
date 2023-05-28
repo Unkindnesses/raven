@@ -1,0 +1,15 @@
+# These functions have built-in methods attached.
+# TODO: could add a `fn { foo }` syntax to declare a function with no methods.
+pack = tag"common.core.pack"
+part = tag"common.core.part"
+nparts = tag"common.core.nparts"
+packcat = tag"common.core.packcat"
+widen = tag"common.core.widen"
+shortcutEquals = tag"common.core.shortcutEquals"
+
+isnil = tag"common.core.isnil"
+notnil = tag"common.core.notnil"
+tagstring = tag"common.core.tagstring"
+
+function = tag"common.core.function"
+invoke = tag"common.core.invoke"

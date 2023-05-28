@@ -2,11 +2,11 @@ using LNR
 
 struct LoadState
   comp::Compilation
-  mod::RModule
+  mod::Union{RModule,Nothing}
   main::Vector{Tag}
 end
 
-LoadState(comp, mod) = LoadState(comp, mod, [])
+LoadState(comp, mod = nothing) = LoadState(comp, mod, [])
 
 const common = joinpath(@__DIR__, "../../common") |> normpath
 
@@ -63,7 +63,9 @@ function finish!(cx::LoadState)
   body = AST.Block([AST.Call(AST.Template(:tag, string(f))) for f in cx.main]...)
   options().memcheck && push!(body.args, AST.Call(:checkAllocations))
   sig = lowerpattern(AST.List())
-  method!(cx.mod, RMethod(tag"common.core.main", sig, lowerfn(cx.mod.name, sig, body, meta = FuncInfo(tag"_start"))))
+  method!(main(cx.comp), RMethod(tag"common.core.main", sig,
+                                 lowerfn(tag"", sig, body,
+                                         meta = FuncInfo(tag"common.core.main"))))
 end
 
 function loadfile(cx::LoadState, io::IO; path)
@@ -80,24 +82,28 @@ end
 loadfile(cx::LoadState, path) =
   open(io -> loadfile(cx, io; path), path)
 
-function loadmodule(cx::LoadState, tag, path)
-  mod = RModule(tag)
-  cx.comp.mods[tag] = mod
-  prelude!(cx.comp, mod)
+function loadmodule(cx::LoadState, mod::RModule, path)
+  module!(cx.comp, mod)
   cx = LoadState(cx.comp, mod, cx.main)
   loadfile(cx, path)
   return mod
 end
 
+function loadmodule(cx::LoadState, mod::Tag, path)
+  mod = haskey(cx.comp.mods, mod) ? cx.comp[mod] : prelude!(cx.comp, RModule(mod))
+  return loadmodule(cx, mod, path)
+end
+
 function load(f::String)
   comp = Compilation()
-  main = RModule(tag"")
-  module!(comp, main)
-  prelude!(comp, main)
-  cx = LoadState(comp, main)
-  path = "$common/common.rv"
-  loadfile(cx, path)
-  loadfile(cx, f)
+  cx = LoadState(comp)
+
+  module!(comp, core())
+  loadmodule(cx, tag"common.core", "$common/core.rv")
+
+  loadmodule(cx, tag"", "$common/common.rv")
+  loadmodule(cx, tag"", f)
+
   finish!(cx)
   return comp
 end

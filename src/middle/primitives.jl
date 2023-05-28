@@ -191,10 +191,8 @@ function core()
   mod[Symbol("false")] = Int32(0)
   mod[Symbol("true")] = Int32(1)
   for meth in primitives
-    # TODO: do defs/exports in Raven
-    f = name(meth.name)
-    mod.defs[f] = meth.name
-    push!(mod.exports, f)
+    # TODO: do exports in Raven
+    push!(mod.exports, name(meth.name))
     method!(mod, meth)
   end
   push!(mod.exports, Symbol("true"))
