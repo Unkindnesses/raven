@@ -51,8 +51,8 @@ function partial_notnil(x::Or)
   return length(ps) == 1 ? ps[1] : Or(ps)
 end
 
-partial_symstring(x::Tag) = string(x)
-partial_symstring(x::Or) = RString
+partial_tagstring(x::Tag) = string(x)
+partial_tagstring(x::Or) = RString
 
 partial_function(f, I, O) = Int32
 partial_invoke(f, I, O, xs...) = rvtype(O)
@@ -66,7 +66,7 @@ shortcutEquals_method = RMethod(tag"common.core.shortcutEquals", lowerpattern(rv
 
 isnil_method = RMethod(tag"common.core.isnil", lowerpattern(rvx"[x]"), partial_isnil, true)
 notnil_method = RMethod(tag"common.core.notnil", lowerpattern(rvx"[x]"), partial_notnil, true)
-symstring_method = RMethod(tag"common.core.symstring", lowerpattern(rvx"[x: Tag]"), partial_symstring, true)
+tagstring_method = RMethod(tag"common.core.tagstring", lowerpattern(rvx"[x: Tag]"), partial_tagstring, true)
 
 function_method = RMethod(tag"common.core.function", lowerpattern(rvx"[f, I, O]"), partial_function, true)
 invoke_method = RMethod(tag"common.core.invoke", lowerpattern(rvx"[f: Int32, I, O, xs...]"), partial_invoke, true)
@@ -80,7 +80,7 @@ const primitives = [
   shortcutEquals_method,
   isnil_method,
   notnil_method,
-  symstring_method,
+  tagstring_method,
   function_method,
   invoke_method,
 ]
@@ -144,7 +144,7 @@ inlinePrimitive[notnil_method] = function (pr, ir, v)
   end
 end
 
-inlinePrimitive[symstring_method] = function (pr, ir, v)
+inlinePrimitive[tagstring_method] = function (pr, ir, v)
   if ir[v].type isa String
     pr[v] = Expr(:tuple)
   end
@@ -155,8 +155,8 @@ function string!(ir, s)
   push!(ir, stmt(xcall(part_method, s, 1), type = RString))
 end
 
-outlinePrimitive[symstring_method] = function (T::Or)
-  ir = IR(meta = FuncInfo(tag"symstring"))
+outlinePrimitive[tagstring_method] = function (T::Or)
+  ir = IR(meta = FuncInfo(tag"tagstring"))
   x = argument!(ir, type = T)
   union_cases!(ir, T, x) do S, _
     @assert S isa Tag

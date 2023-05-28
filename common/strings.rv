@@ -11,7 +11,7 @@ fn (a: String) == (b: String) {
 }
 
 fn string(x: Tag) {
-  symstring(x)
+  tagstring(x)
 }
 
 fn (a: Tag) == (b: Tag) {
