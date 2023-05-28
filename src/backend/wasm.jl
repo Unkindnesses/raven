@@ -226,7 +226,7 @@ function binary(m::WebAssembly.Module, file; path)
 end
 
 function emitwasm(file, out)
-  mod = loadfile(file)
+  mod = load(file)
   comp = mod |> infer |> lowerir |> refcounts
   mod, strings = wasmmodule(comp, startmethod(mod))
   binary(mod, out; path = normpath(joinpath(pwd(), file)))

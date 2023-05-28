@@ -5,6 +5,7 @@ struct Tag
 end
 
 Tag(parts::Symbol...) = Tag((parts...,))
+Tag(ns::Tag, parts::Symbol...) = Tag((ns.path..., parts...))
 
 Base.string(id::Tag) = join(id.path, ".")
 

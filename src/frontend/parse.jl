@@ -236,7 +236,6 @@ _tuple(io) = List(@try(brackets(io, '['))...)
 function _block(io)
   read(io) == '{' || return
   consume_ws(io)
-  peek(io) == '}' && return Block([])
   args = []
   while !eof(io)
     stmts(io)

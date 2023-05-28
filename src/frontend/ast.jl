@@ -134,10 +134,8 @@ function _show(io::Ctx, x::Syntax)
   _show(io, x[1])
   print(io, " ")
   for i in 2:length(x)
-    if i == length(x)
-      _show(io, x[i]::Block)
-    else
       _show(io, x[i])
+    if i < length(x)
       print(io, " ")
     end
   end

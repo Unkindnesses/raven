@@ -65,7 +65,7 @@ function method!(mod::RModule, m::RMethod)
   return
 end
 
-function import!(mod::RModule, from::RModule, vars)
+function import!(mod::RModule, from::RModule, vars = [])
   from.name in mod.methods.modules || merge!(mod.methods, from.methods)
   for var in vars
     @assert var in from.exports
@@ -84,6 +84,10 @@ function module!(c::Compilation, mod)
   c.mods[mod.name] = mod
   return
 end
+
+@forward Compilation.mods Base.getindex
+
+main(comp::Compilation) = comp[tag""]
 
 function Compilation()
   c = Compilation(Dict())

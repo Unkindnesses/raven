@@ -41,7 +41,7 @@ function vload(cx::LoadState, x::AST.Syntax; src)
   extend = x[1] == :extend
   sig, body = extend ? x[3:end] : x[2:end]
   var = sig[1]::Symbol
-  tag = extend ? cx.mod.defs[var]::Tag : Tag(var)
+  tag = extend ? cx.mod.defs[var]::Tag : Tag(cx.mod.name, var)
   cx.mod.defs[sig[1]::Symbol] = tag
   sig = lowerpattern(AST.List(sig[2:end]...))
   method!(cx.mod, RMethod(tag, sig, lowerfn(cx.mod.name, sig, body, meta = FuncInfo(tag, AST.meta(x)))))
@@ -79,16 +79,30 @@ function loadfile(cx::LoadState, io::IO; path)
   end
 end
 
-function loadfile(f::String; partial = false)
+loadfile(cx::LoadState, path) =
+  open(io -> loadfile(cx, io; path), path)
+
+function loadmodule(cx::LoadState, tag, path)
+  mod = RModule(tag)
+  cx.comp.mods[tag] = mod
+  prelude!(cx.comp, mod)
+  cx = LoadState(cx.comp, mod, cx.main)
+  loadfile(cx, path)
+  return mod
+end
+
+function load(f::String)
   comp = Compilation()
   main = RModule(tag"")
+  module!(comp, main)
   prelude!(comp, main)
   cx = LoadState(comp, main)
   path = "$common/common.rv"
-  open(io -> loadfile(cx, io; path), path)
-  open(io -> loadfile(cx, io, path = f), f)
+  loadfile(cx, path)
+  loadfile(cx, f)
   finish!(cx)
-  return cx.mod
+  return comp
 end
 
-startmethod(mod) = mod.methods[tag"_start"][1]
+startmethod(mod::RModule) = mod.methods[tag"_start"][1]
+startmethod(cmp::Compilation) = startmethod(cmp.mods[tag""])

@@ -1,4 +1,5 @@
 using Raven, Test
+using Raven: @tag_str
 
 f = joinpath(@__DIR__, "raven/pow.rv")
 

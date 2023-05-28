@@ -80,12 +80,12 @@ struct Inference
   queue::WorkQueue{Loc}
 end
 
-function Inference(mod::RModule)
+function Inference(comp::Compilation)
   gs = Dict{Binding,GlobalFrame}()
-  for (x, T) in mod.defs
+  for (name, mod) in comp.mods, (x, T) in mod.defs
     gs[Binding(mod.name, x)] = GlobalFrame(Set{Loc}(), T)
   end
-  Inference(mod, Dict(), gs, WorkQueue{Loc}())
+  Inference(main(comp), Dict(), gs, WorkQueue{Loc}())
 end
 
 gframe(inf::Inference, name::Binding) =
@@ -312,8 +312,8 @@ function infer!(inf::Inference; partial = false)
   return inf
 end
 
-function infer(mod::RModule; partial = false)
-  inf = Inference(mod)
+function infer(comp::Compilation; partial = false)
+  inf = Inference(comp)
   Cache() do ch, sig
     frame!(inf, Parent((), 1), sig...)
     haskey(inf.frames, sig) || error("Can't infer types for $sig")
