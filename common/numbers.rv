@@ -1,12 +1,7 @@
-Int32   = tag"Int32"
-Int64   = tag"Int64"
-Float32 = tag"Float32"
-Float64 = tag"Float64"
-
-fn isa(pack(tag"Int32", _), tag"Int32") { true }
-fn isa(pack(tag"Int64", _), tag"Int64") { true }
-fn isa(pack(tag"Float32", _), tag"Float32") { true }
-fn isa(pack(tag"Float64", _), tag"Float64") { true }
+fn isa(pack(tag"common.core.Int32", _), tag"common.core.Int32") { true }
+fn isa(pack(tag"common.core.Int64", _), tag"common.core.Int64") { true }
+fn isa(pack(tag"common.core.Float32", _), tag"common.core.Float32") { true }
+fn isa(pack(tag"common.core.Float64", _), tag"common.core.Float64") { true }
 
 Integer = tag"Integer"
 
@@ -14,7 +9,7 @@ fn isa(_: Int32 | Int64, tag"Integer") { true }
 
 include { "numbers/complex.rv" }
 
-fn Int64(x: Int64) { x }
+extend fn Int64(x: Int64) { x }
 
 fn zero(x: Int64) { Int64(0) }
 fn zero(x: Int32) { Int32(0) }

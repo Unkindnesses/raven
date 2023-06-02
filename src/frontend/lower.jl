@@ -46,15 +46,16 @@ Base.:(==)(a::Or, b::Or) = a.patterns == b.patterns
 
 # Raven versions
 
-rvpattern(::Hole) = pack(tag"Hole")
-rvpattern(x::Primitive) = x
-rvpattern(x::Literal) = pack(tag"Literal", x.value)
-rvpattern(x::Bind) = pack(tag"Bind", Tag(x.name))
-rvpattern(xs::Pack) = pack(tag"Pack", rvpattern.(xs.parts)...)
-rvpattern(xs::And) = pack(tag"And", rvpattern.(xs.patterns)...)
-# TODO these should be runtime lookups
-rvpattern(x::Trait) = pack(tag"Trait", Tag(x.pattern))
-rvpattern(xs::Constructor) = pack(tag"Constructor", Tag(xs.func), rvpattern.(xs.args)...)
+# TODO: generate an expression rather than a type, so traits are runtime
+# lookups
+rvpattern(mod::RModule, ::Hole) = pack(tag"Hole")
+rvpattern(mod::RModule, x::Primitive) = x
+rvpattern(mod::RModule, x::Literal) = pack(tag"Literal", x.value)
+rvpattern(mod::RModule, x::Bind) = pack(tag"Bind", Tag(x.name))
+rvpattern(mod::RModule, xs::Pack) = pack(tag"Pack", rvpattern.((mod,), xs.parts)...)
+rvpattern(mod::RModule, xs::And) = pack(tag"And", rvpattern.((mod,), xs.patterns)...)
+rvpattern(mod::RModule, x::Trait) = pack(tag"Trait", mod[x.pattern]::Tag)
+rvpattern(mod::RModule, xs::Constructor) = pack(tag"Constructor", Tag(xs.func), rvpattern.((mod,), xs.args)...)
 
 # Pattern lowering
 
@@ -217,29 +218,33 @@ Global(mod::Tag, name::Symbol, type = ⊥) = Global(Binding(mod, name), type)
 
 Base.show(io::IO, g::Global) = print(io, g.name)
 
+# TODO we should only need the module name here, but need the whole thing
+# for a hack in `rvpattern`.
 struct GlobalScope
-  mod::Tag
+  mod::RModule
   env::Set{Symbol}
   def::Set{Symbol}
 end
 
-GlobalScope(mod::Tag, env = Set()) = GlobalScope(mod, env, Set())
+GlobalScope(mod::RModule, env = Set()) = GlobalScope(mod, env, Set())
 
-Base.getindex(g::GlobalScope, x::Symbol) = Global(g.mod, x)
+Base.getindex(g::GlobalScope, x::Symbol) = Global(g.mod.name, x)
 Base.haskey(sc::GlobalScope, x::Symbol) = x in sc.env
 
 variable!(sc::GlobalScope, name) = (push!(sc.def, name); sc[name])
 
 swaps(sc::GlobalScope) = nothing
 
+mod(sc::GlobalScope) = sc.mod
+
 struct Scope
-  parent::Any
+  parent::Union{Scope,GlobalScope}
   env::Dict{Symbol,Slot}
   swap::Union{Dict{Int,Symbol},Nothing} # slight hack; store for `return` lowering
 end
 
 Scope(parent; swap = nothing) = Scope(parent, Dict{Symbol,Any}(), swap)
-Scope(mod::Tag; swap = nothing) = Scope(GlobalScope(mod); swap)
+Scope(mod::RModule; swap = nothing) = Scope(GlobalScope(mod); swap)
 
 @forward Scope.env Base.setindex!
 
@@ -250,6 +255,8 @@ variable!(sc::Scope, name::Symbol) =
   haskey(sc, name) ? sc[name] : (sc[name] = Slot(gensym(name)))
 
 swaps(sc::Scope) = sc.swap == nothing ? swaps(sc.parent) : sc.swap
+
+mod(sc::Scope) = mod(sc.parent)
 
 # don't continue lowering after return
 # e.g. `f(return 1)`
@@ -363,7 +370,7 @@ end
 
 function lowermatch!(sc, ir::IR, val, pat)
   sig = lowerpattern(pat)
-  pat = rvpattern(sig.pattern)
+  pat = rvpattern(mod(sc), sig.pattern)
   m = push!(ir, rcall(tag"match", val, pat))
   isnil = push!(ir, xcall(isnil_method, m))
   branch!(ir, length(blocks(ir))+1, when = isnil)
@@ -495,7 +502,7 @@ _lower!(sc, ir::IR, ex::AST.Syntax) = lower!(sc, ir, ex, false)
 
 fnsig(ex) = lowerpattern(AST.List(ex[2][:]...))
 
-function lowerfn(mod::Tag, sig::Signature, body::AST.Expr; meta::FuncInfo = nothing)
+function lowerfn(mod::RModule, sig::Signature, body::AST.Expr; meta::FuncInfo = nothing)
   sc = Scope(mod, swap = sig.swap)
   ir = IR(; meta)
   for arg in sig.args
@@ -525,7 +532,7 @@ function rewrite_globals(ir::IR)
   return ir
 end
 
-function lower_toplevel(mod::Tag, ex; meta = nothing, env = [])
+function lower_toplevel(mod::RModule, ex; meta = nothing, env = [])
   sc = GlobalScope(mod, Set(env))
   ir = IR(; meta)
   _lower!(sc, ir, ex)

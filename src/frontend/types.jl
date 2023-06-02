@@ -101,13 +101,14 @@ const RString = pack(tag"String", JSObject)
 const fromSymbol = Dict{Tag,Type}()
 
 for T in :[Int64, Int32, Float64, Float32, Tag].args
-  @eval fromSymbol[$(Tag(T))] = $T
+  local tag = Tag(tag"common.core", T)
+  @eval fromSymbol[$tag] = $T
   @eval part(x::Union{$T,Type{$T}}, i::Integer) =
-          i == 0 ? $(Tag(T)) :
+          i == 0 ? $tag :
           i == 1 ? x :
           error("Tried to access part $i of 1")
   @eval nparts(x::Union{$T,Type{$T}}) = 1
-  @eval allparts(x::Union{$T,Type{$T}}) = ($(QuoteNode(T)),x)
+  @eval allparts(x::Union{$T,Type{$T}}) = ($tag, x)
 end
 
 part(s::String, i::Integer) =
@@ -216,7 +217,7 @@ unroll(T::Recursive) = unroll(T, T.type)
 # Union
 
 typekey(x) = tag(x)
-typekey(x::Tag) = (tag"Tag", x)
+typekey(x::Tag) = (tag(x), x)
 
 partial_eltype(x::Pack) = reduce(union, parts(x), init = ⊥)
 partial_eltype(x::VPack) = x.parts

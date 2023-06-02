@@ -10,9 +10,14 @@ fn identity(x) { x }
 fn (_ == _) { false }
 fn isa(_, _) { false }
 
-Tag = tag"Tag"
+Tag = tag"common.core.Tag"
 
-fn isa(pack(tag"Tag", _), tag"Tag") { true }
+Int32   = tag"common.core.Int32"
+Int64   = tag"common.core.Int64"
+Float32 = tag"common.core.Float32"
+Float64 = tag"common.core.Float64"
+
+fn isa(pack(tag"common.core.Tag", _), tag"common.core.Tag") { true }
 
 fn (x |> f) { f(x) }
 

@@ -79,7 +79,7 @@ fn tojs(x: Float64) {
 fn tojs(x: Int64) { tojs(Float64(x)) }
 fn tojs(x: Int32) { tojs(Float64(x)) }
 
-fn Float64(obj: JSObject) {
+extend fn Float64(obj: JSObject) {
   x = wasm { call("jsunbox", jsref(obj): i32): f64 }
   preserve(obj)
   return x

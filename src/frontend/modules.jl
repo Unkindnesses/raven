@@ -70,11 +70,11 @@ function import!(mod::RModule, from::RModule, vars = [])
   for var in vars
     @assert var in from.exports
     # TODO should be a Binding, so it works with runtime values
-    mod.defs[var] = from.defs[var]
+    mod[var] = from[var]
   end
 end
 
-@forward RModule.defs Base.getindex, Base.setindex!, Base.haskey, Base.get
+@forward RModule.defs Base.getindex, Base.setindex!, Base.haskey, Base.get, Base.get!
 
 struct Compilation
   mods::Dict{Tag,RModule}

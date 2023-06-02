@@ -212,7 +212,7 @@ function trivial_isa(mod, val, T::Tag)
   ret = IRTools.returnvalue(block(ir, 1))
   ret isa Global || return missing
   @assert ret.name.mod == mod.name
-  ret = mod.defs[ret.name.name]
+  ret = mod[ret.name.name]
   ret isa Int32 || return missing
   return Bool(ret)
 end
@@ -243,7 +243,7 @@ function dispatcher(mod, func::Tag, Ts)
       return!(ir, result)
       return ir
     else
-      m = push!(ir, rcall(tag"match", args, rvpattern(meth.sig.pattern)))
+      m = push!(ir, rcall(tag"match", args, rvpattern(mod, meth.sig.pattern)))
       cond = push!(ir, xcall(isnil_method, m))
       cond = push!(ir, rcall(tag"not", cond))
       branch!(ir, length(blocks(ir))+1, when = cond)

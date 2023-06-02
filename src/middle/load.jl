@@ -11,7 +11,7 @@ LoadState(comp, mod = nothing) = LoadState(comp, mod, [])
 const common = joinpath(@__DIR__, "../../common") |> normpath
 
 function simpleconst(cx::LoadState, x)
-  x isa Symbol && return cx.mod.defs[x]
+  x isa Symbol && return cx.mod[x]
   x isa Primitive && return x
   x isa AST.Template && x[1] == :tag && return Tag(x[2])
   return
@@ -25,8 +25,8 @@ end
 function load_expr(cx::LoadState, x; src)
   fname = Tag(cx.mod.name, Symbol(:__main, length(cx.main)))
   env = collect(keys(cx.mod.defs))
-  ir, defs = lower_toplevel(cx.mod.name, x; env, meta = FuncInfo(fname, src))
-  foreach(x -> get!(cx.mod.defs, x, ⊥), defs)
+  ir, defs = lower_toplevel(cx.mod, x; env, meta = FuncInfo(fname, src))
+  foreach(x -> get!(cx.mod, x, ⊥), defs)
   method!(cx.mod, RMethod(fname, lowerpattern(AST.List()), ir))
   push!(cx.main, fname)
 end
@@ -40,10 +40,10 @@ function vload(cx::LoadState, x::AST.Syntax; src)
   extend = x[1] == :extend
   sig, body = extend ? x[3:end] : x[2:end]
   var = sig[1]::Symbol
-  tag = extend ? cx.mod.defs[var]::Tag : Tag(cx.mod.name, var)
-  cx.mod.defs[sig[1]::Symbol] = tag
+  tag = extend ? cx.mod[var]::Tag : Tag(cx.mod.name, var)
+  cx.mod[sig[1]::Symbol] = tag
   sig = lowerpattern(AST.List(sig[2:end]...))
-  method!(cx.mod, RMethod(tag, sig, lowerfn(cx.mod.name, sig, body, meta = FuncInfo(tag, AST.meta(x)))))
+  method!(cx.mod, RMethod(tag, sig, lowerfn(cx.mod, sig, body, meta = FuncInfo(tag, AST.meta(x)))))
   return
 end
 
@@ -51,7 +51,7 @@ vload(cx::LoadState, x::AST.Block; src) = foreach(x -> vload(cx, x; src), x[:])
 
 function vload(cx::LoadState, x::AST.Operator; src)
   if x[1] == :(=) && x[2] isa Symbol && (c = simpleconst(cx, x[3])) != nothing
-    cx.mod.defs[x[2]] = c
+    cx.mod[x[2]] = c
   else
     load_expr(cx, x; src)
   end
@@ -64,7 +64,7 @@ function finish!(cx::LoadState)
   options().memcheck && push!(body.args, AST.Call(:checkAllocations))
   sig = lowerpattern(AST.List())
   method!(main(cx.comp), RMethod(tag"common.core.main", sig,
-                                 lowerfn(tag"", sig, body,
+                                 lowerfn(main(cx.comp), sig, body,
                                          meta = FuncInfo(tag"common.core.main"))))
 end
 
