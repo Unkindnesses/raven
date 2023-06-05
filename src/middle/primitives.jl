@@ -197,11 +197,13 @@ function core()
   end
   push!(mod.exports, Symbol("true"))
   push!(mod.exports, Symbol("false"))
+  union!(mod.exports, [:Tag, :Int32, :Int64, :Float32, :Float64])
   return mod
 end
 
 function prelude!(comp::Compilation, mod::RModule)
   core = comp.mods[tag"common.core"]
   import!(mod, core, [map(m -> name(m.name), primitives)..., Symbol("true"), Symbol("false")])
+  import!(mod, core, [:Tag, :Int32, :Int64, :Float32, :Float64])
   return mod
 end

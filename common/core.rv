@@ -1,5 +1,14 @@
+# Tags for core types. Objects with these tags are only produced by builtins.
+
+Tag     = tag"common.core.Tag"
+Int32   = tag"common.core.Int32"
+Int64   = tag"common.core.Int64"
+Float32 = tag"common.core.Float32"
+Float64 = tag"common.core.Float64"
+
 # These functions have built-in methods attached.
 # TODO: could add a `fn { foo }` syntax to declare a function with no methods.
+
 pack = tag"common.core.pack"
 part = tag"common.core.part"
 nparts = tag"common.core.nparts"
