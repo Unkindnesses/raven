@@ -96,6 +96,8 @@ function _lowerpattern(ex, as)
     pack(map(x -> _lowerpattern(x, as), ex[2:end])...)
   elseif ex isa AST.Call
     Constructor(ex[1], _lowerpattern.(ex[2:end], (as,)))
+  elseif ex isa AST.Group && length(ex) == 1
+    _lowerpattern(ex[1], as)
   else
     error("Invalid pattern syntax $(ex)")
   end
@@ -342,6 +344,16 @@ function lower!(sc, ir::IR, ex::AST.List)
   # TODO: should use the `tuple` function.
   # But this puts off the need for special argument inference.
   argtuple!(sc, ir, ex[:], AST.meta(ex))[1]
+end
+
+function lower!(sc, ir::IR, ex::AST.Group)
+  @assert length(ex) == 1
+  lower!(sc, ir, ex[1])
+end
+
+function _lower!(sc, ir::IR, ex::AST.Group)
+  @assert length(ex) == 1
+  lower!(sc, ir, ex[1])
 end
 
 function swapreturn!(ir::IR, val, swaps, src; bp = false)

@@ -5,7 +5,7 @@ function path end
 module Parse
 
 using LNR
-using ..AST: Expr, Return, Break, Continue, List, Splat, Call,
+using ..AST: Expr, Return, Break, Continue, Group, List, Splat, Call,
   Operator, Block, Syntax, Quote, Template, Swap, Meta, meta,
   unwrapToken
 using ..Raven: withpath, path
@@ -193,12 +193,7 @@ function template(io::IO)
   return Template(name, s)
 end
 
-bracketmap = Dict(
-  '(' => ')',
-  '[' => ']',
-  '{' => '}')
-
-function brackets(io, start = '(', stop = bracketmap[start])
+function brackets(io, start = '(', stop = ')')
   read(io) == start || return
   xs = []
   while true
@@ -212,7 +207,9 @@ function brackets(io, start = '(', stop = bracketmap[start])
   return xs
 end
 
-list(io) = List(@try(brackets(io, '['))...)
+group(io) = Group(@try(brackets(io))...)
+
+list(io) = List(@try(brackets(io, '[', ']'))...)
 
 function block(io)
   read(io) == '{' || return
@@ -225,13 +222,6 @@ function block(io)
   end
   read(io)
   return Block(args...)
-end
-
-function grouping(io)
-  read(io) == '(' || return
-  x = expr(io)
-  read(io) == ')' || error("Expected closing bracket at $(curstring(io))")
-  return x
 end
 
 function ret(io)
@@ -253,7 +243,7 @@ function item(io; quasi = true)
   skip_ws(io)
   cur = cursor(io)
   quot = quasi ? quotation : nop # TODO nested quotation
-  ex = parseone(io, ret, _break, template, symbol, swap, string, number, op_token, quot, grouping, list, block)
+  ex = parseone(io, ret, _break, template, symbol, swap, string, number, op_token, quot, group, list, block)
   ex == nothing && throw(ParseError("Unexpected character $(read(io))", loc(io)))
   ex = meta(ex, path(), cur)
   # Function calls

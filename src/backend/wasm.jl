@@ -32,7 +32,7 @@ function intrinsic(ex)
   else
     typ = WTuple()
   end
-  op = ex[1]
+  op = AST.ungroup(ex[1])
   if op == :call
     WIntrinsic(WebAssembly.Call(Symbol(ex[2])), typ)
   elseif op == rvx"global.get"

@@ -44,13 +44,16 @@ meta(x::Atom, m::Meta) = Token(x, m)
 
 meta(x, args...) = meta(x, Meta(args...))
 
-for T in :[Return, Break, Continue, List, Splat, Call, Operator, Swap, Block,
-           Syntax, Quote, Template].args
+for T in :[Return, Break, Continue, Group, List, Splat, Call, Operator, Swap,
+           Block, Syntax, Quote, Template].args
   @eval begin
     const $T = Expr{$(QuoteNode(T))}
     (::Type{$T})(args::Union{Expr,Token,Atom}...) = $T([wrapToken.(args)...], nothing)
   end
 end
+
+ungroup(x) =
+  x isa Group && length(x) == 1 ? ungroup(x[1]) : x
 
 # Printing
 
@@ -84,6 +87,12 @@ end
 
 _show(io::Ctx, x::Break) = print(io, "break")
 _show(io::Ctx, x::Continue) = print(io, "continue")
+
+function _show(io::Ctx, x::Group)
+  print(io, "(")
+  join(io, repr.((io,), x[:]), ", ")
+  print(io, ")")
+end
 
 function _show(io::Ctx, x::List)
   print(io, "[")

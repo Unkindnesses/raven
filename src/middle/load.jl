@@ -39,9 +39,10 @@ function vload(cx::LoadState, x::AST.Syntax; src)
   isfn(x) || return load_expr(cx, x; src)
   extend = x[1] == :extend
   sig, body = extend ? x[3:end] : x[2:end]
+  sig = AST.ungroup(sig)
   var = sig[1]::Symbol
   tag = extend ? cx.mod[var]::Tag : Tag(cx.mod.name, var)
-  cx.mod[sig[1]::Symbol] = tag
+  cx.mod[var::Symbol] = tag
   sig = lowerpattern(AST.List(sig[2:end]...))
   method!(cx.mod, RMethod(tag, sig, lowerfn(cx.mod, sig, body, meta = FuncInfo(tag, AST.meta(x)))))
   return
