@@ -75,8 +75,11 @@ _show(io::Ctx, x::Union{Symbol,Number}) = print(io, x)
 _show(io::Ctx, x::String) = show(io.io, x)
 
 function _show(io::Ctx, x::Return)
-  print(io, "return ")
-  _show(io, x[1])
+  print(io, "return")
+  if length(x) == 1
+    print(io, " ")
+    _show(io, x[1])
+  end
 end
 
 _show(io::Ctx, x::Break) = print(io, "break")

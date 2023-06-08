@@ -238,7 +238,7 @@ function block(io)
   while !eof(io)
     stmts(io)
     peek(io) == '}' && break
-    push!(args, expr(io))
+    push!(args, statement(io))
   end
   read(io)
   return Block(args...)
@@ -253,7 +253,8 @@ end
 
 function ret(io)
   symbol(io) == :return || return
-  tryparse(stmt, io) != nothing && return Return(Call(:pack, Template(:tag, "Nil")))
+  skip_ws(io)
+  peek(io) in terminators && return Return()
   Return(item(io))
 end
 
@@ -264,7 +265,7 @@ end
 
 nop(io) = nothing
 
-# Non-syntax expression
+# Non-macro expression
 function item(io; quasi = true)
   skip_ws(io)
   cur = cursor(io)

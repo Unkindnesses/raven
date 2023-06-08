@@ -184,6 +184,8 @@ end
 
 # Expr -> IR lowering
 
+const nilx = AST.Call(:pack, AST.Template(:tag, "Nil"))
+
 IRTools.Source(x::AST.Meta) = Source(x.file, x.loc.line, x.loc.column)
 Base.convert(::Type{Source}, x::AST.Meta) = Source(x)
 
@@ -353,7 +355,8 @@ function swapreturn!(ir::IR, val, swaps, src; bp = false)
 end
 
 function lower!(sc, ir::IR, ex::AST.Return)
-  result = lower!(sc, ir, ex[1])
+  result = length(ex) > 0 ? ex[1] : nilx
+  result = lower!(sc, ir, result)
   swapreturn!(ir, result, swaps(sc), AST.meta(ex), bp = true)
   return
 end
