@@ -139,6 +139,8 @@ function swap(io)
   return Swap(name)
 end
 
+terminators = ['}', ')', ']', ',', '\n']
+
 operators = ["=", "==", "!=", "+", "-", "*", "/", "^", ">", "<", ">=", "<=",
              ":", ".", "&", "|", "|>", "&&", "||"]
 opchars = unique(reduce(*, operators))
@@ -166,7 +168,7 @@ end
 
 function quotation(io::IO)
   read(io) == '`' || return
-  x = parse(io, quasi = false)
+  x = expr(io, quasi = false)
   read(io) == '`' || error("Expecting a `")
   return Quote(x)
 end
@@ -218,7 +220,7 @@ function brackets(io, start = '(', stop = bracketmap[start])
   xs = []
   while true
     parse(char(stop), io) == nothing || break
-    x = parse(io)
+    x = expr(io)
     push!(xs, x)
     nt = read(io)
     nt == stop && break
@@ -233,11 +235,10 @@ function block(io)
   read(io) == '{' || return
   skip_ws(io)
   args = []
-  # TODO don't allow multiple statements on one line (without a separator)
   while !eof(io)
     stmts(io)
     peek(io) == '}' && break
-    push!(args, parse(io))
+    push!(args, expr(io))
   end
   read(io)
   return Block(args...)
@@ -245,7 +246,7 @@ end
 
 function grouping(io)
   read(io) == '(' || return
-  x = parse(io)
+  x = expr(io)
   read(io) == ')' || error("Expected closing bracket at $(curstring(io))")
   return x
 end
@@ -253,7 +254,7 @@ end
 function ret(io)
   symbol(io) == :return || return
   tryparse(stmt, io) != nothing && return Return(Call(:pack, Template(:tag, "Nil")))
-  Return(expr(io))
+  Return(item(io))
 end
 
 function _break(io)
@@ -263,11 +264,11 @@ end
 
 nop(io) = nothing
 
-function expr(io; quasi = true)
+# Non-syntax expression
+function item(io; quasi = true)
   skip_ws(io)
   cur = cursor(io)
-  # TODO nested quotation
-  quot = quasi ? quotation : nop
+  quot = quasi ? quotation : nop # TODO nested quotation
   ex = parseone(io, ret, _break, template, symbol, swap, string, number, op_token, quot, grouping, list, block)
   ex == nothing && throw(ParseError("Unexpected character $(read(io))", loc(io)))
   ex = meta(ex, path(), cur)
@@ -284,7 +285,7 @@ function expr(io; quasi = true)
   cur = cursor(io)
   if (op = tryparse(op_token, io)) != nothing
     op = meta(op, path(), cur)
-    ex = Operator(op, ex, parse(io))
+    ex = Operator(op, ex, expr(io))
     ex = meta(ex, path(), cur)
   end
   # Splats
@@ -294,18 +295,18 @@ function expr(io; quasi = true)
   return ex
 end
 
+# Syntax blocks
 function syntax(io; quasi = true)
   cur = cursor(io)
-  name = @try expr(io)
-  unwrapToken(name) isa Symbol || return
+  name = @try item(io)
+  unwrapToken(name) isa Symbol || return name
   !eof(io) || return
   args = []
   block = false
   while !eof(io)
-    parse(stmt, io) == nothing || break
     skip_ws(io)
-    peek(io) in ('}', ')', ']', ',') && break
-    next = expr(io; quasi)
+    peek(io) in terminators && break
+    next = item(io; quasi)
     next == nothing && return
     next isa Block && (block = true)
     push!(args, next)
@@ -316,12 +317,22 @@ function syntax(io; quasi = true)
   return ex
 end
 
-# Parse a Raven statement.
-# returns `nothing` if there is no valid input (EOF or only whitespace/comments)
-function parse(io::LineNumberingReader; path = nothing, quasi = true)
-  path == nothing || return withpath(() -> parse(io; quasi), path)
+# Any expression
+expr(io; quasi = true) = parseone(io, syntax, item; quasi)
+
+function statement(io; quasi = true)
   stmts(io)
-  parseone(io, syntax, expr; quasi)
+  ex = expr(io)
+  eof(io) || peek(io) in terminators || error("Expected statement end at $(curstring(io))")
+  return ex
+end
+
+# Parse a single statement.
+# returns `nothing` if there is no valid input (EOF or only whitespace/comments)
+function parse(io::LineNumberingReader; path)
+  withpath(path) do
+    statement(io)
+  end
 end
 
 parse(io::IO; path) = unwrapToken(parse(LineNumberingReader(io); path))
