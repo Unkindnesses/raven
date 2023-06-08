@@ -1,4 +1,4 @@
-# After type inference, we lower to a form where reference and union types are
+# After type inference, we expand to a form where reference and union types are
 # represented with explicit pointers and tags, eg a `VPack` becomes a (size,
 # pointer) tuple. This allows us to compile methods like `part`, `packcat` and
 # casts, whose implementation needs to access those internals.
@@ -7,7 +7,7 @@
 # code duplication and so that casting can be recursive. And they can still
 # participate in optimisations (mainly inlining).
 #
-# After this lowering all code works with primitive values (or flat tuples of
+# After this expansion all code works with primitive values (or flat tuples of
 # primitives) and does explicit memory management, so the job of the backend
 # code generator is simple.
 #
