@@ -156,7 +156,7 @@ function string!(ir, s)
 end
 
 outlinePrimitive[tagstring_method] = function (T::Or)
-  ir = IR(meta = FuncInfo(tag"tagstring"))
+  ir = IR(meta = FuncInfo(tag"common.core.tagstring"))
   x = argument!(ir, type = T)
   union_cases!(ir, T, x) do S, _
     @assert S isa Tag

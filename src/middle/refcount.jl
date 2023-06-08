@@ -150,7 +150,7 @@ function count!(ir, T::Recursive, x, mode)
 end
 
 function count_ir(T, mode)
-  ir = IR(meta = FuncInfo(Tag(Symbol(mode))))
+  ir = IR(meta = FuncInfo(Tag(tag"common.core", Symbol(mode))))
   x = argument!(ir, type = T)
   count!(ir, T, x, mode)
   return!(ir, push!(ir, stmt(xtuple(), type = nil)))

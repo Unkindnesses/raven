@@ -107,7 +107,7 @@ end
 function partir(x, i)
   i <: Int64 || error("Only Int64 indexes are supported.")
   T = partial_part(x, i)
-  ir = IR(meta = FuncInfo(tag"part"))
+  ir = IR(meta = FuncInfo(tag"common.core.part"))
   vx = argument!(ir, type = x)
   vi = argument!(ir, type = i)
   xlayout = layout(x)
@@ -136,7 +136,7 @@ function partir(x, i)
 end
 
 function partir(x::Or, i)
-  ir = IR(meta = FuncInfo(tag"part"))
+  ir = IR(meta = FuncInfo(tag"common.core.part"))
   retT = partial_part(x, i)
   vx = argument!(ir, type = x)
   vi = argument!(ir, type = i)
@@ -153,7 +153,7 @@ end
 
 function partir(s::String, i)
   @assert i == 1
-  ir = IR(meta = FuncInfo(tag"part"))
+  ir = IR(meta = FuncInfo(tag"common.core.part"))
   argument!(ir, type = s)
   argument!(ir, type = i)
   # Punt to the backend to decide how strings get IDd
@@ -225,7 +225,7 @@ end
 outlinePrimitive[packcat_method] = function (T::Pack)
   T′ = packcat(parts(T)...)
   @assert layout(T′.parts) == () || T′.parts == Int64
-  ir = IR(meta = FuncInfo(tag"packcat"))
+  ir = IR(meta = FuncInfo(tag"common.core.packcat"))
   xs = argument!(ir, type = T)
   if layout(T′.parts) == ()
     panic!(ir, "unsupported")
@@ -284,7 +284,7 @@ end
 # ======
 
 outlinePrimitive[nparts_method] = function (x::Or)
-  ir = IR(meta = FuncInfo(tag"nparts"))
+  ir = IR(meta = FuncInfo(tag"common.core.nparts"))
   retT = partial_nparts(x)
   vx = argument!(ir, type = x)
   union_cases!(ir, x, vx) do T, val
