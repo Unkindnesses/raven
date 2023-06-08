@@ -197,13 +197,11 @@ function brackets(io, start = '(', stop = ')')
   read(io) == start || return
   xs = []
   while true
-    parse(char(stop), io) == nothing || break
-    x = expr(io)
-    push!(xs, x)
-    nt = read(io)
-    nt == stop && break
-    nt == ',' || error("Expected a delimiter at $(curstring(io))")
+    skip(io)
+    peek(io) == stop && break
+    push!(xs, statement(io))
   end
+  read(io)
   return xs
 end
 
@@ -211,18 +209,7 @@ group(io) = Group(@try(brackets(io))...)
 
 list(io) = List(@try(brackets(io, '[', ']'))...)
 
-function block(io)
-  read(io) == '{' || return
-  skip_ws(io)
-  args = []
-  while !eof(io)
-    skip(io)
-    peek(io) == '}' && break
-    push!(args, statement(io))
-  end
-  read(io)
-  return Block(args...)
-end
+block(io) = Block(@try(brackets(io, '{', '}'))...)
 
 function ret(io)
   symbol(io) == :return || return
