@@ -71,11 +71,10 @@ end
 function loadfile(cx::LoadState, io::IO; path)
   io = LineNumberingReader(io)
   while true
-    Parse.stmts(io)
+    Parse.skip(io)
     cur = cursor(io)
     (ex = parse(io; path)) == nothing && break
     vload(cx, ex, src = Source(path, cur.line, cur.column))
-    Parse.stmts(io)
   end
 end
 

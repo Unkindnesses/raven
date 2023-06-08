@@ -70,7 +70,7 @@ char(x) = io -> read(io) == x ? x : nothing
 
 const whitespace = (' ', '\t', '\r')
 
-function consume_line(io)
+function skip_lineend(io)
   while (!eof(io) && peek(io) != '\n')
     read(io)
   end
@@ -80,8 +80,17 @@ end
 function skip_ws(io::IO)
   while !eof(io)
     c = read(io)
-    c == '#' && (consume_line(io); break)
+    c == '#' && (skip_lineend(io); break)
     c in whitespace || (seek(io, position(io)-1); break)
+  end
+end
+
+# Skip whitespace and `,` to get to the next statement.
+function skip(io::IO)
+  while !eof(io)
+    c = read(io)
+    c == '#' && (skip_lineend(io); continue)
+    c in whitespace || c in (',', '\n') || (seek(io, position(io)-1); break)
   end
 end
 
@@ -173,32 +182,6 @@ function quotation(io::IO)
   return Quote(x)
 end
 
-struct Stmt
-  indent::Int
-end
-
-function stmt(io::IO)
-  skip_ws(io)
-  read(io) == '\n' || return
-  i = 0
-  while !eof(io) && peek(io) ∈ whitespace
-    i += 1
-    read(io)
-  end
-  return Stmt(i)
-end
-
-function stmts(io)
-  s = parse(stmt, io)
-  s == nothing && return
-  while true
-    skip_ws(io)
-    s′ = parse(stmt, io)
-    s′ == nothing && return s
-    s = s′
-  end
-end
-
 # Parsing
 
 function template(io::IO)
@@ -236,7 +219,7 @@ function block(io)
   skip_ws(io)
   args = []
   while !eof(io)
-    stmts(io)
+    skip(io)
     peek(io) == '}' && break
     push!(args, statement(io))
   end
@@ -322,7 +305,7 @@ end
 expr(io; quasi = true) = parseone(io, syntax, item; quasi)
 
 function statement(io; quasi = true)
-  stmts(io)
+  skip(io)
   ex = expr(io)
   eof(io) || peek(io) in terminators || error("Expected statement end at $(curstring(io))")
   return ex
