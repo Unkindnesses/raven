@@ -296,9 +296,6 @@ end
 begin
   table = PrecedenceTable(operators)
   precedence!(table, "^", "/", "*", "+", "-", "=")
-  table["/", "*"] = Left
-  table["*", "+"] = Left
-  table["+", "-"] = Left
   for op in ["/", "*", "+", "-", "|", "&"]
     table[op, op] = Left
   end
@@ -344,7 +341,6 @@ function syntax(io; quasi = true)
   name = splat(io; quasi)
   unwrapToken(name) isa Symbol || return
   args = []
-  block = false
   while !eof(io)
     skip_ws(io)
     peek(io) in terminators && break
@@ -352,10 +348,9 @@ function syntax(io; quasi = true)
     # parsed as an argument to `+` otherwise.
     next = splat(io; quasi, syn = false)
     next == nothing && return
-    next isa Block && (block = true)
     push!(args, next)
   end
-  block || return
+  any(arg -> arg isa Block, args) || return
   ex = Syntax(name, args...)
   ex = meta(ex, path(), cur)
   return ex
