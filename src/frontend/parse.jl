@@ -312,7 +312,7 @@ end
 
 precedence(a, b) = table[String.(unwrapToken.((a, b)))...]
 
-function operator(io; quasi = true, prev = nothing)
+function operator(io; quasi = true, syn = true, prev = nothing)
   left = call(io; quasi)
   while true
     pos = position(io)
@@ -323,7 +323,7 @@ function operator(io; quasi = true, prev = nothing)
       return left
     elseif prec == Right
       skip(io)
-      right = parse(syntax, io; quasi)
+      right = syn ? parse(syntax, io; quasi) : nothing
       right == nothing && (right = operator(io; quasi, prev = op))
       left = Operator(op, left, right)
       left = meta(left, meta(op))
@@ -333,8 +333,8 @@ function operator(io; quasi = true, prev = nothing)
   end
 end
 
-function splat(io; quasi = true)
-  ex = operator(io)
+function splat(io; quasi = true, syn = true)
+  ex = operator(io; quasi, syn)
   if parse(exact("..."), io) != nothing
     ex = Splat(ex)
   end
@@ -352,7 +352,9 @@ function syntax(io; quasi = true)
   while !eof(io)
     skip_ws(io)
     peek(io) in terminators && break
-    next = splat(io; quasi)
+    # `syn` fixes eg `fn x + y {}`, where `y {}` would be
+    # parsed as an argument to `+` otherwise.
+    next = splat(io; quasi, syn = false)
     next == nothing && return
     next isa Block && (block = true)
     push!(args, next)

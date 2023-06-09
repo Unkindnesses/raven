@@ -7,7 +7,7 @@ fn tag(x) { part(x, 0) }
 
 fn identity(x) { x }
 
-fn (_ == _) { false }
+fn _ == _ { false }
 fn isa(_, _) { false }
 
 fn isa(pack(tag"common.core.Tag", _), tag"common.core.Tag") { true }
