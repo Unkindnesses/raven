@@ -41,7 +41,7 @@ println(test(widen(false)) == "false")
 println(tag"foo" == tag"foo")
 println(tag"foo" != tag"bar")
 
-let {
+{
   x = if widen(true) { tag"foo" } else { tag"bar" }
   println(x == tag"foo")
   println(x != tag"bar")

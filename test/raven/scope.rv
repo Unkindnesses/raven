@@ -8,7 +8,7 @@ println(result)
 
 x = 1
 
-let {
+{
   x = 2
 }
 
@@ -16,7 +16,7 @@ println(x == 2)
 
 y = widen(1)
 
-let {
+{
   y = 2
 }
 

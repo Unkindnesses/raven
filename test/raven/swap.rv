@@ -17,7 +17,7 @@ fn copy(x: Int64, &y: Int64) {
   return
 }
 
-let {
+{
   c = 3
   d = 5
   copy(&c, &d) # TODO disallow this

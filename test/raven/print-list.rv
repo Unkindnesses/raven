@@ -6,7 +6,7 @@ fn range(n) {
   return xs
 }
 
-let {
+{
   xs = range(widen(10))
   print(xs)
 }

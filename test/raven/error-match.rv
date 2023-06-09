@@ -1,4 +1,4 @@
-let {
+{
   xs = [widen(2), widen(3)]
   [a, a] = xs
 }

@@ -1,9 +1,9 @@
-let {
+{
   xs = seq(widen(1), widen(2), widen(3))
   println(sum(xs) == 6)
 }
 
-let {
+{
   ys = [4, widen(5)]
   println((part(ys, widen(1)) + part(ys, widen(2))) == 4+5)
 }
@@ -16,7 +16,7 @@ fn range(n) {
   return xs
 }
 
-let {
+{
   xs = range(10)
   println(nparts(xs) == 10)
   println(part(xs, 1) == 1)
@@ -34,7 +34,7 @@ fn rangeReverse(n) {
   return xs
 }
 
-let {
+{
   xs = rangeReverse(10)
   println(nparts(xs) == 10)
   println(part(xs, 1) == 10)
@@ -44,7 +44,7 @@ let {
 
 println(allocationCount() == 0)
 
-let {
+{
   xs = range(5, 6)
   itr = iterator(xs)
 
@@ -60,7 +60,7 @@ let {
   println(isnil(val))
 }
 
-let {
+{
   d = simpledict()
   setkey(&d, tag"a", 7)
   setkey(&d, tag"b", 5)
@@ -81,7 +81,7 @@ let {
   println(isnil(merge(d, tag"a", widen(8))))
 }
 
-let {
+{
   b1 = seq(Pair(tag"a", 1), Pair(tag"b", 2))
   b2 = seq(Pair(tag"b", widen(2)), Pair(tag"d", 3))
   println(not(isnil(merge(&b1, b2))))
@@ -94,7 +94,7 @@ let {
 fn foo(n) { prepend(foo(n-1), n) }
 fn foo(0) { seq() }
 
-let {
+{
   xs = foo(widen(0))
   println(string(tag(xs)) == "Empty")
   println(nparts(xs) == 0)
@@ -112,14 +112,14 @@ let {
   println(allocationCount() == 0)
 }
 
-let {
+{
   xs = seqRange(widen(1), widen(10))
   println(sum(xs) == 55)
   xs = repeat(widen(3), widen(5))
   println(sum(xs) == 15)
 }
 
-let {
+{
   xs = collect(range(1, 5))
   println(length(rest(xs)) == 4)
 

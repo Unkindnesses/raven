@@ -3,12 +3,12 @@ a = addr(p)
 
 println(Int64(a) == 5)
 
-let {
+{
   f = Function(+, [Int64, Int64], Int64)
   println(invoke(f, 3, 5) == 8)
 }
 
-let {
+{
   # Final allocation check will fail if this isn't freed
   ref = Ref(16)
 }

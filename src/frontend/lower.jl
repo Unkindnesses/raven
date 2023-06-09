@@ -167,7 +167,7 @@ function datamacro(ex::AST.Syntax)
                                                AST.Template(:tag, string(super))),
                                 AST.Block(Symbol("true"))))
   end
-  return AST.Block(body...)
+  return AST.Group(body...)
 end
 
 function formacro(ex)
@@ -270,14 +270,18 @@ _push!(ir::IR, x::Expr; src = nothing, bp = false) = _push!(ir, stmt(x; src, bp)
 
 # lower while ignoring return value (if applicable)
 _lower!(sc, ir, x) = lower!(sc, ir, x)
+_lower!(sc, ir, x::Vector) = foreach(x -> _lower!(sc, ir, x), x)
 
 lower!(sc, ir::IR, x::Union{Integer,String,Pack}) = x
 lower!(sc, ir::IR, x::Symbol) = sc[x]
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? nothing : (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
 
-lower!(sc, ir::IR, x::AST.Block) = lower!(sc, ir, x[:])
-_lower!(sc, ir::IR, x::AST.Block) = foreach(x -> _lower!(sc, ir, x), x[:])
+lower!(sc, ir::IR, x::AST.Block) = lower!(Scope(sc), ir, x[:])
+_lower!(sc, ir::IR, x::AST.Block) = _lower!(Scope(sc), ir, x[:])
+
+lower!(sc, ir::IR, x::AST.Group) = lower!(sc, ir, x[:])
+_lower!(sc, ir::IR, x::AST.Group) = _lower!(sc, ir, x[:])
 
 function lower!(sc, ir::IR, ex::AST.Operator, value = true)
   if ex[1] == :(=) && ex[2] isa Symbol
@@ -344,16 +348,6 @@ function lower!(sc, ir::IR, ex::AST.List)
   # TODO: should use the `tuple` function.
   # But this puts off the need for special argument inference.
   argtuple!(sc, ir, ex[:], AST.meta(ex))[1]
-end
-
-function lower!(sc, ir::IR, ex::AST.Group)
-  @assert length(ex) == 1
-  lower!(sc, ir, ex[1])
-end
-
-function _lower!(sc, ir::IR, ex::AST.Group)
-  @assert length(ex) == 1
-  lower!(sc, ir, ex[1])
 end
 
 function swapreturn!(ir::IR, val, swaps, src; bp = false)

@@ -48,7 +48,7 @@ function vload(cx::LoadState, x::AST.Syntax; src)
   return
 end
 
-vload(cx::LoadState, x::AST.Block; src) = foreach(x -> vload(cx, x; src), x[:])
+vload(cx::LoadState, x::AST.Group; src) = foreach(x -> vload(cx, x; src), x[:])
 
 function vload(cx::LoadState, x::AST.Operator; src)
   if x[1] == :(=) && x[2] isa Symbol && (c = simpleconst(cx, x[3])) != nothing

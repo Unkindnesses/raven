@@ -17,7 +17,7 @@ fn sieve(n) {
   return primes
 }
 
-let {
+{
   primes = sieve(widen(100))
   println(part(primes, 1) == 2)
   println(part(primes, length(primes)) == 97)
