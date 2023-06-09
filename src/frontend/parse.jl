@@ -88,17 +88,6 @@ function parse(f, io, a...; kw...)
   return result
 end
 
-function tryparse(f, io, args...; kw...)
-  p = position(io)
-  try
-    parse(f, io, args...; kw...)
-  catch e
-    e isa ParseError || rethrow(e)
-    seek(io, p)
-    nothing
-  end
-end
-
 function parseone(io, fs...; kw...)
   for f in fs
     (x = parse(f, io; kw...)) != nothing && return x
@@ -290,8 +279,7 @@ function call(io; quasi = true)
   ex = item(io; quasi)
   while true
     cur = cursor(io)
-    # TODO get rid of tryparse
-    if (args = tryparse(brackets, io)) != nothing
+    if (args = parse(brackets, io)) != nothing
       ex = meta(Call(ex, args...), path(), cur)
     elseif parse(exact("."), io) != nothing
       peek(io) == '.' && (seek(io, cur); break)
