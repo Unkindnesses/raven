@@ -330,6 +330,7 @@ end
 
 function splat(io; quasi = true, syn = true)
   ex = operator(io; quasi, syn)
+  skip_ws(io)
   if parse(exact("..."), io) != nothing
     ex = Splat(ex)
   end
