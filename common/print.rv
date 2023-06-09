@@ -23,7 +23,7 @@ fn print(x: Tag) {
   print("'")
 }
 
-fn print(x: Int32 | Int64 | Float32 | Float64) {
+fn print(x: (Int32 | Int64 | Float32 | Float64)) {
   print(string(x))
 }
 

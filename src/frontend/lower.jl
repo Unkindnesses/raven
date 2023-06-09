@@ -66,6 +66,8 @@ function lowerisa(ex, as)
     Or(map(x -> lowerisa(x, as), ex[2:end]))
   elseif ex isa AST.Operator && ex[1] == :(&)
     And(map(x -> lowerisa(x, as), ex[2:end]))
+  elseif ex isa AST.Group && length(ex) == 1
+    lowerisa(ex[1], as)
   else
     _lowerpattern(ex, as)
   end

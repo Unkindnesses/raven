@@ -5,7 +5,7 @@
 
 {
   ys = [4, widen(5)]
-  println((part(ys, widen(1)) + part(ys, widen(2))) == 4+5)
+  println((part(ys, widen(1)) + part(ys, widen(2))) == (4+5))
 }
 
 fn range(n) {

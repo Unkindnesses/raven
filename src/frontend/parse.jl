@@ -10,6 +10,53 @@ using ..AST: Expr, Return, Break, Continue, Group, List, Splat, Call,
   unwrapToken
 using ..Raven: withpath, path
 
+# Precedence Table
+
+@enum Precedence begin
+  Left  =  1
+  Right = -1
+  None  =  0
+end
+
+inverse(p::Precedence) = Precedence(-Int(p))
+
+struct PrecedenceTable
+  ops::Dict{String,Int}
+  table::Matrix{Precedence}
+end
+
+PrecedenceTable(ops) =
+  PrecedenceTable(Dict(op => i for (i, op) in enumerate(ops)),
+            fill(None, length(ops), length(ops)))
+
+Base.getindex(t::PrecedenceTable, a, b) = t.table[t.ops[a], t.ops[b]]
+
+function Base.setindex!(t::PrecedenceTable, p::Precedence, a, b)
+  t.table[t.ops[a], t.ops[b]] in (None, p) || @warn "overwriting precedence"
+  t.table[t.ops[b], t.ops[a]] = inverse(p)
+  t.table[t.ops[a], t.ops[b]] = p
+end
+
+function precedence!(t::PrecedenceTable, ops::String...)
+  for i = 1:length(ops)-1
+    t[ops[i], ops[i+1]] = Left
+  end
+end
+
+function closure!(t::PrecedenceTable)
+  N = length(t.ops)
+  for i = 1:N, j = 1:N, k = 1:N
+    ab, bc = t.table[i, j], t.table[j, k]
+    if ab == bc != None
+      t.table[k, i] = inverse(ab)
+      t.table[i, k] = ab
+    end
+  end
+  return t
+end
+
+# Other utils
+
 struct ParseError
   m
   loc
@@ -58,10 +105,10 @@ function parseone(io, fs...; kw...)
   end
 end
 
-@eval macro $:try(x)
+@eval macro $:try(x, alt = nothing)
   quote
     local result = $(esc(x))
-    result === nothing && return
+    result === nothing && return $(esc(alt))
     result
   end
 end
@@ -92,6 +139,7 @@ function skip(io::IO)
     c == '#' && (skip_lineend(io); continue)
     c in whitespace || c in (',', '\n') || (seek(io, position(io)-1); break)
   end
+  return io
 end
 
 # Tokens
@@ -118,8 +166,7 @@ end
 
 function negnum(io::IO)
   read(io) == '-' || return
-  num = number(io)
-  num == nothing && return
+  num = @try number(io)
   return -num
 end
 
@@ -143,8 +190,7 @@ end
 function swap(io)
   c = read(io)
   c == '&' || return
-  name = symbol(io)
-  name == nothing && return
+  name = @try symbol(io)
   return Swap(name)
 end
 
@@ -155,6 +201,8 @@ operators = ["=", "==", "!=", "+", "-", "*", "/", "^", ">", "<", ">=", "<=",
 opchars = unique(reduce(*, operators))
 
 function op_token(io::IO)
+  skip_ws(io)
+  cur = cursor(io)
   op = IOBuffer()
   while !eof(io)
     peek(io) in opchars || break
@@ -163,7 +211,7 @@ function op_token(io::IO)
   seek(op, 0)
   s = String(Base.read(op))
   s in operators || return
-  return Symbol(s)
+  return meta(Symbol(s), path(), cur)
 end
 
 function string(io::IO)
@@ -185,11 +233,9 @@ end
 # Parsing
 
 function template(io::IO)
-  name = symbol(io)
-  name == nothing && return
+  name = @try symbol(io)
   eof(io) && return
-  s = string(io)
-  s == nothing && return
+  s = @try string(io)
   return Template(name, s)
 end
 
@@ -215,7 +261,7 @@ function ret(io)
   symbol(io) == :return || return
   skip_ws(io)
   peek(io) in terminators && return Return()
-  Return(item(io))
+  Return(statement(io))
 end
 
 function _break(io)
@@ -225,7 +271,7 @@ end
 
 nop(io) = nothing
 
-# Non-macro expression
+# Combine all simple expressions with little backtracking
 function item(io; quasi = true)
   skip_ws(io)
   cur = cursor(io)
@@ -233,23 +279,62 @@ function item(io; quasi = true)
   ex = parseone(io, ret, _break, template, symbol, swap, string, number, op_token, quot, group, list, block)
   ex == nothing && throw(ParseError("Unexpected character $(read(io))", loc(io)))
   ex = meta(ex, path(), cur)
-  # Function calls
+  return ex
+end
+
+# The following parsers fall back to simpler ones, to avoid excessive
+# backtracking / re-parsing. So they don't need to be called in sequence.
+
+function call(io; quasi = true)
+  ex = item(io; quasi)
   while true
     cur = cursor(io)
+    # TODO get rid of tryparse
     args = tryparse(brackets, io)
     args == nothing && break
     ex = Call(ex, args...)
     ex = meta(ex, path(), cur)
   end
-  skip_ws(io)
-  # Operators
-  cur = cursor(io)
-  if (op = tryparse(op_token, io)) != nothing
-    op = meta(op, path(), cur)
-    ex = Operator(op, ex, expr(io))
-    ex = meta(ex, path(), cur)
+  return ex
+end
+
+begin
+  table = PrecedenceTable(operators)
+  precedence!(table, "^", "/", "*", "+", "-", "=")
+  table["/", "*"] = Left
+  table["*", "+"] = Left
+  table["+", "-"] = Left
+  for op in ["/", "*", "+", "-", "|", "&"]
+    table[op, op] = Left
   end
-  # Splats
+  closure!(table)
+end
+
+precedence(a, b) = table[String.(unwrapToken.((a, b)))...]
+
+function operator(io; quasi = true, prev = nothing)
+  left = call(io; quasi)
+  while true
+    pos = position(io)
+    op = @try parse(op_token, io) left
+    prec = prev == nothing ? Right : precedence(prev, op)
+    if prec == Left
+      seek(io, pos)
+      return left
+    elseif prec == Right
+      skip(io)
+      right = parse(syntax, io; quasi)
+      right == nothing && (right = operator(io; quasi, prev = op))
+      left = Operator(op, left, right)
+      left = meta(left, meta(op))
+    else prec == None
+      error("Operators $(unwrapToken(prev)) and $(unwrapToken(op)) are ambiguous at $(curstring(prev.meta.loc))")
+    end
+  end
+end
+
+function splat(io; quasi = true)
+  ex = operator(io)
   if parse(exact("..."), io) != nothing
     ex = Splat(ex)
   end
@@ -257,17 +342,17 @@ function item(io; quasi = true)
 end
 
 # Syntax blocks
+# TODO try to avoid as much re-parsing as possible.
 function syntax(io; quasi = true)
   cur = cursor(io)
-  name = @try item(io)
-  unwrapToken(name) isa Symbol || return name
-  !eof(io) || return
+  name = splat(io; quasi)
+  unwrapToken(name) isa Symbol || return
   args = []
   block = false
   while !eof(io)
     skip_ws(io)
     peek(io) in terminators && break
-    next = item(io; quasi)
+    next = splat(io; quasi)
     next == nothing && return
     next isa Block && (block = true)
     push!(args, next)
@@ -278,12 +363,12 @@ function syntax(io; quasi = true)
   return ex
 end
 
-# Any expression
-expr(io; quasi = true) = parseone(io, syntax, item; quasi)
-
 function statement(io; quasi = true)
   skip(io)
-  ex = expr(io)
+  eof(io) && return
+  ex = parse(syntax, io; quasi)
+  ex == nothing && (ex = splat(io))
+  skip_ws(io)
   eof(io) || peek(io) in terminators || error("Expected statement end at $(curstring(io))")
   return ex
 end

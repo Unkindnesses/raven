@@ -28,7 +28,7 @@ wrapToken(x::Atom) = Token(x, nothing)
 wrapToken(x::Union{Expr,Token}) = x
 
 unwrapToken(x::Token) = x.value
-unwrapToken(x::Expr) = x
+unwrapToken(x) = x
 
 length(x::Expr) = length(x.args)
 lastindex(x::Expr) = lastindex(x.args)

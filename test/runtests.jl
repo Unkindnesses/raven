@@ -10,6 +10,10 @@ end
   include("types.jl")
 end
 
+@testset "Parser" begin
+  include("parse.jl")
+end
+
 @testset "Compiler" begin
   include("compiler.jl")
 end

@@ -91,7 +91,7 @@ fn panic(s: String) {
   wasm { call("panic", ref: i32): unreachable }
 }
 
-fn string(x: Int32 | Int64 | Float32 | Float64) {
+fn string(x: (Int32 | Int64 | Float32 | Float64)) {
   String(call(x, "toString"))
 }
 
