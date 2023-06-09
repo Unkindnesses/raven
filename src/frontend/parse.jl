@@ -5,7 +5,7 @@ function path end
 module Parse
 
 using LNR
-using ..AST: Expr, Return, Break, Continue, Group, List, Splat, Call,
+using ..AST: Expr, Return, Break, Continue, Group, List, Splat, Call, Field,
   Operator, Block, Syntax, Quote, Template, Swap, Meta, meta,
   unwrapToken
 using ..Raven: withpath, path
@@ -197,7 +197,7 @@ end
 terminators = ['}', ')', ']', ',', '\n']
 
 operators = ["=", "==", "!=", "+", "-", "*", "/", "^", ">", "<", ">=", "<=",
-             ":", ".", "&", "|", "|>", "&&", "||"]
+             ":", "&", "|", "|>", "&&", "||"]
 opchars = unique(reduce(*, operators))
 
 function op_token(io::IO)
@@ -285,15 +285,22 @@ end
 # The following parsers fall back to simpler ones, to avoid excessive
 # backtracking / re-parsing. So they don't need to be called in sequence.
 
+# Does calls and fields, so we can handle eg `foo.bar(a).baz`
 function call(io; quasi = true)
   ex = item(io; quasi)
   while true
     cur = cursor(io)
     # TODO get rid of tryparse
-    args = tryparse(brackets, io)
-    args == nothing && break
-    ex = Call(ex, args...)
-    ex = meta(ex, path(), cur)
+    if (args = tryparse(brackets, io)) != nothing
+      ex = meta(Call(ex, args...), path(), cur)
+    elseif parse(exact("."), io) != nothing
+      peek(io) == '.' && (seek(io, cur); break)
+      field = symbol(io)
+      field == nothing && error("expected a field at $(curstring(io))")
+      ex = meta(Field(ex, field), path(), cur)
+    else
+      break
+    end
   end
   return ex
 end

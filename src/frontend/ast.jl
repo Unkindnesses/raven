@@ -44,8 +44,8 @@ meta(x::Atom, m::Meta) = Token(x, m)
 
 meta(x, args...) = meta(x, Meta(args...))
 
-for T in :[Return, Break, Continue, Group, List, Splat, Call, Operator, Swap,
-           Block, Syntax, Quote, Template].args
+for T in :[Return, Break, Continue, Group, List, Splat, Call, Field, Operator,
+           Swap, Block, Syntax, Quote, Template].args
   @eval begin
     const $T = Expr{$(QuoteNode(T))}
     (::Type{$T})(args::Union{Expr,Token,Atom}...) = $T([wrapToken.(args)...], nothing)
@@ -105,6 +105,12 @@ function _show(io::Ctx, x::Call)
   print(io, "(")
   join(io, repr.((io,), x[2:end]), ", ")
   print(io, ")")
+end
+
+function _show(io::Ctx, x::Field)
+  _show(io, x[1])
+  print(io, ".")
+  _show(io, x[2])
 end
 
 function _show(io::Ctx, x::Splat)

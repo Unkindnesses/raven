@@ -39,7 +39,7 @@ function intrinsic(ex)
     WIntrinsic(WebAssembly.GetGlobal(ex[2]::Integer), typ)
   else
     namify(x::Symbol) = x
-    namify(x::AST.Operator) = Symbol(join(namify.(x[2:end]), x[1]))
+    namify(x::AST.Field) = Symbol(join(namify.(x[:]), "."))
     WIntrinsic(WebAssembly.Op(namify(op)), typ)
   end
 end
