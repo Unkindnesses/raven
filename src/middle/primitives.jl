@@ -190,14 +190,7 @@ function core()
   mod = RModule(tag"common.core")
   mod[Symbol("false")] = Int32(0)
   mod[Symbol("true")] = Int32(1)
-  for meth in primitives
-    # TODO: do exports in Raven
-    push!(mod.exports, name(meth.name))
-    method!(mod, meth)
-  end
-  push!(mod.exports, Symbol("true"))
-  push!(mod.exports, Symbol("false"))
-  union!(mod.exports, [:Tag, :Int32, :Int64, :Float32, :Float64])
+  foreach(meth -> method!(mod, meth), primitives)
   return mod
 end
 

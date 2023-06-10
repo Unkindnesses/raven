@@ -1,4 +1,12 @@
+export { true, false }
+
+# Defined by the compiler.
+# false = Int32(0)
+# true  = Int32(1)
+
 # Tags for core types. Objects with these tags are only produced by builtins.
+
+export { Tag, Int32, Int64, Float32, Float64 }
 
 Tag     = tag"common.core.Tag"
 Int32   = tag"common.core.Int32"
@@ -8,6 +16,9 @@ Float64 = tag"common.core.Float64"
 
 # These functions have built-in methods attached.
 # TODO: could add a `fn { foo }` syntax to declare a function with no methods.
+
+export { pack, part, nparts, packcat, widen, shortcutEquals, isnil, notnil
+         tagstring, function, invoke }
 
 pack = tag"common.core.pack"
 part = tag"common.core.part"

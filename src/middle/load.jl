@@ -17,6 +17,12 @@ function simpleconst(cx::LoadState, x)
   return
 end
 
+function load_export(cx, x)
+  names = (x[2]::AST.Block)[:]
+  union!(cx.mod.exports, names)
+  return
+end
+
 function load_include(cx, x)
   path = "$common/$(x[2][1])"
   open(io -> loadfile(cx, io; path), path)
@@ -35,6 +41,7 @@ isfn(x) = x[1] == :fn || ((x[1], x[2]) == (:extend, :fn))
 
 function vload(cx::LoadState, x::AST.Syntax; src)
   x[1] == :include && return load_include(cx, x)
+  x[1] == :export && return load_export(cx, x)
   x[1] == :bundle && return vload(cx, datamacro(x); src)
   isfn(x) || return load_expr(cx, x; src)
   extend = x[1] == :extend
