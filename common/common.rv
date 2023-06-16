@@ -3,6 +3,13 @@
 # |     \/      \\  \/ /|   ___|     \| |
 # |__|\__\___/\__\\___/ |______|__/\____|
 
+import {
+    true, false
+    Tag, Int32, Int64, Float32, Float64
+    pack, part, nparts, packcat, widen, shortcutEquals
+    isnil, notnil, tagstring, function, invoke
+} from "core.rv"
+
 fn tag(x) { part(x, 0) }
 
 fn identity(x) { x }

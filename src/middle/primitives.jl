@@ -184,19 +184,12 @@ inlinePrimitive[invoke_method] = function (pr, ir, v)
   replace!(pr, v, v′)
 end
 
-# Core module / prelude
+# Core module
 
 function core()
   mod = RModule(tag"common.core")
   mod[Symbol("false")] = Int32(0)
   mod[Symbol("true")] = Int32(1)
   foreach(meth -> method!(mod, meth), primitives)
-  return mod
-end
-
-function prelude!(comp::Compilation, mod::RModule)
-  core = comp.mods[tag"common.core"]
-  import!(mod, core, [map(m -> name(m.name), primitives)..., Symbol("true"), Symbol("false")])
-  import!(mod, core, [:Tag, :Int32, :Int64, :Float32, :Float64])
   return mod
 end

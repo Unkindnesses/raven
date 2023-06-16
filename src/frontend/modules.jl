@@ -76,6 +76,11 @@ end
 
 @forward RModule.defs Base.getindex, Base.setindex!, Base.haskey, Base.get, Base.get!
 
+function pathtag(p)
+  @assert endswith(p, ".rv")
+  Tag(join(split(p[1:end-3], "/"), "."))
+end
+
 struct Compilation
   mods::Dict{Tag,RModule}
 end

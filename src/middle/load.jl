@@ -23,6 +23,15 @@ function load_export(cx, x)
   return
 end
 
+function load_import(cx, x)
+  path = x[4]::String
+  mod = Tag(tag"common", pathtag(path).path...)
+  @assert haskey(cx.comp.mods, mod)
+  mod = cx.comp.mods[mod]
+  import!(cx.mod, mod, x[2][:])
+  return
+end
+
 function load_include(cx, x)
   path = "$common/$(x[2][1])"
   open(io -> loadfile(cx, io; path), path)
@@ -42,6 +51,7 @@ isfn(x) = x[1] == :fn || ((x[1], x[2]) == (:extend, :fn))
 function vload(cx::LoadState, x::AST.Syntax; src)
   x[1] == :include && return load_include(cx, x)
   x[1] == :export && return load_export(cx, x)
+  x[1] == :import && return load_import(cx, x)
   x[1] == :bundle && return vload(cx, datamacro(x); src)
   isfn(x) || return load_expr(cx, x; src)
   extend = x[1] == :extend
@@ -97,7 +107,7 @@ function loadmodule(cx::LoadState, mod::RModule, path)
 end
 
 function loadmodule(cx::LoadState, mod::Tag, path)
-  mod = haskey(cx.comp.mods, mod) ? cx.comp[mod] : prelude!(cx.comp, RModule(mod))
+  mod = haskey(cx.comp.mods, mod) ? cx.comp[mod] : RModule(mod)
   return loadmodule(cx, mod, path)
 end
 
