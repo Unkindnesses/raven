@@ -137,15 +137,10 @@ namify(x::Symbol) = x
 namify(ex::AST.Operator) = namify(ex[2])
 namify(ex::AST.Splat) = AST.Splat(namify(ex[1]))
 
-allspecs(ex) = [ex]
-allspecs(ex::AST.Block) = reduce(vcat, allspecs.(ex[:]))
-allspecs(ex::AST.Operator) =
-  ex[1] == :| ? reduce(vcat, allspecs.(ex[2:end])) : [ex]
-
 # TODO put Ids directly into the AST, rather than going through Template nodes
 function datamacro(ex::AST.Syntax)
   super, specs = length(ex) == 2 ? (nothing, ex[2]) : (ex[2], ex[3])
-  specs = allspecs(specs)
+  specs = specs[:]
   names = []
   body = []
   for spec in specs

@@ -1,4 +1,4 @@
-bundle Sequence { Prepend(xs, x) | Empty() }
+bundle Sequence { Prepend(xs, x), Empty() }
 
 fn prepend(xs: Sequence, x) { Prepend(xs, x) }
 
