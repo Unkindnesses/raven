@@ -3,7 +3,7 @@ bundle { IndexIterator(xs, i: Int64) }
 fn IndexIterator(xs) { IndexIterator(xs, 1) }
 
 fn iterate(&itr: pack(tag"IndexIterator", xs, i)) {
-  if (i > length(xs)) {
+  if i > length(xs) {
     return nil
   } else {
     val = get(xs, i)

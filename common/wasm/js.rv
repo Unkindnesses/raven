@@ -20,14 +20,14 @@ fn jsref(x) { jsref(tojs(x)) }
 fn jsref(JSObject(ref)) { i32load(pointer(ref)) }
 
 fn global() {
-  ref = (wasm { call("jsglobal"): i32 })
+  ref = wasm { call("jsglobal"): i32 }
   return JSObject(ref)
 }
 
 fn property(obj, prop) {
   obj = tojs(obj)
   prop = tojs(prop)
-  ref = (wasm { call("jsproperty", jsref(obj): i32, jsref(prop): i32): i32 })
+  ref = wasm { call("jsproperty", jsref(obj): i32, jsref(prop): i32): i32 }
   preserve(obj, prop)
   return JSObject(ref)
 }
@@ -35,7 +35,7 @@ fn property(obj, prop) {
 fn call(obj, meth) {
   obj = tojs(obj)
   meth = tojs(meth)
-  ref = (wasm { call("jscall0", jsref(obj): i32, jsref(meth): i32): i32 })
+  ref = wasm { call("jscall0", jsref(obj): i32, jsref(meth): i32): i32 }
   preserve(obj, meth)
   return JSObject(ref)
 }
@@ -44,7 +44,7 @@ fn call(obj, meth, x) {
   obj = tojs(obj)
   meth = tojs(meth)
   x = tojs(x)
-  ref = (wasm { call("jscall1", jsref(obj): i32, jsref(meth): i32, jsref(x): i32): i32 })
+  ref = wasm { call("jscall1", jsref(obj): i32, jsref(meth): i32, jsref(x): i32): i32 }
   preserve(obj, meth, x)
   return JSObject(ref)
 }
@@ -72,7 +72,7 @@ fn new(T) {
 }
 
 fn tojs(x: Float64) {
-  ref = (wasm { call("jsbox", x: f64): i32 })
+  ref = wasm { call("jsbox", x: f64): i32 }
   return JSObject(ref)
 }
 

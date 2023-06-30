@@ -7,7 +7,7 @@ println(r == 8)
 fn pow(x, n: Int64) {
   r = one(x)
   while true {
-    if (n == 0) {
+    if n == 0 {
       return r
     }
     n = n - one(n)

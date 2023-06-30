@@ -18,7 +18,7 @@ fn length(Prepend(xs, _)) { 1 + length(xs) }
 fn length(Empty()) { 0 }
 
 fn seqRange(start, end) {
-  if (start > end) {
+  if start > end {
     seq()
   } else {
     prepend(seqRange(start+one(start), end), start)

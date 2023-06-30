@@ -90,7 +90,7 @@ fn findFreeBlock(n: Int32) {
     bl = Block(ptr+size, Int32(0))
   }
   size = getBlockSize(bl)
-  if (size < n) {
+  if size < n {
     needed = n - size
     alloc = npages(needed)
     memoryGrow!(alloc)
@@ -140,7 +140,7 @@ fn blockUnique(p: Ptr) {
 fn retain!(p: Ptr) {
   p = p - headerSize
   n = getBlockUsed(p)
-  if (n == Int32(0)) {
+  if n == Int32(0) {
     panic("Memory management fault: retain")
   }
   setBlockUsed!(p, n+Int32(1))
@@ -150,9 +150,9 @@ fn retain!(p: Ptr) {
 fn release!(p: Ptr, f: Int32) {
   p = p - headerSize
   n = getBlockUsed(p)
-  if (n == Int32(0)) {
+  if n == Int32(0) {
     panic("Memory management fault: release")
-  } else if ((n == Int32(1)) && (f != Int32(-1))) {
+  } else if (n == Int32(1)) && (f != Int32(-1)) {
     invoke(Function(f, [TPtr], TNil), (p + headerSize) + 8)
   }
   # Setting to 0 equates to freeing
@@ -173,7 +173,7 @@ fn allocationCount() {
 }
 
 fn checkAllocations() {
-  if (allocationCount() != 0) {
+  if allocationCount() != 0 {
     println("Warning: retained memory")
   }
 }

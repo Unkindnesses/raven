@@ -20,7 +20,7 @@ fn getkey(d: Empty, k: Tag) {
 
 fn getkey(d: Prepend, k: Tag) {
   p = first(d)
-  if (part(p, 1) == k) {
+  if part(p, 1) == k {
     return part(p, 2)
   } else {
     return getkey(rest(d), k)
@@ -33,7 +33,7 @@ fn setkey(&d: Empty, k: Tag, v) {
 
 fn setkey(&d: Prepend, k: Tag, v) {
   p = first(d)
-  if (part(p, 1) == k) {
+  if part(p, 1) == k {
     d = prepend(rest(d), Pair(k, v))
   } else {
     d = prepend(setkey(rest(d), k, v), p)
@@ -46,8 +46,8 @@ fn merge(&d: Empty, k: Tag, v) {
 
 fn merge(&d: Prepend, k: Tag, v) {
   p = first(d)
-  if (part(p, 1) == k) {
-    if (part(p, 2) == v) {
+  if part(p, 1) == k {
+    if part(p, 2) == v {
       return d
     } else {
       d = nil

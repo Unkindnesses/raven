@@ -13,7 +13,7 @@ fn match(val, pack(tag"Hole")) {
 }
 
 fn match(val, pack(tag"Literal", pat)) {
-  if (pat == val) {
+  if pat == val {
     return simpledict()
   } else {
     return
