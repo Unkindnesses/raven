@@ -8,6 +8,12 @@
   println((part(ys, widen(1)) + part(ys, widen(2))) == (4+5))
 }
 
+{
+  println(tag(widen(5)) == Int64)
+  println(part(widen(5), 1) == 5)
+  println(tag("foo") == String)
+}
+
 fn range(n) {
   xs = []
   for i in range(1, n) {

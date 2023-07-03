@@ -165,6 +165,16 @@ end
 
 outlinePrimitive[part_method] = partir
 
+function indexer!(ir, T::Union{Primitive,Type{<:Primitive}}, i::Int, x, _)
+  if i == 0
+    push!(ir, xtuple())
+  elseif i == 1
+    push!(ir, x)
+  else
+    panic!(ir, "Invalid index $i for $T")
+  end
+end
+
 function indexer!(ir, T::Pack, i::Int, x, _)
   if 0 <= i <= nparts(T)
     _part(i) = push!(ir, Expr(:ref, x, i))
@@ -179,7 +189,7 @@ function indexer!(ir, T::Pack, i::Int, x, _)
   end
 end
 
-function indexer!(ir, T::VPack, I::Union{Int,Type{Int64}}, x, i)
+function indexer!(ir, T::VPack, I::Union{Int64,Type{Int64}}, x, i)
   (I == 0 || layout(T.parts) == ()) && return push!(ir, Expr(:tuple))
   @assert T.parts == Int64
   if I isa Int
@@ -201,7 +211,7 @@ inlinePrimitive[part_method] = function (pr, ir, v)
   T, I = exprtype(ir, [x, i])
   if T isa Pack && I isa Type{<:Integer}
   elseif T isa Or
-  elseif T isa String
+  elseif T isa String && I == 1
   elseif T isa Recursive
     T = unroll(T)
     delete!(pr, v)
