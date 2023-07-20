@@ -2,6 +2,10 @@ using Raven, Test
 
 @testset "Raven" begin
 
+@testset "Caches" begin
+  include("caches.jl")
+end
+
 @testset "WebAssembly" begin
   include("wasm.jl")
 end

@@ -1,12 +1,13 @@
 module Raven
 
+include("Caches/Caches.jl")
 include("IRTools/IRTools.jl")
 include("Dwarf/Dwarf.jl")
 include("WebAssembly/WebAssembly.jl")
 
 using MacroTools: @q, @forward, isexpr
 
-using .IRTools, .Dwarf, .WebAssembly
+using .Caches, .IRTools, .Dwarf, .WebAssembly
 using .IRTools: IR, Variable, Statement, Variable, argument!, block, blocks, arguments, argtypes,
   block, isreturn, isunreachable, branches, prune!, return!, unreachable!, branch!, block!, stmt, predecessors, successors,
   Slot, isvariable, Source
