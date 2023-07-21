@@ -1,4 +1,4 @@
-import Base: RefValue, getindex, setindex!, haskey, get
+import Base: RefValue, getindex, setindex!, haskey, get, iterate, length, eltype
 
 const Edge = RefValue{Bool}
 
@@ -64,3 +64,11 @@ function getindex(c::Cache{K,V}, k::K) where {K,V}
 end
 
 haskey(c::Cache, k) = haskey(c.data, k)
+
+function iterate(c::Cache, st...)
+  (k, v), st = @something iterate(c.data, st...) return
+  return k => v.value, st
+end
+
+length(c::Cache) = length(c.data)
+eltype(c::Cache{K,V}) where {K,V} = Pair{K,V}

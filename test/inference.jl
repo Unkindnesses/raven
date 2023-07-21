@@ -26,10 +26,10 @@ let
     }
     pow(2, 3)
     """)
-  fs = filter(inf.data) do (sig, fr)
+  fs = filter(Dict(inf)) do (sig, fr)
     sig[1] isa Raven.RMethod && sig[1].name == tag"pow"
   end |> collect
-  @test fs[1][2].value[2] == 8
+  @test fs[1][2][2] == 8
 end
 
 let
@@ -44,8 +44,8 @@ let
     fn main() { fib(20) }
     main()
     """)
-  fs = filter(inf.data) do (sig, fr)
+  fs = filter(Dict(inf)) do (sig, fr)
     sig[1] isa Raven.RMethod && sig[1].name == tag"main"
   end |> collect
-  @test fs[1][2].value[2] == Int64
+  @test fs[1][2][2] == Int64
 end
