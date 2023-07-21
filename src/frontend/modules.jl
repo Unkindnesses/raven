@@ -69,8 +69,7 @@ function import!(mod::RModule, from::RModule, vars = [])
   from.name in mod.methods.modules || merge!(mod.methods, from.methods)
   for var in vars
     @assert var in from.exports
-    # TODO should be a Binding, so it works with runtime values
-    mod[var] = from[var]
+    mod[var] = Binding(from.name, var)
   end
 end
 
@@ -93,6 +92,13 @@ end
 @forward Compilation.mods Base.getindex
 
 main(comp::Compilation) = comp[tag""]
+
+function resolve_static(cx::Compilation, mod::Tag, name::Symbol)
+  val = cx.mods[mod][name]
+  val isa Binding ? resolve_static(cx, val) : val
+end
+
+resolve_static(cx::Compilation, b::Binding) = resolve_static(cx, b.mod, b.name)
 
 function Compilation()
   c = Compilation(Dict())

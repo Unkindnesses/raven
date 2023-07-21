@@ -189,9 +189,9 @@ function partial_ismatch(mod, pat, val)
   return result isa AbstractDict
 end
 
-function trivial_method(mod, func::Tag, Ts)
-  for meth in reverse(mod.methods[func])
-    m = partial_match(mod, meth.sig.pattern, Ts)
+function trivial_method(comp, func::Tag, Ts)
+  for meth in reverse(main(comp).methods[func])
+    m = partial_match(comp, meth.sig.pattern, Ts)
     if m === nothing
       continue
     elseif m isa AbstractDict
@@ -202,15 +202,14 @@ function trivial_method(mod, func::Tag, Ts)
   end
 end
 
-function trivial_isa(mod, val, T::Tag)
-  meth = trivial_method(mod, tag"isa", rlist(val, T))
+function trivial_isa(comp, val, T::Tag)
+  meth = trivial_method(comp, tag"isa", rlist(val, T))
   meth == nothing && return missing
   ir = meth.func
   (length(ir) == 1 && length(blocks(ir)) == 1) || return missing
   ret = IRTools.returnvalue(block(ir, 1))
   ret isa Global || return missing
-  @assert ret.name.mod == mod.name
-  ret = mod[ret.name.name]
+  ret = resolve_static(comp, ret.name)
   ret isa Int32 || return missing
   return Bool(ret)
 end
@@ -228,11 +227,11 @@ function indexer!(ir::IR, arg, path)
   arg = indexer!(ir, arg, rest)
 end
 
-function dispatcher(mod, func::Tag, Ts)
+function dispatcher(comp::Compilation, func::Tag, Ts)
   ir = IR(meta = FuncInfo(func, trampoline = true))
   args = argument!(ir)
-  for meth in reverse(mod.methods[func])
-    m = partial_match(mod, meth.sig.pattern, Ts)
+  for meth in reverse(main(comp).methods[func])
+    m = partial_match(comp, meth.sig.pattern, Ts)
     if m === nothing
       continue
     elseif m isa AbstractDict

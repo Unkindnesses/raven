@@ -10,6 +10,9 @@ LoadState(comp, mod = nothing) = LoadState(comp, mod, [])
 
 const common = joinpath(@__DIR__, "../../common") |> normpath
 
+resolve_static(cx::LoadState, x::Symbol) =
+  resolve_static(cx.comp, cx.mod.name, x)
+
 function simpleconst(cx::LoadState, x)
   x isa Symbol && return cx.mod[x]
   x isa Primitive && return x
@@ -40,7 +43,7 @@ end
 function load_expr(cx::LoadState, x; src)
   fname = Tag(cx.mod.name, Symbol(:__main, length(cx.main)))
   env = collect(keys(cx.mod.defs))
-  ir, defs = lower_toplevel(cx.mod.name, x; env, meta = FuncInfo(fname, src), resolve = x -> cx.mod[x])
+  ir, defs = lower_toplevel(cx.mod.name, x; env, meta = FuncInfo(fname, src), resolve = x -> resolve_static(cx, x))
   foreach(x -> get!(cx.mod, x, ⊥), defs)
   method!(cx.mod, RMethod(fname, lowerpattern(AST.List()), ir))
   push!(cx.main, fname)
@@ -58,9 +61,9 @@ function vload(cx::LoadState, x::AST.Syntax; src)
   sig, body = extend ? x[3:end] : x[2:end]
   sig = AST.ungroup(sig)
   var = sig[1]::Symbol
-  tag = extend ? cx.mod[var]::Tag : Tag(cx.mod.name, var)
+  tag = extend ? resolve_static(cx, var)::Tag : Tag(cx.mod.name, var)
   cx.mod[var::Symbol] = tag
-  resolve = x -> cx.mod[x]
+  resolve = x -> resolve_static(cx, x)
   sig = lowerpattern(AST.List(sig[2:end]...); resolve)
   method!(cx.mod, RMethod(tag, sig,
                           lowerfn(cx.mod.name, sig, body; resolve,
@@ -88,7 +91,7 @@ function finish!(cx::LoadState)
   method!(main(cx.comp), RMethod(tag"common.core.main", sig,
                                  lowerfn(tag"", sig, body,
                                          meta = FuncInfo(tag"common.core.main"),
-                                         resolve = x -> cx.mod[x])))
+                                         resolve = x -> resolve_static(cx, x))))
 end
 
 function loadfile(cx::LoadState, io::IO; path)

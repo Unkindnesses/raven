@@ -53,7 +53,7 @@ mutable struct Frame
 end
 
 mutable struct GlobalFrame
-  edges::Set{Loc}
+  edges::Set{Union{Loc,Binding}}
   type
 end
 
@@ -74,7 +74,7 @@ function frame(P, ir::IR, args...)
 end
 
 struct Inference
-  mod::RModule
+  comp::Compilation
   frames::IdDict{Any,Union{Frame,Redirect}}
   globals::Dict{Binding,GlobalFrame}
   queue::WorkQueue{Loc}
@@ -83,9 +83,13 @@ end
 function Inference(comp::Compilation)
   gs = Dict{Binding,GlobalFrame}()
   for (name, mod) in comp.mods, (x, T) in mod.defs
-    gs[Binding(mod.name, x)] = GlobalFrame(Set{Loc}(), T)
+    T isa Binding && (T = resolve_static(comp, T))
+    gs[Binding(mod.name, x)] = GlobalFrame(Set(), T)
   end
-  Inference(main(comp), Dict(), gs, WorkQueue{Loc}())
+  for (name, mod) in comp.mods, (x, T) in mod.defs
+    T isa Binding && push!(gs[T].edges, Binding(mod.name, x))
+  end
+  Inference(comp, Dict(), gs, WorkQueue{Loc}())
 end
 
 gframe(inf::Inference, name::Binding) =
@@ -130,7 +134,7 @@ end
 
 function frame!(inf, P, F, Ts)
   haskey(inf.frames, (F, Ts)) && return frame(inf, (F, Ts))
-  irframe!(inf, P, (F, Ts), dispatcher(inf.mod, F, Ts), Ts)
+  irframe!(inf, P, (F, Ts), dispatcher(inf.comp, F, Ts), Ts)
 end
 
 # TODO some methods become unreachable, remove them somewhere?
