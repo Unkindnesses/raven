@@ -40,7 +40,7 @@ end
 function load_expr(cx::LoadState, x; src)
   fname = Tag(cx.mod.name, Symbol(:__main, length(cx.main)))
   env = collect(keys(cx.mod.defs))
-  ir, defs = lower_toplevel(cx.mod, x; env, meta = FuncInfo(fname, src))
+  ir, defs = lower_toplevel(cx.mod.name, x; env, meta = FuncInfo(fname, src), resolve = x -> cx.mod[x])
   foreach(x -> get!(cx.mod, x, ⊥), defs)
   method!(cx.mod, RMethod(fname, lowerpattern(AST.List()), ir))
   push!(cx.main, fname)
@@ -60,8 +60,11 @@ function vload(cx::LoadState, x::AST.Syntax; src)
   var = sig[1]::Symbol
   tag = extend ? cx.mod[var]::Tag : Tag(cx.mod.name, var)
   cx.mod[var::Symbol] = tag
-  sig = lowerpattern(AST.List(sig[2:end]...))
-  method!(cx.mod, RMethod(tag, sig, lowerfn(cx.mod, sig, body, meta = FuncInfo(tag, AST.meta(x)))))
+  resolve = x -> cx.mod[x]
+  sig = lowerpattern(AST.List(sig[2:end]...); resolve)
+  method!(cx.mod, RMethod(tag, sig,
+                          lowerfn(cx.mod.name, sig, body; resolve,
+                                  meta = FuncInfo(tag, AST.meta(x)))))
   return
 end
 
@@ -79,11 +82,13 @@ vload(m::LoadState, x; src) = load_expr(m, x; src)
 
 function finish!(cx::LoadState)
   body = AST.Block([AST.Call(AST.Template(:tag, string(f))) for f in cx.main]...)
+  # TODO use the tag directly and lower in `common.core`
   options().memcheck && push!(body.args, AST.Call(:checkAllocations))
   sig = lowerpattern(AST.List())
   method!(main(cx.comp), RMethod(tag"common.core.main", sig,
-                                 lowerfn(main(cx.comp), sig, body,
-                                         meta = FuncInfo(tag"common.core.main"))))
+                                 lowerfn(tag"", sig, body,
+                                         meta = FuncInfo(tag"common.core.main"),
+                                         resolve = x -> cx.mod[x])))
 end
 
 function loadfile(cx::LoadState, io::IO; path)

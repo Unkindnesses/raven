@@ -71,9 +71,7 @@ function partial_match(mod, pat::Bind, val, path)
 end
 
 function partial_match(mod, pat::Trait, val, path)
-  (haskey(mod, pat.pattern) && isvalue(mod[pat.pattern])) || return missing
-  T = mod[pat.pattern]
-  r = trivial_isa(mod, val, T)
+  r = trivial_isa(mod, val, pat.pattern)
   r === true ? Dict() : r === false ? nothing : missing
 end
 
@@ -243,7 +241,7 @@ function dispatcher(mod, func::Tag, Ts)
       return!(ir, result)
       return ir
     else
-      m = push!(ir, rcall(tag"match", args, rvpattern(mod, meth.sig.pattern)))
+      m = push!(ir, rcall(tag"match", args, rvpattern(meth.sig.pattern)))
       cond = push!(ir, xcall(isnil_method, m))
       cond = push!(ir, rcall(tag"not", cond))
       branch!(ir, length(blocks(ir))+1, when = cond)

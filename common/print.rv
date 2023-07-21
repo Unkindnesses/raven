@@ -1,3 +1,5 @@
+String = tag"String"
+
 fn println(x) {
   print(x)
   print("\n")

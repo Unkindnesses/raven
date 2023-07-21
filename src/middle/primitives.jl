@@ -55,7 +55,7 @@ partial_tagstring(x::Tag) = string(x)
 partial_tagstring(x::Or) = RString
 
 partial_function(f, I, O) = Int32
-partial_invoke(f, I, O, xs...) = rvtype(O)
+partial_invoke(f::Union{Int32,Type{Int32}}, I, O, xs...) = rvtype(O)
 
 pack_method = RMethod(tag"common.core.pack", lowerpattern(rvx"args"), args -> pack(parts(args)...), true)
 part_method = RMethod(tag"common.core.part", lowerpattern(rvx"[data, i]"), partial_part, true)
@@ -66,10 +66,10 @@ shortcutEquals_method = RMethod(tag"common.core.shortcutEquals", lowerpattern(rv
 
 isnil_method = RMethod(tag"common.core.isnil", lowerpattern(rvx"[x]"), partial_isnil, true)
 notnil_method = RMethod(tag"common.core.notnil", lowerpattern(rvx"[x]"), partial_notnil, true)
-tagstring_method = RMethod(tag"common.core.tagstring", lowerpattern(rvx"[x: Tag]"), partial_tagstring, true)
+tagstring_method = RMethod(tag"common.core.tagstring", lowerpattern(rvx"[x]"), partial_tagstring, true)
 
 function_method = RMethod(tag"common.core.function", lowerpattern(rvx"[f, I, O]"), partial_function, true)
-invoke_method = RMethod(tag"common.core.invoke", lowerpattern(rvx"[f: Int32, I, O, xs...]"), partial_invoke, true)
+invoke_method = RMethod(tag"common.core.invoke", lowerpattern(rvx"[f, I, O, xs...]"), partial_invoke, true)
 
 const primitives = [
   pack_method,

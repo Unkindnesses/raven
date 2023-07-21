@@ -17,7 +17,7 @@ struct Bind
 end
 
 struct Trait
-  pattern
+  pattern::Tag
 end
 
 # TODO we reuse the `Or` type as a pattern, don't
@@ -31,7 +31,7 @@ struct Swap
 end
 
 struct Constructor
-  func
+  func::Tag
   args::Vector{Any}
 end
 
@@ -46,34 +46,32 @@ Base.:(==)(a::Or, b::Or) = a.patterns == b.patterns
 
 # Raven versions
 
-# TODO: generate an expression rather than a type, so traits are runtime
-# lookups
-rvpattern(mod::RModule, ::Hole) = pack(tag"Hole")
-rvpattern(mod::RModule, x::Primitive) = x
-rvpattern(mod::RModule, x::Literal) = pack(tag"Literal", x.value)
-rvpattern(mod::RModule, x::Bind) = pack(tag"Bind", Tag(x.name))
-rvpattern(mod::RModule, xs::Pack) = pack(tag"Pack", rvpattern.((mod,), xs.parts)...)
-rvpattern(mod::RModule, xs::And) = pack(tag"And", rvpattern.((mod,), xs.patterns)...)
-rvpattern(mod::RModule, x::Trait) = pack(tag"Trait", mod[x.pattern]::Tag)
-rvpattern(mod::RModule, xs::Constructor) = pack(tag"Constructor", Tag(xs.func), rvpattern.((mod,), xs.args)...)
+rvpattern(::Hole) = pack(tag"Hole")
+rvpattern(x::Primitive) = x
+rvpattern(x::Literal) = pack(tag"Literal", x.value)
+rvpattern(x::Bind) = pack(tag"Bind", Tag(x.name))
+rvpattern(xs::Pack) = pack(tag"Pack", rvpattern.(xs.parts)...)
+rvpattern(xs::And) = pack(tag"And", rvpattern.(xs.patterns)...)
+rvpattern(x::Trait) = pack(tag"Trait", x.pattern)
+rvpattern(xs::Constructor) = pack(tag"Constructor", xs.func, rvpattern.(xs.args)...)
 
 # Pattern lowering
 
-function lowerisa(ex, as)
+function lowerisa(ex, as, resolve)
   if ex isa Symbol
-    return Trait(ex)
+    return Trait(resolve(ex)::Tag)
   elseif ex isa AST.Operator && ex[1] == :(|)
-    Or(map(x -> lowerisa(x, as), ex[2:end]))
+    Or(map(x -> lowerisa(x, as, resolve), ex[2:end]))
   elseif ex isa AST.Operator && ex[1] == :(&)
-    And(map(x -> lowerisa(x, as), ex[2:end]))
+    And(map(x -> lowerisa(x, as, resolve), ex[2:end]))
   elseif ex isa AST.Group && length(ex) == 1
-    lowerisa(ex[1], as)
+    lowerisa(ex[1], as, resolve)
   else
-    _lowerpattern(ex, as)
+    _lowerpattern(ex, as, resolve)
   end
 end
 
-function _lowerpattern(ex, as)
+function _lowerpattern(ex, as, resolve)
   if ex isa Symbol
     ex == :_ || ex in as || push!(as, ex)
     return ex == :_ ? hole : Bind(ex)
@@ -83,23 +81,23 @@ function _lowerpattern(ex, as)
     @assert ex[1] == :tag
     return Literal(Tag(ex[2]))
   elseif ex isa AST.List
-    pack(Literal(tag"List"), map(x -> _lowerpattern(x, as), ex.args)...)
+    pack(Literal(tag"List"), map(x -> _lowerpattern(x, as, resolve), ex.args)...)
   elseif ex isa AST.Operator && ex[1] == :(:)
     name, T = ex[2:end]
     if name == :_
-      lowerisa(T, as)
+      lowerisa(T, as, resolve)
     else
       name in as || push!(as, name)
-      And([Bind(name), lowerisa(T, as)])
+      And([Bind(name), lowerisa(T, as, resolve)])
     end
   elseif ex isa AST.Splat
-    Repeat(_lowerpattern(ex[1], as))
+    Repeat(_lowerpattern(ex[1], as, resolve))
   elseif ex isa AST.Call && ex[1] == :pack
-    pack(map(x -> _lowerpattern(x, as), ex[2:end])...)
+    pack(map(x -> _lowerpattern(x, as, resolve), ex[2:end])...)
   elseif ex isa AST.Call
-    Constructor(ex[1], _lowerpattern.(ex[2:end], (as,)))
+    Constructor(resolve(ex[1]::Symbol)::Tag, _lowerpattern.(ex[2:end], (as,), (resolve,)))
   elseif ex isa AST.Group && length(ex) == 1
-    _lowerpattern(ex[1], as)
+    _lowerpattern(ex[1], as, resolve)
   else
     error("Invalid pattern syntax $(ex)")
   end
@@ -108,26 +106,26 @@ end
 # At the top level, &x is allowed.
 # TODO: swap should be part of the pattern, so we can reject swaps that mismatch
 # the signature.
-function _lowersig(ex, as, swaps)
-  ex isa AST.List || return _lowerpattern(ex, as)
+function _lowersig(ex, as, swaps, resolve)
+  ex isa AST.List || return _lowerpattern(ex, as, resolve)
   args = map(enumerate(ex[:])) do (i, x)
     if x isa AST.Swap
       swaps[i] = x[1]
-      _lowerpattern(x[1], as)
+      _lowerpattern(x[1], as, resolve)
     elseif x isa AST.Operator && x[1] == :(:) && x[2] isa AST.Swap
       swaps[i] = x[2][1]
-      _lowerpattern(AST.Operator(:(:), x[2][1], x[3:end]...), as)
+      _lowerpattern(AST.Operator(:(:), x[2][1], x[3:end]...), as, resolve)
     else
-      _lowerpattern(x, as)
+      _lowerpattern(x, as, resolve)
     end
   end
   pack(Literal(tag"List"), args...)
 end
 
-function lowerpattern(ex)
+function lowerpattern(ex; resolve = x -> error("Couldn't statically resolve $x"))
   as = []
   swaps = Dict{Int,Symbol}()
-  p = _lowersig(ex, as, swaps)
+  p = _lowersig(ex, as, swaps, resolve)
   return Signature(p, as, swaps)
 end
 
@@ -219,24 +217,20 @@ Global(mod::Tag, name::Symbol, type = ⊥) = Global(Binding(mod, name), type)
 
 Base.show(io::IO, g::Global) = print(io, g.name)
 
-# TODO we should only need the module name here, but need the whole thing
-# for a hack in `rvpattern`.
 struct GlobalScope
-  mod::RModule
+  mod::Tag
   env::Set{Symbol}
   def::Set{Symbol}
 end
 
-GlobalScope(mod::RModule, env = Set()) = GlobalScope(mod, env, Set())
+GlobalScope(mod::Tag, env = Set()) = GlobalScope(mod, env, Set())
 
-Base.getindex(g::GlobalScope, x::Symbol) = Global(g.mod.name, x)
+Base.getindex(g::GlobalScope, x::Symbol) = Global(g.mod, x)
 Base.haskey(sc::GlobalScope, x::Symbol) = x in sc.env
 
 variable!(sc::GlobalScope, name) = (push!(sc.def, name); sc[name])
 
 swaps(sc::GlobalScope) = nothing
-
-mod(sc::GlobalScope) = sc.mod
 
 struct Scope
   parent::Union{Scope,GlobalScope}
@@ -245,7 +239,7 @@ struct Scope
 end
 
 Scope(parent; swap = nothing) = Scope(parent, Dict{Symbol,Any}(), swap)
-Scope(mod::RModule; swap = nothing) = Scope(GlobalScope(mod); swap)
+Scope(mod::Tag; swap = nothing) = Scope(GlobalScope(mod); swap)
 
 @forward Scope.env Base.setindex!
 
@@ -256,8 +250,6 @@ variable!(sc::Scope, name::Symbol) =
   haskey(sc, name) ? sc[name] : (sc[name] = Slot(gensym(name)))
 
 swaps(sc::Scope) = sc.swap == nothing ? swaps(sc.parent) : sc.swap
-
-mod(sc::Scope) = mod(sc.parent)
 
 # don't continue lowering after return
 # e.g. `f(return 1)`
@@ -375,8 +367,8 @@ function lower!(sc, ir::IR, ex::AST.Break)
 end
 
 function lowermatch!(sc, ir::IR, val, pat)
-  sig = lowerpattern(pat)
-  pat = rvpattern(mod(sc), sig.pattern)
+  sig = lowerpattern(pat, resolve = resolve_static)
+  pat = rvpattern(sig.pattern)
   m = push!(ir, rcall(tag"match", val, pat))
   isnil = push!(ir, xcall(isnil_method, m))
   branch!(ir, length(blocks(ir))+1, when = isnil)
@@ -508,14 +500,21 @@ _lower!(sc, ir::IR, ex::AST.Syntax) = lower!(sc, ir, ex, false)
 
 fnsig(ex) = lowerpattern(AST.List(ex[2][:]...))
 
-function lowerfn(mod::RModule, sig::Signature, body::AST.Expr; meta::FuncInfo = nothing)
+# This is only used (hackily) by `lowermatch!`, so we avoid cluttering the code.
+# TODO: remove the need for `resolve` in lowering entirely
+withresolve(f, r) = dynamic_bind(f, :resolve, r)
+resolve_static(x) = dynamic_value(:resolve)(x)
+
+function lowerfn(mod::Tag, sig::Signature, body::AST.Expr; meta::FuncInfo = nothing, resolve)
   sc = Scope(mod, swap = sig.swap)
   ir = IR(; meta)
   for arg in sig.args
     sc[arg] = Slot(arg)
     push!(ir, :($(Slot(arg)) = $(argument!(ir))))
   end
-  out = lower!(sc, ir, body)
+  out = withresolve(resolve) do
+    lower!(sc, ir, body)
+  end
   out == nothing || swapreturn!(ir, out, sig.swap, nothing)
   ir = ir |> pruneblocks! |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
 end
@@ -538,10 +537,12 @@ function rewrite_globals(ir::IR)
   return ir
 end
 
-function lower_toplevel(mod::RModule, ex; meta = nothing, env = [])
+function lower_toplevel(mod::Tag, ex; meta = nothing, env = [], resolve)
   sc = GlobalScope(mod, Set(env))
   ir = IR(; meta)
-  _lower!(sc, ir, ex)
+  withresolve(resolve) do
+    _lower!(sc, ir, ex)
+  end
   IRTools.return!(ir, Global(tag"", :nil))
   ir = rewrite_globals(ir)
   return ir |> IRTools.ssa! |> IRTools.prune!, sc.def
