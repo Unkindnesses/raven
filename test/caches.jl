@@ -34,3 +34,12 @@ end
 level1[1] = 7
 
 @test level3[1] == "7!"
+
+optional = Cache{Int,String}() do ch, i
+  haskey(level1, i) ? string(level1[i]) : "default"
+end
+
+@test optional[1] == "7"
+@test optional[5] == "default"
+level1[5] = 13
+@test optional[5] == "13"

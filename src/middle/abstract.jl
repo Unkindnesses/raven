@@ -323,13 +323,8 @@ function infer(comp::Compilation; partial = false)
     haskey(inf.frames, sig) || error("Can't infer types for $sig")
     infer!(inf; partial)
     for (k, fr) in inf.frames
-      haskey(ch, k) && continue
-      if fr isa Redirect
-        ch[k] = fr
-      else
-        ir = prune!(unloop(fr.ir))
-        ch[k] = ir => fr.rettype
-      end
+      Caches.iscached(ch, k) && continue
+      ch[k] = fr isa Redirect ? fr : (prune!(unloop(fr.ir)) => fr.rettype)
     end
     return ch[sig]
   end

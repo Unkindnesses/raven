@@ -35,24 +35,39 @@ CacheValue{T}(x) where T = CacheValue{T}(x, Edge(true), Set{Edge}())
 
 struct Cache{K,V}
   data::IdDict{K,CacheValue{V}}
+  haskey::IdDict{K,Edge}
   default::Any
 end
 
 _cache_default(ch::Cache, x) = throw(KeyError(x))
 
-Cache{K,V}(f = _cache_default) where {K,V} = Cache{K,V}(Dict{K,V}(), f)
+Cache{K,V}(f = _cache_default) where {K,V} =
+  Cache{K,V}(IdDict{K,V}(), IdDict{K,Edge}(), f)
 
 Cache(f = _cache_default) = Cache{Any,Any}(f)
 
+function invalidate!(c::Cache{K,V}, k::K) where {K,V}
+  if haskey(c.data, k)
+    c.data[k].edge[] = false
+  elseif haskey(c.haskey, k)
+    c.haskey[k][] = false
+    delete!(c.haskey, k)
+  end
+  return
+end
+
 function setindex!(c::Cache{K,V}, v::V, k::K) where {K,V}
-  haskey(c.data, k) && (c.data[k].edge[] = false)
+  invalidate!(c, k)
   c.data[k] = CacheValue{V}(v)
   return v
 end
 
+iscached(c::Cache{K,V}, k::K) where {K,V} =
+  haskey(c.data, k) && all(x[] for x in c.data[k].deps)
+
 function getindex(c::Cache{K,V}, k::K) where {K,V}
-  if !haskey(c.data, k) || any(!x[] for x in c.data[k].deps)
-    haskey(c.data, k) && (c.data[k].edge[] = false)
+  if !iscached(c, k)
+    invalidate!(c, k)
     value, deps = trackdeps() do
       c.default(c, k)::V
     end
@@ -63,7 +78,12 @@ function getindex(c::Cache{K,V}, k::K) where {K,V}
   return c.data[k].value
 end
 
-haskey(c::Cache, k) = haskey(c.data, k)
+# TODO should invalidated keys count?
+function haskey(c::Cache{K,V}, k::K) where {K,V}
+  e = get!(() -> Edge(true), c.haskey, k)
+  trackdep!(e)
+  return haskey(c.data, k)
+end
 
 function iterate(c::Cache, st...)
   (k, v), st = @something iterate(c.data, st...) return
