@@ -43,3 +43,38 @@ end
 @test optional[5] == "default"
 level1[5] = 13
 @test optional[5] == "13"
+
+@testset "Recursive Fibonacci" begin
+  init = Cache{Int,Int}()
+  init[0] = 0; init[1] = 1
+
+  fib = Cache{Int,Int}() do ch, i
+    i <= 1 ? init[i] : ch[i-1] + ch[i-2]
+  end
+
+  @test fib[10] == 55
+  @test fib[5] == 5
+
+  init[0] = 1
+  @test fib[10] == 89
+  @test fib[5] == 8
+end
+
+@testset "Iterative Fibonacci" begin
+  init = Cache{Int,Int}()
+  init[0] = 0; init[1] = 1
+
+  fib = Cache{Int,Int}() do ch, i
+    for i = 0:i
+      ch[i] = i <= 1 ? init[i] : ch[i-1] + ch[i-2]
+    end
+    return ch[i]
+  end
+
+  @test fib[10] == 55
+  @test fib[5] == 5
+
+  init[0] = 1
+  @test fib[5] == 8
+  @test fib[10] == 89
+end

@@ -6,6 +6,8 @@ let sym = gensym(:cache_deps)
   global cache_deps() = get!(() -> Set{Edge}[], task_local_storage(), sym)::Vector{Set{Edge}}
 end
 
+current_deps() = isempty(cache_deps()) ? Set{Edge}() : copy(cache_deps()[end])
+
 function trackdeps(f)
   stack = cache_deps()
   deps = Set{Edge}()
@@ -19,7 +21,7 @@ function trackdeps(f)
   return result, deps
 end
 
-function trackdep!(t::Edge)
+function track!(t::Edge)
   stack = cache_deps()
   isempty(stack) || push!(stack[end], t)
   return
@@ -56,11 +58,13 @@ function invalidate!(c::Cache{K,V}, k::K) where {K,V}
   return
 end
 
-function setindex!(c::Cache{K,V}, v::V, k::K) where {K,V}
+function set!(c::Cache{K,V}, k::K, v::V; edges = current_deps()) where {K,V}
   invalidate!(c, k)
-  c.data[k] = CacheValue{V}(v)
+  c.data[k] = CacheValue{V}(v, Edge(true), edges)
   return v
 end
+
+setindex!(c::Cache{K,V}, v::V, k::K) where {K,V} = set!(c, k, v)
 
 iscached(c::Cache{K,V}, k::K) where {K,V} =
   haskey(c.data, k) && all(x[] for x in c.data[k].deps)
@@ -73,15 +77,15 @@ function getindex(c::Cache{K,V}, k::K) where {K,V}
     end
     c.data[k] = CacheValue{V}(value, Edge(true), deps)
   end
-  trackdep!(c.data[k].edge)
-  foreach(trackdep!, c.data[k].deps)
+  track!(c.data[k].edge)
+  foreach(track!, c.data[k].deps)
   return c.data[k].value
 end
 
-# TODO should invalidated keys count?
 function haskey(c::Cache{K,V}, k::K) where {K,V}
+  @assert c.default == _cache_default
   e = get!(() -> Edge(true), c.haskey, k)
-  trackdep!(e)
+  track!(e)
   return haskey(c.data, k)
 end
 
