@@ -13,13 +13,13 @@ end
 function code_typed(mod::Compilation, func...)
   cx = infer(mod)
   cx[(tag"common.core.main",rlist())]
-  IdDict{Any,IR}(sig => fr[1] for (sig, fr) in cx if !(fr isa Redirect) && sigmatch(sig, func...))
+  IdDict{Any,IR}(sig => fr[1] for (sig, fr) in IdDict(cx) if !(fr isa Redirect) && sigmatch(sig, func...))
 end
 
 function code_final(mod::Compilation, func...)
   cx = mod |> infer |> lowerir |> refcounts
   wasmmodule(cx, startmethod(mod))
-  IdDict{Any,IR}(sig => ir for (sig, ir) in cx if sigmatch(sig, func...))
+  IdDict{Any,IR}(sig => ir for (sig, ir) in IdDict(cx) if sigmatch(sig, func...))
 end
 
 function code_wasm(cx::Compilation, func)

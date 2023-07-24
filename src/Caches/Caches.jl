@@ -1,7 +1,11 @@
 module Caches
 
+import Base: getindex, setindex!, delete!, haskey, get
+
 export Cache
 
-include("mut.jl")
+include("utils.jl")
+include("basic.jl")
+include("cache.jl")
 
 end
