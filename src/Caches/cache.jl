@@ -6,17 +6,16 @@ end
 
 struct Cache{K,V}
   fingerprint::Set{NFT}
-  deps::Vector{Set{NFT}}
   data::IdDict{K,CacheValue{V}}
   default::Any
 end
 
 _cache_default(ch::Cache, x) = throw(KeyError(x))
 
-Cache{K,V}(f = _cache_default; deps = []) where {K,V} =
-  Cache{K,V}(Set{NFT}(), fingerprint.(deps), IdDict{K,V}(), f)
+Cache{K,V}(f = _cache_default) where {K,V} =
+  Cache{K,V}(Set{NFT}(), IdDict{K,V}(), f)
 
-Cache(f = _cache_default; deps = []) = Cache{Any,Any}(f; deps)
+Cache(f = _cache_default) = Cache{Any,Any}(f)
 
 fingerprint(ch::Cache) = ch.fingerprint
 
@@ -44,7 +43,7 @@ function getindex(c::Cache{K,V}, k::K) where {K,V}
 end
 
 function reset!(c::Cache; deps = [])
-  print = reduce(union!, vcat(fingerprint.(deps), c.deps), init = Set{NFT}())
+  print = reduce(union!, fingerprint.(deps), init = Set{NFT}())
   for (k, v) in c.data
     all(id -> id in print, v.deps) && continue
     delete!(c.fingerprint, v.id)
