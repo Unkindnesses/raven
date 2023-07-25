@@ -52,15 +52,23 @@ reset!(optional, deps = [level1])
 @test optional[5] == "13"
 
 @testset "Recursive Fibonacci" begin
+  log = []
   init = Cache{Int,Int}()
   init[0] = 0; init[1] = 1
 
   fib = Cache{Int,Int}() do ch, i
+    push!(log, i)
     i <= 1 ? init[i] : ch[i-1] + ch[i-2]
   end
 
   @test fib[10] == 55
   @test fib[5] == 5
+  @test log == 10:-1:0
+  empty!(log)
+
+  reset!(fib, deps = [init])
+  @test fib[10] == 55
+  @test isempty(log)
 
   init[0] = 1
   reset!(fib, deps = [init])
@@ -69,10 +77,12 @@ reset!(optional, deps = [level1])
 end
 
 @testset "Iterative Fibonacci" begin
+  log = []
   init = Cache{Int,Int}()
   init[0] = 0; init[1] = 1
 
   fib = Cache{Int,Int}() do ch, i
+    push!(log, i)
     for i = 0:i
       ch[i] = i <= 1 ? init[i] : ch[i-1] + ch[i-2]
     end
@@ -81,9 +91,16 @@ end
 
   @test fib[10] == 55
   @test fib[5] == 5
+  @test log == [10]
+  empty!(log)
+
+  reset!(fib, deps = [init])
+  @test fib[10] == 55
+  @test isempty(log)
 
   init[0] = 1
   reset!(fib, deps = [init])
   @test fib[5] == 8
   @test fib[10] == 89
+  @test log == [5, 10]
 end

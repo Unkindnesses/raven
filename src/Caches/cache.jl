@@ -36,7 +36,9 @@ function getindex(c::Cache{K,V}, k::K) where {K,V}
     value, deps = trackdeps() do
       c.default(c, k)::V
     end
-    c.data[k] = CacheValue{V}(value, NFT(), deps)
+    id = NFT()
+    c.data[k] = CacheValue{V}(value, id, deps)
+    push!(c.fingerprint, id)
   end
   track!(c.data[k].id)
   return c.data[k].value
@@ -44,10 +46,16 @@ end
 
 function reset!(c::Cache; deps = [])
   print = reduce(union!, fingerprint.(deps), init = Set{NFT}())
-  for (k, v) in c.data
-    all(id -> id in print, v.deps) && continue
-    delete!(c.fingerprint, v.id)
-    delete!(c.data, k)
+  changed = true
+  # TODO this is a suboptimal way to handle internal dependencies
+  while changed
+    changed = false
+    for (k, v) in c.data
+      all(id -> id in print || id in c.fingerprint, v.deps) && continue
+      delete!(c.fingerprint, v.id)
+      delete!(c.data, k)
+      changed = true
+    end
   end
 end
 
