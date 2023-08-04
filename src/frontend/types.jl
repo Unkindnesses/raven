@@ -4,8 +4,10 @@ struct Tag
   path::NTuple{N,Symbol} where N
 end
 
+Tag(t::Tag) = t
 Tag(parts::Symbol...) = Tag((parts...,))
-Tag(ns::Tag, parts::Symbol...) = Tag((ns.path..., parts...))
+Tag(a::Tag, b::Tag) = Tag((a.path..., b.path...))
+Tag(a, b) = Tag(Tag(a), Tag(b))
 
 Base.string(id::Tag) = join(id.path, ".")
 
@@ -24,6 +26,11 @@ name(t::Tag) = t.path[end]
 
 macro tag_str(ex)
   Tag(ex)
+end
+
+function modtag(mod::Tag, tag::String)
+  prefix = startswith(tag, ".") ? mod : tag""
+  return Tag(prefix, tag)
 end
 
 # Types

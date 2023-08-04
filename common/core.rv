@@ -8,11 +8,11 @@ export { true, false }
 
 export { Tag, Int32, Int64, Float32, Float64 }
 
-Tag     = tag"common.core.Tag"
-Int32   = tag"common.core.Int32"
-Int64   = tag"common.core.Int64"
-Float32 = tag"common.core.Float32"
-Float64 = tag"common.core.Float64"
+Tag     = tag".Tag"
+Int32   = tag".Int32"
+Int64   = tag".Int64"
+Float32 = tag".Float32"
+Float64 = tag".Float64"
 
 # These functions have built-in methods attached.
 # TODO: could add a `fn { foo }` syntax to declare a function with no methods.
@@ -20,16 +20,16 @@ Float64 = tag"common.core.Float64"
 export { pack, part, nparts, packcat, widen, shortcutEquals, isnil, notnil
          tagstring, function, invoke }
 
-pack = tag"common.core.pack"
-part = tag"common.core.part"
-nparts = tag"common.core.nparts"
-packcat = tag"common.core.packcat"
-widen = tag"common.core.widen"
-shortcutEquals = tag"common.core.shortcutEquals"
+pack   = tag".pack"
+part   = tag".part"
+nparts = tag".nparts"
+packcat = tag".packcat"
+widen   = tag".widen"
+shortcutEquals = tag".shortcutEquals"
 
-isnil = tag"common.core.isnil"
-notnil = tag"common.core.notnil"
-tagstring = tag"common.core.tagstring"
+isnil  = tag".isnil"
+notnil = tag".notnil"
+tagstring = tag".tagstring"
 
-function = tag"common.core.function"
-invoke = tag"common.core.invoke"
+function = tag".function"
+invoke   = tag".invoke"

@@ -16,7 +16,7 @@ resolve_static(cx::LoadState, x::Symbol) =
 function simpleconst(cx::LoadState, x)
   x isa Symbol && return cx.mod[x]
   x isa Primitive && return x
-  x isa AST.Template && x[1] == :tag && return Tag(x[2])
+  x isa AST.Template && x[1] == :tag && return modtag(cx.mod.name, x[2])
   return
 end
 
@@ -55,7 +55,7 @@ function vload(cx::LoadState, x::AST.Syntax; src)
   x[1] == :include && return load_include(cx, x)
   x[1] == :export && return load_export(cx, x)
   x[1] == :import && return load_import(cx, x)
-  x[1] == :bundle && return vload(cx, datamacro(x); src)
+  x[1] == :bundle && return vload(cx, bundlemacro(x); src)
   isfn(x) || return load_expr(cx, x; src)
   extend = x[1] == :extend
   sig, body = extend ? x[3:end] : x[2:end]

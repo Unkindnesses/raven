@@ -135,8 +135,7 @@ namify(x::Symbol) = x
 namify(ex::AST.Operator) = namify(ex[2])
 namify(ex::AST.Splat) = AST.Splat(namify(ex[1]))
 
-# TODO put Ids directly into the AST, rather than going through Template nodes
-function datamacro(ex::AST.Syntax)
+function bundlemacro(ex::AST.Syntax)
   super, specs = length(ex) == 2 ? (nothing, ex[2]) : (ex[2], ex[3])
   specs = specs[:]
   names = []
@@ -227,6 +226,7 @@ GlobalScope(mod::Tag, env = Set()) = GlobalScope(mod, env, Set())
 
 Base.getindex(g::GlobalScope, x::Symbol) = Global(g.mod, x)
 Base.haskey(sc::GlobalScope, x::Symbol) = x in sc.env
+mod(sc::GlobalScope) = sc.mod
 
 variable!(sc::GlobalScope, name) = (push!(sc.def, name); sc[name])
 
@@ -245,6 +245,7 @@ Scope(mod::Tag; swap = nothing) = Scope(GlobalScope(mod); swap)
 
 Base.getindex(sc::Scope, x::Symbol) = haskey(sc.env, x) ? sc.env[x] : sc.parent[x]
 Base.haskey(sc::Scope, x::Symbol) = haskey(sc.env, x) || haskey(sc.parent, x)
+mod(sc::Scope) = mod(sc.parent)
 
 variable!(sc::Scope, name::Symbol) =
   haskey(sc, name) ? sc[name] : (sc[name] = Slot(gensym(name)))
@@ -358,7 +359,7 @@ end
 
 function lower!(sc, ir::IR, ex::AST.Template)
   @assert ex[1] == :tag
-  return Tag(ex[2])
+  return modtag(mod(sc), ex[2])
 end
 
 function lower!(sc, ir::IR, ex::AST.Break)
