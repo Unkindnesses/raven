@@ -112,10 +112,12 @@ struct Options
   memcheck::Bool
   # Use JS interop for error handling
   jspanic::Bool
+  # JS interop uses malloc/refcounting
+  jsalloc::Bool
 end
 
-Options(; memcheck = true, jspanic = true) =
-  Options(memcheck, jspanic)
+Options(; memcheck = true, jspanic = true, jsalloc = true) =
+  Options(memcheck, jspanic, jsalloc)
 
 withoptions(f, p) = dynamic_bind(f, :options, p)
 options() = dynamic_value(:options, Options())::Options

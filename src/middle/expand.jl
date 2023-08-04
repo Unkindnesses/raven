@@ -158,7 +158,7 @@ function partir(s::String, i)
   argument!(ir, type = i)
   # Punt to the backend to decide how strings get IDd
   id = push!(ir, stmt(Expr(:ref, s), type = rlist(Int32)))
-  o = push!(ir, stmt(xcall(tag"JSObject", id), type = JSObject))
+  o = push!(ir, stmt(xcall(tag"JSObject", id), type = JSObject()))
   return!(ir, o)
   return ir
 end
@@ -408,7 +408,7 @@ function cast!(ir, from, to, x)
     margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rlist(Int32)))
     ptr = push!(ir, stmt(xcall(Global(tag"", :malloc!, tag"malloc!"), margs), type = Int32))
     push!(ir, stmt(Expr(:tuple, Int32(0), ptr), type = to))
-  elseif from isa String && to == RString
+  elseif from isa String && to == RString()
     string!(ir, from)
   elseif to isa Or
     i = findfirst(==(from), to.patterns)

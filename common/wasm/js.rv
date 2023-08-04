@@ -6,18 +6,28 @@ fn jsfree(ptr: Ptr) {
 
 bundle { JSObject(ref: Ref) }
 
+# We have a compiler option which skips the `Ref` wrapper, which lets us avoid
+# compiling malloc. (And of course JS objects won't be freed.)
+fn isa(pack(tag"JSObject", ref: Int32), tag"JSObject") { true }
+
 fn JSObject(id: Int32) {
-  r = Ref(8)
-  i32store!(pointer(r), id)
-  cleanup!(r, jsfree)
-  return JSObject(r)
+  if jsalloc() {
+    r = Ref(8)
+    i32store!(pointer(r), id)
+    cleanup!(r, jsfree)
+    return JSObject(r)
+  } else {
+    return pack(tag"JSObject", id)
+  }
 }
 
 fn tojs(x: JSObject) { x }
 
 fn jsref(x) { jsref(tojs(x)) }
 
-fn jsref(JSObject(ref)) { i32load(pointer(ref)) }
+fn jsref(JSObject(ref: Ref)) { i32load(pointer(ref)) }
+
+fn jsref(JSObject(ref: Int32)) { ref }
 
 fn global() {
   ref = wasm { call("jsglobal"): i32 }

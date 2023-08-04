@@ -52,10 +52,12 @@ function partial_notnil(x::Or)
 end
 
 partial_tagstring(x::Tag) = string(x)
-partial_tagstring(x::Or) = RString
+partial_tagstring(x::Or) = RString()
 
 partial_function(f, I, O) = Int32
 partial_invoke(f::Union{Int32,Type{Int32}}, I, O, xs...) = rvtype(O)
+
+partial_jsalloc() = Int32(options().jsalloc)
 
 pack_method = RMethod(tag"common.core.pack", lowerpattern(rvx"args"), args -> pack(parts(args)...), true)
 part_method = RMethod(tag"common.core.part", lowerpattern(rvx"[data, i]"), partial_part, true)
@@ -71,7 +73,9 @@ tagstring_method = RMethod(tag"common.core.tagstring", lowerpattern(rvx"[x]"), p
 function_method = RMethod(tag"common.core.function", lowerpattern(rvx"[f, I, O]"), partial_function, true)
 invoke_method = RMethod(tag"common.core.invoke", lowerpattern(rvx"[f, I, O, xs...]"), partial_invoke, true)
 
-const primitives = [
+jsalloc_method = RMethod(tag"common.core.jsalloc", lowerpattern(rvx"[]"), partial_jsalloc, true)
+
+primitives() = [
   pack_method,
   part_method,
   nparts_method,
@@ -83,6 +87,7 @@ const primitives = [
   tagstring_method,
   function_method,
   invoke_method,
+  jsalloc_method,
 ]
 
 # Primitive implementations
@@ -152,7 +157,7 @@ end
 
 function string!(ir, s)
   s = push!(ir, stmt(Expr(:tuple), type = s))
-  push!(ir, stmt(xcall(part_method, s, 1), type = RString))
+  push!(ir, stmt(xcall(part_method, s, 1), type = RString()))
 end
 
 outlinePrimitive[tagstring_method] = function (T::Or)
@@ -184,12 +189,16 @@ inlinePrimitive[invoke_method] = function (pr, ir, v)
   replace!(pr, v, v′)
 end
 
+inlinePrimitive[jsalloc_method] = function (pr, ir, v)
+  pr[v] = xtuple()
+end
+
 # Core module
 
 function core()
   mod = RModule(tag"common.core")
   mod[Symbol("false")] = Int32(0)
   mod[Symbol("true")] = Int32(1)
-  foreach(meth -> method!(mod, meth), primitives)
+  foreach(meth -> method!(mod, meth), primitives())
   return mod
 end

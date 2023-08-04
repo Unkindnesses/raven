@@ -102,8 +102,12 @@ end
 
 Primitive = Union{Int64,Int32,Float64,Float32,Tag,String}
 
-const JSObject = pack(tag"JSObject", pack(tag"Ref", pack(tag"Ptr", Int32)))
-const RString = pack(tag"String", JSObject)
+JSObject() =
+  options().jsalloc ?
+    pack(tag"JSObject", pack(tag"Ref", pack(tag"Ptr", Int32))) :
+    pack(tag"JSObject", Int32)
+
+RString() = pack(tag"String", JSObject())
 
 const fromSymbol = Dict{Tag,Type}()
 
@@ -120,10 +124,10 @@ end
 
 part(s::String, i::Integer) =
   i == 0 ? tag"String" :
-  i == 1 ? JSObject :
+  i == 1 ? JSObject() :
   error("Tried to access part $i of 1")
 
-allparts(s::String) = (:String, JSObject)
+allparts(s::String) = (:String, JSObject())
 
 nparts(s::String) = 1
 

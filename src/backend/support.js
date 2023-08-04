@@ -85,7 +85,7 @@ async function loadWasm(f) {
   return res.instance.exports;
 }
 
-async function main() {
+async function main({memcheck = true} = {}) {
   let {_start} = await loadWasm(__dirname + '/' + wasmFile);
   _start = new WebAssembly.Function(
     {parameters: [], results: ['externref']},
@@ -98,6 +98,6 @@ async function main() {
     console.error(e);
     process.exit(1);
   }
-  if (Object.keys(table).length !== nStrings)
+  if (memcheck && Object.keys(table).length !== nStrings)
     throw new Error("Memory management fault: JSObject");
 }
