@@ -1,8 +1,10 @@
+export { Ptr, Function, Ref, addr, pointer, invoke }
+
 bundle { Ptr(x: Int32) }
 
 fn Ptr(x: Int64) { Ptr(Int32(x)) }
 
-fn addr(x: Ptr) { part(x, 1) }
+fn addr(Ptr(x)) { x }
 
 fn print(x: Ptr) {
   print("Ptr@")

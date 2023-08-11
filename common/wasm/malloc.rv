@@ -1,3 +1,8 @@
+export {
+  malloc!, free!, retain!, release!, blockSize, blockCount
+  setBlockUsed!, headerSize, pageSize, allocationCount
+}
+
 # Current layout:
 #
 # l l l l u u u u m m m ....

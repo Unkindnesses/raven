@@ -1,3 +1,5 @@
+export { Range, range, iterate, iterator }
+
 bundle { IndexIterator(xs, i: Int64) }
 
 fn IndexIterator(xs) { IndexIterator(xs, 1) }

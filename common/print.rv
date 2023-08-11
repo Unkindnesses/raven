@@ -1,3 +1,5 @@
+export { print, println }
+
 String = tag".String"
 
 fn println(x) {

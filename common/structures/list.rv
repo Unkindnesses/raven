@@ -1,3 +1,5 @@
+export { List, length, append, isempty, collect }
+
 bundle { List(xs...) }
 
 fn list(xs...) { List(xs...) }

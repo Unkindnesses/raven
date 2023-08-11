@@ -85,11 +85,10 @@ vload(m::LoadState, x; src) = load_expr(m, x; src)
 
 function finish!(cx::LoadState)
   body = AST.Block([AST.Call(AST.Template(:tag, string(f))) for f in cx.main]...)
-  # TODO use the tag directly and lower in `common.core`
-  options().memcheck && push!(body.args, AST.Call(:checkAllocations))
+  options().memcheck && push!(body.args, AST.Call(AST.Template(:tag, "common.checkAllocations")))
   sig = lowerpattern(AST.List())
   method!(main(cx.comp), RMethod(tag"common.core.main", sig,
-                                 lowerfn(tag"", sig, body,
+                                 lowerfn(tag"common.core", sig, body,
                                          meta = FuncInfo(tag"common.core.main"),
                                          resolve = x -> resolve_static(cx, x))))
 end
@@ -125,7 +124,6 @@ function load(f::String)
   loadmodule(cx, tag"common.core", "$common/core.rv")
 
   com = loadmodule(cx, tag"common", "$common/common.rv")
-  union!(com.exports, keys(com.defs))
   main = module!(comp, tag"")
   import!(main, com, com.exports)
   loadmodule(cx, main, f)

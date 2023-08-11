@@ -10,6 +10,13 @@ import {
     isnil, notnil, tagstring, function, invoke, jsalloc
 } from "core.rv"
 
+export {
+    true, false
+    pack, part, nparts, widen
+    Tag, Nil, nil, isnil
+    tag, identity, ==, isa
+}
+
 fn tag(x) { part(x, 0) }
 
 fn identity(x) { x }

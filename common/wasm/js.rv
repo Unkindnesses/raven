@@ -1,3 +1,5 @@
+export { global, call, await }
+
 fn jsfree(ptr: Ptr) {
   id = i32load(ptr)
   wasm { call("jsfree", id: i32) }

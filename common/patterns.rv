@@ -1,3 +1,5 @@
+export { Hole, Literal, Trait, Pack, Bind, Constructor, And, match }
+
 bundle Pattern {
   Hole()
   Literal(x)

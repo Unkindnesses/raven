@@ -1,3 +1,9 @@
+export {
+  Int32, Int64, Float32, Float64, Complex
+  ==, !=, +, -, *, ^, >, <, >=, <=, &, abs2, rem, not
+  zero, one
+}
+
 fn isa(pack(tag"common.core.Int32", _), tag"common.core.Int32") { true }
 fn isa(pack(tag"common.core.Int64", _), tag"common.core.Int64") { true }
 fn isa(pack(tag"common.core.Float32", _), tag"common.core.Float32") { true }
