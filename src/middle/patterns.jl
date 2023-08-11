@@ -203,7 +203,7 @@ function trivial_method(comp, func::Tag, Ts)
 end
 
 function trivial_isa(comp, val, T::Tag)
-  meth = trivial_method(comp, tag"isa", rlist(val, T))
+  meth = trivial_method(comp, tag"common.isa", rlist(val, T))
   meth == nothing && return missing
   ir = meth.func
   (length(ir) == 1 && length(blocks(ir)) == 1) || return missing
@@ -240,16 +240,16 @@ function dispatcher(comp::Compilation, func::Tag, Ts)
       return!(ir, result)
       return ir
     else
-      m = push!(ir, rcall(tag"match", args, rvpattern(meth.sig.pattern)))
+      m = push!(ir, rcall(tag"common.match", args, rvpattern(meth.sig.pattern)))
       cond = push!(ir, xcall(isnil_method, m))
-      cond = push!(ir, rcall(tag"not", cond))
+      cond = push!(ir, rcall(tag"common.not", cond))
       branch!(ir, length(blocks(ir))+1, when = cond)
       branch!(ir, length(blocks(ir))+2)
       block!(ir)
       m = push!(ir, xcall(notnil_method, m))
       as = []
       for arg in meth.sig.args
-        push!(as, push!(ir, rcall(tag"getkey", m, Tag(arg))))
+        push!(as, push!(ir, rcall(tag"common.getkey", m, Tag(arg))))
       end
       result = push!(ir, xcall(meth, as...))
       isempty(meth.sig.swap) && (result = push!(ir, xlist(result)))
@@ -257,11 +257,11 @@ function dispatcher(comp::Compilation, func::Tag, Ts)
       block!(ir)
     end
   end
-  if func == tag"panic" && issubset(Ts, rlist(String))
+  if func == tag"common.panic" && issubset(Ts, rlist(String))
     error("Compiler fault: couldn't guarantee panic method matches")
   end
   if options().jspanic
-    push!(ir, xcall(tag"panic", xlist("No matching method: $func: $Ts")))
+    push!(ir, xcall(tag"common.panic", xlist("No matching method: $func: $Ts")))
   end
   unreachable!(ir)
   return ir

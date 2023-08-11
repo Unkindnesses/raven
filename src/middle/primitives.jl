@@ -44,10 +44,10 @@ partial_isnil(x::Pack) = Int32(x == nil)
 partial_isnil(x::Or) = any(==(nil), x.patterns) ? Int32 : Int32(0)
 
 # Duct tape until the thatcher algorithm works.
-partial_notnil(x::Pack) = tag(x) == tag"Nil" ? ⊥ : x
+partial_notnil(x::Pack) = tag(x) == tag"common.Nil" ? ⊥ : x
 
 function partial_notnil(x::Or)
-  ps = filter(x -> tag(x) != tag"Nil", x.patterns)
+  ps = filter(x -> tag(x) != tag"common.Nil", x.patterns)
   return length(ps) == 1 ? ps[1] : Or(ps)
 end
 

@@ -1,38 +1,3 @@
-# Symbolic identifiers
-
-struct Tag
-  path::NTuple{N,Symbol} where N
-end
-
-Tag(t::Tag) = t
-Tag(parts::Symbol...) = Tag((parts...,))
-Tag(a::Tag, b::Tag) = Tag((a.path..., b.path...))
-Tag(a, b) = Tag(Tag(a), Tag(b))
-
-Base.string(id::Tag) = join(id.path, ".")
-
-Base.Symbol(id::Tag) = Symbol(string(id))
-
-function Base.show(io::IO, id::Tag)
-  print(io, "tag\"")
-  join(io, id.path, ".")
-  print(io, "\"")
-end
-
-Tag(s::String) = Tag(Symbol.(split(s, ".", keepempty=false))...)
-
-path(t::Tag) = Tag(t.path[1:end-1]...)
-name(t::Tag) = t.path[end]
-
-macro tag_str(ex)
-  Tag(ex)
-end
-
-function modtag(mod::Tag, tag::String)
-  prefix = startswith(tag, ".") ? mod : tag""
-  return Tag(prefix, tag)
-end
-
 # Types
 
 struct Pack{N}
@@ -41,7 +6,7 @@ end
 
 pack(x...) = Pack((x...,))
 
-nil = pack(tag"Nil")
+nil = pack(tag"common.Nil")
 
 nparts(x::Pack) = length(x.parts)-1
 part(x::Pack, i) = x.parts[i+1]
@@ -64,7 +29,7 @@ end
 
 tag(x::VPack) = x.tag
 
-rlist(xs...) = pack(tag"List", xs...)
+rlist(xs...) = pack(tag"common.List", xs...)
 
 packcat(x) = x
 packcat(x, y) = pack(tag(x), parts(x)..., parts(y)...)
@@ -104,10 +69,10 @@ Primitive = Union{Int64,Int32,Float64,Float32,Tag,String}
 
 JSObject() =
   options().jsalloc ?
-    pack(tag"JSObject", pack(tag"Ref", pack(tag"Ptr", Int32))) :
-    pack(tag"JSObject", Int32)
+    pack(tag"common.JSObject", pack(tag"common.Ref", pack(tag"common.Ptr", Int32))) :
+    pack(tag"common.JSObject", Int32)
 
-RString() = pack(tag"String", JSObject())
+RString() = pack(tag"common.String", JSObject())
 
 const fromSymbol = Dict{Tag,Type}()
 
@@ -123,11 +88,11 @@ for T in :[Int64, Int32, Float64, Float32, Tag].args
 end
 
 part(s::String, i::Integer) =
-  i == 0 ? tag"String" :
+  i == 0 ? tag"common.String" :
   i == 1 ? JSObject() :
   error("Tried to access part $i of 1")
 
-allparts(s::String) = (:String, JSObject())
+allparts(s::String) = (tag"common.String", JSObject())
 
 nparts(s::String) = 1
 
@@ -282,11 +247,11 @@ symbolValues(x::Or) = reduce(vcat, map(symbolValues, x.patterns))
 rvtype(x::Tag) = fromSymbol[x]
 
 function rvtype(x::Pack)
-  if tag(x) == tag"List"
+  if tag(x) == tag"common.List"
     pack(tag(x), rvtype.(parts(x))...)
-  elseif tag(x) == tag"Pack"
+  elseif tag(x) == tag"common.Pack"
     pack(rvtype.(parts(x))...)
-  elseif tag(x) == tag"Literal"
+  elseif tag(x) == tag"common.Literal"
     return part(x, 1)
   else
     error("Unrecognised type $x")

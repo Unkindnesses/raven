@@ -46,16 +46,24 @@ Base.:(==)(a::Or, b::Or) = a.patterns == b.patterns
 
 # Raven versions
 
-rvpattern(::Hole) = pack(tag"Hole")
+rvpattern(::Hole) = pack(tag"common.Hole")
 rvpattern(x::Primitive) = x
-rvpattern(x::Literal) = pack(tag"Literal", x.value)
-rvpattern(x::Bind) = pack(tag"Bind", Tag(x.name))
-rvpattern(xs::Pack) = pack(tag"Pack", rvpattern.(xs.parts)...)
-rvpattern(xs::And) = pack(tag"And", rvpattern.(xs.patterns)...)
-rvpattern(x::Trait) = pack(tag"Trait", x.pattern)
-rvpattern(xs::Constructor) = pack(tag"Constructor", xs.func, rvpattern.(xs.args)...)
+rvpattern(x::Literal) = pack(tag"common.Literal", x.value)
+rvpattern(x::Bind) = pack(tag"common.Bind", Tag(x.name))
+rvpattern(xs::Pack) = pack(tag"common.Pack", rvpattern.(xs.parts)...)
+rvpattern(xs::And) = pack(tag"common.And", rvpattern.(xs.patterns)...)
+rvpattern(x::Trait) = pack(tag"common.Trait", x.pattern)
+rvpattern(xs::Constructor) = pack(tag"common.Constructor", xs.func, rvpattern.(xs.args)...)
 
 # Pattern lowering
+
+function resolvetags(ex::AST.Template, mod::Tag)
+  @assert ex[1] == :tag
+  AST.Token(modtag(mod, ex[2]), ex.meta)
+end
+
+resolvetags(ex::Union{AST.Token,AST.Atom}, mod::Tag) = ex
+resolvetags(ex::AST.Expr, mod::Tag) = typeof(ex)(resolvetags.(ex.args, (mod,)), ex.meta)
 
 function lowerisa(ex, as, resolve)
   if ex isa Symbol
@@ -77,11 +85,8 @@ function _lowerpattern(ex, as, resolve)
     return ex == :_ ? hole : Bind(ex)
   elseif ex isa Primitive
     return Literal(ex)
-  elseif ex isa AST.Template
-    @assert ex[1] == :tag
-    return Literal(Tag(ex[2]))
   elseif ex isa AST.List
-    pack(Literal(tag"List"), map(x -> _lowerpattern(x, as, resolve), ex.args)...)
+    pack(Literal(tag"common.List"), map(x -> _lowerpattern(x, as, resolve), ex.args)...)
   elseif ex isa AST.Operator && ex[1] == :(:)
     name, T = ex[2:end]
     if name == :_
@@ -119,10 +124,11 @@ function _lowersig(ex, as, swaps, resolve)
       _lowerpattern(x, as, resolve)
     end
   end
-  pack(Literal(tag"List"), args...)
+  pack(Literal(tag"common.List"), args...)
 end
 
-function lowerpattern(ex; resolve = x -> error("Couldn't statically resolve $x"))
+function lowerpattern(ex; mod = tag"", resolve = x -> error("Couldn't statically resolve $x"))
+  ex = resolvetags(ex, mod)
   as = []
   swaps = Dict{Int,Symbol}()
   p = _lowersig(ex, as, swaps, resolve)
@@ -143,17 +149,18 @@ function bundlemacro(ex::AST.Syntax)
   for spec in specs
     name = spec[1]
     push!(names, name)
+    tag = AST.Template(:tag, string(".", name))
     args = spec[2:end]
     push!(body, AST.Syntax(:fn, spec,
                                 AST.Block(
-                                 AST.Call(:pack, AST.Template(:tag, string(name)), namify.(args)...))))
-    push!(body, AST.Syntax(:fn, AST.Call(:isa, AST.Call(:pack, AST.Template(:tag, string(name)), args...),
-                                               AST.Template(:tag, string(name))),
+                                 AST.Call(:pack, tag, namify.(args)...))))
+    push!(body, AST.Syntax(:fn, AST.Call(:isa, AST.Call(:pack, tag, args...),
+                                               tag),
                                 AST.Block(Symbol("true"))))
-    push!(body, AST.Syntax(:fn, AST.Call(:constructorPattern, AST.Template(:tag, string(name)), namify.(args)...),
+    push!(body, AST.Syntax(:fn, AST.Call(:constructorPattern, tag, namify.(args)...),
                                 AST.Block(
-                                  AST.Call(:And, AST.Call(:Trait, AST.Template(:tag, string(name))),
-                                                 AST.Call(:Pack, AST.Call(:Literal, AST.Template(:tag, string(name))), namify.(args)...)))))
+                                  AST.Call(:And, AST.Call(:Trait, tag),
+                                                 AST.Call(:Pack, AST.Call(:Literal, tag), namify.(args)...)))))
   end
   if super != nothing
     push!(body, AST.Operator(:(=), super, AST.Template(:tag, string(super))))
@@ -180,7 +187,7 @@ end
 
 # Expr -> IR lowering
 
-const nilx = AST.Call(:pack, AST.Template(:tag, "Nil"))
+const nilx = AST.Call(:pack, AST.Template(:tag, "common.Nil"))
 
 IRTools.Source(x::AST.Meta) = Source(x.file, x.loc.line, x.loc.column)
 Base.convert(::Type{Source}, x::AST.Meta) = Source(x)
@@ -188,13 +195,13 @@ Base.convert(::Type{Source}, x::AST.Meta) = Source(x)
 xcall(args...) = Expr(:call, args...)
 xtuple(args...) = Expr(:tuple, args...)
 xpack(args...) = Expr(:pack, args...)
-xlist(args...) = xpack(tag"List", args...)
+xlist(args...) = xpack(tag"common.List", args...)
 xpart(x, i) = xcall(part_method, x, i)
 
 rcall(f, args...) = xpart(xcall(f, xlist(args...)), 1)
 
 function IRTools.print_stmt(io::IO, ::Val{:pack}, ex)
-  if ex.args[1] == tag"List"
+  if ex.args[1] == tag"common.List"
     print(io, "[")
     join(io, [sprint(vprint, x) for x in ex.args[2:end]], ", ")
     print(io, "]")
@@ -317,7 +324,7 @@ function argtuple!(sc, ir::IR, args, src)
     end
   end
   args =
-    isempty(parts) ? _push!(ir, xpack(tag"List")) :
+    isempty(parts) ? _push!(ir, xpack(tag"common.List")) :
     length(parts) == 1 ? parts[1] :
     _push!(ir, xcall(packcat_method, xlist(parts...)))
   return args, swaps
@@ -343,7 +350,7 @@ end
 function swapreturn!(ir::IR, val, swaps, src; bp = false)
   if swaps != nothing && !isempty(swaps)
     args = maximum(keys(swaps))
-    ret = push!(ir, xlist(val, map(i -> haskey(swaps, i) ? Slot(swaps[i]) : Global(tag"", :nil), 1:args)...))
+    ret = push!(ir, xlist(val, map(i -> haskey(swaps, i) ? Slot(swaps[i]) : Global(tag"common", :nil), 1:args)...))
     return!(ir, ret; src, bp)
   else
     return!(ir, val; src, bp)
@@ -368,18 +375,18 @@ function lower!(sc, ir::IR, ex::AST.Break)
 end
 
 function lowermatch!(sc, ir::IR, val, pat)
-  sig = lowerpattern(pat, resolve = resolve_static)
+  sig = lowerpattern(pat, mod = mod(sc), resolve = resolve_static)
   pat = rvpattern(sig.pattern)
-  m = push!(ir, rcall(tag"match", val, pat))
+  m = push!(ir, rcall(tag"common.match", val, pat))
   isnil = push!(ir, xcall(isnil_method, m))
   branch!(ir, length(blocks(ir))+1, when = isnil)
   branch!(ir, length(blocks(ir))+2)
   block!(ir)
-  push!(ir, rcall(tag"panic", "match failed: $(sig.pattern)"))
+  push!(ir, rcall(tag"common.panic", "match failed: $(sig.pattern)"))
   block!(ir)
   m = push!(ir, xcall(notnil_method, m))
   for arg in sig.args
-    push!(ir, Expr(:(=), variable!(sc, arg), rcall(tag"getkey", m, Tag(arg))))
+    push!(ir, Expr(:(=), variable!(sc, arg), rcall(tag"common.getkey", m, Tag(arg))))
   end
   return m
 end
@@ -389,7 +396,7 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
   header = block!(ir)
   branch!(blocks(ir)[end-1], header)
   cond = lower!(sc, ir, ex[2])
-  cond = _push!(ir, rcall(tag"condition", cond), src = AST.meta(ex))
+  cond = _push!(ir, rcall(tag"common.condition", cond), src = AST.meta(ex))
   bodyStart = block!(ir)
   _lower!(sc, ir, ex[3][:])
   bodyEnd = blocks(ir)[end]
@@ -405,7 +412,7 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
   branch!(header, bodyStart, when = cond, src = AST.meta(ex))
   branch!(header, after, src = AST.meta(ex.args[1]))
   IRTools.canbranch(bodyEnd) && branch!(bodyEnd, header)
-  return value ? Global(tag"", :nil) : nothing
+  return value ? Global(tag"common", :nil) : nothing
 end
 
 struct If
@@ -431,7 +438,7 @@ function If(b::AST.Syntax)
   end
   if cond[end] !== true
     push!(cond, true)
-    push!(body, AST.Call(:pack, AST.Template(:tag, "Nil")))
+    push!(body, AST.Call(:pack, AST.Template(:tag, "common.Nil")))
   end
   return If(cond, body)
 end
@@ -452,7 +459,7 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
       break
     end
     cond = lower!(sc, ir, cond)
-    cond = _push!(ir, rcall(tag"condition", cond))
+    cond = _push!(ir, rcall(tag"common.condition", cond))
     c = blocks(ir)[end]
     t = block!(ir)
     body!(ir, body)
@@ -544,7 +551,7 @@ function lower_toplevel(mod::Tag, ex; meta = nothing, env = [], resolve)
   withresolve(resolve) do
     _lower!(sc, ir, ex)
   end
-  IRTools.return!(ir, Global(tag"", :nil))
+  IRTools.return!(ir, Global(tag"common", :nil))
   ir = rewrite_globals(ir)
   return ir |> IRTools.ssa! |> IRTools.prune!, sc.def
 end

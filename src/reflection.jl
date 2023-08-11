@@ -18,12 +18,12 @@ end
 
 function code_final(mod::Compilation, func...)
   cx = mod |> infer |> lowerir |> refcounts
-  wasmmodule(cx, startmethod(mod))
+  wasmmodule(mod, cx, startmethod(mod))
   IdDict{Any,IR}(sig => ir for (sig, ir) in IdDict(cx) if sigmatch(sig, func...))
 end
 
 function code_wasm(cx::Compilation, func)
-  mod = cx |> infer |> lowerir |> refcounts |> (x -> wasm_ir(x, startmethod(cx)))
+  mod = cx |> infer |> lowerir |> refcounts |> (x -> wasm_ir(cx, x, startmethod(cx)))
   IdDict{Any,IR}(sig => fr[2] for (sig, fr) in mod.funcs if sigmatch(sig, func))
 end
 

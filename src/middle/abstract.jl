@@ -95,6 +95,15 @@ end
 gframe(inf::Inference, name::Binding) =
   get!(() -> GlobalFrame(Set{Loc}(), ⊥), inf.globals, name)
 
+function global!(inf::Inference, name::Binding, T)
+  fr = gframe(inf, name)
+  fr.type == T && return
+  fr.type = T
+  for edge in fr.edges
+    edge isa Binding ? global!(inf, edge, T) : push!(inf.queue, edge)
+  end
+end
+
 function sig(inf::Inference, T)
   T == () && return ()
   fr = inf.frames[T]
@@ -230,10 +239,7 @@ function step!(inf::Inference, loc)
     T = union(fr.type, T)
     bl.ir[var] = Statement(bl[var], type = T)
     push!(inf.queue, next(loc))
-    if fr.type != T
-      fr.type = T
-      foreach(loc -> push!(inf.queue, loc), fr.edges)
-    end
+    global!(inf, x, T)
   elseif isexpr(st, :branch)
     brs = openbranches(bl)
     reroll = false

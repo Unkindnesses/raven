@@ -11,7 +11,7 @@ LoadState(comp, mod = nothing) = LoadState(comp, mod, [])
 const common = joinpath(@__DIR__, "../../common") |> normpath
 
 resolve_static(cx::LoadState, x::Symbol) =
-  resolve_static(cx.comp, cx.mod.name, x)
+  resolve_static(cx.comp, Binding(cx.mod.name, x))
 
 function simpleconst(cx::LoadState, x)
   x isa Symbol && return cx.mod[x]
@@ -64,7 +64,7 @@ function vload(cx::LoadState, x::AST.Syntax; src)
   tag = extend ? resolve_static(cx, var)::Tag : Tag(cx.mod.name, var)
   cx.mod[var::Symbol] = tag
   resolve = x -> resolve_static(cx, x)
-  sig = lowerpattern(AST.List(sig[2:end]...); resolve)
+  sig = lowerpattern(AST.List(sig[2:end]...); mod = cx.mod.name, resolve)
   method!(cx.mod, RMethod(tag, sig,
                           lowerfn(cx.mod.name, sig, body; resolve,
                                   meta = FuncInfo(tag, AST.meta(x)))))
@@ -108,15 +108,13 @@ loadfile(cx::LoadState, path) =
   open(io -> loadfile(cx, io; path), path)
 
 function loadmodule(cx::LoadState, mod::RModule, path)
-  module!(cx.comp, mod)
   cx = LoadState(cx.comp, mod, cx.main)
   loadfile(cx, path)
   return mod
 end
 
 function loadmodule(cx::LoadState, mod::Tag, path)
-  mod = haskey(cx.comp.mods, mod) ? cx.comp[mod] : RModule(mod)
-  return loadmodule(cx, mod, path)
+  return loadmodule(cx, module!(cx.comp, mod), path)
 end
 
 function load(f::String)
@@ -126,8 +124,11 @@ function load(f::String)
   module!(comp, core())
   loadmodule(cx, tag"common.core", "$common/core.rv")
 
-  loadmodule(cx, tag"", "$common/common.rv")
-  loadmodule(cx, tag"", f)
+  com = loadmodule(cx, tag"common", "$common/common.rv")
+  union!(com.exports, keys(com.defs))
+  main = module!(comp, tag"")
+  import!(main, com, com.exports)
+  loadmodule(cx, main, f)
 
   finish!(cx)
   return comp

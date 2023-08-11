@@ -12,6 +12,7 @@ using .IRTools: IR, Variable, Statement, Variable, argument!, block, blocks, arg
   block, isreturn, isunreachable, branches, prune!, return!, unreachable!, branch!, block!, stmt, predecessors, successors,
   Slot, isvariable, Source
 
+include("frontend/tag.jl")
 include("frontend/ast.jl")
 include("frontend/parse.jl")
 include("frontend/types.jl")

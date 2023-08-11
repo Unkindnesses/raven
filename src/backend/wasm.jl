@@ -16,7 +16,7 @@ wasmPartials[i64.lt_s] = (a, b) -> Int32(a<b)
 wasmPartials[i32.eqz] = x -> Int32(x==0)
 
 rvtype(x::WType) = WebAssembly.jltype(x)
-rvtype(x::WTuple) = pack(tag"List", map(rvtype, x.parts)...)
+rvtype(x::WTuple) = pack(tag"common.List", map(rvtype, x.parts)...)
 rvtype(::typeof(⊥)) = ⊥
 
 struct WIntrinsic
@@ -61,6 +61,7 @@ function wparts(x)
 end
 
 struct WModule
+  comp::Compilation
   inf::Cache
   symbols::Dict{Symbol,Int}
   strings::Vector{String}
@@ -69,6 +70,8 @@ struct WModule
   globals::Dict{Global,Vector{Int}}
   gtypes::Vector{WType}
 end
+
+WModule(comp, inf) = WModule(comp, inf, Dict(), [], [], Dict(), Dict(), [])
 
 function name(mod::WModule, s::Symbol)
   s == :_start && return s
@@ -100,8 +103,6 @@ function global!(mod::WModule, g::Global, T)
   end
 end
 
-WModule(inf) = WModule(inf, Dict(), [], [], Dict(), Dict(), [])
-
 function lowerwasm!(mod::WModule, ir::IR)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
@@ -116,7 +117,7 @@ function lowerwasm!(mod::WModule, ir::IR)
       @assert layout(st.type) == layout(exprtype(ir, st.expr.args[1]))
       pr[v] = st.expr.args[1]
     elseif isexpr(st, :global)
-      g = Global(st.expr.args[1])
+      g = Global(resolve_binding(mod.comp, st.expr.args[1]))
       l = global!(mod, g, st.type)
       pr[v] = Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
     elseif isexpr(st, :(=)) && (g = st.expr.args[1]) isa Global
@@ -183,14 +184,14 @@ default_imports = [
   WebAssembly.Import(:support, :equal, :jseq, [i32, i32] => [i32]),
   WebAssembly.Import(:support, :release, :jsfree, [i32] => [])]
 
-function wasm_ir(inf::Cache, start)
-  mod = WModule(inf)
+function wasm_ir(comp::Compilation, inf::Cache, start)
+  mod = WModule(comp, inf)
   lowerwasm!(mod, (start,))
   return mod
 end
 
-function wasmmodule(inf::Cache, start)
-  mod = wasm_ir(inf, start)
+function wasmmodule(comp::Compilation, inf::Cache, start)
+  mod = wasm_ir(comp, inf, start)
   strings = mod.strings
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
   sort!(fs, by = f -> f.name)
@@ -228,7 +229,7 @@ end
 function emitwasm(file, out)
   mod = load(file)
   comp = mod |> infer |> lowerir |> refcounts
-  mod, strings = wasmmodule(comp, startmethod(mod))
+  mod, strings = wasmmodule(mod, comp, startmethod(mod))
   binary(mod, out; path = normpath(joinpath(pwd(), file)))
   return strings
 end

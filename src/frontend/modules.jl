@@ -84,21 +84,24 @@ struct Compilation
   mods::Dict{Tag,RModule}
 end
 
-function module!(c::Compilation, mod)
-  c.mods[mod.name] = mod
-  return
-end
+module!(c::Compilation, mod::RModule) = c.mods[mod.name] = mod
+module!(c::Compilation, mod::Tag) = get!(() -> RModule(mod), c.mods, mod)
 
 @forward Compilation.mods Base.getindex
 
 main(comp::Compilation) = comp[tag""]
 
-function resolve_static(cx::Compilation, mod::Tag, name::Symbol)
+function resolve_binding(cx::Compilation, mod::Tag, name::Symbol)
   val = cx.mods[mod][name]
-  val isa Binding ? resolve_static(cx, val) : val
+  val isa Binding ? resolve_binding(cx, val) : Binding(mod, name)
 end
 
-resolve_static(cx::Compilation, b::Binding) = resolve_static(cx, b.mod, b.name)
+resolve_binding(cx::Compilation, b::Binding) = resolve_binding(cx, b.mod, b.name)
+
+function resolve_static(cx::Compilation, b::Binding)
+  b = resolve_binding(cx, b)
+  cx.mods[b.mod][b.name]
+end
 
 function Compilation()
   c = Compilation(Dict())

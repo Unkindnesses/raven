@@ -150,5 +150,5 @@ end
 
 function log!(ir, s::String)
   s = push!(ir, stmt(Expr(:ref, s), type = rlist(String)))
-  push!(ir, stmt(xcall(tag"println", s), type = nil))
+  push!(ir, stmt(xcall(tag"common.println", s), type = nil))
 end

@@ -3,8 +3,9 @@ module AST
 using MacroTools: @forward
 import Base: ==, getindex, lastindex, length
 using LNR
+using ..Raven: Tag
 
-const Atom = Union{String,Symbol,Int64,Float64}
+const Atom = Union{String,Symbol,Int64,Float64,Tag}
 
 struct Meta
   file::String
@@ -74,7 +75,7 @@ const Ctx = ShowContext
 
 showline(io, x::Meta) = print(io, " # ", basename(x.file), ":", x.loc.line)
 
-_show(io::Ctx, x::Union{Symbol,Number}) = print(io, x)
+_show(io::Ctx, x::Union{Symbol,Number,Tag}) = print(io, x)
 _show(io::Ctx, x::String) = show(io.io, x)
 
 function _show(io::Ctx, x::Return)

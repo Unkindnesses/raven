@@ -3,9 +3,9 @@ fn isa(pack(tag"common.core.Int64", _), tag"common.core.Int64") { true }
 fn isa(pack(tag"common.core.Float32", _), tag"common.core.Float32") { true }
 fn isa(pack(tag"common.core.Float64", _), tag"common.core.Float64") { true }
 
-Integer = tag"Integer"
+Integer = tag".Integer"
 
-fn isa(_: (Int32 | Int64), tag"Integer") { true }
+fn isa(_: (Int32 | Int64), tag".Integer") { true }
 
 include { "numbers/complex.rv" }
 
