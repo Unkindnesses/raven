@@ -350,7 +350,7 @@ function syntax(io; quasi = true)
     next == nothing && return
     push!(args, next)
   end
-  any(arg -> arg isa Block, args) || return
+  isempty(args) && return
   ex = Syntax(name, args...)
   ex = meta(ex, path(), cur)
   return ex

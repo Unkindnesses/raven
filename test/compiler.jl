@@ -37,6 +37,7 @@ end
 # Test `println` output
 @test output("print-list") == string([1:10...])
 @test output("print-seq") == "seq(1, 2, 3)"
+@test output("print-show") == "(2 + 2) = 4\n"
 
 # Test compiling without JS refcounting
 Raven.compile("raven/pow.rv", Raven.Options(jsalloc=false), dir = "compiled")

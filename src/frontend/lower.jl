@@ -185,6 +185,17 @@ function formacro(ex)
   )
 end
 
+function showmacro(ex)
+  ex = ex[2]
+  name = gensym()
+  AST.Block(
+    AST.Call(:print, string(ex, " = ")),
+    AST.Operator(:(=), name, ex),
+    AST.Call(:println, name),
+    name
+  )
+end
+
 # Expr -> IR lowering
 
 const nilx = AST.Call(:pack, AST.Template(:tag, "common.Nil"))
@@ -499,6 +510,8 @@ function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
     lowerlet!(sc, ir, ex, value)
   elseif ex[1] == :for
     (value ? lower! : _lower!)(sc, ir, formacro(ex))
+  elseif ex[1] == :show
+    (value ? lower! : _lower!)(sc, ir, showmacro(ex))
   else
     error("unrecognised block $(ex[1])")
   end
