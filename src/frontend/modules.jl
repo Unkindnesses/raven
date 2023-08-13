@@ -10,16 +10,13 @@ struct Signature
 end
 
 struct RMethod
-  mod::Tag
   name::Tag
   sig::Signature
   func
   partial::Bool
 end
 
-RMethod(mod::Tag, name::Tag, pat, func) = RMethod(mod, name, pat, func, false)
-
-RMethod(name::Tag, pat, func, partial = false) = RMethod(path(name), name, pat, func, partial)
+RMethod(name::Tag, pat, func) = RMethod(name, pat, func, false)
 
 Base.show(io::IO, meth::RMethod) = print(io, "RMethod($(string(meth.name)))")
 
@@ -29,26 +26,23 @@ function union(a::RMethod, b::RMethod)
 end
 
 struct Methods
-  modules::Set{Tag}
-  methods::Dict{Tag,Vector{RMethod}}
+  imports::Vector{Tag}
+  methods::Dict{Tag,Vector{Union{RMethod,Tag}}}
 end
 
-Methods(path) = Methods(Set([path]), Dict{Tag,Vector{RMethod}}())
+Methods(path) = Methods([], Dict())
 
-Base.getindex(m::Methods, k::Tag) = m.methods[k]
+Base.getindex(m::Methods, k::Tag) = get(m.methods, k, m.imports)
 
-method!(ms::Methods, m::RMethod) = push!(get!(ms.methods, m.name, RMethod[]), m)
+method!(ms::Methods, m::RMethod) =
+  push!(get!(ms.methods, m.name, Union{RMethod,Tag}[ms.imports...]), m)
 
-function Base.merge!(a::Methods, b::Methods)
-  imports = Set{Tag}()
-  for (tag, meths) in b.methods, meth in meths
-    if !(meth.mod in a.modules)
-      method!(a, meth)
-      push!(imports, meth.mod)
-    end
+function import!(ms::Methods, mod::Tag)
+  mod in ms.imports && return
+  push!(ms.imports, mod)
+  for (k, v) in ms.methods
+    push!(v, mod)
   end
-  union!(a.modules, imports)
-  return a
 end
 
 struct RModule
@@ -66,7 +60,7 @@ function method!(mod::RModule, m::RMethod)
 end
 
 function import!(mod::RModule, from::RModule, vars = [])
-  from.name in mod.methods.modules || merge!(mod.methods, from.methods)
+  import!(mod.methods, from.name)
   for var in vars
     @assert var in from.exports
     mod[var] = Binding(from.name, var)
@@ -96,6 +90,19 @@ function resolve_static(cx::Compilation, b::Binding)
   val isa Binding ? resolve_static(cx, val) : val
 end
 
+function methods(cx::Compilation, name::Tag, mod::Tag = tag"", ms = RMethod[], seen = Set{Tag}())
+  for m in cx[mod].methods[name]
+    if m isa Tag
+      m in seen && continue
+      push!(seen, m)
+      methods(cx, name, m, ms, seen)
+    else
+      push!(ms, m)
+    end
+  end
+  return ms
+end
+
 struct Definitions
   globals::Cache{Binding,Any}
   methods::Cache{Tag,Vector{RMethod}}
@@ -106,7 +113,7 @@ function Definitions(comp::Compilation)
     get(comp[b.mod].defs, b.name, ⊥)
   end
   methods = Cache{Tag,Vector{RMethod}}() do ch, name
-    comp[tag""].methods[name]
+    Raven.methods(comp, name)
   end
   Definitions(globals, methods)
 end

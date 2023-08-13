@@ -7,7 +7,7 @@ sigmatch(sig, func, Ts) =
    sig[2] == rlist(Ts...))
 
 function code_lowered(cx::Compilation, func)
-  return IdDict(meth.sig.pattern => meth.func for meth in cx[tag""].methods[func])
+  return IdDict(meth.sig.pattern => meth.func for meth in methods(cx, func))
 end
 
 function code_typed(mod::Compilation, func...)
