@@ -82,18 +82,20 @@ end
 
 function Inference(comp::Compilation)
   gs = Dict{Binding,GlobalFrame}()
-  for (name, mod) in comp.mods, (x, T) in mod.defs
-    T isa Binding && (T = resolve_static(comp, T))
-    gs[Binding(mod.name, x)] = GlobalFrame(Set(), T)
-  end
-  for (name, mod) in comp.mods, (x, T) in mod.defs
-    T isa Binding && push!(gs[T].edges, Binding(mod.name, x))
-  end
   Inference(comp, Dict(), gs, WorkQueue{Loc}())
 end
 
-gframe(inf::Inference, name::Binding) =
-  get!(() -> GlobalFrame(Set{Loc}(), ⊥), inf.globals, name)
+function gframe(inf::Inference, name::Binding)
+  get!(inf.globals, name) do
+    T = get(inf.comp[name.mod], name.name, ⊥)
+    if T isa Binding
+      parent = gframe(inf, T)
+      push!(parent.edges, name)
+      T = parent.type
+    end
+    GlobalFrame(Set{Loc}(), T)
+  end
+end
 
 function global!(inf::Inference, name::Binding, T)
   fr = gframe(inf, name)
