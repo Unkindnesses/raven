@@ -61,7 +61,7 @@ function wparts(x)
 end
 
 struct WModule
-  comp::Compilation
+  defs::Definitions
   inf::Cache
   symbols::Dict{Symbol,Int}
   strings::Vector{String}
@@ -117,7 +117,7 @@ function lowerwasm!(mod::WModule, ir::IR)
       @assert layout(st.type) == layout(exprtype(ir, st.expr.args[1]))
       pr[v] = st.expr.args[1]
     elseif isexpr(st, :global)
-      g = Global(resolve_binding(mod.comp, st.expr.args[1]))
+      g = Global(resolve_binding(mod.defs, st.expr.args[1]))
       l = global!(mod, g, st.type)
       pr[v] = Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
     elseif isexpr(st, :(=)) && (g = st.expr.args[1]) isa Global
@@ -184,13 +184,13 @@ default_imports = [
   WebAssembly.Import(:support, :equal, :jseq, [i32, i32] => [i32]),
   WebAssembly.Import(:support, :release, :jsfree, [i32] => [])]
 
-function wasm_ir(comp::Compilation, inf::Cache, start)
+function wasm_ir(comp::Definitions, inf::Cache, start)
   mod = WModule(comp, inf)
   lowerwasm!(mod, (start,))
   return mod
 end
 
-function wasmmodule(comp::Compilation, inf::Cache, start)
+function wasmmodule(comp::Definitions, inf::Cache, start)
   mod = wasm_ir(comp, inf, start)
   strings = mod.strings
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
@@ -227,7 +227,7 @@ function binary(m::WebAssembly.Module, file; path)
 end
 
 function emitwasm(file, out)
-  mod = load(file)
+  mod = load(file) |> Definitions
   comp = mod |> infer |> lowerir |> refcounts
   mod, strings = wasmmodule(mod, comp, startmethod(mod))
   binary(mod, out; path = normpath(joinpath(pwd(), file)))

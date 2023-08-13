@@ -87,10 +87,10 @@ function finish!(cx::LoadState)
   body = AST.Block([AST.Call(AST.Template(:tag, string(f))) for f in cx.main]...)
   options().memcheck && push!(body.args, AST.Call(AST.Template(:tag, "common.checkAllocations")))
   sig = lowerpattern(AST.List())
-  method!(main(cx.comp), RMethod(tag"common.core.main", sig,
-                                 lowerfn(tag"common.core", sig, body,
-                                         meta = FuncInfo(tag"common.core.main"),
-                                         resolve = x -> resolve_static(cx, x))))
+  method!(cx.comp[tag""], RMethod(tag"common.core.main", sig,
+                                  lowerfn(tag"common.core", sig, body,
+                                          meta = FuncInfo(tag"common.core.main"),
+                                          resolve = x -> resolve_static(cx, x))))
 end
 
 function loadfile(cx::LoadState, io::IO; path)
@@ -131,6 +131,3 @@ function load(f::String)
   finish!(cx)
   return comp
 end
-
-startmethod(mod::RModule) = mod.methods[tag"common.core.main"][1]
-startmethod(cmp::Compilation) = startmethod(cmp.mods[tag""])

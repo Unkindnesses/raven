@@ -5,7 +5,7 @@ function loadsrc(src)
   tmp = tempname() * ".rv"
   open(io -> print(io, src), tmp, "w")
   try
-    mod = Raven.load(tmp)
+    mod = Raven.load(tmp) |> Raven.Definitions
     inf = Raven.infer(mod)
     inf[(Raven.startmethod(mod),)]
     return inf

@@ -7,22 +7,24 @@ sigmatch(sig, func, Ts) =
    sig[2] == rlist(Ts...))
 
 function code_lowered(cx::Compilation, func)
-  return IdDict(meth.sig.pattern => meth.func for meth in main(cx).methods[func])
+  return IdDict(meth.sig.pattern => meth.func for meth in cx[tag""].methods[func])
 end
 
 function code_typed(mod::Compilation, func...)
-  cx = infer(mod)
+  cx = mod |> Definitions |> infer
   cx[(tag"common.core.main",rlist())]
   IdDict{Any,IR}(sig => fr[1] for (sig, fr) in IdDict(cx) if !(fr isa Redirect) && sigmatch(sig, func...))
 end
 
 function code_final(mod::Compilation, func...)
+  mod = mod |> Definitions
   cx = mod |> infer |> lowerir |> refcounts
   wasmmodule(mod, cx, startmethod(mod))
   IdDict{Any,IR}(sig => ir for (sig, ir) in IdDict(cx) if sigmatch(sig, func...))
 end
 
 function code_wasm(cx::Compilation, func)
+  cx = Definitions(cx)
   mod = cx |> infer |> lowerir |> refcounts |> (x -> wasm_ir(cx, x, startmethod(cx)))
   IdDict{Any,IR}(sig => fr[2] for (sig, fr) in mod.funcs if sigmatch(sig, func))
 end

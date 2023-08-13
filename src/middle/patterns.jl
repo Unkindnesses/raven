@@ -190,7 +190,7 @@ function partial_ismatch(mod, pat, val)
 end
 
 function trivial_method(comp, func::Tag, Ts)
-  for meth in reverse(main(comp).methods[func])
+  for meth in reverse(comp.methods[func])
     m = partial_match(comp, meth.sig.pattern, Ts)
     if m === nothing
       continue
@@ -227,10 +227,10 @@ function indexer!(ir::IR, arg, path)
   arg = indexer!(ir, arg, rest)
 end
 
-function dispatcher(comp::Compilation, func::Tag, Ts)
+function dispatcher(comp::Definitions, func::Tag, Ts)
   ir = IR(meta = FuncInfo(func, trampoline = true))
   args = argument!(ir)
-  for meth in reverse(main(comp).methods[func])
+  for meth in reverse(comp.methods[func])
     m = partial_match(comp, meth.sig.pattern, Ts)
     if m === nothing
       continue

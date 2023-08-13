@@ -391,7 +391,7 @@ function unbox!(ir, T, x; count = true)
 end
 
 # Used as a key for generated methods
-cast_method = RMethod(tag"cast", lowerpattern(rvx"args"), nothing, false)
+cast_method = RMethod(tag"common.core.cast", lowerpattern(rvx"args"), nothing, false)
 
 function cast!(ir, from, to, x)
   (to == ⊥ || from == ⊥ || from == to) && return x

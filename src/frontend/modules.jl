@@ -84,29 +84,41 @@ struct Compilation
   mods::Dict{Tag,RModule}
 end
 
+Compilation() = Compilation(Dict{Tag,RModule}())
+
 module!(c::Compilation, mod::RModule) = c.mods[mod.name] = mod
 module!(c::Compilation, mod::Tag) = get!(() -> RModule(mod), c.mods, mod)
 
 @forward Compilation.mods Base.getindex
 
-main(comp::Compilation) = comp[tag""]
-
-function resolve_binding(cx::Compilation, mod::Tag, name::Symbol)
-  val = cx.mods[mod][name]
-  val isa Binding ? resolve_binding(cx, val) : Binding(mod, name)
-end
-
-resolve_binding(cx::Compilation, b::Binding) = resolve_binding(cx, b.mod, b.name)
-
 function resolve_static(cx::Compilation, b::Binding)
-  b = resolve_binding(cx, b)
-  cx.mods[b.mod][b.name]
+  val = cx.mods[b.mod][b.name]
+  val isa Binding ? resolve_static(cx, val) : val
 end
 
-function Compilation()
-  c = Compilation(Dict())
-  return c
+struct Definitions
+  globals::Cache{Binding,Any}
+  methods::Cache{Tag,Vector{RMethod}}
 end
+
+function Definitions(comp::Compilation)
+  globals = Cache{Binding,Any}() do ch, b
+    get(comp[b.mod].defs, b.name, ⊥)
+  end
+  methods = Cache{Tag,Vector{RMethod}}() do ch, name
+    comp[tag""].methods[name]
+  end
+  Definitions(globals, methods)
+end
+
+function resolve_binding(cx::Definitions, b::Binding)
+  val = cx.globals[b]
+  val isa Binding ? resolve_binding(cx, val) : b
+end
+
+resolve_static(cx::Definitions, b::Binding) = cx.globals[resolve_binding(cx, b)]
+
+startmethod(def::Definitions) = def.methods[tag"common.core.main"][1]
 
 # For debugging
 struct FuncInfo

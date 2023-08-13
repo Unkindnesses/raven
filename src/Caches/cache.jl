@@ -34,7 +34,7 @@ setindex!(c::Cache{K,V}, v::V, k::K) where {K,V} = set!(c, k, v)
 function getindex(c::Cache{K,V}, k::K) where {K,V}
   if !haskey(c.data, k)
     value, deps = trackdeps() do
-      c.default(c, k)::V
+      convert(V, c.default(c, k))::V
     end
     id = NFT()
     c.data[k] = CacheValue{V}(value, id, deps)

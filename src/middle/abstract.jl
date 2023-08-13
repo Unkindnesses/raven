@@ -74,20 +74,20 @@ function frame(P, ir::IR, args...)
 end
 
 struct Inference
-  comp::Compilation
+  defs::Definitions
   frames::IdDict{Any,Union{Frame,Redirect}}
   globals::Dict{Binding,GlobalFrame}
   queue::WorkQueue{Loc}
 end
 
-function Inference(comp::Compilation)
+function Inference(comp::Definitions)
   gs = Dict{Binding,GlobalFrame}()
   Inference(comp, Dict(), gs, WorkQueue{Loc}())
 end
 
 function gframe(inf::Inference, name::Binding)
   get!(inf.globals, name) do
-    T = get(inf.comp[name.mod], name.name, ⊥)
+    T = inf.defs.globals[name]
     if T isa Binding
       parent = gframe(inf, T)
       push!(parent.edges, name)
@@ -145,7 +145,7 @@ end
 
 function frame!(inf, P, F, Ts)
   haskey(inf.frames, (F, Ts)) && return frame(inf, (F, Ts))
-  irframe!(inf, P, (F, Ts), dispatcher(inf.comp, F, Ts), Ts)
+  irframe!(inf, P, (F, Ts), dispatcher(inf.defs, F, Ts), Ts)
 end
 
 # TODO some methods become unreachable, remove them somewhere?
@@ -324,7 +324,7 @@ function infer!(inf::Inference; partial = false)
   return inf
 end
 
-function infer(comp::Compilation; partial = false)
+function infer(comp::Definitions; partial = false)
   inf = Inference(comp)
   Cache() do ch, sig
     frame!(inf, Parent((), 1), sig...)
