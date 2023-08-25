@@ -45,7 +45,7 @@ meta(x::Atom, m::Meta) = Token(x, m)
 
 meta(x, args...) = meta(x, Meta(args...))
 
-for T in :[Return, Break, Continue, Group, List, Splat, Call, Field, Operator,
+for T in :[Group, List, Splat, Call, Field, Operator,
            Swap, Block, Syntax, Quote, Template].args
   @eval begin
     const $T = Expr{$(QuoteNode(T))}
@@ -77,17 +77,6 @@ showline(io, x::Meta) = print(io, " # ", basename(x.file), ":", x.loc.line)
 
 _show(io::Ctx, x::Union{Symbol,Number,Tag}) = print(io, x)
 _show(io::Ctx, x::String) = show(io.io, x)
-
-function _show(io::Ctx, x::Return)
-  print(io, "return")
-  if length(x) == 1
-    print(io, " ")
-    _show(io, x[1])
-  end
-end
-
-_show(io::Ctx, x::Break) = print(io, "break")
-_show(io::Ctx, x::Continue) = print(io, "continue")
 
 function _show(io::Ctx, x::Group)
   print(io, "(")

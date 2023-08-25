@@ -3,8 +3,6 @@
 
 bundle Expr {
   Number | String | Symbol
-  Return(ex: Expr)
-  Break() | Continue()
   List(xs: List[Expr])
   Splat(ex: Expr)
   Call(f: Expr, args: List[Expr])

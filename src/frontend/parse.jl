@@ -5,7 +5,7 @@ function path end
 module Parse
 
 using LNR
-using ..AST: Expr, Return, Break, Continue, Group, List, Splat, Call, Field,
+using ..AST: Expr, Group, List, Splat, Call, Field,
   Operator, Block, Syntax, Quote, Template, Swap, Meta, meta,
   unwrapToken
 using ..Raven: withpath, path
@@ -246,18 +246,6 @@ list(io) = List(@try(brackets(io, '[', ']'))...)
 
 block(io) = Block(@try(brackets(io, '{', '}'))...)
 
-function ret(io)
-  symbol(io) == :return || return
-  skip_ws(io)
-  peek(io) in terminators && return Return()
-  Return(statement(io))
-end
-
-function _break(io)
-  symbol(io) == Symbol("break") || return
-  return Break()
-end
-
 nop(io) = nothing
 
 # Combine all simple expressions with little backtracking
@@ -265,7 +253,7 @@ function item(io; quasi = true)
   skip_ws(io)
   cur = cursor(io)
   quot = quasi ? quotation : nop # TODO nested quotation
-  ex = parseone(io, ret, _break, template, symbol, swap, string, number, op_token, quot, group, list, block)
+  ex = parseone(io, template, symbol, swap, string, number, op_token, quot, group, list, block)
   ex == nothing && throw(ParseError("Unexpected character $(read(io))", loc(io)))
   ex = meta(ex, path(), cur)
   return ex

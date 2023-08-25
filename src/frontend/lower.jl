@@ -178,7 +178,7 @@ function formacro(ex)
     AST.Operator(:(=), itr, AST.Call(:iterator, xs)),
     AST.Syntax(:while, Symbol("true"), AST.Block(
       AST.Operator(:(=), val, AST.Call(:iterate, AST.Swap(itr))),
-      AST.Syntax(:if, AST.Call(:isnil, val), AST.Block(AST.Break())),
+      AST.Syntax(:if, AST.Call(:isnil, val), AST.Block(:break)),
       AST.Operator(:(=), x, AST.Call(:part, val, 1)),
       body
     ))
@@ -281,7 +281,6 @@ _lower!(sc, ir, x) = lower!(sc, ir, x)
 _lower!(sc, ir, x::Vector) = foreach(x -> _lower!(sc, ir, x), x)
 
 lower!(sc, ir::IR, x::Union{Integer,String,Pack}) = x
-lower!(sc, ir::IR, x::Symbol) = sc[x]
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? nothing : (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
 
@@ -290,6 +289,19 @@ _lower!(sc, ir::IR, x::AST.Block) = _lower!(Scope(sc), ir, x[:])
 
 lower!(sc, ir::IR, x::AST.Group) = lower!(sc, ir, x[:])
 _lower!(sc, ir::IR, x::AST.Group) = _lower!(sc, ir, x[:])
+
+function lower!(sc, ir::IR, x::Symbol)
+  # TODO only active inside loop
+  if x == :break
+    branch!(ir, -1)
+  elseif x == :return
+    result = lower!(sc, ir, nilx)
+    # TODO debug info
+    swapreturn!(ir, result, swaps(sc), nothing, bp = true)
+  else
+    sc[x]
+  end
+end
 
 function lower!(sc, ir::IR, ex::AST.Operator, value = true)
   if ex[1] == :(=) && ex[2] isa Symbol
@@ -366,23 +378,12 @@ function swapreturn!(ir::IR, val, swaps, src; bp = false)
   else
     return!(ir, val; src, bp)
   end
-end
-
-function lower!(sc, ir::IR, ex::AST.Return)
-  result = length(ex) > 0 ? ex[1] : nilx
-  result = lower!(sc, ir, result)
-  swapreturn!(ir, result, swaps(sc), AST.meta(ex), bp = true)
   return
 end
 
 function lower!(sc, ir::IR, ex::AST.Template)
   @assert ex[1] == :tag
   return modtag(mod(sc), ex[2])
-end
-
-function lower!(sc, ir::IR, ex::AST.Break)
-  branch!(ir, -1)
-  return
 end
 
 function lowermatch!(sc, ir::IR, val, pat)
@@ -496,7 +497,10 @@ function lowerlet!(sc, ir::IR, ex, value = true)
 end
 
 function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
-  if ex[1] == :while
+  if ex[1] == :return
+    result = lower!(sc, ir, ex[2])
+    swapreturn!(ir, result, swaps(sc), AST.meta(ex), bp = true)
+  elseif ex[1] == :while
     lowerwhile!(sc, ir, ex, value)
   elseif ex[1] == :if
     lowerif!(sc, ir, If(ex), value)
@@ -526,7 +530,7 @@ fnsig(ex) = lowerpattern(AST.List(ex[2][:]...))
 withresolve(f, r) = dynamic_bind(f, :resolve, r)
 resolve_static(x) = dynamic_value(:resolve)(x)
 
-function lowerfn(mod::Tag, sig::Signature, body::AST.Expr; meta::FuncInfo = nothing, resolve)
+function lowerfn(mod::Tag, sig::Signature, body::AST.Expr; meta = nothing, resolve)
   sc = Scope(mod, swap = sig.swap)
   ir = IR(; meta)
   for arg in sig.args
