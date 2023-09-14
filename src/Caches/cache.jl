@@ -18,14 +18,45 @@ Cache{K,V}(f = _cache_default) where {K,V} =
 
 Cache(f = _cache_default) = Cache{Any,Any}(f)
 
+Base.keytype(c::Cache{K,V}) where {K,V} = K
+
 fingerprint(ch::Cache) = ch.fingerprint
 
 iscached(ch::Cache, k) = haskey(ch.data, k)
 
+function topokeys!(c::Cache, k::NFT, ks, seen)
+  (haskey(c.keys, k) && !(k in seen)) || return
+  push!(seen, k)
+  for (k, _) in c.data[c.keys[k]].deps
+    topokeys!(c, k, ks, seen)
+  end
+  push!(ks, c.keys[k])
+  return
+end
+
+function topokeys(c::Cache)
+  ks = keytype(c)[]
+  seen = Set{NFT}()
+  for (k, _) in c.keys
+    topokeys!(c, k, ks, seen)
+  end
+  return ks
+end
+
+function Base.delete!(c::Cache{K,V}, k::K) where {K,V}
+  haskey(c.data, k) || return
+  kid, id = c.data[k].id
+  delete!(c.keys, kid)
+  delete!(c.fingerprint, id)
+  delete!(c.data, k)
+  return c
+end
+
 function set!(c::Cache{K,V}, k::K, v::V; deps = current_deps()) where {K,V}
-  haskey(c.data, k) && delete!(c.fingerprint, c.data[k].id[2])
+  haskey(c.data, k) && delete!(c, k)
   kid = NFT()
   id = NFT()
+  c.keys[kid] = k
   c.data[k] = CacheValue{V}(v, kid=>id, deps)
   push!(c.fingerprint, id)
   return v
@@ -37,6 +68,10 @@ function getindex(c::Cache{K,V}, k::K) where {K,V}
   if !haskey(c.data, k)
     value, deps = trackdeps() do
       convert(V, c.default(c, k))::V
+    end
+    if haskey(c.data, k)
+      delete!(deps, c.data[k].id)
+      delete!(c, k)
     end
     kid = NFT()
     id = NFT()
@@ -50,17 +85,12 @@ end
 
 function reset!(c::Cache; deps = [])
   print = reduce(union!, fingerprint.(deps), init = Set{NFT}())
-  changed = true
-  # TODO this is a suboptimal way to handle internal dependencies
-  while changed
-    changed = false
-    for (k, v) in c.data
-      all(((k, id),) -> id in print || id in c.fingerprint, v.deps) && continue
-      delete!(c.data, k)
-      delete!(c.keys, v.id[1])
-      delete!(c.fingerprint, v.id[2])
-      changed = true
-    end
+  for k in topokeys(c)
+    v = c.data[k]
+    all(((k, id),) -> id in print || id in c.fingerprint, v.deps) && continue
+    delete!(c.data, k)
+    delete!(c.keys, v.id[1])
+    delete!(c.fingerprint, v.id[2])
   end
 end
 
