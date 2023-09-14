@@ -1,19 +1,20 @@
 struct CacheValue{T}
   value::T
-  id::NFT
-  deps::Set{NFT}
+  id::Pair{NFT,NFT}
+  deps::Set{Pair{NFT,NFT}}
 end
 
 struct Cache{K,V}
   fingerprint::Set{NFT}
   data::IdDict{K,CacheValue{V}}
+  keys::Base.Dict{NFT,K}
   default::Any
 end
 
 _cache_default(ch::Cache, x) = throw(KeyError(x))
 
 Cache{K,V}(f = _cache_default) where {K,V} =
-  Cache{K,V}(Set{NFT}(), IdDict{K,V}(), f)
+  Cache{K,V}(Set{NFT}(), IdDict{K,V}(), Base.Dict{NFT,K}(), f)
 
 Cache(f = _cache_default) = Cache{Any,Any}(f)
 
@@ -22,9 +23,10 @@ fingerprint(ch::Cache) = ch.fingerprint
 iscached(ch::Cache, k) = haskey(ch.data, k)
 
 function set!(c::Cache{K,V}, k::K, v::V; deps = current_deps()) where {K,V}
-  haskey(c.data, k) && delete!(c.fingerprint, c.data[k].id)
+  haskey(c.data, k) && delete!(c.fingerprint, c.data[k].id[2])
+  kid = NFT()
   id = NFT()
-  c.data[k] = CacheValue{V}(v, id, deps)
+  c.data[k] = CacheValue{V}(v, kid=>id, deps)
   push!(c.fingerprint, id)
   return v
 end
@@ -36,8 +38,10 @@ function getindex(c::Cache{K,V}, k::K) where {K,V}
     value, deps = trackdeps() do
       convert(V, c.default(c, k))::V
     end
+    kid = NFT()
     id = NFT()
-    c.data[k] = CacheValue{V}(value, id, deps)
+    c.keys[kid] = k
+    c.data[k] = CacheValue{V}(value, kid => id, deps)
     push!(c.fingerprint, id)
   end
   track!(c.data[k].id)
@@ -51,9 +55,10 @@ function reset!(c::Cache; deps = [])
   while changed
     changed = false
     for (k, v) in c.data
-      all(id -> id in print || id in c.fingerprint, v.deps) && continue
-      delete!(c.fingerprint, v.id)
+      all(((k, id),) -> id in print || id in c.fingerprint, v.deps) && continue
       delete!(c.data, k)
+      delete!(c.keys, v.id[1])
+      delete!(c.fingerprint, v.id[2])
       changed = true
     end
   end
