@@ -104,3 +104,39 @@ end
   @test fib[10] == 89
   @test log == [5, 10]
 end
+
+@testset "Eager cache" begin
+  data = Caches.Dict{Int,Int}()
+  data[1] = 2
+  log = []
+
+  level1 = EagerCache() do ch, i
+    push!(log, i)
+    data[i]^2
+  end
+
+  level2 = Cache() do ch, i
+    push!(log, i)
+    level1[i] + 1
+  end
+
+  @test level2[1] == 5
+  @test log == [1, 1]
+  empty!(log)
+
+  data[1] = 2
+  reset!(level1, deps = [data])
+  reset!(level2, deps = [level1])
+  @test log == [1]
+
+  @test level2[1] == 5
+  @test log == [1]
+  empty!(log)
+
+  data[1] = 3
+  reset!(level1, deps = [data])
+  reset!(level2, deps = [level1])
+  @test log == [1]
+  @test level2[1] == 10
+  @test log == [1, 1]
+end

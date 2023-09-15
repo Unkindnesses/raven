@@ -1,8 +1,8 @@
 module Caches
 
-import Base: getindex, setindex!, delete!, haskey, get
+import Base: getindex, setindex!, delete!, haskey, get, get!, keytype, valtype
 
-export Cache
+export Cache, EagerCache
 
 include("utils.jl")
 include("basic.jl")

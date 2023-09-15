@@ -18,7 +18,7 @@ Cache{K,V}(f = _cache_default) where {K,V} =
 
 Cache(f = _cache_default) = Cache{Any,Any}(f)
 
-Base.keytype(c::Cache{K,V}) where {K,V} = K
+keytype(c::Cache{K,V}) where {K,V} = K
 
 fingerprint(ch::Cache) = ch.fingerprint
 
@@ -53,6 +53,7 @@ function Base.delete!(c::Cache{K,V}, k::K) where {K,V}
 end
 
 function set!(c::Cache{K,V}, k::K, v::V; deps = current_deps()) where {K,V}
+  # TODO preserve key id
   haskey(c.data, k) && delete!(c, k)
   kid = NFT()
   id = NFT()
@@ -73,6 +74,7 @@ function getindex(c::Cache{K,V}, k::K) where {K,V}
       delete!(deps, c.data[k].id)
       delete!(c, k)
     end
+    # TODO preserve key id
     kid = NFT()
     id = NFT()
     c.keys[kid] = k
@@ -83,15 +85,47 @@ function getindex(c::Cache{K,V}, k::K) where {K,V}
   return c.data[k].value
 end
 
-function reset!(c::Cache; deps = [])
+function invalid(c::Cache; deps = [])
   print = reduce(union!, fingerprint.(deps), init = Set{NFT}())
+  keys = keytype(c)[]
+  rm = Set{NFT}()
   for k in topokeys(c)
     v = c.data[k]
-    all(((k, id),) -> id in print || id in c.fingerprint, v.deps) && continue
-    delete!(c.data, k)
-    delete!(c.keys, v.id[1])
-    delete!(c.fingerprint, v.id[2])
+    all(((_, id),) -> id in print || (id in c.fingerprint && !(id in rm)), v.deps) && continue
+    push!(rm, v.id[2])
+    push!(keys, k)
   end
+  return keys
 end
 
+reset!(c::Cache; deps = []) = foreach(k -> delete!(c, k), invalid(c; deps))
+
 Base.IdDict(c::Cache) = IdDict(k => v.value for (k, v) in c.data)
+
+# Eagerly updated version
+
+struct EagerCache{K,V}
+  cache::Cache{K,V}
+end
+
+EagerCache(args...) = EagerCache(Cache(args...))
+EagerCache{K,V}(args...) where {K,V} = EagerCache{K,V}(Cache{K,V}(args...))
+
+getindex(c::EagerCache, args...) = getindex(c.cache, args...)
+setindex!(c::EagerCache, args...) = setindex!(c.cache, args...)
+
+fingerprint(c::EagerCache) = fingerprint(c.cache)
+
+function reset!(c::EagerCache{K,V}; deps = []) where {K,V}
+  for k in invalid(c.cache; deps)
+    v = c.cache.data[k]
+    value, deps = trackdeps() do
+      convert(V, c.cache.default(c, k))::V
+    end
+    if v.value == value
+      c.cache.data[k] = CacheValue{V}(value, v.id, deps)
+    else
+      set!(c.cache, k, value; deps)
+    end
+  end
+end
