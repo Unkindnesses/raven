@@ -19,15 +19,14 @@ fn fibSequence(n) {
   return xs
 }
 
-xs = fibSequence(10)
-println(xs)
+show fibSequence(10)
 ```
 
 ```julia
 julia> using Raven
 
 julia> Raven.exec("test.rv")
-[1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
+fibSequence(10) = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
 ```
 
 See also [complex numbers](common/numbers/complex.rv) or [malloc](common/wasm/malloc.rv).
