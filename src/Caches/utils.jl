@@ -50,4 +50,5 @@ current_deps() = isempty(cache_deps()) ? Set{Pair{NFT,NFT}}() : copy(cache_deps(
 # Collect IDs available in a given cache
 
 fingerprint(ch) = error("$(typeof(ch)) isn't a cache")
+fingerprint(s::Set{NFT}) = s
 fingerprint(a, b, c...) = union(fingerprint(a), fingerprint(b, c...))

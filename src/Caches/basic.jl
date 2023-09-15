@@ -33,6 +33,8 @@ Dict() = Dict{Any,Any}()
 
 fingerprint(ch::Dict) = ch.fingerprint
 
+reset!(ch::Dict; deps = []) = return
+
 function getindex(ch::Dict{K,V}, k::K) where {K,V}
   (id, value) = ch.data[k]
   track!(id)

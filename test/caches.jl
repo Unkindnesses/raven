@@ -36,8 +36,7 @@ end
 @test level3[1] == "6!"
 
 level1[1] = 7
-reset!(level2, deps = [level1])
-reset!(level3, deps = [level1, level2])
+reset!(Pipeline([level1, level2, level3]))
 
 @test level3[1] == "7!"
 
@@ -120,13 +119,14 @@ end
     level1[i] + 1
   end
 
+  pipe = Pipeline([data, level1, level2])
+
   @test level2[1] == 5
   @test log == [1, 1]
   empty!(log)
 
   data[1] = 2
-  reset!(level1, deps = [data])
-  reset!(level2, deps = [level1])
+  reset!(pipe)
   @test log == [1]
 
   @test level2[1] == 5
@@ -134,8 +134,7 @@ end
   empty!(log)
 
   data[1] = 3
-  reset!(level1, deps = [data])
-  reset!(level2, deps = [level1])
+  reset!(pipe)
   @test log == [1]
   @test level2[1] == 10
   @test log == [1, 1]
