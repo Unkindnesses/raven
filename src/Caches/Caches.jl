@@ -1,6 +1,6 @@
 module Caches
 
-import Base: getindex, setindex!, delete!, haskey, get, get!, keytype, valtype
+import Base: getindex, setindex!, delete!, empty!, keys, haskey, get, get!, keytype, valtype
 
 export Cache, EagerCache, Pipeline
 

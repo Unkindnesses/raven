@@ -11,6 +11,7 @@ using .Caches, .IRTools, .Dwarf, .WebAssembly
 using .IRTools: IR, Variable, Statement, Variable, argument!, block, blocks, arguments, argtypes,
   block, isreturn, isunreachable, branches, prune!, return!, unreachable!, branch!, block!, stmt, predecessors, successors,
   Slot, isvariable, Source
+using .Caches: reset!
 
 include("frontend/tag.jl")
 include("frontend/ast.jl")

@@ -1,5 +1,14 @@
 using LNR
 
+struct SourceString
+  path::String
+  source::String
+end
+
+macro src_str(s)
+  SourceString("$(__source__.file):$(__source__.line)", s)
+end
+
 struct LoadState
   comp::Compilation
   mod::RModule
@@ -87,8 +96,11 @@ function loadfile(cx::LoadState, io::IO; path)
   end
 end
 
-loadfile(cx::LoadState, path) =
+loadfile(cx::LoadState, path::String) =
   open(io -> loadfile(cx, io; path), path)
+
+loadfile(cx::LoadState, src::SourceString) =
+  loadfile(cx, IOBuffer(src.source), path = src.path)
 
 function loadmodule(comp::Compilation, mod::RModule, path)
   cx = LoadState(comp, mod)
@@ -100,15 +112,20 @@ function loadmodule(comp::Compilation, mod::Tag, path)
   return loadmodule(comp, module!(comp, mod), path)
 end
 
-function load(f::String)
-  comp = Compilation()
+function reload!(comp::Compilation, src)
+  main = module!(comp, tag"")
+  empty!(main)
+  common = comp[tag"common"]
+  import!(main, common, common.exports)
+  loadmodule(comp, main, src)
+  return comp
+end
 
+function load(src)
+  comp = Compilation()
   module!(comp, core())
   loadmodule(comp, tag"common.core", "$common/core.rv")
-
   com = loadmodule(comp, tag"common", "$common/common.rv")
-  main = module!(comp, tag"")
-  import!(main, com, com.exports)
-  loadmodule(comp, main, f)
+  reload!(comp, src)
   return comp
 end

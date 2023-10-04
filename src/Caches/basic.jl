@@ -33,6 +33,8 @@ Dict() = Dict{Any,Any}()
 
 fingerprint(ch::Dict) = ch.fingerprint
 
+keys(ch::Dict) = keys(ch.data)
+
 reset!(ch::Dict; deps = []) = return
 
 function getindex(ch::Dict{K,V}, k::K) where {K,V}
@@ -67,9 +69,25 @@ function delete!(ch::Dict{K,V}, k::K) where {K,V}
   return ch
 end
 
+function Base.empty!(ch::Dict)
+  # TODO do this in bulk
+  for k in keys(ch)
+    delete!(ch, k)
+  end
+  return ch
+end
+
 function haskey(ch::Dict{K,V}, k::K) where {K,V}
   id = get!(() -> NFT(), ch.haskey, k)
   push!(ch.fingerprint, id)
   track!(id)
   return haskey(ch.data, k)
+end
+
+function get(ch::Dict{K,V}, k::K, default::V) where {K,V}
+  haskey(ch, k) ? ch[k] : default
+end
+
+function get!(ch::Dict{K,V}, k::K, default::V) where {K,V}
+  haskey(ch, k) ? ch[k] : (ch[k] = default)
 end

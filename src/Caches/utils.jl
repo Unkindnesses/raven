@@ -49,6 +49,9 @@ current_deps() = isempty(cache_deps()) ? Set{Pair{NFT,NFT}}() : copy(cache_deps(
 
 # Collect IDs available in a given cache
 
-fingerprint(ch) = error("$(typeof(ch)) isn't a cache")
+subcaches(ch) = error("$(typeof(ch)) isn't a cache")
+fingerprint(ch) = reduce(union!, (fingerprint(ch) for ch in subcaches(ch)), init = Set{NFT}())
 fingerprint(s::Set{NFT}) = s
 fingerprint(a, b, c...) = union(fingerprint(a), fingerprint(b, c...))
+
+reset!(ch; init = []) = foreach(ch -> reset!(ch; init), subcaches(ch))

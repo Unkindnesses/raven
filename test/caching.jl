@@ -1,0 +1,21 @@
+using Raven, Test
+using Raven: @tag_str, @src_str, @rvx_str, Definitions, Binding
+using Raven.Caches: reset!, valueid
+
+@testset "Globals" begin
+  comp = Raven.load(src"foo = 1, bar = 1")
+  defs = Definitions(comp)
+
+  @test defs.globals[Binding(tag"", :foo)] == 1
+  @test defs.globals[Binding(tag"", :bar)] == 1
+  id_foo = valueid(defs.globals, Binding(tag"", :foo))
+  id_bar = valueid(defs.globals, Binding(tag"", :bar))
+
+  Raven.reload!(comp, src"foo = 1, bar = 2")
+  reset!(defs.globals, deps = [comp])
+
+  @test defs.globals[Binding(tag"", :foo)] == 1
+  @test defs.globals[Binding(tag"", :bar)] == 2
+  @test id_foo == valueid(defs.globals, Binding(tag"", :foo))
+  @test id_bar != valueid(defs.globals, Binding(tag"", :bar))
+end

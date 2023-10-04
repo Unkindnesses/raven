@@ -22,6 +22,10 @@ end
   include("compiler.jl")
 end
 
+@testset "Caching" begin
+  include("caching.jl")
+end
+
 if !Sys.iswindows()
   @testset "Debug" begin
     include("debug/runtests.jl")

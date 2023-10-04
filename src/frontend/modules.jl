@@ -45,14 +45,23 @@ function import!(ms::Methods, mod::Tag)
   end
 end
 
+function Base.empty!(ms::Methods)
+  empty!(ms.imports)
+  empty!(ms.methods)
+end
+
 struct RModule
   name::Tag
-  defs::Dict{Symbol,Any}
+  defs::Caches.Dict{Symbol,Any}
   exports::Set{Symbol}
   methods::Methods
 end
 
-RModule(name) = RModule(name, Dict{Symbol,Any}(), Set{Symbol}(), Methods(name))
+RModule(name) = RModule(name, Caches.Dict{Symbol,Any}(), Set{Symbol}(), Methods(name))
+
+@forward RModule.defs Base.getindex, Base.setindex!, Base.haskey, Base.get, Base.get!
+
+Caches.subcaches(m::RModule) = (m.defs,)
 
 function method!(mod::RModule, m::RMethod)
   method!(mod.methods, m)
@@ -67,7 +76,11 @@ function import!(mod::RModule, from::RModule, vars = [])
   end
 end
 
-@forward RModule.defs Base.getindex, Base.setindex!, Base.haskey, Base.get, Base.get!
+function Base.empty!(mod::RModule)
+  empty!(mod.defs)
+  empty!(mod.exports)
+  empty!(mod.methods)
+end
 
 function pathtag(p)
   @assert endswith(p, ".rv")
@@ -84,6 +97,8 @@ module!(c::Compilation, mod::RModule) = c.mods[mod.name] = mod
 module!(c::Compilation, mod::Tag) = get!(() -> RModule(mod), c.mods, mod)
 
 @forward Compilation.mods Base.getindex
+
+Caches.subcaches(c::Compilation) = values(c.mods)
 
 function resolve_static(cx::Compilation, b::Binding)
   val = cx.mods[b.mod][b.name]
@@ -104,12 +119,12 @@ function methods(cx::Compilation, name::Tag, mod::Tag = tag"", ms = RMethod[], s
 end
 
 struct Definitions
-  globals::Cache{Binding,Any}
+  globals::EagerCache{Binding,Any}
   methods::Cache{Tag,Vector{RMethod}}
 end
 
 function Definitions(comp::Compilation)
-  globals = Cache{Binding,Any}() do ch, b
+  globals = EagerCache{Binding,Any}() do ch, b
     get(comp[b.mod].defs, b.name, ⊥)
   end
   methods = Cache{Tag,Vector{RMethod}}() do ch, name
@@ -117,6 +132,8 @@ function Definitions(comp::Compilation)
   end
   Definitions(globals, methods)
 end
+
+Caches.subcaches(ds::Definitions) = (ds.globals, ds.methods)
 
 function resolve_binding(cx::Definitions, b::Binding)
   val = cx.globals[b]

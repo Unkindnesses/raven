@@ -24,6 +24,8 @@ fingerprint(ch::Cache) = ch.fingerprint
 
 iscached(ch::Cache, k) = haskey(ch.data, k)
 
+valueid(c::Cache, k) = c.data[k].id[2]
+
 function topokeys!(c::Cache, k::NFT, ks, seen)
   (haskey(c.keys, k) && !(k in seen)) || return
   push!(seen, k)
@@ -106,6 +108,8 @@ Base.IdDict(c::Cache) = IdDict(k => v.value for (k, v) in c.data)
 
 struct EagerCache{K,V}
   cache::Cache{K,V}
+  EagerCache{K,V}(c::Cache{K,V}) where {K,V} = new{K,V}(c)
+  EagerCache(c::Cache{K,V}) where {K,V} = new{K,V}(c)
 end
 
 EagerCache(args...) = EagerCache(Cache(args...))
@@ -113,6 +117,8 @@ EagerCache{K,V}(args...) where {K,V} = EagerCache{K,V}(Cache{K,V}(args...))
 
 getindex(c::EagerCache, args...) = getindex(c.cache, args...)
 setindex!(c::EagerCache, args...) = setindex!(c.cache, args...)
+
+valueid(c::EagerCache, k) = valueid(c.cache, k)
 
 fingerprint(c::EagerCache) = fingerprint(c.cache)
 
