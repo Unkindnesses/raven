@@ -2,11 +2,8 @@ using LNR
 
 struct LoadState
   comp::Compilation
-  mod::Union{RModule,Nothing}
-  main::Vector{Tag}
+  mod::RModule
 end
-
-LoadState(comp, mod = nothing) = LoadState(comp, mod, [])
 
 const common = joinpath(@__DIR__, "../../common") |> normpath
 
@@ -41,11 +38,9 @@ function load_include(cx, x)
 end
 
 function load_expr(cx::LoadState, x; src)
-  fname = Tag(cx.mod.name, Symbol(:__main, length(cx.main)))
-  ir, defs = lower_toplevel(cx.mod, x; meta = FuncInfo(fname, src), resolve = x -> resolve_static(cx, x))
+  ir, defs = lower_toplevel(cx.mod, x; meta = FuncInfo(tag"common.core.main", src), resolve = x -> resolve_static(cx, x))
   foreach(x -> get!(cx.mod, x, ⊥), defs)
-  method!(cx.mod, RMethod(fname, lowerpattern(AST.List()), ir))
-  push!(cx.main, fname)
+  method!(cx.mod, RMethod(tag"common.core.main", lowerpattern(AST.List()), ir))
 end
 
 isfn(x) = x[1] == :fn || ((x[1], x[2]) == (:extend, :fn))
@@ -82,16 +77,6 @@ end
 
 vload(m::LoadState, x; src) = load_expr(m, x; src)
 
-function finish!(cx::LoadState)
-  body = AST.Block([AST.Call(AST.Template(:tag, string(f))) for f in cx.main]...)
-  options().memcheck && push!(body.args, AST.Call(AST.Template(:tag, "common.checkAllocations")))
-  sig = lowerpattern(AST.List())
-  method!(cx.comp[tag""], RMethod(tag"common.core.main", sig,
-                                  lowerfn(tag"common.core", sig, body,
-                                          meta = FuncInfo(tag"common.core.main"),
-                                          resolve = x -> resolve_static(cx, x))))
-end
-
 function loadfile(cx::LoadState, io::IO; path)
   io = LineNumberingReader(io)
   while true
@@ -105,28 +90,25 @@ end
 loadfile(cx::LoadState, path) =
   open(io -> loadfile(cx, io; path), path)
 
-function loadmodule(cx::LoadState, mod::RModule, path)
-  cx = LoadState(cx.comp, mod, cx.main)
+function loadmodule(comp::Compilation, mod::RModule, path)
+  cx = LoadState(comp, mod)
   loadfile(cx, path)
   return mod
 end
 
-function loadmodule(cx::LoadState, mod::Tag, path)
-  return loadmodule(cx, module!(cx.comp, mod), path)
+function loadmodule(comp::Compilation, mod::Tag, path)
+  return loadmodule(comp, module!(comp, mod), path)
 end
 
 function load(f::String)
   comp = Compilation()
-  cx = LoadState(comp)
 
   module!(comp, core())
-  loadmodule(cx, tag"common.core", "$common/core.rv")
+  loadmodule(comp, tag"common.core", "$common/core.rv")
 
-  com = loadmodule(cx, tag"common", "$common/common.rv")
+  com = loadmodule(comp, tag"common", "$common/common.rv")
   main = module!(comp, tag"")
   import!(main, com, com.exports)
-  loadmodule(cx, main, f)
-
-  finish!(cx)
+  loadmodule(comp, main, f)
   return comp
 end

@@ -184,14 +184,15 @@ default_imports = [
   WebAssembly.Import(:support, :equal, :jseq, [i32, i32] => [i32]),
   WebAssembly.Import(:support, :release, :jsfree, [i32] => [])]
 
-function wasm_ir(comp::Definitions, inf::Cache, start)
+function wasm_ir(comp::Definitions, inf::Cache)
   mod = WModule(comp, inf)
-  lowerwasm!(mod, (start,))
-  return mod
+  main = [lowerwasm!(mod, (m,)) for m in comp.methods[tag"common.core.main"]]
+  return mod, main
 end
 
-function wasmmodule(comp::Definitions, inf::Cache, start)
-  mod = wasm_ir(comp, inf, start)
+function wasmmodule(comp::Definitions, inf::Cache)
+  mod, main = wasm_ir(comp, inf)
+  options().memcheck && push!(main, lowerwasm!(mod, (comp.methods[tag"common.checkAllocations"][1],)))
   strings = mod.strings
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
   sort!(fs, by = f -> f.name)
@@ -199,7 +200,8 @@ function wasmmodule(comp::Definitions, inf::Cache, start)
     WebAssembly.Block([
       WebAssembly.Local(0),
       WebAssembly.SetGlobal(0),
-      WebAssembly.Call(Symbol("common.core.main:method:1"))]),
+      [WebAssembly.Call(m) for m in main]...
+      ]),
     FuncInfo(tag"common.core.main", trampoline = true))
   mod = WebAssembly.Module(
     funcs = [start, fs...],
@@ -229,7 +231,7 @@ end
 function emitwasm(file, out)
   mod = load(file) |> Definitions
   comp = mod |> infer |> lowerir |> refcounts
-  mod, strings = wasmmodule(mod, comp, startmethod(mod))
+  mod, strings = wasmmodule(mod, comp)
   binary(mod, out; path = normpath(joinpath(pwd(), file)))
   return strings
 end

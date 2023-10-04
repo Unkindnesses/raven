@@ -7,7 +7,7 @@ function loadsrc(src)
   try
     mod = Raven.load(tmp) |> Raven.Definitions
     inf = Raven.infer(mod)
-    inf[(Raven.startmethod(mod),)]
+    [inf[(m,)] for m in mod.methods[tag"common.core.main"]]
     return inf
   finally
     rm(tmp)

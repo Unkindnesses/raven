@@ -125,8 +125,6 @@ end
 
 resolve_static(cx::Definitions, b::Binding) = cx.globals[resolve_binding(cx, b)]
 
-startmethod(def::Definitions) = def.methods[tag"common.core.main"][1]
-
 # For debugging
 struct FuncInfo
   name::Tag
