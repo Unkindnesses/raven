@@ -42,8 +42,7 @@ end
 
 function load_expr(cx::LoadState, x; src)
   fname = Tag(cx.mod.name, Symbol(:__main, length(cx.main)))
-  env = collect(keys(cx.mod.defs))
-  ir, defs = lower_toplevel(cx.mod.name, x; env, meta = FuncInfo(fname, src), resolve = x -> resolve_static(cx, x))
+  ir, defs = lower_toplevel(cx.mod, x; meta = FuncInfo(fname, src), resolve = x -> resolve_static(cx, x))
   foreach(x -> get!(cx.mod, x, ⊥), defs)
   method!(cx.mod, RMethod(fname, lowerpattern(AST.List()), ir))
   push!(cx.main, fname)

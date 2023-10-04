@@ -236,17 +236,13 @@ Base.show(io::IO, g::Global) = print(io, g.name)
 
 struct GlobalScope
   mod::Tag
-  env::Set{Symbol}
-  def::Set{Symbol}
 end
 
-GlobalScope(mod::Tag, env = Set()) = GlobalScope(mod, env, Set())
-
 Base.getindex(g::GlobalScope, x::Symbol) = Global(g.mod, x)
-Base.haskey(sc::GlobalScope, x::Symbol) = x in sc.env
+Base.haskey(sc::GlobalScope, x::Symbol) = false
 mod(sc::GlobalScope) = sc.mod
 
-variable!(sc::GlobalScope, name) = (push!(sc.def, name); sc[name])
+variable!(sc::GlobalScope, name) = sc[name]
 
 swaps(sc::GlobalScope) = nothing
 
@@ -266,7 +262,7 @@ Base.haskey(sc::Scope, x::Symbol) = haskey(sc.env, x) || haskey(sc.parent, x)
 mod(sc::Scope) = mod(sc.parent)
 
 variable!(sc::Scope, name::Symbol) =
-  haskey(sc, name) ? sc[name] : (sc[name] = Slot(gensym(name)))
+  haskey(sc, name) ? sc[name] : (sc[name] = Slot(name))
 
 swaps(sc::Scope) = sc.swap == nothing ? swaps(sc.parent) : sc.swap
 
@@ -305,8 +301,9 @@ end
 
 function lower!(sc, ir::IR, ex::AST.Operator, value = true)
   if ex[1] == :(=) && ex[2] isa Symbol
+    y = lower!(sc, ir, ex[3])
     x = variable!(sc, ex[2])
-    _push!(ir, :($(x) = $(lower!(sc, ir, ex[3]))))
+    _push!(ir, :($x = $y))
     return x
   elseif ex[1] == :(=)
     pat = ex[2]
@@ -544,31 +541,43 @@ function lowerfn(mod::Tag, sig::Signature, body::AST.Expr; meta = nothing, resol
   ir = ir |> pruneblocks! |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
 end
 
-function rewrite_globals(ir::IR)
-  gs = []
+# Turn toplevel vars into global writes
+
+function assignments(ir::IR)
+  locals = Set{Symbol}()
   for (v, st) in ir
-    if isexpr(st, :(=)) && (g = st.expr.args[1]) isa Global
-      g in gs || push!(gs, g)
-    end
+    isexpr(st, :(=)) && st.expr.args[1] isa Slot && push!(locals, st.expr.args[1].id)
   end
-  slots = Dict(g => Slot(g.name.name) for g in gs)
-  ir = IRTools.prewalk(x -> get(slots, x, x), ir)
-  for g in reverse(gs)
-    pushfirst!(ir, :($(slots[g]) = $g))
-  end
-  for g in gs
-    push!(ir, :($g = $(slots[g])))
-  end
-  return ir
+  return locals
 end
 
-function lower_toplevel(mod::Tag, ex; meta = nothing, env = [], resolve)
-  sc = GlobalScope(mod, Set(env))
+# Assumes all globals are in the same module
+function rewrite_globals(ir::IR, cx::RModule)
+  globals = Set{Symbol}()
+  locals = filter(x -> haskey(cx, x), assignments(ir))
+  pr = IRTools.Pipe(ir)
+  foreach(x -> push!(pr, :($(Slot(x)) = $(Global(Binding(cx.name, x))))), locals)
+  for (v, st) in pr
+    # Global loads use the new slot
+    ex = IRTools.prewalk(x -> x isa Global && x.name.name in locals ? Slot(x.name.name) : x, st.expr)
+    # Global stores use the new slot
+    if isexpr(ex, :(=)) && ex.args[1] isa Global
+      push!(globals, ex.args[1].name.name)
+      ex = :($(Slot(ex.args[1].name.name)) = $(ex.args[2]))
+    end
+    pr[v] = ex
+  end
+  foreach(x -> push!(pr, :($(Global(Binding(cx.name, x))) = $(Slot(x)))), Base.union(locals, globals))
+  return IRTools.finish(pr), globals
+end
+
+function lower_toplevel(cx::RModule, ex; meta = nothing, resolve)
+  sc = GlobalScope(cx.name)
   ir = IR(; meta)
   withresolve(resolve) do
     _lower!(sc, ir, ex)
   end
   IRTools.return!(ir, Global(tag"common", :nil))
-  ir = rewrite_globals(ir)
-  return ir |> IRTools.ssa! |> IRTools.prune!, sc.def
+  ir, defs = rewrite_globals(ir, cx)
+  ir |> pruneblocks! |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber, defs
 end
