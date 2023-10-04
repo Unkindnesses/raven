@@ -487,10 +487,16 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
   value && IRTools.argument!(b, insert = false)
 end
 
+# TODO support pattern matching
 function lowerlet!(sc, ir::IR, ex, value = true)
+  assignments = ex[2:end-1]
+  @assert all(x -> x isa AST.Operator && x[1] == :(=), assignments)
+  vars = map(x -> x[2], assignments)
+  vals = map(x -> lower!(sc, ir, x[3]), assignments)
   sc = Scope(sc)
-  @assert length(ex) == 2
-  (value ? lower! : _lower!)(sc, ir, ex[2])
+  foreach(x -> sc.env[x] = Slot(gensym(x)), vars)
+  foreach((x, y) -> _push!(ir, :($(sc[x]) = $y)), vars, vals)
+  (value ? lower! : _lower!)(sc, ir, ex[end])
 end
 
 function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
