@@ -84,7 +84,7 @@ function haskey(ch::Dict{K,V}, k::K) where {K,V}
   return haskey(ch.data, k)
 end
 
-function get(ch::Dict{K,V}, k::K, default::V) where {K,V}
+function get(ch::Dict{K}, k::K, default) where K
   haskey(ch, k) ? ch[k] : default
 end
 

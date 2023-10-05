@@ -26,27 +26,29 @@ function union(a::RMethod, b::RMethod)
 end
 
 struct Methods
-  imports::Vector{Tag}
-  methods::Dict{Tag,Vector{Union{RMethod,Tag}}}
+  imports::Caches.Ref{Vector{Tag}}
+  methods::Caches.Dict{Tag,Vector{Union{RMethod,Tag}}}
 end
 
-Methods(path) = Methods([], Dict())
+Methods(path) = Methods(Caches.Ref(Tag[]), Caches.Dict{Tag,Vector{Union{RMethod,Tag}}}())
 
-Base.getindex(m::Methods, k::Tag) = get(m.methods, k, m.imports)
+Base.getindex(m::Methods, k::Tag) = get(m.methods, k, m.imports[])
+
+Caches.subcaches(m::Methods) = (m.imports, m.methods)
 
 method!(ms::Methods, m::RMethod) =
-  push!(get!(ms.methods, m.name, Union{RMethod,Tag}[ms.imports...]), m)
+  push!(get!(ms.methods, m.name, Union{RMethod,Tag}[ms.imports[]...]), m)
 
 function import!(ms::Methods, mod::Tag)
-  mod in ms.imports && return
-  push!(ms.imports, mod)
-  for (k, v) in ms.methods
-    push!(v, mod)
+  mod in ms.imports[] && return
+  push!(ms.imports[], mod)
+  for k in keys(ms.methods)
+    ms.methods[k] = push!(ms.methods[k], mod)
   end
 end
 
 function Base.empty!(ms::Methods)
-  empty!(ms.imports)
+  ms.imports[] = empty!(ms.imports[])
   empty!(ms.methods)
 end
 
@@ -61,7 +63,7 @@ RModule(name) = RModule(name, Caches.Dict{Symbol,Any}(), Set{Symbol}(), Methods(
 
 @forward RModule.defs Base.getindex, Base.setindex!, Base.haskey, Base.get, Base.get!
 
-Caches.subcaches(m::RModule) = (m.defs,)
+Caches.subcaches(m::RModule) = (m.defs,m.methods)
 
 function method!(mod::RModule, m::RMethod)
   method!(mod.methods, m)
@@ -120,14 +122,14 @@ end
 
 struct Definitions
   globals::EagerCache{Binding,Any}
-  methods::Cache{Tag,Vector{RMethod}}
+  methods::EagerCache{Tag,Vector{RMethod}}
 end
 
 function Definitions(comp::Compilation)
   globals = EagerCache{Binding,Any}() do ch, b
     get(comp[b.mod].defs, b.name, ⊥)
   end
-  methods = Cache{Tag,Vector{RMethod}}() do ch, name
+  methods = EagerCache{Tag,Vector{RMethod}}() do ch, name
     Raven.methods(comp, name)
   end
   Definitions(globals, methods)
