@@ -190,7 +190,7 @@ function partial_ismatch(mod, pat, val)
 end
 
 function trivial_method(comp, func::Tag, Ts)
-  for meth in reverse(comp.methods[func])
+  for meth in reverse(comp[func])
     m = partial_match(comp, meth.sig.pattern, Ts)
     if m === nothing
       continue
@@ -230,7 +230,7 @@ end
 function dispatcher(comp::Definitions, func::Tag, Ts)
   ir = IR(meta = FuncInfo(func, trampoline = true))
   args = argument!(ir)
-  for meth in reverse(comp.methods[func])
+  for meth in reverse(comp[func])
     m = partial_match(comp, meth.sig.pattern, Ts)
     if m === nothing
       continue

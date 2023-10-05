@@ -87,7 +87,7 @@ end
 
 function gframe(inf::Inference, name::Binding)
   get!(inf.globals, name) do
-    T = inf.defs.globals[name]
+    T = inf.defs[name]
     if T isa Binding
       parent = gframe(inf, T)
       push!(parent.edges, name)

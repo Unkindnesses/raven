@@ -186,13 +186,13 @@ default_imports = [
 
 function wasm_ir(comp::Definitions, inf::Cache)
   mod = WModule(comp, inf)
-  main = [lowerwasm!(mod, (m,)) for m in comp.methods[tag"common.core.main"]]
+  main = [lowerwasm!(mod, (m,)) for m in comp[tag"common.core.main"]]
   return mod, main
 end
 
 function wasmmodule(comp::Definitions, inf::Cache)
   mod, main = wasm_ir(comp, inf)
-  options().memcheck && push!(main, lowerwasm!(mod, (comp.methods[tag"common.checkAllocations"][1],)))
+  options().memcheck && push!(main, lowerwasm!(mod, (comp[tag"common.checkAllocations"][1],)))
   strings = mod.strings
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
   sort!(fs, by = f -> f.name)
