@@ -324,9 +324,16 @@ function infer!(inf::Inference; partial = false)
   return inf
 end
 
-function infer(comp::Definitions; partial = false)
-  inf = Inference(comp)
-  Cache() do ch, sig
+# Results and caching
+
+struct Inferred
+  inf::Inference
+  results::Cache{Any,Any}
+end
+
+function Inferred(defs::Definitions; partial = false)
+  inf = Inference(defs)
+  results = Cache() do ch, sig
     frame!(inf, Parent((), 1), sig...)
     haskey(inf.frames, sig) || error("Can't infer types for $sig")
     infer!(inf; partial)
@@ -336,4 +343,7 @@ function infer(comp::Definitions; partial = false)
     end
     return ch[sig]
   end
+  return Inferred(inf, results)
 end
+
+Base.getindex(i::Inferred, sig) = i.results[sig]

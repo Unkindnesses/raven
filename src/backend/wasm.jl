@@ -230,7 +230,7 @@ end
 
 function emitwasm(file, out)
   mod = load(file) |> Definitions
-  comp = mod |> infer |> lowerir |> refcounts
+  comp = mod |> Inferred |> lowerir |> refcounts
   mod, strings = wasmmodule(mod, comp)
   binary(mod, out; path = normpath(joinpath(pwd(), file)))
   return strings

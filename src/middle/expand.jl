@@ -17,12 +17,12 @@
 # variable is used later; it should be used liberally by any code that works
 # with internals. `retain` is mainly used by indexing.
 
-function sig(inf::Cache, T)
+function sig(inf, T)
   fr = inf[T]
   fr isa Redirect ? sig(inf, fr.to) : T
 end
 
-frame(inf::Cache, T) = inf[sig(inf, T)]
+frame(inf::Union{Inferred,Cache}, T) = inf[sig(inf, T)]
 
 # Panic
 
@@ -426,7 +426,7 @@ function cast!(ir, from, to, x)
   end
 end
 
-function casts!(inf::Cache, ir, ret)
+function casts!(inf::Inferred, ir, ret)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     # Cast arguments to wasm primitives
@@ -477,7 +477,7 @@ function lowerir(inf, ir, ret)
   return ir
 end
 
-function lowerir(inf::Cache)
+function lowerir(inf::Inferred)
   Cache{Any,Union{Redirect,IR}}() do cx, sig
     if haskey(outlinePrimitive, sig[1])
       outlinePrimitive[sig[1]](sig[2:end]...)
