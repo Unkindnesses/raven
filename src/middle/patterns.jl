@@ -266,3 +266,7 @@ function dispatcher(comp::Definitions, func::Tag, Ts)
   unreachable!(ir)
   return ir
 end
+
+dispatchers(defs::Definitions) = Cache{Tuple{Tag,Any},IR}() do ch, (tag, Ts)
+  dispatcher(defs, tag, Ts)
+end

@@ -1,5 +1,5 @@
 using Raven, Test
-using Raven: @tag_str, @src_str, @rvx_str, Definitions, Binding
+using Raven: @tag_str, @src_str, @rvx_str, Definitions, Binding, rlist
 using Raven.Caches: reset!, valueid
 
 @testset "Globals" begin
@@ -23,6 +23,7 @@ end
 @testset "Methods" begin
   cx = Raven.load(src"fn foo(x) { x+1 }")
   defs = Definitions(cx)
+  disps = Raven.dispatchers(defs)
 
   @test length(defs[tag"foo"]) == 1
   @test !isempty(defs[tag"common.core.main"])
@@ -30,11 +31,18 @@ end
   foo_id = valueid(defs.methods, tag"foo")
   main_id = valueid(defs.methods, tag"common.core.main")
 
+  @test disps[(tag"foo", rlist(Int))] isa Raven.IR
+  @test disps[(tag"common.+", rlist(Int, Int))] isa Raven.IR
+
   Raven.reload!(cx, src"fn foo(x) { x+2 }")
   reset!(defs, deps = [cx])
+  reset!(disps, deps = [defs])
 
   @test length(defs[tag"foo"]) == 1
 
   @test foo_id != valueid(defs.methods, tag"foo")
   @test main_id == valueid(defs.methods, tag"common.core.main")
+
+  @test !Caches.iscached(disps, (tag"foo", rlist(Int)))
+  @test Caches.iscached(disps, (tag"common.+", rlist(Int, Int)))
 end
