@@ -54,7 +54,7 @@ function Base.delete!(c::Cache{K,V}, k::K) where {K,V}
   return c
 end
 
-function set!(c::Cache{K,V}, k::K, v::V; deps = current_deps()) where {K,V}
+function set!(c::Cache{K,V}, k::K, v::V; deps = current_deps(objectid(c))) where {K,V}
   # TODO preserve key id
   haskey(c.data, k) && delete!(c, k)
   kid = NFT()
@@ -69,7 +69,7 @@ setindex!(c::Cache{K,V}, v::V, k::K) where {K,V} = set!(c, k, v)
 
 function getindex(c::Cache{K,V}, k::K) where {K,V}
   if !haskey(c.data, k)
-    value, deps = trackdeps() do
+    value, deps = trackdeps(objectid(c)) do
       convert(V, c.default(c, k))::V
     end
     if haskey(c.data, k)
@@ -125,7 +125,7 @@ fingerprint(c::EagerCache) = fingerprint(c.cache)
 function reset!(c::EagerCache{K,V}; deps = []) where {K,V}
   for k in invalid(c.cache; deps)
     v = c.cache.data[k]
-    value, deps = trackdeps() do
+    value, deps = trackdeps(objectid(c.cache)) do
       convert(V, c.cache.default(c, k))::V
     end
     if v.value == value
