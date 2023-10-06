@@ -75,19 +75,22 @@ end
 
 struct Inference
   defs::Definitions
+  dispatchers::Dispatchers
+  deps::IdDict{Any,Caches.NFT}
   frames::IdDict{Any,Union{Frame,Redirect}}
   globals::Dict{Binding,GlobalFrame}
   queue::WorkQueue{Loc}
 end
 
-function Inference(comp::Definitions)
+function Inference(defs::Definitions, ds::Dispatchers)
   gs = Dict{Binding,GlobalFrame}()
-  Inference(comp, Dict(), gs, WorkQueue{Loc}())
+  Inference(defs, ds, IdDict(), Dict(), gs, WorkQueue{Loc}())
 end
 
 function gframe(inf::Inference, name::Binding)
   get!(inf.globals, name) do
     T = inf.defs[name]
+    inf.deps[name] = Caches.valueid(inf.defs.globals, name)
     if T isa Binding
       parent = gframe(inf, T)
       push!(parent.edges, name)
@@ -145,7 +148,9 @@ end
 
 function frame!(inf, P, F, Ts)
   haskey(inf.frames, (F, Ts)) && return frame(inf, (F, Ts))
-  irframe!(inf, P, (F, Ts), dispatcher(inf.defs, F, Ts), Ts)
+  ir = inf.dispatchers[(F, Ts)]
+  inf.deps[(F, Ts)] = Caches.valueid(inf.dispatchers, (F, Ts))
+  irframe!(inf, P, (F, Ts), ir, Ts)
 end
 
 # TODO some methods become unreachable, remove them somewhere?
@@ -327,23 +332,55 @@ end
 # Results and caching
 
 struct Inferred
+  dispatchers::Dispatchers
   inf::Inference
   results::Cache{Any,Any}
 end
 
-function Inferred(defs::Definitions; partial = false)
-  inf = Inference(defs)
-  results = Cache() do ch, sig
-    frame!(inf, Parent((), 1), sig...)
-    haskey(inf.frames, sig) || error("Can't infer types for $sig")
-    infer!(inf; partial)
-    for (k, fr) in inf.frames
-      Caches.iscached(ch, k) && continue
-      ch[k] = fr isa Redirect ? fr : (prune!(unloop(fr.ir)) => fr.rettype)
-    end
-    return ch[sig]
-  end
-  return Inferred(inf, results)
+function Inferred(defs::Definitions)
+  ds = dispatchers(defs)
+  inf = Inference(defs, ds)
+  return Inferred(ds, inf, Cache())
 end
 
-Base.getindex(i::Inferred, sig) = i.results[sig]
+function Base.getindex(i::Inferred, sig)
+  Caches.iscached(i.results, sig) && return i.results[sig]
+  # Don't let inference dependencies leak
+  Caches.trackdeps(objectid(i.results)) do
+    frame!(i.inf, Parent((), 1), sig...)
+    infer!(i.inf)
+  end
+  for (k, fr) in i.inf.frames
+    Caches.iscached(i.results, k) && continue
+    i.results[k] = fr isa Redirect ? fr : (prune!(unloop(fr.ir)) => fr.rettype)
+  end
+  return i.results[sig]
+end
+
+Caches.fingerprint(i::Inferred) = Caches.fingerprint(i.results)
+
+function Base.delete!(i::Inferred, sig::Tuple)
+  haskey(i.inf.frames, sig) || return
+  fr = i.inf.frames[sig]
+  delete!(i.inf.frames, sig)
+  delete!(i.inf.deps, sig)
+  delete!(i.results, sig)
+  foreach(loc -> delete!(i, loc.sig), fr.edges)
+end
+
+function Base.delete!(i::Inferred, b::Binding)
+  haskey(i.inf.globals, b) || return
+  fr = i.inf.globals[b]
+  delete!(i.inf.globals, b)
+  delete!(i.inf.deps, b)
+  foreach(e -> delete!(i, e isa Loc ? e.sig : e), fr.edges)
+end
+
+function Caches.reset!(i::Inferred; deps = [])
+  print = Caches.fingerprint(deps)
+  reset!(i.dispatchers, deps = print)
+  print = Base.union(print, Caches.fingerprint(i.dispatchers))
+  for (x, dep) in i.inf.deps
+    dep in print || delete!(i, x)
+  end
+end

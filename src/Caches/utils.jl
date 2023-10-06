@@ -58,4 +58,7 @@ fingerprint(ch) = reduce(union!, (fingerprint(ch) for ch in subcaches(ch)), init
 fingerprint(s::Set{NFT}) = s
 fingerprint(a, b, c...) = union(fingerprint(a), fingerprint(b, c...))
 
+fingerprint(s::AbstractVector) =
+  reduce(union!, (fingerprint(x) for x in s), init = Set{NFT}())
+
 reset!(ch; deps = []) = foreach(ch -> reset!(ch; deps), subcaches(ch))

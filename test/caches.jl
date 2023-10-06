@@ -19,13 +19,13 @@ end
 @test cache_log == [1]
 
 empty!(cache_log)
-reset!(level2, deps = [level1])
+reset!(level2, deps = level1)
 
 @test level2[1] == "5"
 @test cache_log == []
 
 level1[1] = 6
-reset!(level2, deps = [level1])
+reset!(level2, deps = level1)
 
 @test level2[1] == "6"
 
@@ -47,7 +47,7 @@ end
 @test optional[1] == "7"
 @test optional[5] == "default"
 level1[5] = 13
-reset!(optional, deps = [level1])
+reset!(optional, deps = level1)
 @test optional[5] == "13"
 
 @testset "Recursive Fibonacci" begin
@@ -65,12 +65,12 @@ reset!(optional, deps = [level1])
   @test log == 10:-1:0
   empty!(log)
 
-  reset!(fib, deps = [init])
+  reset!(fib, deps = init)
   @test fib[10] == 55
   @test isempty(log)
 
   init[0] = 1
-  reset!(fib, deps = [init])
+  reset!(fib, deps = init)
   @test fib[10] == 89
   @test fib[5] == 8
 end
@@ -93,12 +93,12 @@ end
   @test log == [10]
   empty!(log)
 
-  reset!(fib, deps = [init])
+  reset!(fib, deps = init)
   @test fib[10] == 55
   @test isempty(log)
 
   init[0] = 1
-  reset!(fib, deps = [init])
+  reset!(fib, deps = init)
   @test fib[5] == 8
   @test fib[10] == 89
   @test log == [5, 10]

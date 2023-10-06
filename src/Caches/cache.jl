@@ -88,7 +88,7 @@ function getindex(c::Cache{K,V}, k::K) where {K,V}
 end
 
 function invalid(c::Cache; deps = [])
-  print = reduce(union!, fingerprint.(deps), init = Set{NFT}())
+  print = fingerprint(deps)
   keys = keytype(c)[]
   rm = Set{NFT}()
   for k in topokeys(c)

@@ -267,6 +267,8 @@ function dispatcher(comp::Definitions, func::Tag, Ts)
   return ir
 end
 
+const Dispatchers = Cache{Tuple{Tag,Any},IR}
+
 dispatchers(defs::Definitions) = Cache{Tuple{Tag,Any},IR}() do ch, (tag, Ts)
   dispatcher(defs, tag, Ts)
 end
