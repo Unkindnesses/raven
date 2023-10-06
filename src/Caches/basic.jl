@@ -20,6 +20,8 @@ function setindex!(ch::Ref{T}, x::T) where T
   ch.value = x
 end
 
+reset!(ch::Ref; deps = []) = return
+
 # Just an IdDict, with tracking enabled for `Cache`s.
 
 struct Dict{K,V}

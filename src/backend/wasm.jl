@@ -61,8 +61,7 @@ function wparts(x)
 end
 
 struct WModule
-  defs::Definitions
-  inf::Cache
+  comp::Compiler
   symbols::Dict{Symbol,Int}
   strings::Vector{String}
   table::Vector{Symbol}
@@ -71,7 +70,7 @@ struct WModule
   gtypes::Vector{WType}
 end
 
-WModule(comp, inf) = WModule(comp, inf, Dict(), [], [], Dict(), Dict(), [])
+WModule(comp) = WModule(comp, Dict(), [], [], Dict(), Dict(), [])
 
 function name(mod::WModule, s::Symbol)
   s == :_start && return s
@@ -117,7 +116,7 @@ function lowerwasm!(mod::WModule, ir::IR)
       @assert layout(st.type) == layout(exprtype(ir, st.expr.args[1]))
       pr[v] = st.expr.args[1]
     elseif isexpr(st, :global)
-      g = Global(resolve_binding(mod.defs, st.expr.args[1]))
+      g = Global(resolve_binding(mod.comp.defs, st.expr.args[1]))
       l = global!(mod, g, st.type)
       pr[v] = Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
     elseif isexpr(st, :(=)) && (g = st.expr.args[1]) isa Global
@@ -167,7 +166,7 @@ function lowerwasm!(mod::WModule, T)
   f = T[1]::Union{Tag,RMethod}
   id = name(mod, f isa Tag ? Symbol(f) : Symbol(Symbol(f.name), ":method"))
   mod.funcs[T] = (id, nothing)
-  ir = lowerwasm!(mod, frame(mod.inf, T))
+  ir = lowerwasm!(mod, frame(mod.comp, T))
   mod.funcs[T] = (id, ir)
   return id
 end
@@ -184,15 +183,15 @@ default_imports = [
   WebAssembly.Import(:support, :equal, :jseq, [i32, i32] => [i32]),
   WebAssembly.Import(:support, :release, :jsfree, [i32] => [])]
 
-function wasm_ir(comp::Definitions, inf::Cache)
-  mod = WModule(comp, inf)
-  main = [lowerwasm!(mod, (m,)) for m in comp[tag"common.core.main"]]
+function wasm_ir(comp::Compiler)
+  mod = WModule(comp)
+  main = [lowerwasm!(mod, (m,)) for m in comp.defs[tag"common.core.main"]]
   return mod, main
 end
 
-function wasmmodule(comp::Definitions, inf::Cache)
-  mod, main = wasm_ir(comp, inf)
-  options().memcheck && push!(main, lowerwasm!(mod, (comp[tag"common.checkAllocations"][1],)))
+function wasmmodule(comp::Compiler)
+  mod, main = wasm_ir(comp)
+  options().memcheck && push!(main, lowerwasm!(mod, (comp.defs[tag"common.checkAllocations"][1],)))
   strings = mod.strings
   fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
   sort!(fs, by = f -> f.name)
@@ -228,10 +227,29 @@ function binary(m::WebAssembly.Module, file; path)
   return
 end
 
-function emitwasm(file, out)
-  mod = load(file) |> Definitions
-  comp = mod |> Inferred |> lowerir |> refcounts
-  mod, strings = wasmmodule(mod, comp)
-  binary(mod, out; path = normpath(joinpath(pwd(), file)))
+function emitwasm(c::Compiler, out; path)
+  mod, strings = wasmmodule(c)
+  binary(mod, out; path)
   return strings
+end
+
+# JS support
+
+const support = joinpath(@__DIR__, "support.js")
+
+jsstring(s) = Base.string('"', escape_string(s), '"')
+
+function emitjs(path, wasm, strings)
+  open(path, "w") do io
+    println(io, "// This file contains generated code.\n")
+    write(io, Base.read(support))
+    println(io)
+    println(io, "const wasmFile = '$wasm';")
+    println(io, "registerStrings([$(join(jsstring.(strings), ", "))])")
+    if options().jsalloc
+      println(io, "main();")
+    else
+      println(io, "main({memcheck: false});")
+    end
+  end
 end
