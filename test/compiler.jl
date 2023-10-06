@@ -42,3 +42,5 @@ end
 # Test compiling without JS refcounting
 Raven.compile("raven/pow.rv", Raven.Options(jsalloc=false), dir = "compiled")
 @test all(parse.(Bool, split(String(read(`$node compiled/pow.js`)))))
+
+rm("compiled", recursive = true)
