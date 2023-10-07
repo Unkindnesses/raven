@@ -577,6 +577,15 @@ function rewrite_globals(ir::IR, cx::RModule)
   return IRTools.finish(pr), globals
 end
 
+function assigned_globals(ir::IR)
+  globals = Dict{Binding,Any}()
+  for (v, st) in ir
+    isexpr(st, :(=)) && st.expr.args[1] isa Global &&
+      (globals[st.expr.args[1].name] = st.type)
+  end
+  return globals
+end
+
 function lower_toplevel(cx::RModule, ex; meta = nothing, resolve)
   sc = GlobalScope(cx.name)
   ir = IR(; meta)

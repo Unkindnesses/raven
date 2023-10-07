@@ -24,22 +24,27 @@ function reload!(c::Compiler, src)
   return c
 end
 
-function compile(file, opts = Options(); dir = dirname(file))
+function compile(file, opts = Options();
+                 dir = dirname(file),
+                 compiler = compiler)
   path = normpath(joinpath(pwd(), file))
   path, _ = splitext(path)
   name = basename(path)
   mkpath(dir)
   withoptions(opts) do
-    comp = Compiler()
-    reload!(comp, file)
-    strings = emitwasm(comp, joinpath(dir, "$name.wasm"); path)
+    reload!(compiler, file)
+    strings = emitwasm(compiler, joinpath(dir, "$name.wasm"); path)
     emitjs(joinpath(dir, "$name.js"), "$name.wasm", strings)
   end
+  return joinpath(dir, "$name.js")
+end
+
+function exec(file, opts = Options(); kw...)
+  js = compile(file, opts; kw...)
+  run(`node --experimental-wasm-stack-switching $js`)
   return
 end
 
-function exec(file, opts = Options())
-  compile(file, opts)
-  run(`node --experimental-wasm-stack-switching $(splitext(file)[1]).js`)
-  return
+function __init__()
+  global compiler = Compiler()
 end

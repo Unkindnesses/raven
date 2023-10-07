@@ -113,7 +113,8 @@ function debug_line(io, lt)
       end
       write(io, 0x00)
     end
-    lines = [UInt32(0)=>nothing, lt.lines...]
+    lines = copy(lt.lines)
+    pushfirst!(lines, UInt32(0) => nothing)
     # TODO track offset separately, so the loop can `continue` without getting
     # confused
     for i = 2:length(lines)

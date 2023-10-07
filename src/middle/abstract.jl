@@ -167,6 +167,7 @@ function mergeFrames(inf, T, F)
         @assert sig == inf.frames[s].to # TODO figure out whether to move backedges here
       else
         union!(fr.edges, inf.frames[s].edges)
+        push!(fr.edges, Loc(s)) # propagate deletions
       end
     end
     inf.frames[s] = Redirect(sig)
@@ -197,6 +198,7 @@ function openbranches(bl)
 end
 
 function step!(inf::Inference, loc)
+  haskey(inf.frames, loc.sig) || return # TODO remove old backedges
   p, ip = loc.path, loc.ip
   frame = inf.frames[loc.sig]
   frame isa Redirect && return
@@ -288,7 +290,7 @@ Stack() = Stack([])
 
 function stack(inf::Inference, T)
   st = Stack()
-  while T != ()
+  while haskey(inf.frames, T)
     pushfirst!(st.frames, T)
     T = parent(inf, T)
   end
@@ -359,12 +361,14 @@ end
 
 Caches.fingerprint(i::Inferred) = Caches.fingerprint(i.results)
 
+# TODO remove backedges, so we don't do redundant work
 function Base.delete!(i::Inferred, sig::Tuple)
   haskey(i.inf.frames, sig) || return
   fr = i.inf.frames[sig]
   delete!(i.inf.frames, sig)
   delete!(i.inf.deps, sig)
   delete!(i.results, sig)
+  fr isa Redirect && return
   foreach(loc -> delete!(i, loc.sig), fr.edges)
 end
 
@@ -377,10 +381,26 @@ function Base.delete!(i::Inferred, b::Binding)
 end
 
 function Caches.reset!(i::Inferred; deps = [])
+  # Globals have implicit edges to the main methods that created them. A bit
+  # messy.
+  main = i.inf.defs[tag"common.core.main"]
+  dead = [sig[1] for sig in keys(i.inf.frames) if sigmatch(sig, tag"common.core.main") && !(sig[1] in main)]
+  gs = reduce(Base.union, (keys(assigned_globals(i.inf.frames[(m,)].ir.body[1])) for m in dead), init = Set{Binding}())
+  foreach(g -> delete!(i, g), gs)
+
+  # Main update for methods
   print = Caches.fingerprint(deps)
   reset!(i.dispatchers, deps = print)
   print = Base.union(print, Caches.fingerprint(i.dispatchers))
   for (x, dep) in i.inf.deps
     dep in print || delete!(i, x)
+  end
+
+  # Refresh any live assignments to globals
+  for m in main
+    haskey(i.inf.frames, (m,)) || continue
+    for (x, T) in assigned_globals(i.inf.frames[(m,)].ir.body[1])
+      global!(i.inf, x, T)
+    end
   end
 end
