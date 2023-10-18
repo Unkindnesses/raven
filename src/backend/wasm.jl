@@ -125,30 +125,41 @@ function lowerwasm(ir::IR, names, globals, strings, table)
   return ir
 end
 
+struct WGlobals
+  types::Vector{WType}
+  globals::Cache{Binding,Vector{Int}}
+end
+
+function WGlobals(defs::Definitions, types)
+  gtypes = WType[]
+  globals = Cache{Binding,Vector{Int}}() do ch, b
+    b′ = defs[b]
+    b′ isa Binding && (b′ == b || return ch[b′])
+    start = length(gtypes)
+    l = wparts(types[b])
+    append!(gtypes, l)
+    collect(start .+ (1:length(l)))
+  end
+  return WGlobals(gtypes, globals)
+end
+
+Base.getindex(gs::WGlobals, b::Binding) = gs.globals[b]
+
 struct WModule
+  globals::WGlobals
   strings::Vector{String}
   table::Vector{Symbol}
-  gtypes::Vector{WType}
-  globals::Cache{Binding,Vector{Int}}
   names::DualCache{Any,Symbol}
   funcs::Cache{Any,WebAssembly.Func}
 end
 
 function WModule(c::Compiler)
+  globals = WGlobals(c.defs, c.inf)
   count = Dict{Symbol,Int}()
   names = DualCache{Any,Symbol}() do ch, sig
     id = sig[1] isa Tag ? Symbol(sig[1]) : Symbol(Symbol(sig[1].name), ":method")
     local c = count[id] = get(count, id, 0)+1
     return Symbol(id, ":", c)
-  end
-  gtypes = WType[]
-  globals = Cache{Binding,Vector{Int}}() do ch, b
-    b′ = c.defs[b]
-    b′ isa Binding && (b′ == b || return ch[b′])
-    start = length(gtypes)
-    l = wparts(c.inf[b])
-    append!(gtypes, l)
-    collect(start .+ (1:length(l)))
   end
   strings = String[]
   table = Symbol[]
@@ -158,7 +169,7 @@ function WModule(c::Compiler)
     ir = lowerwasm(frame(c, sig), names, globals, strings, table)
     return WebAssembly.irfunc(names[sig], ir)
   end
-  return WModule(strings, table, gtypes, globals, names, funcs)
+  return WModule(globals, strings, table, names, funcs)
 end
 
 default_imports = [
@@ -204,7 +215,7 @@ function wasmmodule(mod::WModule, defs)
     funcs = funcs,
     imports = default_imports,
     exports = [WebAssembly.Export(:_start, :_start)],
-    globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in mod.gtypes]...],
+    globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in mod.globals.types]...],
     tables = [WebAssembly.Table(length(mod.table))],
     elems = [WebAssembly.Elem(0, mod.table)],
     mems = [WebAssembly.Mem(0)])
