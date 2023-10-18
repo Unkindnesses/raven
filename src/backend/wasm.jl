@@ -130,20 +130,16 @@ struct WModule
   table::Vector{Symbol}
   gtypes::Vector{WType}
   globals::Cache{Binding,Vector{Int}}
-  sigs::IdDict{Symbol,Any}
-  names::Cache{Any,Symbol}
+  names::DualCache{Any,Symbol}
   funcs::Cache{Any,WebAssembly.Func}
 end
 
 function WModule(c::Compiler)
-  sigs = IdDict{Symbol,Any}()
   count = Dict{Symbol,Int}()
-  names = Cache{Any,Symbol}() do ch, sig
+  names = DualCache{Any,Symbol}() do ch, sig
     id = sig[1] isa Tag ? Symbol(sig[1]) : Symbol(Symbol(sig[1].name), ":method")
     local c = count[id] = get(count, id, 0)+1
-    name = Symbol(id, ":", c)
-    sigs[name] = sig
-    return name
+    return Symbol(id, ":", c)
   end
   gtypes = WType[]
   globals = Cache{Binding,Vector{Int}}() do ch, b
@@ -162,7 +158,7 @@ function WModule(c::Compiler)
     ir = lowerwasm(frame(c, sig), names, globals, strings, table)
     return WebAssembly.irfunc(names[sig], ir)
   end
-  return WModule(strings, table, gtypes, globals, sigs, names, funcs)
+  return WModule(strings, table, gtypes, globals, names, funcs)
 end
 
 default_imports = [
@@ -182,13 +178,13 @@ function appendfunc!(funcs, func::WebAssembly.Func, mod, seen)
   push!(seen, func.name)
   push!(funcs, func)
   for f in WebAssembly.callees(func)
-    haskey(mod.sigs, f) || continue
+    Caches.hasvalue(mod.names, f) || continue
     appendfunc!(funcs, f, mod, seen)
   end
 end
 
 appendfunc!(funcs, f::Symbol, mod, seen) =
-  appendfunc!(funcs, mod.funcs[mod.sigs[f]], mod, seen)
+  appendfunc!(funcs, mod.funcs[Caches.getkey(mod.names, f)], mod, seen)
 
 function wasmmodule(mod::WModule, defs)
   main = [mod.names[(m,)] for m in defs[tag"common.core.main"]]

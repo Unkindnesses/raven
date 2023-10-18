@@ -135,3 +135,33 @@ function reset!(c::EagerCache{K,V}; deps = []) where {K,V}
     end
   end
 end
+
+# Value -> key mapping
+
+struct DualCache{K,V}
+  cache::Cache{K,V}
+  keys::IdDict{V,K}
+  DualCache{K,V}(c::Cache{K,V}) where {K,V} = new{K,V}(c, IdDict{V,K}())
+  DualCache(c::Cache{K,V}) where {K,V} = new{K,V}(c, IdDict{V,K}())
+end
+
+DualCache{K,V}(args...) where {K,V} = DualCache(Cache{K,V}(args...))
+
+fingerprint(c::DualCache) = fingerprint(c.cache)
+
+function getindex(c::DualCache, k)
+  v = c.cache[k]
+  c.keys[v] = k
+  return v
+end
+
+function reset!(c::DualCache; deps = [])
+  for k in invalid(c.cache; deps)
+    v = c.cache.data[k].value
+    delete!(c.cache, k)
+    delete!(c.keys, v)
+  end
+end
+
+hasvalue(c::DualCache, v) = haskey(c.keys, v)
+getkey(c::DualCache, v) = c.keys[v]
