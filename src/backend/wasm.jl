@@ -60,68 +60,33 @@ function wparts(x)
   return ly isa WTuple ? ly.parts : [ly]
 end
 
-struct WModule
-  comp::Compiler
-  symbols::Dict{Symbol,Int}
-  strings::Vector{String}
-  table::Vector{Symbol}
-  funcs::IdDict{Any,Tuple{Symbol,Union{IR,Nothing}}}
-  globals::Dict{Global,Vector{Int}}
-  gtypes::Vector{WType}
-end
-
-WModule(comp) = WModule(comp, Dict(), [], [], Dict(), Dict(), [])
-
-function name(mod::WModule, s::Symbol)
-  s == :_start && return s
-  c = mod.symbols[s] = get(mod.symbols, s, 0)+1
-  return Symbol(s, ":", c)
-end
-
-function stringid!(mod::WModule, s::String)
-  i = findfirst(==(s), mod.strings)
+function tableid!(xs, x)
+  i = findfirst(==(x), xs)
   i === nothing || return Int32(i-1)
-  push!(mod.strings, s)
-  return Int32(length(mod.strings)-1)
+  push!(xs, x)
+  return Int32(length(xs)-1)
 end
 
-function funcid!(mod::WModule, f, I, O)
-  name = lowerwasm!(mod, (f, I))
-  i = findfirst(s -> s === name, mod.table)
-  i === nothing || return Int32(i-1)
-  push!(mod.table, name)
-  return Int32(length(mod.table)-1)
-end
-
-function global!(mod::WModule, g::Global, T)
-  get!(mod.globals, g) do
-    start = sum([length(gs) for gs in values(mod.globals)])
-    l = wparts(T)
-    append!(mod.gtypes, l)
-    collect(start .+ (1:length(l)))
-  end
-end
-
-function lowerwasm!(mod::WModule, ir::IR)
+function lowerwasm(ir::IR, names, globals, strings, table)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     if !isexpr(st)
       pr[v] = stmt(st.expr, type = wlayout(st.type))
     elseif isexpr(st, :ref) && st.expr.args[1] isa String
-      pr[v] = stringid!(mod, st.expr.args[1])
+      pr[v] = tableid!(strings, st.expr.args[1])
     elseif isexpr(st, :func)
-      pr[v] = funcid!(mod, st.expr.args...)
+      f, I, O = st.expr.args
+      pr[v] = tableid!(table, names[(f, I)])
     elseif isexpr(st, :tuple, :ref)
     elseif isexpr(st, :cast)
       @assert layout(st.type) == layout(exprtype(ir, st.expr.args[1]))
       pr[v] = st.expr.args[1]
     elseif isexpr(st, :global)
-      g = Global(resolve_binding(mod.comp.defs, st.expr.args[1]))
-      l = global!(mod, g, st.type)
+      l = globals[st.expr.args[1]::Binding]
       pr[v] = Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
     elseif isexpr(st, :(=)) && (g = st.expr.args[1]) isa Global
       delete!(pr, v)
-      l = global!(mod, g, st.type)
+      l = globals[g.name]
       for i in 1:length(l)
         p = st.expr.args[2]
         wlayout(st.type) isa WTuple &&
@@ -138,9 +103,8 @@ function lowerwasm!(mod::WModule, ir::IR)
     elseif isexpr(st, :call)
       Ts = (exprtype(ir, st.expr.args)...,)
       @assert !any(==(⊥), Ts)
-      func = lowerwasm!(mod, Ts)
       pr[v] = stmt(st,
-                   expr = xcall(WebAssembly.Call(func), st.expr.args[2:end]...),
+                   expr = xcall(WebAssembly.Call(names[Ts]), st.expr.args[2:end]...),
                    type = wlayout(st.type))
     elseif isexpr(st, :call_indirect)
       f, args = st.expr.args
@@ -161,14 +125,44 @@ function lowerwasm!(mod::WModule, ir::IR)
   return ir
 end
 
-function lowerwasm!(mod::WModule, T)
-  haskey(mod.funcs, T) && return mod.funcs[T][1]
-  f = T[1]::Union{Tag,RMethod}
-  id = name(mod, f isa Tag ? Symbol(f) : Symbol(Symbol(f.name), ":method"))
-  mod.funcs[T] = (id, nothing)
-  ir = lowerwasm!(mod, frame(mod.comp, T))
-  mod.funcs[T] = (id, ir)
-  return id
+struct WModule
+  strings::Vector{String}
+  table::Vector{Symbol}
+  gtypes::Vector{WType}
+  globals::Cache{Binding,Vector{Int}}
+  sigs::IdDict{Symbol,Any}
+  names::Cache{Any,Symbol}
+  funcs::Cache{Any,WebAssembly.Func}
+end
+
+function WModule(c::Compiler)
+  sigs = IdDict{Symbol,Any}()
+  count = Dict{Symbol,Int}()
+  names = Cache{Any,Symbol}() do ch, sig
+    id = sig[1] isa Tag ? Symbol(sig[1]) : Symbol(Symbol(sig[1].name), ":method")
+    local c = count[id] = get(count, id, 0)+1
+    name = Symbol(id, ":", c)
+    sigs[name] = sig
+    return name
+  end
+  gtypes = WType[]
+  globals = Cache{Binding,Vector{Int}}() do ch, b
+    b′ = c.defs[b]
+    b′ isa Binding && (b′ == b || return ch[b′])
+    start = length(gtypes)
+    l = wparts(c.inf[b])
+    append!(gtypes, l)
+    collect(start .+ (1:length(l)))
+  end
+  strings = String[]
+  table = Symbol[]
+  funcs = Cache{Any,WebAssembly.Func}() do ch, sig
+    # TODO: we use `frame` to avoid redirects, but this can duplicate function
+    # bodies. Should instead avoid calling redirected sigs, eg via casting.
+    ir = lowerwasm(frame(c, sig), names, globals, strings, table)
+    return WebAssembly.irfunc(names[sig], ir)
+  end
+  return WModule(strings, table, gtypes, globals, sigs, names, funcs)
 end
 
 default_imports = [
@@ -183,18 +177,23 @@ default_imports = [
   WebAssembly.Import(:support, :equal, :jseq, [i32, i32] => [i32]),
   WebAssembly.Import(:support, :release, :jsfree, [i32] => [])]
 
-function wasm_ir(comp::Compiler)
-  mod = WModule(comp)
-  main = [lowerwasm!(mod, (m,)) for m in comp.defs[tag"common.core.main"]]
-  return mod, main
+function appendfunc!(funcs, func::WebAssembly.Func, mod, seen)
+  func.name in seen && return
+  push!(seen, func.name)
+  push!(funcs, func)
+  for f in WebAssembly.callees(func)
+    haskey(mod.sigs, f) || continue
+    appendfunc!(funcs, f, mod, seen)
+  end
 end
 
-function wasmmodule(comp::Compiler)
-  mod, main = wasm_ir(comp)
-  options().memcheck && push!(main, lowerwasm!(mod, (comp.defs[tag"common.checkAllocations"][1],)))
-  strings = mod.strings
-  fs = [WebAssembly.irfunc(name, ir) for (name, ir) in values(mod.funcs)]
-  sort!(fs, by = f -> f.name)
+appendfunc!(funcs, f::Symbol, mod, seen) =
+  appendfunc!(funcs, mod.funcs[mod.sigs[f]], mod, seen)
+
+function wasmmodule(mod::WModule, defs)
+  main = [mod.names[(m,)] for m in defs[tag"common.core.main"]]
+  options().memcheck && push!(main, mod.names[(defs[tag"common.checkAllocations"][1],)])
+  funcs = WebAssembly.Func[]
   start = WebAssembly.Func(:_start, [externref]=>[], [],
     WebAssembly.Block([
       WebAssembly.Local(0),
@@ -202,15 +201,18 @@ function wasmmodule(comp::Compiler)
       [WebAssembly.Call(m) for m in main]...
       ]),
     FuncInfo(tag"common.core.main", trampoline = true))
-  mod = WebAssembly.Module(
-    funcs = [start, fs...],
+  done = Set{Symbol}()
+  appendfunc!(funcs, start, mod, done)
+  foreach(f -> appendfunc!(funcs, f, mod, done), mod.table)
+  wmod = WebAssembly.Module(
+    funcs = funcs,
     imports = default_imports,
     exports = [WebAssembly.Export(:_start, :_start)],
     globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in mod.gtypes]...],
     tables = [WebAssembly.Table(length(mod.table))],
     elems = [WebAssembly.Elem(0, mod.table)],
     mems = [WebAssembly.Mem(0)])
-  return mod, strings
+  return wmod, mod.strings
 end
 
 pscmd(cmd) = Sys.iswindows() ? `powershell -command $cmd` : cmd
@@ -228,7 +230,8 @@ function binary(m::WebAssembly.Module, file; path)
 end
 
 function emitwasm(c::Compiler, out; path)
-  mod, strings = wasmmodule(c)
+  mod = WModule(c)
+  mod, strings = wasmmodule(mod, c.defs)
   binary(mod, out; path)
   return strings
 end

@@ -140,6 +140,7 @@ Caches.subcaches(ds::Definitions) = (ds.globals, ds.methods)
 Base.getindex(d::Definitions, b::Binding) = d.globals[b]
 Base.getindex(d::Definitions, m::Tag) = d.methods[m]
 
+# TODO delete
 function resolve_binding(cx::Definitions, b::Binding)
   val = cx[b]
   val isa Binding ? resolve_binding(cx, val) : b

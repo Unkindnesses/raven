@@ -187,3 +187,15 @@ end
 
 Module(; funcs = [], mems = [], tables = [], globals = [], elems = [], data = [], imports = [], exports = []) =
   Module(funcs, mems, tables, globals, elems, data, imports, exports)
+
+# Some AST utils
+
+callees(x::Func, cs = Symbol[]) = callees(x.body, cs)
+
+function callees(x::Union{Block,Loop}, cs)
+  foreach(x -> callees(x, cs), x.body)
+  return cs
+end
+
+callees(x::Call, cs) = push!(cs, x.name)
+callees(x::Instruction, cs) = cs

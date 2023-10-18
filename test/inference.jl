@@ -27,7 +27,7 @@ let
     pow(2, 3)
     """)
   fs = filter(IdDict(inf.results)) do (sig, fr)
-    sig[1] isa Raven.RMethod && sig[1].name == tag"pow"
+    sig isa Tuple && sig[1] isa Raven.RMethod && sig[1].name == tag"pow"
   end |> collect
   @test fs[1][2][2] == 8
 end
@@ -45,7 +45,7 @@ let
     main()
     """)
   fs = filter(IdDict(inf.results)) do (sig, fr)
-    sig[1] isa Raven.RMethod && sig[1].name == tag"main"
+    sig isa Tuple && sig[1] isa Raven.RMethod && sig[1].name == tag"main"
   end |> collect
   @test fs[1][2][2] == Int64
 end

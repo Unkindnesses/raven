@@ -356,8 +356,14 @@ function Base.getindex(i::Inferred, sig)
     Caches.iscached(i.results, k) && continue
     i.results[k] = fr isa Redirect ? fr : (prune!(unloop(fr.ir)) => fr.rettype)
   end
+  for (k, fr) in i.inf.globals
+    !(Caches.iscached(i.results, k) && i.results.data[k].value == fr.type) || continue
+    i.results[k] = fr.type
+  end
   return i.results[sig]
 end
+
+Base.getindex(i::Inferred, b::Binding) = i.results[b]
 
 Caches.fingerprint(i::Inferred) = Caches.fingerprint(i.results)
 
@@ -377,6 +383,7 @@ function Base.delete!(i::Inferred, b::Binding)
   fr = i.inf.globals[b]
   delete!(i.inf.globals, b)
   delete!(i.inf.deps, b)
+  delete!(i.results, b)
   foreach(e -> delete!(i, e isa Loc ? e.sig : e), fr.edges)
 end
 

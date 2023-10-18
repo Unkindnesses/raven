@@ -1,6 +1,7 @@
 struct Compiler
   sources::Compilation
   defs::Definitions
+  inf::Inferred
   compiled::Pipeline
 end
 
@@ -11,7 +12,7 @@ function Compiler(sources::Compilation = load(src""))
   counted = refcounts(lowered)
   pipe = Pipeline([sources, defs, inferred, lowered, counted])
   foreach(m -> pipe[(m,)], defs[tag"common.core.main"])
-  return Compiler(sources, defs, pipe)
+  return Compiler(sources, defs, inferred, pipe)
 end
 
 Base.getindex(c::Compiler, sig) = c.compiled[sig]
