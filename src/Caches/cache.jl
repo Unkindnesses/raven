@@ -67,7 +67,7 @@ end
 
 setindex!(c::Cache{K,V}, v::V, k::K) where {K,V} = set!(c, k, v)
 
-function getindex(c::Cache{K,V}, k::K) where {K,V}
+function value(c::Cache{K,V}, k::K) where {K,V}
   if !haskey(c.data, k)
     value, deps = trackdeps(objectid(c)) do
       convert(V, c.default(c, k))::V
@@ -83,8 +83,13 @@ function getindex(c::Cache{K,V}, k::K) where {K,V}
     c.data[k] = CacheValue{V}(value, kid => id, deps)
     push!(c.fingerprint, id)
   end
-  track!(c.data[k].id)
   return c.data[k].value
+end
+
+function getindex(c::Cache{K,V}, k::K) where {K,V}
+  v = value(c, k)
+  track!(c.data[k].id)
+  return v
 end
 
 function invalid(c::Cache; deps = [])
@@ -115,6 +120,7 @@ end
 EagerCache(args...) = EagerCache(Cache(args...))
 EagerCache{K,V}(args...) where {K,V} = EagerCache{K,V}(Cache{K,V}(args...))
 
+value(c::EagerCache, args...) = value(c.cache, args...)
 getindex(c::EagerCache, args...) = getindex(c.cache, args...)
 setindex!(c::EagerCache, args...) = setindex!(c.cache, args...)
 

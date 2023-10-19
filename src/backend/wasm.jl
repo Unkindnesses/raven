@@ -65,13 +65,13 @@ struct WGlobals
   globals::Cache{Binding,Vector{Int}}
 end
 
-function WGlobals(defs::Definitions, types)
+function WGlobals(types)
   gtypes = WType[]
   globals = Cache{Binding,Vector{Int}}() do ch, b
-    b′ = defs[b]
-    b′ isa Binding && (b′ == b || return ch[b′])
+    T = types[b]
+    T isa Binding && return ch[T]
     start = length(gtypes)
-    l = wparts(types[b])
+    l = wparts(T)
     append!(gtypes, l)
     collect(start .+ (1:length(l)))
   end
@@ -159,8 +159,7 @@ struct WModule
   funcs::Cache{Any,WebAssembly.Func}
 end
 
-function WModule(c::Compiler)
-  env = WEnv(WGlobals(c.defs, c.inf))
+function WModule(env::WEnv, code)
   count = Dict{Symbol,Int}()
   names = DualCache{Any,Symbol}() do ch, sig
     id = sig[1] isa Tag ? Symbol(sig[1]) : Symbol(Symbol(sig[1].name), ":method")
@@ -172,11 +171,13 @@ function WModule(c::Compiler)
   funcs = Cache{Any,WebAssembly.Func}() do ch, sig
     # TODO: we use `frame` to avoid redirects, but this can duplicate function
     # bodies. Should instead avoid calling redirected sigs, eg via casting.
-    ir = lowerwasm(frame(c, sig), names, env)
+    ir = lowerwasm(frame(code, sig), names, env)
     return WebAssembly.irfunc(names[sig], ir)
   end
   return WModule(env, names, funcs)
 end
+
+WModule(c::Compiler) = WModule(WEnv(WGlobals(c.inf)), c)
 
 default_imports = [
   WebAssembly.Import(:support, :global, :jsglobal, [] => [i32]),

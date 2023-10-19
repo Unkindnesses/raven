@@ -342,7 +342,11 @@ end
 function Inferred(defs::Definitions)
   ds = dispatchers(defs)
   inf = Inference(defs, ds)
-  return Inferred(ds, inf, Cache())
+  cache = Cache() do ch, sig
+    sig isa Binding && return defs[sig]
+    error("no type info for $sig")
+  end
+  return Inferred(ds, inf, cache)
 end
 
 function Base.getindex(i::Inferred, sig)
@@ -357,7 +361,8 @@ function Base.getindex(i::Inferred, sig)
     i.results[k] = fr isa Redirect ? fr : (prune!(unloop(fr.ir)) => fr.rettype)
   end
   for (k, fr) in i.inf.globals
-    !(Caches.iscached(i.results, k) && i.results.data[k].value == fr.type) || continue
+    Caches.value(i.inf.defs.globals, k) isa Binding && continue
+    !Caches.iscached(i.results, k) || Caches.value(i.results, k) != fr.type || continue
     i.results[k] = fr.type
   end
   return i.results[sig]
