@@ -12,22 +12,22 @@ end
 
 function code_typed(mod::Compilation, func...)
   c = Compiler(mod)
-  wasmmodule(WModule(c), c.defs)
-  inf = c.compiled.caches[3]
+  wasmmodule(c.pipe.caches[end], c.defs[tag"common.core.main"])
+  inf = c.pipe.caches[3]
   IdDict{Any,IR}(sig => fr[1] for (sig, fr) in IdDict(inf.results) if !(fr isa Redirect) && sigmatch(sig, func...))
 end
 
 function code_final(mod::Compilation, func...)
   c = Compiler(mod)
-  wasmmodule(WModule(c), c.defs)
-  cx = c.compiled.caches[end]
+  wasmmodule(c.pipe.caches[end], c.defs[tag"common.core.main"])
+  cx = c.pipe.caches[end-1]
   IdDict{Any,IR}(sig => ir for (sig, ir) in IdDict(cx) if sigmatch(sig, func...))
 end
 
 function code_wasm(mod::Compilation, func)
   c = Compiler(mod)
-  mod = WModule(c)
-  wasmmodule(mod, c.defs)
+  mod = c.pipe.caches[end]
+  wasmmodule(mod, c.defs[tag"common.core.main"])
   IdDict{Any,WebAssembly.Func}(sig => fr for (sig, fr) in IdDict(mod.funcs) if sigmatch(sig, func))
 end
 

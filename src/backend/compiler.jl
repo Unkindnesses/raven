@@ -1,8 +1,8 @@
 struct Compiler
   sources::Compilation
   defs::Definitions
-  inf::Inferred
-  compiled::Pipeline
+  wasm::Wasm
+  pipe::Pipeline
 end
 
 function Compiler(sources::Compilation = load(src""))
@@ -10,9 +10,10 @@ function Compiler(sources::Compilation = load(src""))
   inferred = Inferred(defs)
   lowered = lowerir(inferred)
   counted = refcounts(lowered)
-  pipe = Pipeline([sources, defs, inferred, lowered, counted])
+  wasm = Wasm(inferred, counted)
+  pipe = Pipeline([sources, defs, inferred, lowered, counted, wasm])
   foreach(m -> pipe[(m,)], defs[tag"common.core.main"])
-  return Compiler(sources, defs, inferred, pipe)
+  return Compiler(sources, defs, wasm, pipe)
 end
 
 Base.getindex(c::Compiler, sig) = c.compiled[sig]
@@ -21,8 +22,14 @@ frame(inf::Compiler, T) = inf[sig(inf, T)]
 
 function reload!(c::Compiler, src)
   reload!(c.sources, src)
-  reset!(c.compiled)
+  reset!(c.pipe)
   return c
+end
+
+function emitwasm(c::Compiler, out; path)
+  main = c.defs[tag"common.core.main"]
+  options().memcheck && push!(main, c.defs[tag"common.checkAllocations"][1])
+  emitwasm(c.wasm, main, out; path)
 end
 
 function compile(file, opts = Options();

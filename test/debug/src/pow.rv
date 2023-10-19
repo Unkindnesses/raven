@@ -1,4 +1,4 @@
-fn pow(x, n: Int64) {
+fn debug_pow(x, n: Int64) {
   r = one(x)
   while n > 0 {
     n = n - one(n)
@@ -7,4 +7,4 @@ fn pow(x, n: Int64) {
   return r
 }
 
-println(pow(widen(2), widen(3)))
+println(debug_pow(widen(2), widen(3)))

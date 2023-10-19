@@ -22,10 +22,10 @@ end
 end
 
 @testset "Line info" begin
-  i = only(callsites(pow_wasm, "pow:1")) - code_offset(pow_wasm)
+  i = only(callsites(pow_wasm, "debug_pow:1")) - code_offset(pow_wasm)
   lt = linetable(pow_wasm)
   li = lineinfo(lt, i)
   @test endswith(li.file, "test/debug/src/pow.rv")
   @test li.line == 10
-  @test li.column == 12
+  @test li.column == 18
 end

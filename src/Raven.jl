@@ -31,8 +31,8 @@ include("middle/expand.jl")
 include("middle/refcount.jl")
 include("middle/load.jl")
 
-include("backend/compiler.jl")
 include("backend/wasm.jl")
+include("backend/compiler.jl")
 
 include("reflection.jl")
 

@@ -88,6 +88,8 @@ end
 
 WEnv(gs::WGlobals) = WEnv(gs, String[], Symbol[])
 
+Caches.subcaches(w::WEnv) = (w.globals.globals,)
+
 function tableid!(xs, x)
   i = findfirst(==(x), xs)
   i === nothing || return Int32(i-1)
@@ -153,17 +155,17 @@ function lowerwasm(ir::IR, names, env)
   return ir
 end
 
-struct WModule
+struct Wasm
   env::WEnv
   names::DualCache{Any,Symbol}
   funcs::Cache{Any,WebAssembly.Func}
 end
 
-function WModule(env::WEnv, code)
+function Wasm(env::WEnv, code)
   count = Dict{Symbol,Int}()
   names = DualCache{Any,Symbol}() do self, sig
     id = sig[1] isa Tag ? Symbol(sig[1]) : Symbol(Symbol(sig[1].name), ":method")
-    local c = count[id] = get(count, id, 0)+1
+    c = count[id] = get(count, id, 0)+1
     return Symbol(id, ":", c)
   end
   strings = String[]
@@ -174,10 +176,18 @@ function WModule(env::WEnv, code)
     ir = lowerwasm(frame(code, sig), names, env)
     return WebAssembly.irfunc(names[sig], ir)
   end
-  return WModule(env, names, funcs)
+  return Wasm(env, names, funcs)
 end
 
-WModule(c::Compiler) = WModule(WEnv(WGlobals(c.inf)), c)
+Wasm(inf, code) = Wasm(WEnv(WGlobals(inf)), code)
+
+Base.getindex(w::Wasm, sig::Tuple) = w.funcs[sig]
+Base.getindex(w::Wasm, name::Symbol) = w[Caches.getkey(w.names,name)]
+
+Caches.subcaches(w::Wasm) = (w.env, w.names, w.funcs)
+
+Caches.reset!(w::Wasm; deps = []) =
+  reset!(Pipeline([w.env, w.names, w.funcs]); deps)
 
 default_imports = [
   WebAssembly.Import(:support, :global, :jsglobal, [] => [i32]),
@@ -201,12 +211,11 @@ function appendfunc!(funcs, func::WebAssembly.Func, mod, seen)
   end
 end
 
-appendfunc!(funcs, f::Symbol, mod, seen) =
-  appendfunc!(funcs, mod.funcs[Caches.getkey(mod.names, f)], mod, seen)
+appendfunc!(funcs, f::Symbol, mod::Wasm, seen) =
+  appendfunc!(funcs, mod[f], mod, seen)
 
-function wasmmodule(mod::WModule, defs)
-  main = [mod.names[(m,)] for m in defs[tag"common.core.main"]]
-  options().memcheck && push!(main, mod.names[(defs[tag"common.checkAllocations"][1],)])
+function wasmmodule(mod::Wasm, main)
+  main = [mod.names[(m,)] for m in main]
   funcs = WebAssembly.Func[]
   start = WebAssembly.Func(:_start, [externref]=>[], [],
     WebAssembly.Block([
@@ -243,9 +252,8 @@ function binary(m::WebAssembly.Module, file; path)
   return
 end
 
-function emitwasm(c::Compiler, out; path)
-  mod = WModule(c)
-  mod, strings = wasmmodule(mod, c.defs)
+function emitwasm(w::Wasm, main, out; path)
+  mod, strings = wasmmodule(w, main)
   binary(mod, out; path)
   return strings
 end
