@@ -67,9 +67,9 @@ end
 
 function WGlobals(types)
   gtypes = WType[]
-  globals = Cache{Binding,Vector{Int}}() do ch, b
+  globals = Cache{Binding,Vector{Int}}() do self, b
     T = types[b]
-    T isa Binding && return ch[T]
+    T isa Binding && return self[T]
     start = length(gtypes)
     l = wparts(T)
     append!(gtypes, l)
@@ -161,14 +161,14 @@ end
 
 function WModule(env::WEnv, code)
   count = Dict{Symbol,Int}()
-  names = DualCache{Any,Symbol}() do ch, sig
+  names = DualCache{Any,Symbol}() do self, sig
     id = sig[1] isa Tag ? Symbol(sig[1]) : Symbol(Symbol(sig[1].name), ":method")
     local c = count[id] = get(count, id, 0)+1
     return Symbol(id, ":", c)
   end
   strings = String[]
   table = Symbol[]
-  funcs = Cache{Any,WebAssembly.Func}() do ch, sig
+  funcs = Cache{Any,WebAssembly.Func}() do self, sig
     # TODO: we use `frame` to avoid redirects, but this can duplicate function
     # bodies. Should instead avoid calling redirected sigs, eg via casting.
     ir = lowerwasm(frame(code, sig), names, env)

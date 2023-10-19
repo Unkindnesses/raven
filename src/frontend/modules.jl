@@ -126,10 +126,10 @@ struct Definitions
 end
 
 function Definitions(comp::Compilation)
-  globals = EagerCache{Binding,Any}() do ch, b
+  globals = EagerCache{Binding,Any}() do self, b
     get(comp[b.mod].defs, b.name, ⊥)
   end
-  methods = EagerCache{Tag,Vector{RMethod}}() do ch, name
+  methods = EagerCache{Tag,Vector{RMethod}}() do self, name
     Raven.methods(comp, name)
   end
   Definitions(globals, methods)

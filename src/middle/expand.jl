@@ -478,7 +478,7 @@ function lowerir(inf, ir, ret)
 end
 
 function lowerir(inf::Inferred)
-  Cache{Any,Union{Redirect,IR}}() do cx, sig
+  Cache{Any,Union{Redirect,IR}}() do self, sig
     if haskey(outlinePrimitive, sig[1])
       outlinePrimitive[sig[1]](sig[2:end]...)
     elseif inf[sig] isa Redirect

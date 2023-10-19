@@ -220,7 +220,7 @@ function refcounts!(ir)
 end
 
 function refcounts(c::Cache)
-  Cache{Any,Union{Redirect,IR}}() do cx, sig
+  Cache{Any,Union{Redirect,IR}}() do self, sig
     if sig[1] in (retain_method, release_method)
       count_ir(sig[2], sig[1] == retain_method ? retain : release)
     else

@@ -10,7 +10,7 @@ level1[1] = 5
 
 cache_log = []
 
-level2 = Cache{Int,String}() do ch, i
+level2 = Cache{Int,String}() do self, i
   push!(cache_log, i)
   string(level1[i])
 end
@@ -29,7 +29,7 @@ reset!(level2, deps = level1)
 
 @test level2[1] == "6"
 
-level3 = Cache{Int,String}() do ch, i
+level3 = Cache{Int,String}() do self, i
   level2[i] * "!"
 end
 
@@ -40,7 +40,7 @@ reset!(Pipeline([level1, level2, level3]))
 
 @test level3[1] == "7!"
 
-optional = Cache{Int,String}() do ch, i
+optional = Cache{Int,String}() do self, i
   haskey(level1, i) ? string(level1[i]) : "default"
 end
 
@@ -55,9 +55,9 @@ reset!(optional, deps = level1)
   init = Cache{Int,Int}()
   init[0] = 0; init[1] = 1
 
-  fib = Cache{Int,Int}() do ch, i
+  fib = Cache{Int,Int}() do self, i
     push!(log, i)
-    i <= 1 ? init[i] : ch[i-1] + ch[i-2]
+    i <= 1 ? init[i] : self[i-1] + self[i-2]
   end
 
   @test fib[10] == 55
@@ -80,12 +80,12 @@ end
   init = Cache{Int,Int}()
   init[0] = 0; init[1] = 1
 
-  fib = Cache{Int,Int}() do ch, i
+  fib = Cache{Int,Int}() do self, i
     push!(log, i)
     for i = 0:i
-      ch[i] = i <= 1 ? init[i] : ch[i-1] + ch[i-2]
+      self[i] = i <= 1 ? init[i] : self[i-1] + self[i-2]
     end
-    return ch[i]
+    return self[i]
   end
 
   @test fib[10] == 55
@@ -109,12 +109,12 @@ end
   data[1] = 2
   log = []
 
-  level1 = EagerCache() do ch, i
+  level1 = EagerCache() do self, i
     push!(log, i)
     data[i]^2
   end
 
-  level2 = Cache() do ch, i
+  level2 = Cache() do self, i
     push!(log, i)
     level1[i] + 1
   end

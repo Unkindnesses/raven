@@ -269,6 +269,6 @@ end
 
 const Dispatchers = Cache{Tuple{Tag,Any},IR}
 
-dispatchers(defs::Definitions) = Cache{Tuple{Tag,Any},IR}() do ch, (tag, Ts)
+dispatchers(defs::Definitions) = Cache{Tuple{Tag,Any},IR}() do self, (tag, Ts)
   dispatcher(defs, tag, Ts)
 end

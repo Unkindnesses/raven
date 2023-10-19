@@ -342,7 +342,7 @@ end
 function Inferred(defs::Definitions)
   ds = dispatchers(defs)
   inf = Inference(defs, ds)
-  cache = Cache() do ch, sig
+  cache = Cache() do self, sig
     sig isa Binding && return defs[sig]
     error("no type info for $sig")
   end
