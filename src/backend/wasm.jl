@@ -60,6 +60,34 @@ function wparts(x)
   return ly isa WTuple ? ly.parts : [ly]
 end
 
+struct WGlobals
+  types::Vector{WType}
+  globals::Cache{Binding,Vector{Int}}
+end
+
+function WGlobals(defs::Definitions, types)
+  gtypes = WType[]
+  globals = Cache{Binding,Vector{Int}}() do ch, b
+    b′ = defs[b]
+    b′ isa Binding && (b′ == b || return ch[b′])
+    start = length(gtypes)
+    l = wparts(types[b])
+    append!(gtypes, l)
+    collect(start .+ (1:length(l)))
+  end
+  return WGlobals(gtypes, globals)
+end
+
+Base.getindex(gs::WGlobals, b::Binding) = gs.globals[b]
+
+struct WEnv
+  globals::WGlobals
+  strings::Vector{String}
+  table::Vector{Symbol}
+end
+
+WEnv(gs::WGlobals) = WEnv(gs, String[], Symbol[])
+
 function tableid!(xs, x)
   i = findfirst(==(x), xs)
   i === nothing || return Int32(i-1)
@@ -67,26 +95,26 @@ function tableid!(xs, x)
   return Int32(length(xs)-1)
 end
 
-function lowerwasm(ir::IR, names, globals, strings, table)
+function lowerwasm(ir::IR, names, env)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     if !isexpr(st)
       pr[v] = stmt(st.expr, type = wlayout(st.type))
     elseif isexpr(st, :ref) && st.expr.args[1] isa String
-      pr[v] = tableid!(strings, st.expr.args[1])
+      pr[v] = tableid!(env.strings, st.expr.args[1])
     elseif isexpr(st, :func)
       f, I, O = st.expr.args
-      pr[v] = tableid!(table, names[(f, I)])
+      pr[v] = tableid!(env.table, names[(f, I)])
     elseif isexpr(st, :tuple, :ref)
     elseif isexpr(st, :cast)
       @assert layout(st.type) == layout(exprtype(ir, st.expr.args[1]))
       pr[v] = st.expr.args[1]
     elseif isexpr(st, :global)
-      l = globals[st.expr.args[1]::Binding]
+      l = env.globals[st.expr.args[1]::Binding]
       pr[v] = Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
     elseif isexpr(st, :(=)) && (g = st.expr.args[1]) isa Global
       delete!(pr, v)
-      l = globals[g.name]
+      l = env.globals[g.name]
       for i in 1:length(l)
         p = st.expr.args[2]
         wlayout(st.type) isa WTuple &&
@@ -125,36 +153,14 @@ function lowerwasm(ir::IR, names, globals, strings, table)
   return ir
 end
 
-struct WGlobals
-  types::Vector{WType}
-  globals::Cache{Binding,Vector{Int}}
-end
-
-function WGlobals(defs::Definitions, types)
-  gtypes = WType[]
-  globals = Cache{Binding,Vector{Int}}() do ch, b
-    b′ = defs[b]
-    b′ isa Binding && (b′ == b || return ch[b′])
-    start = length(gtypes)
-    l = wparts(types[b])
-    append!(gtypes, l)
-    collect(start .+ (1:length(l)))
-  end
-  return WGlobals(gtypes, globals)
-end
-
-Base.getindex(gs::WGlobals, b::Binding) = gs.globals[b]
-
 struct WModule
-  globals::WGlobals
-  strings::Vector{String}
-  table::Vector{Symbol}
+  env::WEnv
   names::DualCache{Any,Symbol}
   funcs::Cache{Any,WebAssembly.Func}
 end
 
 function WModule(c::Compiler)
-  globals = WGlobals(c.defs, c.inf)
+  env = WEnv(WGlobals(c.defs, c.inf))
   count = Dict{Symbol,Int}()
   names = DualCache{Any,Symbol}() do ch, sig
     id = sig[1] isa Tag ? Symbol(sig[1]) : Symbol(Symbol(sig[1].name), ":method")
@@ -166,10 +172,10 @@ function WModule(c::Compiler)
   funcs = Cache{Any,WebAssembly.Func}() do ch, sig
     # TODO: we use `frame` to avoid redirects, but this can duplicate function
     # bodies. Should instead avoid calling redirected sigs, eg via casting.
-    ir = lowerwasm(frame(c, sig), names, globals, strings, table)
+    ir = lowerwasm(frame(c, sig), names, env)
     return WebAssembly.irfunc(names[sig], ir)
   end
-  return WModule(globals, strings, table, names, funcs)
+  return WModule(env, names, funcs)
 end
 
 default_imports = [
@@ -210,16 +216,16 @@ function wasmmodule(mod::WModule, defs)
     FuncInfo(tag"common.core.main", trampoline = true))
   done = Set{Symbol}()
   appendfunc!(funcs, start, mod, done)
-  foreach(f -> appendfunc!(funcs, f, mod, done), mod.table)
+  foreach(f -> appendfunc!(funcs, f, mod, done), mod.env.table)
   wmod = WebAssembly.Module(
     funcs = funcs,
     imports = default_imports,
     exports = [WebAssembly.Export(:_start, :_start)],
-    globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in mod.globals.types]...],
-    tables = [WebAssembly.Table(length(mod.table))],
-    elems = [WebAssembly.Elem(0, mod.table)],
+    globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in mod.env.globals.types]...],
+    tables = [WebAssembly.Table(length(mod.env.table))],
+    elems = [WebAssembly.Elem(0, mod.env.table)],
     mems = [WebAssembly.Mem(0)])
-  return wmod, mod.strings
+  return wmod, mod.env.strings
 end
 
 pscmd(cmd) = Sys.iswindows() ? `powershell -command $cmd` : cmd
