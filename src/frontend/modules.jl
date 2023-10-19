@@ -140,13 +140,8 @@ Caches.subcaches(ds::Definitions) = (ds.globals, ds.methods)
 Base.getindex(d::Definitions, b::Binding) = d.globals[b]
 Base.getindex(d::Definitions, m::Tag) = d.methods[m]
 
-# TODO delete
-function resolve_binding(cx::Definitions, b::Binding)
-  val = cx[b]
-  val isa Binding ? resolve_binding(cx, val) : b
-end
-
-resolve_static(cx::Definitions, b::Binding) = cx[resolve_binding(cx, b)]
+resolve_global(c, b) = b
+resolve_global(c, b::Binding) = resolve_global(c, c[b])
 
 # For debugging
 struct FuncInfo

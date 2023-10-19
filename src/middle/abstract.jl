@@ -2,13 +2,12 @@ const recursionLimit = 10
 
 _typeof(x) = error("invalid constant $x::$(typeof(x))")
 _typeof(x::Union{Number,String,Tag,RMethod,Pack}) = x
-_typeof(x::Global) = x.type
 
 exprtype(ir, x) = IRTools.exprtype(ir, x, typeof = _typeof)
 exprtype(ir, xs::AbstractVector) = map(x -> exprtype(ir, x), xs)
 
 function prepare_ir!(ir)
-  ir = ir |> IRTools.expand!
+  ir = ir |> globals |> IRTools.expand!
   for b in ir.blocks
     b.argtypes .= (⊥,)
     for i in 1:length(b.stmts)
@@ -207,14 +206,6 @@ function step!(inf::Inference, loc)
   stmts = keys(bl)
   var = stmts[ip]
   st = bl[var]
-  for i in (isexpr(st, :(=)) ? 2 : 1):length(st.expr.args)
-    g = st.expr.args[i]
-    g isa Global || continue
-    fr = gframe(inf, g.name)
-    push!(fr.edges, loc)
-    fr.type == ⊥ && return
-    st.expr.args[i] = Global(g.name, fr.type)
-  end
   if isexpr(st, :call) && st.expr.args[1] isa WIntrinsic
     op = st.expr.args[1].op
     T = rvtype(st.expr.args[1].ret)
@@ -222,18 +213,18 @@ function step!(inf::Inference, loc)
     if all(isvalue, Ts) && haskey(wasmPartials, op)
       T = wasmPartials[op](Ts...)
     end
-    bl.ir[var] = Statement(bl[var], type = T)
+    bl.ir[var] = stmt(bl[var], type = T)
     push!(inf.queue, next(loc))
   elseif isexpr(st, :call)
     T = infercall!(inf, loc, bl, st.expr)
     if T != ⊥
-      bl.ir[var] = Statement(bl[var], type = T)
+      bl.ir[var] = stmt(bl[var], type = T)
       push!(inf.queue, next(loc))
     end
   elseif isexpr(st, :pack)
     Ts = exprtype(bl.ir, st.expr.args)
     if !any(==(⊥), Ts)
-      bl.ir[var] = Statement(bl[var], type = pack(Ts...))
+      bl.ir[var] = stmt(bl[var], type = pack(Ts...))
       push!(inf.queue, next(loc))
     end
   elseif isexpr(st, :loop)
@@ -241,12 +232,19 @@ function step!(inf::Inference, loc)
     if blockargs!(l.body[1], argtypes(bl))
       push!(inf.queue, Loc(loc.sig, Path([p.parts..., (1,1)])))
     end
-  elseif isexpr(st, :(=)) && st.expr.args[1] isa Global
-    x = st.expr.args[1].name
+  elseif isexpr(st, :global)
+    fr = gframe(inf, st.expr.args[1])
+    push!(fr.edges, loc)
+    if fr.type != ⊥
+      bl.ir[var] = stmt(bl[var], type = fr.type)
+    end
+    push!(inf.queue, next(loc))
+  elseif isexpr(st, :(=)) && st.expr.args[1] isa Binding
+    x = st.expr.args[1]
     fr = gframe(inf, x)
     T = exprtype(bl.ir, st.expr.args[2])
     T = union(fr.type, T)
-    bl.ir[var] = Statement(bl[var], type = T)
+    bl.ir[var] = stmt(st, type = T)
     push!(inf.queue, next(loc))
     global!(inf, x, T)
   elseif isexpr(st, :branch)

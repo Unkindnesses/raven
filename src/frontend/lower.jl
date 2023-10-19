@@ -223,22 +223,11 @@ function IRTools.print_stmt(io::IO, ::Val{:pack}, ex)
   end
 end
 
-# TODO this is hacky; global loads should be a statement
-struct Global
-  name::Binding
-  type::Any
-end
-
-Global(name::Binding) = Global(name, ⊥)
-Global(mod::Tag, name::Symbol, type = ⊥) = Global(Binding(mod, name), type)
-
-Base.show(io::IO, g::Global) = print(io, g.name)
-
 struct GlobalScope
   mod::Tag
 end
 
-Base.getindex(g::GlobalScope, x::Symbol) = Global(g.mod, x)
+Base.getindex(g::GlobalScope, x::Symbol) = Binding(g.mod, x)
 Base.haskey(sc::GlobalScope, x::Symbol) = false
 mod(sc::GlobalScope) = sc.mod
 
@@ -370,7 +359,7 @@ end
 function swapreturn!(ir::IR, val, swaps, src; bp = false)
   if swaps != nothing && !isempty(swaps)
     args = maximum(keys(swaps))
-    ret = push!(ir, xlist(val, map(i -> haskey(swaps, i) ? Slot(swaps[i]) : Global(tag"common", :nil), 1:args)...))
+    ret = push!(ir, xlist(val, map(i -> haskey(swaps, i) ? Slot(swaps[i]) : Binding(tag"common", :nil), 1:args)...))
     return!(ir, ret; src, bp)
   else
     return!(ir, val; src, bp)
@@ -421,7 +410,7 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
   branch!(header, bodyStart, when = cond, src = AST.meta(ex))
   branch!(header, after, src = AST.meta(ex.args[1]))
   IRTools.canbranch(bodyEnd) && branch!(bodyEnd, header)
-  return value ? Global(tag"common", :nil) : nothing
+  return value ? Binding(tag"common", :nil) : nothing
 end
 
 struct If
@@ -562,26 +551,26 @@ function rewrite_globals(ir::IR, cx::RModule)
   globals = Set{Symbol}()
   locals = filter(x -> haskey(cx, x), assignments(ir))
   pr = IRTools.Pipe(ir)
-  foreach(x -> push!(pr, :($(Slot(x)) = $(Global(Binding(cx.name, x))))), locals)
+  foreach(x -> push!(pr, :($(Slot(x)) = $(Binding(cx.name, x)))), locals)
   for (v, st) in pr
     # Global loads use the new slot
-    ex = IRTools.prewalk(x -> x isa Global && x.name.name in locals ? Slot(x.name.name) : x, st.expr)
+    ex = IRTools.prewalk(x -> x isa Binding && x.name in locals ? Slot(x.name) : x, st.expr)
     # Global stores use the new slot
-    if isexpr(ex, :(=)) && ex.args[1] isa Global
-      push!(globals, ex.args[1].name.name)
-      ex = :($(Slot(ex.args[1].name.name)) = $(ex.args[2]))
+    if isexpr(ex, :(=)) && ex.args[1] isa Binding
+      push!(globals, ex.args[1].name)
+      ex = :($(Slot(ex.args[1].name)) = $(ex.args[2]))
     end
     pr[v] = ex
   end
-  foreach(x -> push!(pr, :($(Global(Binding(cx.name, x))) = $(Slot(x)))), Base.union(locals, globals))
+  foreach(x -> push!(pr, :($(Binding(cx.name, x)) = $(Slot(x)))), Base.union(locals, globals))
   return IRTools.finish(pr), globals
 end
 
 function assigned_globals(ir::IR)
   globals = Dict{Binding,Any}()
   for (v, st) in ir
-    isexpr(st, :(=)) && st.expr.args[1] isa Global &&
-      (globals[st.expr.args[1].name] = st.type)
+    isexpr(st, :(=)) && st.expr.args[1] isa Binding &&
+      (globals[st.expr.args[1]] = st.type)
   end
   return globals
 end
@@ -592,7 +581,26 @@ function lower_toplevel(cx::RModule, ex; meta = nothing, resolve)
   withresolve(resolve) do
     _lower!(sc, ir, ex)
   end
-  IRTools.return!(ir, Global(tag"common", :nil))
+  IRTools.return!(ir, Binding(tag"common", :nil))
   ir, defs = rewrite_globals(ir, cx)
   ir |> pruneblocks! |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber, defs
+end
+
+# Turn global references into explicit load instructions
+function globals(ir::IR)
+  pr = IRTools.Pipe(ir)
+  function transform(x)
+    x isa Binding || return x
+    push!(pr, Expr(:global, x))
+  end
+  for (v, st) in pr
+    ex = st.expr
+    delete!(pr, v)
+    ex = isexpr(ex, :(=)) ?
+      Expr(ex.head, ex.args[1], transform.(ex.args[2:end])...) :
+      Expr(ex.head, transform.(ex.args)...)
+    v′ = push!(pr, stmt(ir[v], expr = ex))
+    replace!(pr, v, v′)
+  end
+  return IRTools.finish(pr)
 end

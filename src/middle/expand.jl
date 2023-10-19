@@ -31,31 +31,6 @@ function panic!(ir, s)
   push!(ir, stmt(xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s), type = ⊥))
 end
 
-# Global variables
-
-# Turn global references into explicit load instructions
-function globals(ir::IR)
-  pr = IRTools.Pipe(ir)
-  function transform(x)
-    x isa Global || return x
-    if x.type == ⊥
-      panic!(pr, "$(x.name) is not defined")
-    else
-      push!(pr, stmt(Expr(:global, x.name), type = x.type))
-    end
-  end
-  for (v, st) in pr
-    ex = st.expr
-    delete!(pr, v)
-    ex = isexpr(ex, :(=)) ?
-      Expr(ex.head, ex.args[1], transform.(ex.args[2:end])...) :
-      Expr(ex.head, transform.(ex.args)...)
-    v′ = push!(pr, stmt(ir[v], expr = ex))
-    replace!(pr, v, v′)
-  end
-  return IRTools.finish(pr)
-end
-
 # Pack primitives
 
 function cat_layout(xs...)
@@ -250,7 +225,7 @@ outlinePrimitive[packcat_method] = function (T::Pack)
   size = push!(ir, xcall(WIntrinsic(i32.wrap_i64, i32), size))
   bytes = push!(ir, xcall(WIntrinsic(i32.mul, i32), size, Int32(8)))
   margs = push!(ir, stmt(Expr(:tuple, bytes), type = rlist(Int32)))
-  ptr = push!(ir, stmt(xcall(Global(tag"common", :malloc!, tag"common.malloc!"), margs), type = Int32))
+  ptr = push!(ir, stmt(xcall(tag"common.malloc!", margs), type = Int32))
   pos = ptr
   for i in 1:nparts(T)
     P = part(T, i)
@@ -348,6 +323,9 @@ function lowerdata(ir)
       if haskey(inlinePrimitive, F)
         inlinePrimitive[F](pr, ir, v)
       end
+    elseif isexpr(st, :global) && st.type == ⊥
+      delete!(pr, v)
+      panic!(pr, "$(st.expr.args[1].name) is not defined")
     end
   end
   return IRTools.finish(pr)
@@ -361,7 +339,7 @@ function box!(ir, T, x)
   l = layout(T)
   bytes = sum(sizeof.(l))
   margs = push!(ir, stmt(Expr(:tuple, Int32(bytes)), type = rlist(Int32)))
-  ptr = push!(ir, stmt(xcall(Global(tag"common", :malloc!, tag"common.malloc!"), margs), type = Int32))
+  ptr = push!(ir, stmt(xcall(tag"common.malloc!", margs), type = Int32))
   pos = ptr
   for (i, T) in enumerate(cat_layout(l))
     push!(ir, xcall(WIntrinsic(WType(T).store, WTuple()), pos, Expr(:ref, x, i)))
@@ -406,7 +384,7 @@ function cast!(ir, from, to, x)
     push!(ir, stmt(Expr(:tuple, parts...), type = to))
   elseif from == rlist() && to isa VPack
     margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rlist(Int32)))
-    ptr = push!(ir, stmt(xcall(Global(tag"common", :malloc!, tag"common.malloc!"), margs), type = Int32))
+    ptr = push!(ir, stmt(xcall(tag"common.malloc!", margs), type = Int32))
     push!(ir, stmt(Expr(:tuple, Int32(0), ptr), type = to))
   elseif from isa String && to == RString()
     string!(ir, from)
@@ -470,7 +448,6 @@ function casts!(inf::Inferred, ir, ret)
 end
 
 function lowerir(inf, ir, ret)
-  ir = globals(ir)
   ir = trim_unreachable!(ir)
   ir = lowerdata(ir)
   ir = casts!(inf, ir, ret)

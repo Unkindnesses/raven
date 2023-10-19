@@ -202,14 +202,14 @@ function trivial_method(comp, func::Tag, Ts)
   end
 end
 
-function trivial_isa(comp, val, T::Tag)
-  meth = trivial_method(comp, tag"common.isa", rlist(val, T))
+function trivial_isa(defs, val, T::Tag)
+  meth = trivial_method(defs, tag"common.isa", rlist(val, T))
   meth == nothing && return missing
   ir = meth.func
   (length(ir) == 1 && length(blocks(ir)) == 1) || return missing
   ret = IRTools.returnvalue(block(ir, 1))
-  ret isa Global || return missing
-  ret = resolve_static(comp, ret.name)
+  ret isa Binding || return missing
+  ret = resolve_global(defs, ret)
   ret isa Int32 || return missing
   return Bool(ret)
 end
