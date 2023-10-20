@@ -18,11 +18,11 @@ end
 let
   ci = Raven.code_final(f, tag"pow")
   @test ci isa AbstractDict
-  @test length(ci) == 2
+  @test length(ci) == 1
 end
 
 let
   ci = Raven.code_wasm(f, tag"pow")
   @test ci isa AbstractDict
-  @test length(ci) == 2
+  @test length(ci) == 1
 end

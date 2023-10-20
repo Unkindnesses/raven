@@ -220,3 +220,24 @@ function components(cfg::CFG; blocks = 1:length(cfg))
   Component([blocks[1],
              [length(c) == 1 ? c[1] : components(cfg, blocks = sort(c)) for c in cs]...])
 end
+
+# Inlining
+
+function inlinehere!(ir, source, args...)
+  @assert length(blocks(source)) == 1
+  env = Dict()
+  rename(x::Variable) = env[x]
+  rename(x::Expr) = Expr(x.head, rename.(x.args)...)
+  rename(x::Statement) = stmt(x, expr = rename(x.expr))
+  rename(x) = x
+  for (name, arg) in zip(arguments(source), args)
+    env[name] = arg
+  end
+  for (v, st) in source
+    isexpr(st, :branch) && continue
+    env[v] = push!(ir, rename(st))
+  end
+  b = block(source, 1)
+  return b[end].expr == unreachable ? nothing :
+    rename(returnvalue(b))
+end

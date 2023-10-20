@@ -298,6 +298,7 @@ end
 predecessors(b::Block) = [c for c in blocks(b.ir) if b in successors(c)]
 
 Base.keys(b::Block) = first.(sort([Variable(i) => v for (i, v) in enumerate(b.ir.defs) if v[1] == b.id && v[2] > 0], by = x->x[2]))
+Base.lastindex(b::Block) = last(keys(b))
 
 function iterate(b::Block, (ks, i) = (keys(b), 1))
   i > length(ks) && return

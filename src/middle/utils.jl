@@ -114,10 +114,12 @@ struct Options
   jspanic::Bool
   # JS interop uses malloc/refcounting
   jsalloc::Bool
+  # Allow inlining
+  inline::Bool
 end
 
-Options(; memcheck = true, jspanic = true, jsalloc = true) =
-  Options(memcheck, jspanic, jsalloc)
+Options(; memcheck = true, jspanic = true, jsalloc = true, inline = true) =
+  Options(memcheck, jspanic, jsalloc, inline)
 
 withoptions(f, p) = dynamic_bind(f, :options, p)
 options() = dynamic_value(:options, Options())::Options

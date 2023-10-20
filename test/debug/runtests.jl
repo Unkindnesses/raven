@@ -2,7 +2,9 @@ using Raven, Test
 
 include("utils.jl")
 
-Raven.compile("$(@__DIR__)/src/pow.rv")
+Raven.compile("$(@__DIR__)/src/pow.rv",
+              Raven.Options(inline = false),
+              compiler = Raven.Compiler())
 
 pow_wasm = "$(@__DIR__)/src/pow.wasm"
 

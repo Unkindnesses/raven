@@ -28,6 +28,7 @@ include("middle/primitives.jl")
 include("middle/patterns.jl")
 include("middle/abstract.jl")
 include("middle/expand.jl")
+include("middle/inline.jl")
 include("middle/refcount.jl")
 include("middle/load.jl")
 
