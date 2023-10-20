@@ -2,6 +2,8 @@ struct Pipeline
   caches::Vector{Any}
 end
 
+subcaches(p::Pipeline) = p.caches
+
 function reset!(p::Pipeline; deps = [])
   print = copy(fingerprint(deps))
   for ch in p.caches

@@ -1,6 +1,6 @@
 using Raven, Test
 using Raven: @tag_str, @src_str, @rvx_str, Definitions, Inferred, Binding, rlist
-using Raven.Caches: reset!, valueid
+using Raven.Caches: reset!, valueid, fingerprint
 
 @testset "Globals" begin
   comp = Raven.load(src"foo = 1, bar = 1")
@@ -66,4 +66,11 @@ end
 
   @test inf[(tag"foo", rlist(5))][2] == rlist(7)
   @test id_plus == Caches.valueid(inf.results, (tag"common.+", rlist(Int, Int)))
+end
+
+@testset "Compiler" begin
+  compiler = Raven.Compiler()
+  print = fingerprint(compiler.pipe)
+  reset!(compiler.pipe)
+  @test fingerprint(compiler.pipe) == print
 end
