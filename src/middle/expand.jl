@@ -318,10 +318,13 @@ function lowerdata(ir)
       args = filter(x -> x isa Variable, st.expr.args)
       pr[v] = Expr(:tuple, args...)
     elseif isexpr(st, :call)
-      st.expr.args[1] isa WIntrinsic && continue
-      F = exprtype(ir, st.expr.args[1])
-      if haskey(inlinePrimitive, F)
-        inlinePrimitive[F](pr, ir, v)
+      if st.expr.args[1] isa WIntrinsic
+        haskey(wasmPartials, st.expr.args[1].op) && isvalue(st.type) && (pr[v] = Expr(:tuple))
+      else
+        F = exprtype(ir, st.expr.args[1])
+        if haskey(inlinePrimitive, F)
+          inlinePrimitive[F](pr, ir, v)
+        end
       end
     elseif isexpr(st, :global) && st.type == ⊥
       delete!(pr, v)
