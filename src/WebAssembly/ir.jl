@@ -21,7 +21,6 @@ function locals(ir::IR)
   env = Dict()
   parts(x::Variable) = env[x]
   parts(x::Real) = [Const(x)]
-  parts(x::GetGlobal) = [x] # assume globals are immutable
   local!(T) = (push!(locals, T); Local(length(locals)-1))
   local!(v, T) = get!(() -> [local!(T)], env, v)
   local!(v, T::WTuple) = get!(() -> local!.(T.parts), env, v)

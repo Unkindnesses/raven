@@ -113,7 +113,9 @@ function lowerwasm(ir::IR, names, env)
       pr[v] = st.expr.args[1]
     elseif isexpr(st, :global)
       l = env.globals[st.expr.args[1]::Binding]
-      pr[v] = Expr(:tuple, [WebAssembly.GetGlobal(id) for id in l]...)
+      ps = [insert!(pr, v, stmt(Expr(:call, WebAssembly.GetGlobal(id)), type = T))
+            for (id, T) in zip(l, wparts(st.type))]
+      pr[v] = length(ps) == 1 ? only(ps) : Expr(:tuple, ps...)
     elseif isexpr(st, :(=)) && (g = st.expr.args[1]) isa Binding
       delete!(pr, v)
       l = env.globals[g]

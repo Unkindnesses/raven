@@ -488,7 +488,7 @@ islastdef(ir::IR, v::Variable) =
 
 setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = substitute(p, x)
 
-function setindex!(p::Pipe, x::Variable, v)
+function setindex!(p::Pipe, x::Union{Variable,NewVariable}, v)
   v′ = substitute(p, v)
   if islastdef(p.to, v′)
     delete!(p, v)
@@ -499,7 +499,7 @@ function setindex!(p::Pipe, x::Variable, v)
 end
 
 function Base.replace!(pr::IRTools.Pipe, x, y)
-  IRTools.substitute!(pr, x, IRTools.substitute(pr, y))
+  substitute!(pr, x, substitute(pr, y))
 end
 
 function Base.push!(p::Pipe, x)
