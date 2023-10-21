@@ -32,8 +32,8 @@ test_rv"""
     }
   }
 
-  println(relu(widen(5)) == 5)
-  println(relu(widen(-5)) == 0)
+  test relu(widen(5)) == 5
+  test relu(widen(-5)) == 0
   """
 
 test_rv"""
@@ -41,7 +41,7 @@ test_rv"""
   n = widen(3)
   r = x^n
 
-  println(r == 8)
+  test r == 8
 
   fn pow(x, n: Int64) {
     r = one(x)
@@ -54,16 +54,16 @@ test_rv"""
     }
   }
 
-  println(pow(2, 3) == 8)
+  test pow(2, 3) == 8
   """
 
 test_rv"""
   z = Complex(widen(5), widen(6))
 
-  println(abs2(z) == 61)
-  println((z*z) == Complex(widen(-11), widen(60)))
-  println(z == z)
-  println(z != (z*z))
+  test abs2(z) == 61
+  test (z*z) == Complex(widen(-11), widen(60))
+  test z == z
+  test z != (z*z)
   """
 
 test_rv"""
@@ -75,7 +75,7 @@ test_rv"""
     }
   }
 
-  println(fib(20) == 6765)
+  test fib(20) == 6765
   """
 
 test_rv"""
@@ -83,7 +83,7 @@ test_rv"""
   fn fib(0) { 0 }
   fn fib(1) { 1 }
 
-  println(fib(widen(20)) == 6765)
+  test fib(widen(20)) == 6765
   """
 
 @testset "Memory" begin
@@ -92,7 +92,7 @@ end
 
 # Return-value casting
 test_rv"""
-  fn test(c) {
+  fn foo(c) {
     if c {
       return "true"
     } else {
@@ -100,52 +100,52 @@ test_rv"""
     }
   }
 
-  println(test(widen(true)) == "true")
-  println(test(widen(true)) != "false")
-  println(test(widen(false)) == "false")
+  test foo(widen(true)) == "true"
+  test foo(widen(true)) != "false"
+  test foo(widen(false)) == "false"
   """
 
 test_rv"""
-  println(tag"foo" == tag"foo")
-  println(tag"foo" != tag"bar")
+  test tag"foo" == tag"foo"
+  test tag"foo" != tag"bar"
   """
 
 test_rv"""
   x = if widen(true) { tag"foo" } else { tag"bar" }
-  println(x == tag"foo")
-  println(x != tag"bar")
-  println(tag"foo" == x)
-  println(tag"bar" != x)
+  test x == tag"foo"
+  test x != tag"bar"
+  test tag"foo" == x
+  test tag"bar" != x
   """
 
 test_rv"""
   xs = seq(widen(1), widen(2), widen(3))
-  println(sum(xs) == 6)
+  test sum(xs) == 6
   """
 
 test_rv"""
   xs = [4, widen(5)]
-  println((part(xs, widen(1)) + part(xs, widen(2))) == (4+5))
+  test (part(xs, widen(1)) + part(xs, widen(2))) == (4+5)
   """
 
 @test_rv("""
   xs = [3, 5, 7]
-  println(part(xs, 5))
+  test part(xs, 5)
   """,
   error = true,
   output = "Invalid index 5 for pack")
 
 @test_rv("""
   xs = [3, 5, 7]
-  println(part(xs, widen(5)))
+  test part(xs, widen(5))
   """,
   error = true,
   output = "Invalid index for pack")
 
 test_rv"""
-  println(tag(widen(5)) == Int64)
-  println(part(widen(5), 1) == 5)
-  println(tag("foo") == String)
+  test tag(widen(5)) == Int64
+  test part(widen(5), 1) == 5
+  test tag("foo") == String
   """
 
 test_rv"""
@@ -159,13 +159,13 @@ test_rv"""
 
   {
     xs = myrange(widen(10))
-    println(nparts(xs) == 10)
-    println(part(xs, 1) == 1)
-    println(part(xs, 10) == 10)
-    println(part(xs, widen(5)) == 5)
+    test nparts(xs) == 10
+    test part(xs, 1) == 1
+    test part(xs, 10) == 10
+    test part(xs, widen(5)) == 5
   }
 
-  println(allocationCount() == 0)
+  test allocationCount() == 0
   """
 
 @test_rv("""
@@ -193,13 +193,13 @@ test_rv"""
 
   {
     xs = rangeReverse(10)
-    println(nparts(xs) == 10)
-    println(part(xs, 1) == 10)
-    println(part(xs, 10) == 1)
-    println(part(xs, widen(5)) == 6)
+    test nparts(xs) == 10
+    test part(xs, 1) == 10
+    test part(xs, 10) == 1
+    test part(xs, widen(5)) == 6
   }
 
-  println(allocationCount() == 0)
+  test allocationCount() == 0
   """
 
 test_rv"""
@@ -208,15 +208,15 @@ test_rv"""
     itr = iterator(xs)
 
     val = iterate(&itr)
-    println(not(isnil(val)))
-    println(part(val, 1) == 5)
+    test not(isnil(val))
+    test part(val, 1) == 5
 
     val = iterate(&itr)
-    println(not(isnil(val)))
-    println(part(val, 1) == 6)
+    test not(isnil(val))
+    test part(val, 1) == 6
 
     val = iterate(&itr)
-    println(isnil(val))
+    test isnil(val)
   }
   """
 
@@ -227,19 +227,19 @@ test_rv"""
     setkey(&d, tag"b", 5)
     setkey(&d, tag"b", "foo")
 
-    println(length(d) == 2)
+    test length(d) == 2
 
-    println(getkey(d, tag"a") == 7)
-    println(getkey(d, tag"b") == "foo")
-    println(haskey(d, tag"b"))
-    println(not(haskey(d, tag"c")))
+    test getkey(d, tag"a") == 7
+    test getkey(d, tag"b") == "foo"
+    test haskey(d, tag"b")
+    test not(haskey(d, tag"c"))
 
-    println(not(isnil(merge(d, tag"b", "foo"))))
-    println(isnil(merge(d, tag"b", "bar")))
-    println(not(isnil(merge(d, tag"c", 9))))
+    test not(isnil(merge(d, tag"b", "foo")))
+    test isnil(merge(d, tag"b", "bar"))
+    test not(isnil(merge(d, tag"c", 9)))
 
-    println(not(isnil(merge(d, tag"a", widen(7)))))
-    println(isnil(merge(d, tag"a", widen(8))))
+    test not(isnil(merge(d, tag"a", widen(7))))
+    test isnil(merge(d, tag"a", widen(8)))
   }
   """
 
@@ -247,11 +247,11 @@ test_rv"""
   {
     b1 = seq(Pair(tag"a", 1), Pair(tag"b", 2))
     b2 = seq(Pair(tag"b", widen(2)), Pair(tag"d", 3))
-    println(not(isnil(merge(&b1, b2))))
+    test not(isnil(merge(&b1, b2)))
 
     b1 = seq(Pair(tag"a", 1), Pair(tag"b", 2))
     b2 = seq(Pair(tag"b", widen(3)), Pair(tag"d", 3))
-    println(isnil(merge(&b1, b2)))
+    test isnil(merge(&b1, b2))
   }
   """
 
@@ -261,60 +261,58 @@ test_rv"""
 
   {
     xs = foo(widen(0))
-    println(string(tag(xs)) == "common.Empty")
-    println(nparts(xs) == 0)
-    println(isempty(xs))
-    println(length(xs) == 0)
-    println(allocationCount() == 0)
+    test string(tag(xs)) == "common.Empty"
+    test nparts(xs) == 0
+    test isempty(xs)
+    test length(xs) == 0
+    test allocationCount() == 0
 
     xs = foo(widen(5))
-    println(string(tag(xs)) == "common.Prepend")
-    println(nparts(xs) == 2)
-    println(part(xs, 2) == 5)
-    println(part(part(xs, 1), 2) == 4)
-    println(not(isempty(xs)))
-    println(length(xs) == 5)
-    println(allocationCount() == 0)
+    test string(tag(xs)) == "common.Prepend"
+    test nparts(xs) == 2
+    test part(xs, 2) == 5
+    test part(part(xs, 1), 2) == 4
+    test not(isempty(xs))
+    test length(xs) == 5
+    test allocationCount() == 0
   }
   """
 
 test_rv"""
   {
     xs = seqRange(widen(1), widen(10))
-    println(sum(xs) == 55)
+    test sum(xs) == 55
     xs = repeat(widen(3), widen(5))
-    println(sum(xs) == 15)
+    test sum(xs) == 15
   }
   """
 
 @test_rv("""
-  print(seqRange(widen(1), widen(3)))
+  println(seqRange(widen(1), widen(3)))
   """, output = "seq(1, 2, 3)")
 
 test_rv"""
   {
     xs = collect(range(1, 5))
-    println(length(rest(xs)) == 4)
+    test length(rest(xs)) == 4
 
     xs = collect(range(1, widen(5)))
-    println(length(rest(xs)) == 4)
+    test length(rest(xs)) == 4
   }
   """
 
 test_rv"""
   fn swap(&x, &y) {
-    tmp = x
-    x = y
-    y = tmp
-    x+y
+    [x, y] = [y, x]
+    return x+y
   }
 
   a = widen(3)
   b = widen(5)
 
-  println(swap(&a, &b) == 8)
-  println(a == 5)
-  println(b == 3)
+  test swap(&a, &b) == 8
+  test a == 5
+  test b == 3
   """
 
 test_rv"""
@@ -327,8 +325,8 @@ test_rv"""
     c = 3
     d = 5
     copy(&c, &d) # TODO disallow this
-    println(c == nil)
-    println(d == 3)
+    test c == nil
+    test d == 3
   }
   """
 
@@ -337,8 +335,8 @@ test_rv"""
     a + b
   }
 
-  println(add([widen(2), widen(3)]...) == 5)
-  println(add([widen(2)]..., [widen(3)]...) == 5)
+  test add([widen(2), widen(3)]...) == 5
+  test add([widen(2)]..., [widen(3)]...) == 5
   """
 
 test_rv"""
@@ -346,7 +344,7 @@ test_rv"""
     part(args, 1) + part(args, 2)
   }
 
-  println(add(widen(5), widen(3)) == 8)
+  test add(widen(5), widen(3)) == 8
   """
 
 test_rv"""
@@ -354,17 +352,17 @@ test_rv"""
 
   fn foo(m) { return n + m }
 
-  println(foo(3) == 8)
+  test foo(3) == 8
   """
 
 test_rv"""
   x = 1, { x = 2 }
-  println(x == 2)
+  test x == 2
   """
 
 test_rv"""
   x = widen(1), { x = 2 }
-  println(x == 2)
+  test x == 2
   """
 
 test_rv"""
@@ -373,38 +371,38 @@ test_rv"""
   let x = x {
     x = x + 1
     y = y + 1
-    println(x == 2)
-    println(y == 2)
+    test x == 2
+    test y == 2
   }
 
-  println(x == 1)
-  println(y == 2)
+  test x == 1
+  test y == 2
   """
 
 test_rv"""
-  println(not(isnil(match(widen(1), Literal(1)))))
-  println(isnil(match(widen(2), Literal(1))))
+  test not(isnil(match(widen(1), Literal(1))))
+  test isnil(match(widen(2), Literal(1)))
   """
 
 test_rv"""
   fn test(1, x) { x }
   fn test(2, x) { x + 1 }
 
-  println(test(widen(1), widen(3)) == 3)
-  println(test(widen(2), widen(3)) == 4)
+  test test(widen(1), widen(3)) == 3
+  test test(widen(2), widen(3)) == 4
 
   fn test(Complex(a, b)) { a + b }
   fn test(Complex(a, a)) { a }
 
-  println(test(Complex(1, widen(2))) == 3)
-  println(test(Complex(2, widen(2))) == 2)
+  test test(Complex(1, widen(2))) == 3
+  test test(Complex(2, widen(2))) == 2
   """
 
 test_rv"""
   {
     xs = [widen(2), widen(3)]
     [a, b] = xs
-    println((a + b) == 5)
+    test (a + b) == 5
   }
   """
 
@@ -412,7 +410,7 @@ test_rv"""
   {
     xs = [widen(2), widen(2)]
     [a, a] = xs
-    println((a + a) == 4)
+    test (a + a) == 4
   }
   """
 
@@ -429,12 +427,12 @@ test_rv"""
   {
     xs = Complex(widen(2), widen(3))
     Complex(a, b) = xs
-    println((a + b) == 5)
+    test (a + b) == 5
   }
   """
 
 test_rv"""
-  println(concat("a", "b") == "ab")
+  test concat("a", "b") == "ab"
   """
 
 test_rv"""
@@ -446,8 +444,8 @@ test_rv"""
     }
   }
 
-  println(string(eitherSym(widen(true))) == "foo")
-  println(string(eitherSym(widen(false))) == "bar")
+  test string(eitherSym(widen(true))) == "foo"
+  test string(eitherSym(widen(false))) == "bar"
   """
 
 test_rv"""
@@ -472,15 +470,15 @@ test_rv"""
 
   {
     primes = sieve(widen(100))
-    println(part(primes, 1) == 2)
-    println(part(primes, length(primes)) == 97)
+    test part(primes, 1) == 2
+    test part(primes, length(primes)) == 97
   }
   """
 
 test_rv"""
   {
     obj = await(call(global(), "dummyPromise", 5))
-    println(Float64(obj) == Float64(5))
+    test Float64(obj) == Float64(5)
   }
   """
 
@@ -497,6 +495,6 @@ test_rv"""
     }
   }
 
-  println(pow(2, 3) == 8)
+  test pow(2, 3) == 8
   """,
   options = Raven.Options(jsalloc=false))

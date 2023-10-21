@@ -196,6 +196,22 @@ function showmacro(ex)
   )
 end
 
+function testmacro(ex)
+  ex = ex[2]
+  AST.Syntax(:if, ex, AST.Block(
+    AST.Call(:println, "pass: $ex")
+  ), :else, AST.Block(
+    AST.Call(:println, "fail: $ex")
+  ))
+end
+
+macros = Dict(
+  :bundle => bundlemacro,
+  :for => formacro,
+  :show => showmacro,
+  :test => testmacro,
+)
+
 # Expr -> IR lowering
 
 const nilx = AST.Call(:pack, AST.Template(:tag, "common.Nil"))
@@ -504,10 +520,8 @@ function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
     _push!(ir, xcall(op, args...); src, bp = true)
   elseif ex[1] == :let
     lowerlet!(sc, ir, ex, value)
-  elseif ex[1] == :for
-    (value ? lower! : _lower!)(sc, ir, formacro(ex))
-  elseif ex[1] == :show
-    (value ? lower! : _lower!)(sc, ir, showmacro(ex))
+  elseif haskey(macros, ex[1])
+    (value ? lower! : _lower!)(sc, ir, macros[ex[1]](ex))
   else
     error("unrecognised block $(ex[1])")
   end

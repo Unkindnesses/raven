@@ -39,10 +39,11 @@ function test_rv(code; error = false, source = nothing,
     result = occursin(output, out)
     Test.do_test(Test.Returned(result, nothing, source), :(occursin($output, $out)))
   elseif !error
-    result = Base.parse.(Bool, split(out))
-    @assert !isempty(result)
-    for r in result
-      Test.do_test(Test.Returned(r, nothing, source), code)
+    results = split(out, "\n", keepempty = false)
+    @assert !isempty(results)
+    for r in results
+      r, code = match(r"(\w+): (.*)", r).captures
+      Test.do_test(Test.Returned(r == "pass", nothing, source), code)
     end
   end
 end
