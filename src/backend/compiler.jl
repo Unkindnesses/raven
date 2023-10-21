@@ -36,6 +36,7 @@ end
 function compile(file, opts = Options();
                  dir = dirname(file),
                  compiler = compiler)
+  opts == Options() || (compiler = Compiler())
   path = normpath(joinpath(pwd(), file))
   path, _ = splitext(path)
   name = basename(path)
