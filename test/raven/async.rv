@@ -1,4 +1,0 @@
-{
-  obj = await(call(global(), "dummyPromise", 5))
-  println(Float64(obj) == Float64(5))
-}

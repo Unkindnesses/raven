@@ -31,7 +31,7 @@ function code_wasm(mod::Compilation, func)
   IdDict{Any,WebAssembly.Func}(sig => fr for (sig, fr) in IdDict(mod.funcs) if sigmatch(sig, func))
 end
 
-code_lowered(src::AbstractString, func) = code_lowered(load(src), func)
-code_typed(src::AbstractString, func...) = code_typed(load(src), func...)
-code_final(src::AbstractString, func...) = code_final(load(src), func...)
-code_wasm(src::AbstractString, func) = code_wasm(load(src), func)
+code_lowered(src, func) = code_lowered(load(src), func)
+code_typed(src, func...) = code_typed(load(src), func...)
+code_final(src, func...) = code_final(load(src), func...)
+code_wasm(src, func) = code_wasm(load(src), func)

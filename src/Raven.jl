@@ -36,5 +36,6 @@ include("backend/wasm.jl")
 include("backend/compiler.jl")
 
 include("reflection.jl")
+include("test.jl")
 
 end # module
