@@ -14,10 +14,6 @@ end
   include("types.jl")
 end
 
-@testset "Matching" begin
-  include("match.jl")
-end
-
 @testset "Parser" begin
   include("parse.jl")
 end

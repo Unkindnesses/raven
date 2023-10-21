@@ -20,8 +20,6 @@ include("frontend/types.jl")
 include("frontend/modules.jl")
 include("frontend/lower.jl")
 
-include("match.jl")
-
 include("middle/utils.jl")
 include("middle/loop.jl")
 include("middle/primitives.jl")
