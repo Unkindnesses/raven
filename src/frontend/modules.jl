@@ -89,25 +89,25 @@ function pathtag(p)
   Tag(join(split(p[1:end-3], "/"), "."))
 end
 
-struct Compilation
+struct Modules
   mods::Dict{Tag,RModule}
 end
 
-Compilation() = Compilation(Dict{Tag,RModule}())
+Modules() = Modules(Dict{Tag,RModule}())
 
-module!(c::Compilation, mod::RModule) = c.mods[mod.name] = mod
-module!(c::Compilation, mod::Tag) = get!(() -> RModule(mod), c.mods, mod)
+module!(c::Modules, mod::RModule) = c.mods[mod.name] = mod
+module!(c::Modules, mod::Tag) = get!(() -> RModule(mod), c.mods, mod)
 
-@forward Compilation.mods Base.getindex
+@forward Modules.mods Base.getindex
 
-Caches.subcaches(c::Compilation) = values(c.mods)
+Caches.subcaches(c::Modules) = values(c.mods)
 
-function resolve_static(cx::Compilation, b::Binding)
+function resolve_static(cx::Modules, b::Binding)
   val = cx.mods[b.mod][b.name]
   val isa Binding ? resolve_static(cx, val) : val
 end
 
-function methods(cx::Compilation, name::Tag, mod::Tag = tag"", ms = RMethod[], seen = Set{Tag}())
+function methods(cx::Modules, name::Tag, mod::Tag = tag"", ms = RMethod[], seen = Set{Tag}())
   for m in cx[mod].methods[name]
     if m isa Tag
       m in seen && continue
@@ -125,7 +125,7 @@ struct Definitions
   methods::EagerCache{Tag,Vector{RMethod}}
 end
 
-function Definitions(comp::Compilation)
+function Definitions(comp::Modules)
   globals = EagerCache{Binding,Any}() do self, b
     get(comp[b.mod].defs, b.name, ⊥)
   end

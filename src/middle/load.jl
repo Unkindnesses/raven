@@ -10,7 +10,7 @@ macro src_str(s)
 end
 
 struct LoadState
-  comp::Compilation
+  comp::Modules
   mod::RModule
 end
 
@@ -102,17 +102,17 @@ loadfile(cx::LoadState, path::String) =
 loadfile(cx::LoadState, src::SourceString) =
   loadfile(cx, IOBuffer(src.source), path = src.path)
 
-function loadmodule(comp::Compilation, mod::RModule, path)
+function loadmodule(comp::Modules, mod::RModule, path)
   cx = LoadState(comp, mod)
   loadfile(cx, path)
   return mod
 end
 
-function loadmodule(comp::Compilation, mod::Tag, path)
+function loadmodule(comp::Modules, mod::Tag, path)
   return loadmodule(comp, module!(comp, mod), path)
 end
 
-function reload!(comp::Compilation, src)
+function reload!(comp::Modules, src)
   main = module!(comp, tag"")
   empty!(main)
   common = comp[tag"common"]
@@ -122,7 +122,7 @@ function reload!(comp::Compilation, src)
 end
 
 function load(src)
-  comp = Compilation()
+  comp = Modules()
   module!(comp, core())
   loadmodule(comp, tag"common.core", "$common/core.rv")
   com = loadmodule(comp, tag"common", "$common/common.rv")

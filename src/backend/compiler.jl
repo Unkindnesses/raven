@@ -1,11 +1,11 @@
 struct Compiler
-  sources::Compilation
+  sources::Modules
   defs::Definitions
   wasm::Wasm
   pipe::Pipeline
 end
 
-function Compiler(sources::Compilation = load(src""))
+function Compiler(sources::Modules = load(src""))
   defs = Definitions(sources)
   inferred = Inferred(defs)
   lowered = lowerir(inferred)
