@@ -191,6 +191,35 @@ Caches.subcaches(w::Wasm) = (w.env, w.names, w.funcs)
 Caches.reset!(w::Wasm; deps = []) =
   reset!(Pipeline([w.env, w.names, w.funcs]); deps)
 
+struct BatchEmitter
+  main::Vector{Symbol}
+  seen::Set{Symbol}
+  funcs::Vector{WebAssembly.Func}
+end
+
+BatchEmitter() = BatchEmitter([], Set(), [])
+
+function emit!(e::BatchEmitter, mod::Wasm, func::WebAssembly.Func)
+  func.name in e.seen && return
+  push!(e.seen, func.name)
+  push!(e.funcs, func)
+  for f in WebAssembly.callees(func)
+    Caches.hasvalue(mod.names, f) || continue
+    emit!(e, mod, f)
+  end
+end
+
+emit!(e::BatchEmitter, mod::Wasm, f::Symbol) =
+  emit!(e, mod, mod[f])
+
+function BatchEmitter(mod::Wasm, main)
+  e = BatchEmitter()
+  foreach(f -> emit!(e, mod, f), main)
+  foreach(f -> emit!(e, mod, f), mod.env.table)
+  append!(e.main, main)
+  return e
+end
+
 default_imports = [
   WebAssembly.Import(:support, :global, :jsglobal, [] => [i32]),
   WebAssembly.Import(:support, :property, :jsproperty, [i32, i32] => [i32]),
@@ -203,41 +232,30 @@ default_imports = [
   WebAssembly.Import(:support, :equal, :jseq, [i32, i32] => [i32]),
   WebAssembly.Import(:support, :release, :jsfree, [i32] => [])]
 
-function appendfunc!(funcs, func::WebAssembly.Func, mod, seen)
-  func.name in seen && return
-  push!(seen, func.name)
-  push!(funcs, func)
-  for f in WebAssembly.callees(func)
-    Caches.hasvalue(mod.names, f) || continue
-    appendfunc!(funcs, f, mod, seen)
-  end
-end
-
-appendfunc!(funcs, f::Symbol, mod::Wasm, seen) =
-  appendfunc!(funcs, mod[f], mod, seen)
-
-function wasmmodule(mod::Wasm, main)
-  main = [mod.names[(m,)] for m in main]
-  funcs = WebAssembly.Func[]
+function wasmmodule(em::BatchEmitter, env::WEnv)
   start = WebAssembly.Func(:_start, [externref]=>[], [],
     WebAssembly.Block([
       WebAssembly.Local(0),
       WebAssembly.SetGlobal(0),
-      [WebAssembly.Call(m) for m in main]...
+      [WebAssembly.Call(m) for m in em.main]...
       ]),
     FuncInfo(tag"common.core.main", trampoline = true))
-  done = Set{Symbol}()
-  appendfunc!(funcs, start, mod, done)
-  foreach(f -> appendfunc!(funcs, f, mod, done), mod.env.table)
+  pushfirst!(em.funcs, start)
   wmod = WebAssembly.Module(
-    funcs = funcs,
+    funcs = em.funcs,
     imports = default_imports,
     exports = [WebAssembly.Export(:_start, :_start)],
-    globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in mod.env.globals.types]...],
-    tables = [WebAssembly.Table(length(mod.env.table))],
-    elems = [WebAssembly.Elem(0, mod.env.table)],
+    globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in env.globals.types]...],
+    tables = [WebAssembly.Table(length(env.table))],
+    elems = [WebAssembly.Elem(0, env.table)],
     mems = [WebAssembly.Mem(0)])
-  return wmod, mod.env.strings
+  return wmod
+end
+
+function wasmmodule(w::Wasm, main)
+  main = [w.names[(m,)] for m in main]
+  em = BatchEmitter(w, main)
+  wasmmodule(em, w.env)
 end
 
 pscmd(cmd) = Sys.iswindows() ? `powershell -command $cmd` : cmd
@@ -255,9 +273,9 @@ function binary(m::WebAssembly.Module, file; path)
 end
 
 function emitwasm(w::Wasm, main, out; path)
-  mod, strings = wasmmodule(w, main)
+  mod = wasmmodule(w, main)
   binary(mod, out; path)
-  return strings
+  return w.env.strings
 end
 
 # JS support
