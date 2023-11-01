@@ -116,15 +116,6 @@ function lowerwasm(ir::IR, names, env)
       ps = [insert!(pr, v, stmt(Expr(:call, WebAssembly.GetGlobal(id)), type = T))
             for (id, T) in zip(l, wparts(st.type))]
       pr[v] = length(ps) == 1 ? only(ps) : Expr(:tuple, ps...)
-    elseif isexpr(st, :(=)) && (g = st.expr.args[1]) isa Binding
-      delete!(pr, v)
-      l = env.globals[g]
-      for i in 1:length(l)
-        p = st.expr.args[2]
-        wlayout(st.type) isa WTuple &&
-          (p = push!(pr, Expr(:ref, p, i)))
-        push!(pr, stmt(xcall(WebAssembly.SetGlobal(l[i]), p), type = WTuple()))
-      end
     elseif isexpr(st, :call) && st.expr.args[1] isa WIntrinsic
       int = st.expr.args[1]
       ex = xcall(int.op, st.expr.args[2:end]...)
@@ -146,6 +137,7 @@ function lowerwasm(ir::IR, names, env)
                    expr = xcall(WebAssembly.CallIndirect(I => O, 0), args, f),
                    type = wlayout(st.type))
     elseif isexpr(st, :branch)
+    elseif isexpr(st, :(=)) && (g = st.expr.args[1]) isa Binding
     else
       error("unrecognised $(st.expr.head) expression")
     end
@@ -157,6 +149,22 @@ function lowerwasm(ir::IR, names, env)
   return ir
 end
 
+function lowerwasm_globals(ir::IR, types)
+  pr = IRTools.Pipe(ir)
+  for (v, st) in pr
+    isexpr(st, :(=)) && (g = st.expr.args[1]) isa Binding || continue
+    delete!(pr, v)
+    l = types[g]
+    for i in 1:length(l)
+      p = st.expr.args[2]
+      wlayout(st.type) isa WTuple &&
+        (p = push!(pr, Expr(:ref, p, i)))
+      push!(pr, stmt(xcall(WebAssembly.SetGlobal(l[i]), p), type = WTuple()))
+    end
+  end
+  return IRTools.finish(pr)
+end
+
 struct Wasm
   env::WEnv
   names::DualCache{Any,Symbol}
@@ -166,6 +174,7 @@ end
 function Wasm(env::WEnv, code)
   count = Dict{Symbol,Int}()
   names = DualCache{Any,Symbol}() do self, sig
+    code[sig] # new name if code changes
     id = sig[1] isa Tag ? Symbol(sig[1]) : Symbol(Symbol(sig[1].name), ":method")
     c = count[id] = get(count, id, 0)+1
     return Symbol(id, ":", c)
@@ -199,6 +208,9 @@ end
 
 BatchEmitter() = BatchEmitter([], Set(), [])
 
+Base.copy(em::BatchEmitter) =
+  BatchEmitter(copy(em.main), copy(em.seen), copy(em.funcs))
+
 function emit!(e::BatchEmitter, mod::Wasm, func::WebAssembly.Func)
   func.name in e.seen && return
   push!(e.seen, func.name)
@@ -211,14 +223,6 @@ end
 
 emit!(e::BatchEmitter, mod::Wasm, f::Symbol) =
   emit!(e, mod, mod[f])
-
-function BatchEmitter(mod::Wasm, main)
-  e = BatchEmitter()
-  foreach(f -> emit!(e, mod, f), main)
-  foreach(f -> emit!(e, mod, f), mod.env.table)
-  append!(e.main, main)
-  return e
-end
 
 default_imports = [
   WebAssembly.Import(:support, :global, :jsglobal, [] => [i32]),
@@ -252,12 +256,6 @@ function wasmmodule(em::BatchEmitter, env::WEnv)
   return wmod
 end
 
-function wasmmodule(w::Wasm, main)
-  main = [w.names[(m,)] for m in main]
-  em = BatchEmitter(w, main)
-  wasmmodule(em, w.env)
-end
-
 pscmd(cmd) = Sys.iswindows() ? `powershell -command $cmd` : cmd
 
 function tmp()
@@ -272,10 +270,9 @@ function binary(m::WebAssembly.Module, file; path)
   return
 end
 
-function emitwasm(w::Wasm, main, out; path)
-  mod = wasmmodule(w, main)
-  binary(mod, out; path)
-  return w.env.strings
+function emitwasm(em::BatchEmitter, env::WEnv, out; path)
+  binary(wasmmodule(em, env), out; path)
+  return env.strings
 end
 
 # JS support

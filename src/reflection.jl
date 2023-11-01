@@ -6,32 +6,26 @@ sigmatch(sig, func, Ts) =
   (sig[1] isa RMethod ? sig[2:end] == (Ts...,) :
    sig[2] == rlist(Ts...))
 
-function code_lowered(cx::Modules, func)
-  return IdDict(meth.sig.pattern => meth.func for meth in methods(cx, func))
+function code_lowered(c::Compiler, func)
+  return IdDict(meth.sig.pattern => meth.func for meth in methods(c.sources, func))
 end
 
-function code_typed(mod::Modules, func...)
-  c = Compiler(mod)
-  wasmmodule(c.pipe.caches[end], c.defs[tag"common.core.main"])
+function code_typed(c::Compiler, func...)
   inf = c.pipe.caches[3]
   IdDict{Any,IR}(sig => fr[1] for (sig, fr) in IdDict(inf.results) if !(fr isa Redirect) && sigmatch(sig, func...))
 end
 
-function code_final(mod::Modules, func...)
-  c = Compiler(mod)
-  wasmmodule(c.pipe.caches[end], c.defs[tag"common.core.main"])
+function code_final(c::Compiler, func...)
   cx = c.pipe.caches[end-1]
   IdDict{Any,IR}(sig => ir for (sig, ir) in IdDict(cx) if sigmatch(sig, func...))
 end
 
-function code_wasm(mod::Modules, func)
-  c = Compiler(mod)
+function code_wasm(c::Compiler, func)
   mod = c.pipe.caches[end]
-  wasmmodule(mod, c.defs[tag"common.core.main"])
   IdDict{Any,WebAssembly.Func}(sig => fr for (sig, fr) in IdDict(mod.funcs) if sigmatch(sig, func))
 end
 
-code_lowered(src, func) = code_lowered(load(src), func)
-code_typed(src, func...) = code_typed(load(src), func...)
-code_final(src, func...) = code_final(load(src), func...)
-code_wasm(src, func) = code_wasm(load(src), func)
+code_lowered(src, func) = code_lowered(Compiler(src), func)
+code_typed(src, func...) = code_typed(Compiler(src), func...)
+code_final(src, func...) = code_final(Compiler(src), func...)
+code_wasm(src, func) = code_wasm(Compiler(src), func)

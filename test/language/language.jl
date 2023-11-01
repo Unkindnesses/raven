@@ -37,6 +37,16 @@ test_rv"""
   """
 
 test_rv"""
+  fn foo(x) { x + 1 }
+
+  test foo(widen(5)) == 6
+
+  fn foo(x) { x + 2 }
+
+  test foo(widen(5)) == 7
+  """
+
+test_rv"""
   x = widen(2)
   n = widen(3)
   r = x^n

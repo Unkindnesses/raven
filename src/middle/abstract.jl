@@ -391,26 +391,10 @@ function Base.delete!(i::Inferred, b::Binding)
 end
 
 function Caches.reset!(i::Inferred; deps = [])
-  # Globals have implicit edges to the main methods that created them. A bit
-  # messy.
-  main = i.inf.defs[tag"common.core.main"]
-  dead = [sig[1] for sig in keys(i.inf.frames) if sigmatch(sig, tag"common.core.main") && !(sig[1] in main)]
-  gs = reduce(Base.union, (keys(assigned_globals(i.inf.frames[(m,)].ir.body[1])) for m in dead), init = Set{Binding}())
-  foreach(g -> delete!(i, g), gs)
-
-  # Main update for methods
   print = Caches.fingerprint(deps)
   reset!(i.dispatchers, deps = print)
   print = Base.union(print, Caches.fingerprint(i.dispatchers))
   for (x, dep) in i.inf.deps
     dep in print || delete!(i, x)
-  end
-
-  # Refresh any live assignments to globals
-  for m in main
-    haskey(i.inf.frames, (m,)) || continue
-    for (x, T) in assigned_globals(i.inf.frames[(m,)].ir.body[1])
-      global!(i.inf, x, T)
-    end
   end
 end

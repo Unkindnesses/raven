@@ -50,6 +50,7 @@ function load_expr(cx::LoadState, x; src)
   ir, defs = lower_toplevel(cx.mod, x; meta = FuncInfo(tag"common.core.main", src), resolve = x -> resolve_static(cx, x))
   foreach(x -> get!(cx.mod, x, ⊥), defs)
   method!(cx.mod, RMethod(tag"common.core.main", lowerpattern(AST.List()), ir))
+  emit(ir)
 end
 
 isfn(x) = x[1] == :fn || ((x[1], x[2]) == (:extend, :fn))

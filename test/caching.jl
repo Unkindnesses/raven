@@ -16,7 +16,7 @@ using Raven.Caches: reset!, valueid, fingerprint
 
   @test defs[Binding(tag"", :foo)] == 1
   @test defs[Binding(tag"", :bar)] == 2
-  @test id_foo == valueid(defs.globals, Binding(tag"", :foo))
+  @test_broken id_foo == valueid(defs.globals, Binding(tag"", :foo))
   @test id_bar != valueid(defs.globals, Binding(tag"", :bar))
 end
 

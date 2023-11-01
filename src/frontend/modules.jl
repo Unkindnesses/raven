@@ -37,7 +37,8 @@ Base.getindex(m::Methods, k::Tag) = get(m.methods, k, m.imports[])
 Caches.subcaches(m::Methods) = (m.imports, m.methods)
 
 method!(ms::Methods, m::RMethod) =
-  push!(get!(ms.methods, m.name, Union{RMethod,Tag}[ms.imports[]...]), m)
+  ms.methods[m.name] =
+    push!(get(ms.methods, m.name, Union{RMethod,Tag}[ms.imports[]...]), m)
 
 function import!(ms::Methods, mod::Tag)
   mod in ms.imports[] && return
@@ -102,8 +103,13 @@ module!(c::Modules, mod::Tag) = get!(() -> RModule(mod), c.mods, mod)
 
 Caches.subcaches(c::Modules) = values(c.mods)
 
+Base.getindex(cx::Modules, b::Binding) = cx.mods[b.mod][b.name]
+
+Base.setindex!(cx::Modules, T, b::Binding) =
+  cx.mods[b.mod][b.name] = T
+
 function resolve_static(cx::Modules, b::Binding)
-  val = cx.mods[b.mod][b.name]
+  val = cx[b]
   val isa Binding ? resolve_static(cx, val) : val
 end
 
@@ -121,12 +127,12 @@ function methods(cx::Modules, name::Tag, mod::Tag = tag"", ms = RMethod[], seen 
 end
 
 struct Definitions
-  globals::EagerCache{Binding,Any}
+  globals::Cache{Binding,Any}
   methods::EagerCache{Tag,Vector{RMethod}}
 end
 
 function Definitions(comp::Modules)
-  globals = EagerCache{Binding,Any}() do self, b
+  globals = Cache{Binding,Any}() do self, b
     get(comp[b.mod].defs, b.name, ⊥)
   end
   methods = EagerCache{Tag,Vector{RMethod}}() do self, name
