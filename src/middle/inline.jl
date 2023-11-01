@@ -18,8 +18,9 @@ function inlineable(ir::IR)
 end
 
 function inlineable(cache, T)
-  T = sig(cache, T)
-  Caches.value(cache, T) == nothing && return false # hit a cycle
+  fr = Caches.value(cache, T) # avoid self dependency in cycles
+  fr == nothing && return false # hit a cycle
+  fr isa Redirect && return inlineable(cache, cache[T].to)
   inlineable(cache[T])
 end
 
