@@ -1,4 +1,4 @@
-export { global, call, await }
+export { global, call, await, tojs, sleep }
 
 fn jsfree(ptr: Ptr) {
   id = i32load(ptr)
