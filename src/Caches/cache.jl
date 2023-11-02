@@ -26,6 +26,8 @@ iscached(ch::Cache, k) = haskey(ch.data, k)
 
 valueid(c::Cache, k) = c.data[k].id[2]
 
+keys(c::Cache) = keys(c.data)
+
 function topokeys!(c::Cache, k::NFT, ks, seen)
   (haskey(c.keys, k) && !(k in seen)) || return
   push!(seen, k)

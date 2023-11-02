@@ -14,7 +14,7 @@ function Compiler()
   lowered = lowerir(inferred)
   inlined = Inlined(lowered)
   counted = refcounts(inlined)
-  wasm = Wasm(inferred, counted)
+  wasm = Wasm(defs, counted)
   pipe = Pipeline([sources, defs, inferred, lowered, inlined, counted, wasm])
   return Compiler(sources, defs, counted, wasm, pipe, BatchEmitter()) |> loadcommon!
 end

@@ -265,6 +265,24 @@ function step!(inf::Inference, loc)
   return
 end
 
+# TODO remove backedges, so we don't do redundant work
+function Base.delete!(inf::Inference, sig::Tuple)
+  haskey(inf.frames, sig) || return
+  fr = inf.frames[sig]
+  delete!(inf.frames, sig)
+  delete!(inf.deps, sig)
+  fr isa Redirect && return
+  foreach(loc -> delete!(inf, loc.sig), fr.edges)
+end
+
+function Base.delete!(inf::Inference, b::Binding)
+  haskey(inf.globals, b) || return
+  fr = inf.globals[b]
+  delete!(inf.globals, b)
+  delete!(inf.deps, b)
+  foreach(e -> delete!(inf, e isa Loc ? e.sig : e), fr.edges)
+end
+
 # Virtual stack traces
 
 struct Stack
@@ -327,11 +345,7 @@ end
 function Inferred(defs::Definitions)
   ds = dispatchers(defs)
   inf = Inference(defs, ds)
-  cache = Cache() do self, sig
-    sig isa Binding && return defs[sig]
-    error("no type info for $sig")
-  end
-  return Inferred(ds, inf, cache)
+  return Inferred(ds, inf, Cache())
 end
 
 function Base.getindex(i::Inferred, sig)
@@ -345,43 +359,19 @@ function Base.getindex(i::Inferred, sig)
     Caches.iscached(i.results, k) && continue
     i.results[k] = fr isa Redirect ? fr : (prune!(unloop(fr.ir)) => fr.rettype)
   end
-  for (k, fr) in i.inf.globals
-    Caches.value(i.inf.defs.globals, k) isa Binding && continue
-    !Caches.iscached(i.results, k) || Caches.value(i.results, k) != fr.type || continue
-    i.results[k] = fr.type
-  end
   return i.results[sig]
 end
 
-Base.getindex(i::Inferred, b::Binding) = i.results[b]
-
 Caches.fingerprint(i::Inferred) = Caches.fingerprint(i.results)
-
-# TODO remove backedges, so we don't do redundant work
-function Base.delete!(i::Inferred, sig::Tuple)
-  haskey(i.inf.frames, sig) || return
-  fr = i.inf.frames[sig]
-  delete!(i.inf.frames, sig)
-  delete!(i.inf.deps, sig)
-  delete!(i.results, sig)
-  fr isa Redirect && return
-  foreach(loc -> delete!(i, loc.sig), fr.edges)
-end
-
-function Base.delete!(i::Inferred, b::Binding)
-  haskey(i.inf.globals, b) || return
-  fr = i.inf.globals[b]
-  delete!(i.inf.globals, b)
-  delete!(i.inf.deps, b)
-  delete!(i.results, b)
-  foreach(e -> delete!(i, e isa Loc ? e.sig : e), fr.edges)
-end
 
 function Caches.reset!(i::Inferred; deps = [])
   print = Caches.fingerprint(deps)
   reset!(i.dispatchers, deps = print)
   print = Base.union(print, Caches.fingerprint(i.dispatchers))
   for (x, dep) in i.inf.deps
-    dep in print || delete!(i, x)
+    dep in print || delete!(i.inf, x)
+  end
+  for k in keys(i.results)
+    haskey(i.inf.frames, k) || delete!(i.results, k)
   end
 end
