@@ -1,21 +1,8 @@
 using Raven, Test
-using Raven: @tag_str
-
-function loadsrc(src)
-  tmp = tempname() * ".rv"
-  open(io -> print(io, src), tmp, "w")
-  try
-    mod = Raven.load(tmp) |> Raven.Definitions
-    inf = Raven.Inferred(mod)
-    [inf[(m,)] for m in mod[tag"common.core.main"]]
-    return inf
-  finally
-    rm(tmp)
-  end
-end
+using Raven: @src_str, rlist
 
 let
-  inf = loadsrc("""
+  inf = Raven.code_typed(src"""
     fn pow(x, n: Int64) {
       r = one(x)
       while n > 0 {
@@ -25,15 +12,15 @@ let
       return r
     }
     pow(2, 3)
-    """)
-  fs = filter(IdDict(inf.results)) do (sig, fr)
-    sig isa Tuple && sig[1] isa Raven.RMethod && sig[1].name == tag"pow"
+    """, tag"pow")
+  fs = filter(inf) do (sig, fr)
+    sig[1] isa Raven.RMethod
   end |> collect
-  @test fs[1][2][2] == 8
+  @test only(fs)[2][2] == 8
 end
 
 let
-  inf = loadsrc("""
+  inf = Raven.code_typed(src"""
     fn fib(n) {
       if widen(n <= 1) {
         return n
@@ -43,9 +30,9 @@ let
     }
     fn main() { fib(20) }
     main()
-    """)
-  fs = filter(IdDict(inf.results)) do (sig, fr)
-    sig isa Tuple && sig[1] isa Raven.RMethod && sig[1].name == tag"main"
+    """, tag"main")
+  fs = filter(inf) do (sig, fr)
+    sig[1] isa Raven.RMethod
   end |> collect
   @test fs[1][2][2] == Int64
 end

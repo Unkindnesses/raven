@@ -1,6 +1,6 @@
 using Raven, Test
 using Raven: @tag_str, @src_str, @rvx_str, Definitions, Inferred, Binding, rlist
-using Raven.Caches: reset!, valueid, fingerprint
+using Raven.Caches: Caches, reset!, valueid, fingerprint
 
 @testset "Globals" begin
   comp = Raven.load(src"foo = 1, bar = 1")
@@ -48,11 +48,9 @@ end
 end
 
 @testset "Inference" begin
-  cx = Raven.load(src"n = 1, fn foo(x) { x+n }, foo(5)")
-  defs = Definitions(cx)
-  inf = Inferred(defs)
-
-  [inf[(m,)] for m in defs[tag"common.core.main"]]
+  cx = Raven.Compiler(src"n = 1, fn foo(x) { x+n }, foo(5)")
+  defs = cx.defs
+  inf = cx.pipe.caches[3]
 
   @test inf[(tag"foo", rlist(5))][2] == rlist(6)
 
@@ -60,9 +58,6 @@ end
   id_plus = Caches.valueid(inf.results, (tag"common.+", rlist(Int, Int)))
 
   Raven.reload!(cx, src"n = 2, fn foo(x) { x+n }, foo(5)")
-
-  reset!(defs, deps = cx)
-  reset!(inf, deps = defs)
 
   @test inf[(tag"foo", rlist(5))][2] == rlist(7)
   @test id_plus == Caches.valueid(inf.results, (tag"common.+", rlist(Int, Int)))

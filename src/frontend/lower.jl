@@ -595,7 +595,7 @@ function lower_toplevel(cx::RModule, ex; meta = nothing, resolve)
   withresolve(resolve) do
     _lower!(sc, ir, ex)
   end
-  IRTools.return!(ir, Binding(tag"common", :nil))
+  IRTools.return!(ir, lower!(sc, ir, nilx))
   ir, defs = rewrite_globals(ir, cx)
   ir |> pruneblocks! |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber, defs
 end

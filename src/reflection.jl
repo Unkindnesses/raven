@@ -12,7 +12,7 @@ end
 
 function code_typed(c::Compiler, func...)
   inf = c.pipe.caches[3]
-  IdDict{Any,IR}(sig => fr[1] for (sig, fr) in IdDict(inf.results) if !(fr isa Redirect) && sigmatch(sig, func...))
+  IdDict{Any,Any}(sig => fr for (sig, fr) in IdDict(inf.results) if !(fr isa Redirect) && sigmatch(sig, func...))
 end
 
 function code_final(c::Compiler, func...)
