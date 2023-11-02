@@ -76,22 +76,21 @@ struct Inference
   defs::Definitions
   dispatchers::Dispatchers
   deps::IdDict{Any,Caches.NFT}
-  frames::IdDict{Any,Union{Frame,Redirect}}
-  globals::Dict{Binding,GlobalFrame}
+  frames::IdDict{Any,Union{Frame,GlobalFrame,Redirect}}
   queue::WorkQueue{Loc}
 end
 
 function Inference(defs::Definitions, ds::Dispatchers)
   gs = Dict{Binding,GlobalFrame}()
-  Inference(defs, ds, IdDict(), Dict(), gs, WorkQueue{Loc}())
+  Inference(defs, ds, IdDict(), gs, WorkQueue{Loc}())
 end
 
-function gframe(inf::Inference, name::Binding)
-  get!(inf.globals, name) do
+function frame!(inf::Inference, name::Binding)
+  get!(inf.frames, name) do
     T = inf.defs[name]
     inf.deps[name] = Caches.valueid(inf.defs.globals, name)
     if T isa Binding
-      parent = gframe(inf, T)
+      parent = frame!(inf, T)
       push!(parent.edges, name)
       T = parent.type
     end
@@ -224,7 +223,7 @@ function step!(inf::Inference, loc)
       push!(inf.queue, Loc(loc.sig, Path([p.parts..., (1,1)])))
     end
   elseif isexpr(st, :global)
-    fr = gframe(inf, st.expr.args[1])
+    fr = frame!(inf, st.expr.args[1])
     push!(fr.edges, loc)
     if fr.type != ⊥
       bl.ir[var] = stmt(bl[var], type = fr.type)
@@ -266,22 +265,16 @@ function step!(inf::Inference, loc)
 end
 
 # TODO remove backedges, so we don't do redundant work
-function Base.delete!(inf::Inference, sig::Tuple)
+function Base.delete!(inf::Inference, sig::Union{Tuple,Binding})
   haskey(inf.frames, sig) || return
   fr = inf.frames[sig]
   delete!(inf.frames, sig)
   delete!(inf.deps, sig)
   fr isa Redirect && return
-  foreach(loc -> delete!(inf, loc.sig), fr.edges)
+  foreach(loc -> delete!(inf, loc), fr.edges)
 end
 
-function Base.delete!(inf::Inference, b::Binding)
-  haskey(inf.globals, b) || return
-  fr = inf.globals[b]
-  delete!(inf.globals, b)
-  delete!(inf.deps, b)
-  foreach(e -> delete!(inf, e isa Loc ? e.sig : e), fr.edges)
-end
+Base.delete!(inf::Inference, loc::Loc) = delete!(inf, loc.sig)
 
 # Virtual stack traces
 
@@ -356,7 +349,7 @@ function Base.getindex(i::Inferred, sig)
     infer!(i.inf)
   end
   for (k, fr) in i.inf.frames
-    Caches.iscached(i.results, k) && continue
+    (k isa Binding || Caches.iscached(i.results, k)) && continue
     i.results[k] = fr isa Redirect ? fr : (prune!(unloop(fr.ir)) => fr.rettype)
   end
   return i.results[sig]
