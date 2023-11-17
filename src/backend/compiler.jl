@@ -1,22 +1,19 @@
 struct Compiler
-  sources::Modules
-  defs::Definitions
-  final::Cache
-  wasm::Wasm
   pipe::Pipeline
   emitter::BatchEmitter
 end
 
 function Compiler()
-  sources = Modules()
-  defs = Definitions(sources)
-  inferred = Inferred(defs)
-  lowered = lowerir(inferred)
-  inlined = Inlined(lowered)
-  counted = refcounts(inlined)
-  wasm = Wasm(defs, counted)
-  pipe = Pipeline([sources, defs, inferred, lowered, inlined, counted, wasm])
-  return Compiler(sources, defs, counted, wasm, pipe, BatchEmitter()) |> loadcommon!
+  pipe = @Pipeline(
+    sources = Modules(),
+    defs = Definitions(sources),
+    inferred = Inferred(defs),
+    lowered = lowerir(inferred),
+    inlined = Inlined(lowered),
+    counted = refcounts(inlined),
+    wasm = Wasm(defs, counted),
+  )
+  return Compiler(pipe, BatchEmitter()) |> loadcommon!
 end
 
 function Compiler(src)
@@ -24,6 +21,8 @@ function Compiler(src)
   reload!(c, src)
   return c
 end
+
+Base.show(io::IO, c::Compiler) = print(io, "Compiler(...)")
 
 Base.getindex(c::Compiler, sig) = c.compiled[sig]
 
@@ -34,17 +33,17 @@ emit(x::IR) = dynamic_value(:emit, _ -> nothing)(x)
 
 # TODO less backend-dependent
 function emit!(c::Compiler, em::BatchEmitter, m::RMethod)
-  name = c.wasm.names[(m,)]
-  ir = c.final[(m,)]
+  name = c.pipe.wasm.names[(m,)]
+  ir = c.pipe.counted[(m,)]
   gs = assigned_globals(ir)
-  ir = lowerwasm(ir, c.wasm.names, c.wasm.env)
+  ir = lowerwasm(ir, c.pipe.wasm.names, c.pipe.wasm.env)
   for (b, T) in gs
-    c.sources[b] = T
+    c.pipe.sources[b] = T
   end
   isempty(gs) || reset!(c.pipe)
-  ir = lowerwasm_globals(ir, c.wasm.env.globals)
+  ir = lowerwasm_globals(ir, c.pipe.wasm.env.globals)
   ir = WebAssembly.irfunc(name, ir)
-  emit!(em, c.wasm, ir)
+  emit!(em, c.pipe.wasm, ir)
   push!(em.main, name)
 end
 
@@ -58,12 +57,12 @@ function loadcommon!(c::Compiler)
     emit!(c, c.emitter, ir)
   end
   withemit(emit) do
-    module!(c.sources, core())
+    module!(c.pipe.sources, core())
     # TODO toplevel exprs should compile in the context of the relevant module,
     # rather than main. Which would make the following unnecessary.
-    import!(module!(c.sources, tag""), module!(c.sources, tag"common"))
-    loadmodule(c.sources, tag"common.core", "$common/core.rv")
-    loadmodule(c.sources, tag"common", "$common/common.rv")
+    import!(module!(c.pipe.sources, tag""), module!(c.pipe.sources, tag"common"))
+    loadmodule(c.pipe.sources, tag"common.core", "$common/core.rv")
+    loadmodule(c.pipe.sources, tag"common", "$common/common.rv")
   end
   return c
 end
@@ -75,11 +74,11 @@ function reload!(c::Compiler, src)
     emit!(c, emitter, ir)
   end
   withemit(emit) do
-    reload!(c.sources, src)
+    reload!(c.pipe.sources, src)
   end
   reset!(c.pipe)
-  options().memcheck && emit!(c, emitter, c.defs[tag"common.checkAllocations"][1])
-  foreach(f -> emit!(emitter, c.wasm, f), c.wasm.env.table)
+  options().memcheck && emit!(c, emitter, c.pipe.defs[tag"common.checkAllocations"][1])
+  foreach(f -> emit!(emitter, c.pipe.wasm, f), c.pipe.wasm.env.table)
   return emitter
 end
 
@@ -93,7 +92,7 @@ function compile(file, opts = Options();
   mkpath(dir)
   withoptions(opts) do
     em = reload!(compiler, file)
-    strings = emitwasm(em, compiler.wasm.env, joinpath(dir, "$name.wasm"); path)
+    strings = emitwasm(em, compiler.pipe.wasm.env, joinpath(dir, "$name.wasm"); path)
     emitjs(joinpath(dir, "$name.js"), "$name.wasm", strings)
   end
   return joinpath(dir, "$name.js")

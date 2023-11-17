@@ -49,8 +49,8 @@ end
 
 @testset "Inference" begin
   cx = Raven.Compiler(src"n = 1, fn foo(x) { x+n }, foo(5)")
-  defs = cx.defs
-  inf = cx.pipe.caches[3]
+  defs = cx.pipe.defs
+  inf = cx.pipe.inferred
 
   @test inf[(tag"foo", rlist(5))][2] == rlist(6)
 
@@ -66,7 +66,7 @@ end
 @testset "Compiler" begin
   compiler = Raven.Compiler()
   reset!(compiler.pipe)
-  compiler.wasm[(tag"common.malloc!", rlist(Int32))]
+  compiler.pipe[(tag"common.malloc!", rlist(Int32))]
   print = fingerprint(compiler.pipe)
   reset!(compiler.pipe)
   @test fingerprint(compiler.pipe) == print

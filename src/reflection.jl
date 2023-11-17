@@ -7,21 +7,21 @@ sigmatch(sig, func, Ts) =
    sig[2] == rlist(Ts...))
 
 function code_lowered(c::Compiler, func)
-  return IdDict(meth.sig.pattern => meth.func for meth in methods(c.sources, func))
+  return IdDict(meth.sig.pattern => meth.func for meth in methods(c.pipe.sources, func))
 end
 
 function code_typed(c::Compiler, func...)
-  inf = c.pipe.caches[3]
+  inf = c.pipe.inferred
   IdDict{Any,Any}(sig => fr for (sig, fr) in IdDict(inf.results) if !(fr isa Redirect) && sigmatch(sig, func...))
 end
 
 function code_final(c::Compiler, func...)
-  cx = c.pipe.caches[end-1]
+  cx = c.pipe.counted
   IdDict{Any,IR}(sig => ir for (sig, ir) in IdDict(cx) if sigmatch(sig, func...))
 end
 
 function code_wasm(c::Compiler, func)
-  mod = c.pipe.caches[end]
+  mod = c.pipe.wasm
   IdDict{Any,WebAssembly.Func}(sig => fr for (sig, fr) in IdDict(mod.funcs) if sigmatch(sig, func))
 end
 
