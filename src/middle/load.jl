@@ -42,7 +42,7 @@ function load_import(cx, x)
 end
 
 function load_include(cx, x)
-  path = "$common/$(x[2][1])"
+  path = "$common/$(x[2])"
   open(io -> loadfile(cx, io; path), path)
 end
 

@@ -13,7 +13,7 @@ Integer = tag".Integer"
 
 fn isa(_: (Int32 | Int64), tag".Integer") { true }
 
-include { "numbers/complex.rv" }
+include "numbers/complex.rv"
 
 extend fn Int64(x: Int64) { x }
 
