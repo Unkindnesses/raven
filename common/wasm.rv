@@ -1,4 +1,0 @@
-include "wasm/numeric.rv"
-include "wasm/memory.rv"
-include "wasm/malloc.rv"
-include "wasm/js.rv"

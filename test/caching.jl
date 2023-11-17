@@ -65,6 +65,7 @@ end
 
 @testset "Compiler" begin
   compiler = Raven.Compiler()
+  reset!(compiler.pipe)
   compiler.wasm[(tag"common.malloc!", rlist(Int32))]
   print = fingerprint(compiler.pipe)
   reset!(compiler.pipe)

@@ -40,9 +40,16 @@ fn (_: Nil) == (_: Nil) { true }
 include "patterns.rv"
 include "iterate.rv"
 include "print.rv"
-include "wasm.rv"
+
+include "wasm/numeric.rv"
+include "wasm/memory.rv"
+include "wasm/js.rv"
 include "numbers.rv"
+
 include "structures/list.rv"
 include "structures/sequence.rv"
 include "structures/simpledict.rv"
+
 include "strings.rv"
+
+include "wasm/malloc.rv"

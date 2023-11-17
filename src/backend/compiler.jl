@@ -53,8 +53,11 @@ emit!(c::Compiler, em::BatchEmitter, ir::IR) =
         RMethod(tag"common.core.main", lowerpattern(AST.List()), ir))
 
 function loadcommon!(c::Compiler)
-  main = IR[]
-  withemit(ir -> push!(main, ir)) do
+  function emit(ir)
+    reset!(c.pipe)
+    emit!(c, c.emitter, ir)
+  end
+  withemit(emit) do
     module!(c.sources, core())
     # TODO toplevel exprs should compile in the context of the relevant module,
     # rather than main. Which would make the following unnecessary.
@@ -62,7 +65,6 @@ function loadcommon!(c::Compiler)
     loadmodule(c.sources, tag"common.core", "$common/core.rv")
     loadmodule(c.sources, tag"common", "$common/common.rv")
   end
-  foreach(ir -> emit!(c, c.emitter, ir), main)
   return c
 end
 
