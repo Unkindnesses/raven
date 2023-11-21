@@ -218,6 +218,7 @@ outlinePrimitive[packcat_method] = function (T::Pack)
   end
   ps = [indexer!(ir, T, i, xs, i) for i in 1:nparts(T)]
   ls = [nparts!(ir, part(T, i), ps[i]) for i in 1:nparts(T)]
+  ls = [isvalue(exprtype(ir, l)) ? exprtype(ir, l) : l for l in ls]
   size = popfirst!(ls)
   for l in ls
     size = push!(ir, xcall(WIntrinsic(i64.add, i64), size, l))
@@ -283,7 +284,7 @@ outlinePrimitive[nparts_method] = function (x::Or)
 end
 
 function nparts!(ir, T::Pack, x)
-  return nparts(T)
+  return push!(ir, stmt(Expr(:tuple), type = nparts(T)))
 end
 
 function nparts!(ir, T::VPack, x)
