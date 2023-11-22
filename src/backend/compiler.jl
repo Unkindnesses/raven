@@ -8,8 +8,8 @@ function Compiler()
     sources = Modules(),
     defs = Definitions(sources),
     inferred = Inferred(defs),
-    lowered = lowerir(inferred),
-    inlined = Inlined(lowered),
+    expanded = Expanded(inferred),
+    inlined = Inlined(expanded),
     counted = refcounts(inlined),
     wasm = Wasm(defs, counted),
   )

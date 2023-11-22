@@ -451,21 +451,21 @@ function casts!(inf::Inferred, ir, ret)
   return IRTools.finish(pr)
 end
 
-function lowerir(inf, ir, ret)
+function expand(inf, ir, ret)
   ir = trim_unreachable!(ir)
   ir = lowerdata(ir)
   ir = casts!(inf, ir, ret)
   return ir
 end
 
-function lowerir(inf::Inferred)
+function Expanded(inf::Inferred)
   Cache{Any,Union{Redirect,IR}}() do self, sig
     if haskey(outlinePrimitive, sig[1])
       outlinePrimitive[sig[1]](sig[2:end]...)
     elseif inf[sig] isa Redirect
       inf[sig]
     else
-      lowerir(inf, inf[sig]...)
+      expand(inf, inf[sig]...)
     end
   end
 end

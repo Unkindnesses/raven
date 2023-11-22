@@ -92,7 +92,7 @@ primitives() = [
 
 # Primitive implementations
 # Invoked from middle-end lowering. `inline` primitives replace the call with a
-# definition. `outline` ones return a lowered IR fragment, to be called as a
+# definition. `outline` ones return an expanded IR fragment, to be called as a
 # normal function.
 
 const inlinePrimitive = IdDict{RMethod,Any}()
