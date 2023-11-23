@@ -452,7 +452,8 @@ function casts!(inf::Inferred, ir, ret)
 end
 
 function expand(inf, ir, ret)
-  ir = trim_unreachable!(ir)
+  ir = trim_unreachable(ir)
+  ir = fuseblocks(ir)
   ir = lowerdata(ir)
   ir = casts!(inf, ir, ret)
   return ir

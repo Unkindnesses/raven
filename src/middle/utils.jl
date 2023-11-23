@@ -33,36 +33,18 @@ Base.isempty(q::WorkQueue) = isempty(q.items)
 
 # Trim unreachable code
 
-reachable(b::IRTools.Block) =
-  any(((v, st),) -> !isexpr(st, :branch) && st.type == ⊥, b) ? Set(b.id) :
-    reduce(Base.union, [Set(b.id),
-                        [reachable(block(b.ir, br.args[1]))
-                         for br in openbranches(b)
-                         if br.args[1] > b.id]...])
-
-reachable(ir::IR) = reachable(block(ir, 1))
-
-function pruneblocks!(ir::IR)
-  bs = reachable(ir)
-  for i = length(blocks(ir)):-1:2
-    i in bs || IRTools.deleteblock!(ir, i)
-  end
-  return ir
-end
-
-function trim_unreachable!(ir)
-  ir = pruneblocks!(ir)
+function trim_unreachable(ir)
   pr = IRTools.Pipe(ir)
   flag = false
   for (v, st) in pr
     if v == first(IRTools.block(ir, v))[1]
       flag = false
     end
-    if isexpr(st, :branch)
+    if flag
+      delete!(pr, v)
+    elseif isexpr(st, :branch)
       br = st.expr
-      if flag
-        pr[v] = IRTools.unreachable
-      elseif br.args[2] == nothing
+      if br.args[2] == nothing
         flag = true
       else
         cond = exprtype(ir, br.args[2])
@@ -73,13 +55,54 @@ function trim_unreachable!(ir)
           pr[v] = IRTools.branch(br.args[1], arguments(br)...)
         end
       end
-    elseif flag
-      delete!(pr, v)
     elseif st.type == ⊥
+      push!(pr, IRTools.unreachable)
       flag = true
     end
   end
   return IRTools.finish(pr)
+end
+
+function fuseable(bl)
+  preds = predecessors(bl)
+  isempty(preds) || (length(preds) == 1 && length(successors(only(preds))) == 1)
+end
+
+function fuseblocks(ir)
+  oldir = deepcopy(ir)
+  bls = blocks(ir)
+  ir = empty(ir)
+  skip = Set(i for i = 2:length(bls) if fuseable(bls[i]))
+  env = Dict()
+  env[0] = 0
+  for bl in bls
+    bl.id in skip && continue
+    bl.id == 1 || block!(ir)
+    env[bl.id] = length(blocks(ir))
+    for arg in arguments(bl)
+      env[arg] = argument!(blocks(ir)[end], nothing, exprtype(bl.ir, arg), insert = false)
+    end
+    function inlineblock!(ir, bl)
+      for (v, st) in bl
+        if isexpr(st, :branch) && (target = st.expr.args[1]) in skip
+          for (arg, x) in zip(arguments(bls[target]), arguments(st.expr))
+            env[arg] = rename(env, x)
+          end
+          inlineblock!(ir, bls[target])
+        else
+          env[v] = push!(ir, rename(env, st))
+        end
+      end
+    end
+    inlineblock!(ir, bl)
+  end
+  for (v, st) in ir
+    isexpr(st, :branch) && (ir[v] = Expr(:branch, env[st.expr.args[1]], st.expr.args[2:end]...))
+  end
+  if length(blocks(ir)) == 2
+    Base.eval(Main, :(ir = $(deepcopy(oldir))))
+  end
+  return ir
 end
 
 # Simple dynamic binding for recursive types

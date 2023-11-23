@@ -14,6 +14,9 @@ end
 
 getindex(p::Pipeline, x) = subcaches(p)[end][x]
 
+# Hack to prevent Juno completions error
+Base.fieldnames(::Type{Pipeline}) = ()
+
 macro Pipeline(exs...)
   @assert all(ex -> isexpr(ex, :(=)), exs)
   names = [@capture(ex, name_Symbol = val_) ? name : error("x = y")

@@ -547,7 +547,7 @@ function lowerfn(mod::Tag, sig::Signature, body::AST.Expr; meta = nothing, resol
     lower!(sc, ir, body)
   end
   out == nothing || swapreturn!(ir, out, sig.swap, nothing)
-  ir = ir |> pruneblocks! |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
+  ir = ir |> fuseblocks |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber
 end
 
 # Turn toplevel vars into global writes
@@ -597,7 +597,7 @@ function lower_toplevel(cx::RModule, ex; meta = nothing, resolve)
   end
   IRTools.return!(ir, lower!(sc, ir, nilx))
   ir, defs = rewrite_globals(ir, cx)
-  ir |> pruneblocks! |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber, defs
+  ir |> fuseblocks |> IRTools.ssa! |> IRTools.prune! |> IRTools.renumber, defs
 end
 
 # Turn global references into explicit load instructions
