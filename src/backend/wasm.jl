@@ -24,6 +24,8 @@ struct WIntrinsic
   ret
 end
 
+_typeof(x::WIntrinsic) = x
+
 function intrinsic(ex)
   if ex isa AST.Operator && ex[1] == :(:)
     typ = ex[3]

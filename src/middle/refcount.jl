@@ -63,13 +63,13 @@ end
 
 isrefobj(x::Pack) = tag(x) == tag"common.Ref"
 
-isreftype(::Union{Primitive,Type,Unreachable}) = false
+isreftype(x) = false
 isreftype(xs::Or) = any(isreftype, xs.patterns)
 isreftype(xs::Pack) = isrefobj(xs) || any(isreftype, xs.parts)
 isreftype(x::VPack) = layout(x.parts) != ()
 isreftype(x::Recursive) = true
 
-isglobal(ir, v) = haskey(ir, v) && isexpr(ir[v].expr, :global)
+isglobal(ir, v) = haskey(ir, v) && isexpr(ir[v], :global)
 
 # Define refcount methods for different types
 # ===========================================
@@ -80,20 +80,19 @@ isglobal(ir, v) = haskey(ir, v) && isexpr(ir[v].expr, :global)
 retain_method = RMethod(tag"common.core.retain", lowerpattern(rvx"args"), nothing, false)
 release_method = RMethod(tag"common.core.release", lowerpattern(rvx"args"), nothing, false)
 
-function retain!(ir, x)
-  push!(ir, stmt(xcall(retain_method, x), type = nil))
-end
+count!(ir, T, x, mode) =
+  T isa Pack && !isrefobj(T) ? count_inline!(ir, T, x, mode) :
+  push!(ir, stmt(xcall(mode == retain ? retain_method : release_method, x), type = nil))
 
-function release!(ir, x)
-  push!(ir, stmt(xcall(release_method, x), type = nil))
-end
+retain!(ir, T, x) = count!(ir, T, x, retain)
+release!(ir, T, x) = count!(ir, T, x, release)
 
 function countptr!(ir, ptr, mode)
   f = mode == retain ? tag"common.retain!" : tag"common.release!"
   push!(ir, stmt(xcall(f, ptr), type = nil))
 end
 
-function count!(ir, T::Pack, x, mode)
+function count_inline!(ir, T::Pack, x, mode)
   if isrefobj(T)
     P = partial_part(T, 1)
     ptr = indexer!(ir, T, 1, x, nothing)
@@ -109,30 +108,27 @@ function count!(ir, T::Pack, x, mode)
     for i = 0:nparts(T)
       isreftype(part(T, i)) || continue
       p = indexer!(ir, T, i, x, nothing)
-      f = mode == retain ? retain! : release!
-      f(ir, p)
+      count!(ir, part(T, i), p, mode)
     end
   end
 end
 
-function count!(ir, T::VPack, x, mode)
+function count_inline!(ir, T::VPack, x, mode)
   # TODO release children
   ptr = push!(ir, stmt(Expr(:ref, x, 2), type = rlist(pack(tag"common.Ptr", Int32))))
   countptr!(ir, ptr, mode)
 end
 
-function count!(ir, T::Or, x, mode)
+function count_inline!(ir, T::Or, x, mode)
   union_cases!(ir, T, x) do T, x
-    f = mode == retain ? retain! : release!
     if isreftype(T)
-      f(ir, x)
-    else
-      push!(ir, stmt(Expr(:tuple), type = nil))
+      count!(ir, T, x, mode)
     end
+    push!(ir, stmt(Expr(:tuple), type = nil))
   end
 end
 
-function count!(ir, T::Recursive, x, mode)
+function count_inline!(ir, T::Recursive, x, mode)
   ptr = push!(ir, stmt(Expr(:ref, x, 1), type = rlist(pack(tag"common.Ptr", Int32))))
   if mode == release
     unique = push!(ir, stmt(xcall(tag"common.blockUnique", ptr), type = rlist(Int32)))
@@ -142,7 +138,7 @@ function count!(ir, T::Recursive, x, mode)
     block!(ir)
     T = unroll(T)
     inner = unbox!(ir, T, x, count = false)
-    release!(ir, inner)
+    release!(ir, T, inner)
     branch!(ir, length(blocks(ir))+1)
     block!(ir)
   end
@@ -152,7 +148,7 @@ end
 function count_ir(T, mode)
   ir = IR(meta = FuncInfo(Tag(tag"common.core", Symbol(mode))))
   x = argument!(ir, type = T)
-  count!(ir, T, x, mode)
+  count_inline!(ir, T, x, mode)
   return!(ir, push!(ir, stmt(xtuple(), type = nil)))
 end
 
@@ -161,16 +157,15 @@ end
 
 function refcounts!(ir)
   lv = liveness(ir)
-  isref(v) = isreftype(IRTools.exprtype(ir, v))
   # Would be better to do this as part of the pipe – fix this in IRTools2.
   for b in IRTools.blocks(ir)
     # TODO: could pushfirst! to free earlier, but this causes issues with multiple
     # statements. This is an issue if the block errors.
-    rel(x) = isref(x) && release!(b, x)
+    rel(x) = (T = exprtype(ir, x); isreftype(T) && release!(b, T, x))
     # unused block arguments
     foreach(rel, filter(x -> !(x in lv[b.id]), arguments(b)))
     # conditionally dropped variables
-    dropped = [filter(isref, setdiff(liveness_after(c, lv), lv[b.id])) for c in predecessors(b)]
+    dropped = [filter(x -> isreftype(exprtype(ir, x)), setdiff(liveness_after(c, lv), lv[b.id])) for c in predecessors(b)]
     if !isempty(dropped)
       @assert all(xs -> xs == dropped[1], dropped) # condition mentioned above
       foreach(rel, dropped[1])
@@ -179,10 +174,11 @@ function refcounts!(ir)
     for br in branches(b)
       # reused branch args
       for x in unique(arguments(br))
-        x isa Variable && isref(x) || continue
+        T = exprtype(ir, x)
+        isreftype(T) || continue
         ret = isglobal(ir, x) + count(==(x), arguments(br)) - !(x in lafter)
         for _ = 1:ret
-          retain!(b, x)
+          retain!(b, T, x)
         end
       end
     end
@@ -192,27 +188,31 @@ function refcounts!(ir)
     if isexpr(st, :release)
       delete!(pr, v)
       x = st.expr.args[1]
-      isref(x) && !(x in lv[v]) || continue
-      release!(pr, x)
+      T = exprtype(ir, x)
+      isreftype(T) && !(x in lv[v]) || continue
+      release!(pr, T, x)
     elseif isexpr(st, :retain)
       delete!(pr, v)
       x = st.expr.args[1]
-      isref(x) && x in lv[v] || continue
-      retain!(pr, x)
+      T = exprtype(ir, x)
+      isreftype(T) && x in lv[v] || continue
+      retain!(pr, T, x)
     elseif isexpr(st, :call, :tuple) && haskey(lv, v)
       delete!(pr, v)
       # reused argument
       for x in unique(st.expr.args)
-        x isa Variable && isref(x) || continue
+        T = exprtype(ir, x)
+        isreftype(T) || continue
         ret = isglobal(ir, x) + count(==(x), st.expr.args) - !(x in lv[v])
         for _ = 1:ret
-          retain!(pr, x)
+          retain!(pr, T, x)
         end
       end
       v′ = push!(pr, st)
       replace!(pr, v, v′)
       # dropped variable
-      isref(v) && (v in lv[v] || release!(pr, v′))
+      T = exprtype(ir, v)
+      isreftype(T) && (v in lv[v] || release!(pr, T, v′))
     end
   end
   ir = IRTools.finish(pr)
