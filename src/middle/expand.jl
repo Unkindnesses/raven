@@ -86,7 +86,7 @@ function partir(x, i)
   vx = argument!(ir, type = x)
   vi = argument!(ir, type = i)
   xlayout = layout(x)
-  part(i) = xlayout isa Tuple ? push!(ir, Expr(:ref, vx, i)) : vx
+  part(i) = xlayout isa Tuple ? push!(ir, stmt(Expr(:ref, vx, i), type = xlayout[i])) : vx
   for i = 1:nparts(x)
     cond = push!(ir, stmt(xcall(WIntrinsic(i64.eq, i32), i, vi), type = Int32))
     branch!(ir, length(ir.blocks) + 1, when = cond)
@@ -152,7 +152,7 @@ end
 
 function indexer!(ir, T::Pack, i::Int, x, _)
   if 0 <= i <= nparts(T)
-    _part(i) = push!(ir, Expr(:ref, x, i))
+    _part(i) = push!(ir, stmt(Expr(:ref, x, i), type = layout(T)[i]))
     range = sublayout(T, i)
     if layout(part(T, i)) isa Type
       push!(ir, stmt(Expr(:ref, x, range[1]), type = part(T, i)))
@@ -175,9 +175,9 @@ function indexer!(ir, T::VPack, I::Union{Int64,Type{Int64}}, x, i)
     i = push!(ir, xcall(WIntrinsic(i32.mul, i32), i, Int32(8)))
   end
   # TODO bounds check
-  p = push!(ir, Expr(:ref, x, 2))
+  p = push!(ir, stmt(Expr(:ref, x, 2), type = Int32))
   p = push!(ir, xcall(WIntrinsic(i32.add, i32), p, i))
-  v = push!(ir, xcall(WIntrinsic(i64.load, i64), p))
+  v = push!(ir, stmt(xcall(WIntrinsic(i64.load, i64), p), type = Int64))
   return v
 end
 
@@ -223,8 +223,8 @@ outlinePrimitive[packcat_method] = function (T::Pack)
   for l in ls
     size = push!(ir, xcall(WIntrinsic(i64.add, i64), size, l))
   end
-  size = push!(ir, xcall(WIntrinsic(i32.wrap_i64, i32), size))
-  bytes = push!(ir, xcall(WIntrinsic(i32.mul, i32), size, Int32(8)))
+  size = push!(ir, stmt(xcall(WIntrinsic(i32.wrap_i64, i32), size), type = Int32))
+  bytes = push!(ir, stmt(xcall(WIntrinsic(i32.mul, i32), size, Int32(8)), type = Int32))
   margs = push!(ir, stmt(Expr(:tuple, bytes), type = rlist(Int32)))
   ptr = push!(ir, stmt(xcall(tag"common.malloc!", margs), type = Int32))
   pos = ptr
@@ -241,8 +241,8 @@ outlinePrimitive[packcat_method] = function (T::Pack)
       if P.parts != Int64
         panic!(ir, "unsupported")
       end
-      sz = push!(ir, Expr(:ref, ps[i], 1))
-      src = push!(ir, Expr(:ref, ps[i], 2))
+      sz = push!(ir, stmt(Expr(:ref, ps[i], 1), type = Int32))
+      src = push!(ir, stmt(Expr(:ref, ps[i], 2), type = Int32))
       ln = push!(ir, xcall(WIntrinsic(i32.mul, i32), sz, Int32(8)))
       push!(ir, xcall(WIntrinsic(WebAssembly.Op(Symbol("memory.copy")), WTuple()), pos, src, ln))
       push!(ir, Expr(:release, ps[i]))
@@ -288,8 +288,8 @@ function nparts!(ir, T::Pack, x)
 end
 
 function nparts!(ir, T::VPack, x)
-  sz = push!(ir, Expr(:ref, x, 1))
-  push!(ir, xcall(WIntrinsic(i64.extend_i32_s, i64), sz))
+  sz = push!(ir, stmt(Expr(:ref, x, 1), type = Int32))
+  push!(ir, stmt(xcall(WIntrinsic(i64.extend_i32_s, i64), sz), type = Int64))
 end
 
 inlinePrimitive[nparts_method] = function (pr, ir, v)
@@ -359,7 +359,7 @@ function unbox!(ir, T, x; count = true)
   parts = []
   pos = push!(ir, stmt(Expr(:ref, x, 1), type = Int32))
   for (i, T) in enumerate(cat_layout(l))
-    part = push!(ir, xcall(WIntrinsic(WType(T).load, WType(T)), pos))
+    part = push!(ir, stmt(xcall(WIntrinsic(WType(T).load, WType(T)), pos), type = T))
     push!(parts, part)
     # TODO same as above
     i == length(l) || (pos = push!(ir, xcall(WIntrinsic(i32.add, i32), pos, Int32(sizeof(T)))))

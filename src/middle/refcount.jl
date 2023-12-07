@@ -202,13 +202,49 @@ function refcounts!(ir)
   return ir
 end
 
+function aliases(ir)
+  aliases = Dict{Variable,Vector{Union{Primitive,Tuple{Variable,Int}}}}()
+  alias(v::Variable) = get!(() -> [(v, i) for i = 1:nregisters(layout(exprtype(ir, v)))], aliases, v)
+  alias(x::Primitive) = [x]
+  for (v, st) in ir
+    if isexpr(st, :tuple)
+      aliases[v] = vcat(alias.(st.expr.args)...)
+    elseif isexpr(st, :ref) && st.expr.args[1] isa Variable
+      aliases[v] = [alias(st.expr.args[1])[st.expr.args[2]]]
+    end
+  end
+  return aliases
+end
+
+# ...and take them away again
+function elide_counts!(ir)
+  vs = aliases(ir)
+  for bl in blocks(ir)
+    retains = Dict{Vector{Tuple{Variable,Int}},Vector{Variable}}()
+    for (v, st) in bl
+      isexpr(st, :call) || continue
+      if ismethod(st.expr.args[1], tag"common.core.retain")
+        push!(get!(retains, vs[st.expr.args[2]], []), v)
+      elseif ismethod(st.expr.args[1], tag"common.core.release")
+        haskey(vs, st.expr.args[2]) || continue
+        rets = get!(retains, vs[st.expr.args[2]], [])
+        if !isempty(rets)
+          delete!(ir, pop!(rets))
+          delete!(ir, v)
+        end
+      end
+    end
+  end
+  return ir
+end
+
 function refcounts(c::Cache)
   Cache{Any,Union{Redirect,IR}}() do self, sig
     if sig[1] in (retain_method, release_method)
       count_ir(sig[2], sig[1] == retain_method ? retain : release)
     else
       ir = c[sig]
-      ir isa Redirect ? ir : refcounts!(copy(ir))
+      ir isa Redirect ? ir : elide_counts!(refcounts!(copy(ir)))
     end
   end
 end
