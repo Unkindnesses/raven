@@ -35,7 +35,6 @@ end
 
 # Variables needed before each block is run, and after each statement is run.
 # Block variables include their arguments.
-# TODO rethink for branch statements
 function liveness(ir)
   result = Dict(v => Set{Variable}() for v in keys(ir))
   result = merge(result, Dict(b.id => Set{Variable}() for b in blocks(ir)))
@@ -43,12 +42,7 @@ function liveness(ir)
   while !isempty(queue)
     b = block(ir, pop!(queue))
     live = liveness_after(b, result)
-    for br in branches(b)
-      foreach(x -> x isa Variable && push!(live, x), arguments(br))
-      br.args[2] isa Variable && push!(live, br.args[2])
-    end
     for v in reverse(keys(b))
-      isexpr(ir[v], :branch) && continue
       union!(result[v], live)
       delete!(live, v)
       IRTools.varmap(x -> push!(live, x), b[v])
@@ -170,18 +164,6 @@ function refcounts!(ir)
       @assert all(xs -> xs == dropped[1], dropped) # condition mentioned above
       foreach(rel, dropped[1])
     end
-    lafter = liveness_after(b, lv)
-    for br in branches(b)
-      # reused branch args
-      for x in unique(arguments(br))
-        T = exprtype(ir, x)
-        isreftype(T) || continue
-        ret = isglobal(ir, x) + count(==(x), arguments(br)) - !(x in lafter)
-        for _ = 1:ret
-          retain!(b, T, x)
-        end
-      end
-    end
   end
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
@@ -197,13 +179,15 @@ function refcounts!(ir)
       T = exprtype(ir, x)
       isreftype(T) && x in lv[v] || continue
       retain!(pr, T, x)
-    elseif isexpr(st, :call, :tuple) && haskey(lv, v)
+    elseif isexpr(st, :call, :tuple, :branch) && haskey(lv, v)
+      live = isexpr(st, :branch) ? liveness_after(block(ir, v), lv) : lv[v]
       delete!(pr, v)
       # reused argument
       for x in unique(st.expr.args)
+        isnothing(x) && continue # branch condition
         T = exprtype(ir, x)
         isreftype(T) || continue
-        ret = isglobal(ir, x) + count(==(x), st.expr.args) - !(x in lv[v])
+        ret = isglobal(ir, x) + count(==(x), st.expr.args) - !(x in live)
         for _ = 1:ret
           retain!(pr, T, x)
         end
@@ -211,8 +195,7 @@ function refcounts!(ir)
       v′ = push!(pr, st)
       replace!(pr, v, v′)
       # dropped variable
-      T = exprtype(ir, v)
-      isreftype(T) && (v in lv[v] || release!(pr, T, v′))
+      isreftype(st.type) && (v in lv[v] || release!(pr, st.type, v′))
     end
   end
   ir = IRTools.finish(pr)
