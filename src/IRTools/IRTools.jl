@@ -1,10 +1,7 @@
 module IRTools
 
 using MacroTools
-using MacroTools: @q, prewalk, postwalk
-import ..IRTools
-
-export @code_ir
+using MacroTools: prewalk, postwalk
 
 include("ir/ir.jl")
 include("ir/utils.jl")

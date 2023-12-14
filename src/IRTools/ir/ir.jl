@@ -1,9 +1,5 @@
 import Base: push!, insert!, getindex, setindex!, iterate, length
 
-# We have our own versions of these in order to
-# (1) be more robust to Base IR changes, and
-# (2) make sure that mistakes/bugs do not cause bad LLVM IR.
-
 struct Undefined end
 const undef = Undefined()
 
@@ -16,7 +12,7 @@ var(id::Integer) = Variable(id)
 isvariable(x) = false
 isvariable(::Variable) = true
 
-Base.copy(x::IRTools.Variable) = x
+Base.copy(x::Variable) = x
 
 struct Slot
   id::Symbol
@@ -53,7 +49,7 @@ function isconditional(ex::Expr)
   ex.args[2] != nothing
 end
 
-const unreachable = Expr(:branch, 0, nothing)
+const unreachable = branch(0)
 
 struct Source
   file::String
@@ -68,7 +64,7 @@ struct Statement
   bp::Bool
 end
 
-Statement(x; expr = x, type = Any, src = nothing, bp = false) =
+Statement(expr; type = Any, src = nothing, bp = false) =
   Statement(expr, type, src, bp)
 
 Statement(x::Statement; expr = x.expr, type = x.type, src = x.src, bp = x.bp) =
@@ -81,9 +77,12 @@ Base.copy(st::Statement) = Statement(copy(st.expr), st.type, st.src, st.bp)
 
 const stmt = Statement
 
+arguments(ex::Statement) = arguments(ex.expr)
+isreturn(ex::Statement) = isreturn(ex.expr)
+
 struct BasicBlock
     stmts::Vector{Statement}
-    args::Vector{Any}
+    args::Vector{Variable}
     argtypes::Vector{Any}
 end
 
@@ -91,6 +90,7 @@ BasicBlock(stmts = []) = BasicBlock(stmts, [], [])
 
 Base.copy(bb::BasicBlock) = BasicBlock(copy.(bb.stmts), copy(bb.args), copy(bb.argtypes))
 
+# TODO filter deleted
 branches(bb::BasicBlock) = filter(x -> isexpr(x, :branch), map(x -> x.expr, bb.stmts))
 
 arguments(bb::BasicBlock) = bb.args
@@ -109,23 +109,14 @@ Base.copy(ir::IR) = IR(copy(ir.defs), copy.(ir.blocks), ir.meta)
 
 length(ir::IR) = sum(x -> x[2] > 0, ir.defs, init = 0)
 
-function block!(ir::IR, i = length(blocks(ir))+1)
-  insert!(ir.blocks, i, BasicBlock())
-  if i != length(blocks(ir))
-    for b in blocks(ir), bi = 1:length(branches(b))
-      br = branches(b)[bi]
-      br.block >= i && (branches(b)[bi] = Branch(br, block = br.block+1))
-    end
-    for (ii, (b, j)) = enumerate(ir.defs)
-      b >= i && (ir.defs[ii] = (b+1, j))
-    end
-  end
-  return block(ir, i)
+function block!(ir::IR)
+  push!(ir.blocks, BasicBlock())
+  return block(ir, length(ir.blocks))
 end
 
 function deleteblock!(ir::IR, i::Integer)
   deleteat!(ir.blocks, i)
-  if i != length(blocks(ir))+1
+  if i != length(ir.blocks)+1
     for b in blocks(ir), bi = 1:length(branches(b))
       br = branches(b)[bi]
       br.args[1] >= i && (br.args[1] = br.args[1]-1)
@@ -146,9 +137,6 @@ end
 BasicBlock(b::Block) = b.ir.blocks[b.id]
 branches(b::Block) = branches(BasicBlock(b))
 
-branches(ir::IR) = length(blocks(ir)) == 1 ? branches(block(ir, 1)) :
-  error("IR has multiple blocks, so `branches(ir)` is ambiguous.")
-
 arguments(b::Block) = arguments(BasicBlock(b))
 arguments(ir::IR) = arguments(block(ir, 1))
 
@@ -166,8 +154,8 @@ end
 branches(b::Block, c::Integer) = branches(b, block(b.ir, c))
 
 function returnvalue(b::Block)
-  isreturn(branches(b)[end]) || error("Block does not return")
-  return branches(b)[end].args[3]
+  isreturn(b[end]) || error("Block does not return")
+  return only(arguments(b[end]))
 end
 
 returntype(b::Block) = exprtype(b.ir, returnvalue(b))
@@ -195,14 +183,6 @@ end
 argument!(ir::IR, a...; kw...) =
   argument!(block(ir, 1), nothing, a...; kw..., insert = false)
 
-function emptyargs!(b::Block)
-  empty!(arguments(b))
-  for c in blocks(b.ir), br in branches(c)
-    br.args[1] == b.id && empty!(arguments(br))
-  end
-  return
-end
-
 function deletearg!(b::Block, i::Integer)
   arg = arguments(b)[i]
   deleteat!(arguments(b), i)
@@ -219,7 +199,7 @@ function deletearg!(b::Block, i::Integer)
 end
 
 function deletearg!(b::Block, i::AbstractVector)
-  for i in sort(i, lt = >)
+  for i in sort(i, rev = true)
     deletearg!(b, i)
   end
 end
@@ -375,88 +355,25 @@ insertafter!(ir, i, x) = insert!(ir, i, x, after=true)
 
 Base.empty(ir::IR) = IR(meta = ir.meta)
 
-function Base.permute!(ir::IR, perm::AbstractVector)
-  permute!(ir.blocks, perm)
-  iperm = invperm(perm)
-  for v = 1:length(ir.defs)
-    b, i = ir.defs[v]
-    b == -1 && continue
-    ir.defs[v] = (iperm[b], i)
-  end
-  for b in blocks(ir), i = 1:length(branches(b))
-    branches(b)[i].block > 0 || continue
-    br = branches(b)[i]
-    branches(b)[i] = Branch(br, block = iperm[br.block])
-  end
-  return ir
-end
-
-function IR(b::Block)
-  ir = IR(copy(b.ir.defs), [copy(BasicBlock(b))], b.ir.meta)
-  for i in 1:length(ir.defs)
-    if ir.defs[i][1] == b.id
-      ir.defs[i] = (1, ir.defs[i][2])
-    else
-      ir.defs[i] = (-1, -1)
-    end
-  end
-  return ir
-end
-
 # Pipe
 
-struct NewVariable
-  id::Int
-end
-
-isvariable(::IRTools.NewVariable) = true
-
-"""
-    Pipe(ir)
-
-In general, it is not efficient to insert statements into IR; only appending is
-fast, for the same reason as with `Vector`s.
-
-For this reason, the `Pipe` construct makes it convenient to incrementally build
-an new IR fragment from an old one, making efficient modifications as you go.
-
-The general pattern looks like:
-
-    pr = IRTools.Pipe(ir)
-    for (v, st) in pr
-      # do stuff
-    end
-    ir = IRTools.finish(pr)
-
-Iterating over `pr` is just like iterating over `ir`, except that within the
-loop, inserting and deleting statements in `pr` around `v` is efficient. Later,
-`finish(pr)` converts it back to a normal IR fragment (in this case just a plain
-copy of the original).
-"""
 mutable struct Pipe
   from::IR
   to::IR
-  map::Dict{Any,Any}
+  map::Dict{Variable,Any}
   var::Int
 end
 
-var!(p::Pipe) = NewVariable(p.var += 1)
+var!(p::Pipe) = var(p.var -= 1)
 
 substitute!(p::Pipe, x, y) = (p.map[x] = y; x)
-substitute(p::Pipe, x::Union{Variable,NewVariable}) = p.map[x]
+substitute(p::Pipe, x::Variable) = p.map[x]
 substitute(p::Pipe, x) = get(p.map, x, x)
 substitute(p::Pipe, x::Statement) = stmt(x, expr = substitute(p, x.expr))
 substitute(p::Pipe, x::Expr) = Expr(x.head, substitute.((p,), x.args)...)
 substitute(p::Pipe) = x -> substitute(p, x)
 
-function Pipe(ir)
-  p = Pipe(ir, IR(meta = ir.meta), Dict(), 0)
-  for (x, T) in zip(p.from.blocks[1].args, p.from.blocks[1].argtypes)
-    y = argument!(blocks(p.to)[end], nothing, T, insert = false)
-    substitute!(p, x, y)
-  end
-  return p
-end
+Pipe(ir) = Pipe(ir, IR(meta = ir.meta), Dict(), 0)
 
 function pipestate(ir::IR)
   ks = sort([Variable(i) => v for (i, v) in enumerate(ir.defs) if v[2] > 0], by = x->x[2])
@@ -464,7 +381,7 @@ function pipestate(ir::IR)
 end
 
 function iterate(p::Pipe, (ks, b, i) = (pipestate(p.from), 1, 1))
-  if i == 1 && b != 1
+  if i == 1
     for (x, T) in zip(p.from.blocks[b].args, p.from.blocks[b].argtypes)
       y = argument!(blocks(p.to)[end], nothing, T, insert = false)
       substitute!(p, x, y)
@@ -489,7 +406,7 @@ islastdef(ir::IR, v::Variable) =
 
 setindex!(p::Pipe, x, v) = p.to[substitute(p, v)] = substitute(p, x)
 
-function setindex!(p::Pipe, x::Union{Variable,NewVariable}, v)
+function setindex!(p::Pipe, x::Variable, v)
   v′ = substitute(p, v)
   if islastdef(p.to, v′)
     delete!(p, v)
@@ -499,7 +416,7 @@ function setindex!(p::Pipe, x::Union{Variable,NewVariable}, v)
   end
 end
 
-function Base.replace!(pr::IRTools.Pipe, x, y)
+function Base.replace!(pr::Pipe, x, y)
   substitute!(pr, x, substitute(pr, y))
 end
 

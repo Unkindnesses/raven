@@ -24,15 +24,4 @@ end
 
 end
 
-"""
-    write_wat(filename, m::Module)
-
-Write the WebAssembly module `m` to WebAssembly text format in `filename`.
-"""
-function write_wat(filename, m::Module)
-  open(filename, "w") do f
-    show(f, m)
-  end
-end
-
 end # module

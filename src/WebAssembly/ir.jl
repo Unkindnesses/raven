@@ -78,7 +78,7 @@ function locals(ir::IR)
     end
   end
   ir = IRTools.finish(pr)
-  foreach(bl -> IRTools.emptyargs!(bl), blocks(ir))
+  foreach(bl -> empty!(arguments(bl)), blocks(ir))
   return ir, locals, ret
 end
 
