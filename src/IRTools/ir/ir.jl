@@ -81,17 +81,17 @@ arguments(ex::Statement) = arguments(ex.expr)
 isreturn(ex::Statement) = isreturn(ex.expr)
 
 struct BasicBlock
-    stmts::Vector{Statement}
+    stmts::Vector{Tuple{Variable,Statement}}
     args::Vector{Variable}
     argtypes::Vector{Any}
 end
 
 BasicBlock(stmts = []) = BasicBlock(stmts, [], [])
 
-Base.copy(bb::BasicBlock) = BasicBlock(copy.(bb.stmts), copy(bb.args), copy(bb.argtypes))
+Base.copy(bb::BasicBlock) = BasicBlock(map(x -> copy.(x), bb.stmts), copy(bb.args), copy(bb.argtypes))
 
 # TODO filter deleted
-branches(bb::BasicBlock) = filter(x -> isexpr(x, :branch), map(x -> x.expr, bb.stmts))
+branches(bb::BasicBlock) = filter(x -> isexpr(x, :branch), map(x -> x[2].expr, bb.stmts))
 
 arguments(bb::BasicBlock) = bb.args
 
@@ -107,7 +107,7 @@ IR(; meta = nothing) = IR([],[BasicBlock()],meta)
 
 Base.copy(ir::IR) = IR(copy(ir.defs), copy.(ir.blocks), ir.meta)
 
-length(ir::IR) = sum(x -> x[2] > 0, ir.defs, init = 0)
+length(ir::IR) = count(x -> x[2] > 0, ir.defs)
 
 function block!(ir::IR)
   push!(ir.blocks, BasicBlock())
@@ -207,14 +207,14 @@ end
 deletearg!(ir::IR, i) = deletearg!(block(ir, 1), i)
 
 block(ir::IR, i) = Block(ir, i)
-block(ir::IR, v::Variable) = blockidx(ir, v)[1]
+block(ir::IR, v::Variable) = block(ir, blockidx(ir, v)[1])
 
 blocks(ir::IR) = [block(ir, i) for i = 1:length(ir.blocks)]
 
 function blockidx(ir::IR, x::Variable)
   b, i = get(ir.defs, x.id, (-1, -1))
   i > 0 || error("No such variable $x")
-  block(ir, b), i
+  b, i
 end
 
 function Base.haskey(ir::IR, x::Variable)
@@ -222,10 +222,7 @@ function Base.haskey(ir::IR, x::Variable)
   return i > 0
 end
 
-getindex(b::Block, i::Integer) = BasicBlock(b).stmts[i]
-getindex(b::Block, i::Variable) = b.ir[i]
-setindex!(b::Block, x::Statement, i::Integer) = (BasicBlock(b).stmts[i] = x)
-setindex!(b::Block, x, i::Integer) = (b[i] = Statement(b[i], expr = x))
+Base.haskey(b::Block, x::Variable) = haskey(b.ir, x)
 
 branch(block::Block, args...; kw...) = branch(block.id, args...; kw...)
 
@@ -245,18 +242,25 @@ return!(ir, x; kw...) = branch!(ir, 0, x; kw...)
 
 unreachable!(ir; kw...) = branch!(ir, 0; kw...)
 
-function getindex(ir::IR, i::Variable)
-  b, i = blockidx(ir, i)
-  return b[i]
+function getindex(ir::IR, v::Variable)
+  b, i = blockidx(ir, v)
+  return ir.blocks[b].stmts[i][2]
 end
 
 Base.get(ir::IR, i::Variable, default) = haskey(ir, i) ? ir[i] : default
 
-function setindex!(ir::IR, x, i::Variable)
-  b, i = blockidx(ir, i)
-  b[i] = x
+function setindex!(ir::IR, x::Statement, v::Variable)
+  b, i = blockidx(ir, v)
+  ir.blocks[b].stmts[i] = (v, x)
+  return x
 end
 
+function setindex!(ir::IR, x, v::Variable)
+  ir[v] = stmt(ir[v], expr = x)
+  return x
+end
+
+getindex(b::Block, i::Variable) = b.ir[i]
 setindex!(b::Block, x, i::Variable) = setindex!(b.ir, x, i)
 
 function Base.delete!(ir::IR, i::Variable)
@@ -267,7 +271,7 @@ end
 
 Base.delete!(b::Block, i::Variable) = delete!(b.ir, i)
 
-length(b::Block) = count(x -> x[1] == b.id, b.ir.defs)
+length(b::Block) = count(x -> x[1] == b.id && x[2] > 0, b.ir.defs)
 
 function successors(b::Block)
   brs = branches(b)
@@ -277,19 +281,23 @@ end
 
 predecessors(b::Block) = [c for c in blocks(b.ir) if b in successors(c)]
 
-Base.keys(b::Block) = first.(sort([Variable(i) => v for (i, v) in enumerate(b.ir.defs) if v[1] == b.id && v[2] > 0], by = x->x[2]))
+Base.keys(b::Block) = filter(v -> haskey(b.ir, v), [v for (v, _) in BasicBlock(b).stmts])
+
 Base.lastindex(b::Block) = last(keys(b))
 
-function iterate(b::Block, (ks, i) = (keys(b), 1))
-  i > length(ks) && return
-  return (ks[i]=>b.ir[ks[i]], (ks, i+1))
+function iterate(b::Block, i = 1)
+  stmts = BasicBlock(b).stmts
+  i > length(stmts) && return
+  haskey(b, stmts[i][1]) || return iterate(b, i+1)
+  return stmts[i], i+1
 end
 
-Base.keys(ir::IR) = first.(sort([Variable(i) => v for (i, v) in enumerate(ir.defs) if v[2] > 0], by = x->x[2]))
+Base.keys(ir::IR) = filter(v -> haskey(ir, v), [v for bl in ir.blocks for (v, _) in bl.stmts])
 
-function iterate(ir::IR, (ks, i) = (keys(ir), 1))
-  i > length(ks) && return
-  return (ks[i]=>ir[ks[i]], (ks, i+1))
+function iterate(ir::IR, (b, i) = (1, 1))
+  b > length(ir.blocks) && return
+  (st, i) = @something iterate(block(ir, b), i) (return iterate(ir, (b+1, 1)))
+  return st, (b, i)
 end
 
 applyex(f, x) = x
@@ -299,21 +307,21 @@ applyex(f, x::Statement) = Statement(x, expr = applyex(f, x.expr))
 
 function branch_start(b::BasicBlock)
   i = length(b.stmts)+1
-  while i > 1 && isexpr(b.stmts[i-1], :branch, Nothing)
+  while i > 1 && isexpr(b.stmts[i-1][2], :branch, Nothing)
     i -= 1
   end
   return i
 end
 
 function push!(b::Block, x::Statement)
-  bs = branch_start(BasicBlock(b))
-  if !isexpr(x, :branch) && bs <= length(BasicBlock(b).stmts)
+  if !isexpr(x, :branch) && (bs = branch_start(BasicBlock(b))) <= length(BasicBlock(b).stmts)
     return insert!(b, bs, x)
   end
   x = applyex(a -> push!(b, Statement(a, src = x.src)), x)
-  push!(BasicBlock(b).stmts, x)
+  v = var(length(b.ir.defs)+1)
+  push!(BasicBlock(b).stmts, (v, x))
   push!(b.ir.defs, (b.id, length(BasicBlock(b).stmts)))
-  return Variable(length(b.ir.defs))
+  return v
 end
 
 push!(b::Block, x) = push!(b, Statement(x))
@@ -322,7 +330,8 @@ push!(b::Block, x::Variable) = x
 
 # TODO make this work on nested Exprs.
 function insert!(b::Block, idx::Integer, x)
-  insert!(BasicBlock(b).stmts, idx, Statement(x))
+  v = var(length(b.ir.defs)+1)
+  insert!(BasicBlock(b).stmts, idx, (v, Statement(x)))
   for i = 1:length(b.ir.defs)
     c, j = b.ir.defs[i]
     if c == b.id && j >= idx
@@ -330,28 +339,10 @@ function insert!(b::Block, idx::Integer, x)
     end
   end
   push!(b.ir.defs, (b.id, idx))
-  return Variable(length(b.ir.defs))
+  return v
 end
-
-Base.pushfirst!(b::Block, x) = insert!(b, 1, x)
 
 push!(ir::IR, x) = push!(block(ir, length(ir.blocks)), x)
-
-Base.pushfirst!(ir::IR, x) = pushfirst!(block(ir, 1), x)
-
-function insert!(ir::IR, i::Variable, x; after = false)
-  if after && ir.defs[i.id][2] < 0
-    pushfirst!(block(ir, ir.defs[i.id][1]), x)
-  else
-    b, i = blockidx(ir, i)
-    insert!(b, i+after, x)
-  end
-end
-
-insert!(b::Block, i::Variable, x; after = false) =
-  insert!(b.ir, i, x; after = after)
-
-insertafter!(ir, i, x) = insert!(ir, i, x, after=true)
 
 Base.empty(ir::IR) = IR(meta = ir.meta)
 
@@ -375,27 +366,21 @@ substitute(p::Pipe) = x -> substitute(p, x)
 
 Pipe(ir) = Pipe(ir, IR(meta = ir.meta), Dict(), 0)
 
-function pipestate(ir::IR)
-  ks = sort([Variable(i) => v for (i, v) in enumerate(ir.defs) if v[2] > 0], by = x->x[2])
-  [first.(filter(x -> x[2][1] == b, ks)) for b = 1:length(ir.blocks)]
-end
-
-function iterate(p::Pipe, (ks, b, i) = (pipestate(p.from), 1, 1))
+function iterate(p::Pipe, (b, i) = (1, 1))
+  b > length(p.from.blocks) && return
   if i == 1
+    b == 1 || block!(p.to)
     for (x, T) in zip(p.from.blocks[b].args, p.from.blocks[b].argtypes)
       y = argument!(blocks(p.to)[end], nothing, T, insert = false)
       substitute!(p, x, y)
     end
   end
-  if i > length(ks[b])
-    b == length(ks) && return
-    block!(p.to)
-    return iterate(p, (ks, b+1, 1))
-  end
-  v = ks[b][i]
-  st = p.from[v]
+  stmts = p.from.blocks[b].stmts
+  i > length(stmts) && return iterate(p, (b+1, 1))
+  v, st = stmts[i]
+  haskey(p.from, v) || return iterate(p, (b, i+1))
   substitute!(p, v, push!(p.to, substitute(p, st)))
-  ((v, st), (ks, b, i+1))
+  return (v, st), (b, i+1)
 end
 
 finish(p::Pipe) = p.to
@@ -426,12 +411,6 @@ function Base.push!(p::Pipe, x)
   return tmp
 end
 
-function Base.pushfirst!(p::Pipe, x)
-  tmp = var!(p)
-  substitute!(p, tmp, pushfirst!(p.to, substitute(p, x)))
-  return tmp
-end
-
 function Base.delete!(p::Pipe, v)
   v′ = substitute(p, v)
   p.map[v] = Variable(0)
@@ -456,20 +435,7 @@ function insert!(p::Pipe, v, x; after = false)
       substitute!(p, tmp, v′)
     end
   else
-    substitute!(p, tmp, insert!(p.to, v′, x, after = after))
+    error("not supported")
   end
   return tmp
-end
-
-argument!(p::Pipe, a...; kw...) =
-  substitute!(p, var!(p), argument!(p.to, a...; kw...))
-
-function block!(p::Pipe)
-  block!(p.to)
-  return
-end
-
-function blockargument!(p::Pipe, type)
-  x = argument!(blocks(p.to)[end], nothing, type, insert = false)
-  substitute!(p, var!(p), x)
 end

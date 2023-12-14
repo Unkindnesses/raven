@@ -5,12 +5,12 @@ import MacroTools: walk, prewalk, postwalk
 xcall(f, args...) = Expr(:call, f, args...)
 
 function map(f, b::BasicBlock)
-  stmts = map(x -> Statement(x, expr = f(x.expr)), b.stmts)
+  stmts = map(((v, x),) -> (v, Statement(x, expr = f(x.expr))), b.stmts)
   BasicBlock(stmts, b.args, b.argtypes)
 end
 
 function map!(f, b::BasicBlock)
-  map!(x -> Statement(x, expr = f(x.expr)), b.stmts, b.stmts)
+  map!(((v, x),) -> (v, Statement(x, expr = f(x.expr))), b.stmts, b.stmts)
   return b
 end
 

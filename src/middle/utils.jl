@@ -99,9 +99,6 @@ function fuseblocks(ir)
   for (v, st) in ir
     isexpr(st, :branch) && (ir[v] = Expr(:branch, env[st.expr.args[1]], st.expr.args[2:end]...))
   end
-  if length(blocks(ir)) == 2
-    Base.eval(Main, :(ir = $(deepcopy(oldir))))
-  end
   return ir
 end
 

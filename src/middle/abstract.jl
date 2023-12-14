@@ -8,10 +8,11 @@ exprtype(ir, xs::AbstractVector) = map(x -> exprtype(ir, x), xs)
 
 function prepare_ir!(ir)
   ir = ir |> globals |> IRTools.expand!
+  # TODO use the API
   for b in ir.blocks
     b.argtypes .= (⊥,)
     for i in 1:length(b.stmts)
-      b.stmts[i] = stmt(b.stmts[i], type = ⊥)
+      b.stmts[i] = (b.stmts[i][1], stmt(b.stmts[i][2], type = ⊥))
     end
   end
   ir = looped(ir)
