@@ -366,21 +366,37 @@ substitute(p::Pipe) = x -> substitute(p, x)
 
 Pipe(ir) = Pipe(ir, IR(meta = ir.meta), Dict(), 0)
 
+struct PipeBlock
+  ir::Pipe
+  id::Int
+end
+
+function init!(bl::PipeBlock)
+  bl.id == 1 || block!(bl.ir.to)
+  for (x, T) in zip(bl.ir.from.blocks[bl.id].args, bl.ir.from.blocks[bl.id].argtypes)
+    y = argument!(blocks(bl.ir.to)[end], nothing, T, insert = false)
+    substitute!(bl.ir, x, y)
+  end
+  return bl
+end
+
+blocks(pr::Pipe) = (init!(PipeBlock(pr, i)) for i = 1:length(pr.from.blocks))
+
+function iterate(bl::PipeBlock, i = 1)
+  p = bl.ir
+  stmts = p.from.blocks[bl.id].stmts
+  i > length(stmts) && return
+  v, st = stmts[i]
+  haskey(p.from, v) || return iterate(bl, i+1)
+  substitute!(p, v, push!(p.to, substitute(p, st)))
+  return (v, st), i+1
+end
+
 function iterate(p::Pipe, (b, i) = (1, 1))
   b > length(p.from.blocks) && return
-  if i == 1
-    b == 1 || block!(p.to)
-    for (x, T) in zip(p.from.blocks[b].args, p.from.blocks[b].argtypes)
-      y = argument!(blocks(p.to)[end], nothing, T, insert = false)
-      substitute!(p, x, y)
-    end
-  end
-  stmts = p.from.blocks[b].stmts
-  i > length(stmts) && return iterate(p, (b+1, 1))
-  v, st = stmts[i]
-  haskey(p.from, v) || return iterate(p, (b, i+1))
-  substitute!(p, v, push!(p.to, substitute(p, st)))
-  return (v, st), (b, i+1)
+  i == 1 && init!(PipeBlock(p, b))
+  (st, i) = @something iterate(PipeBlock(p, b), i) (return iterate(p, (b+1, 1)))
+  return st, (b, i)
 end
 
 finish(p::Pipe) = p.to

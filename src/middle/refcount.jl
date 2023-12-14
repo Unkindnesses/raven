@@ -149,53 +149,50 @@ end
 # Insert counting instructions
 # ============================
 
-function refcounts!(ir)
+function refcounts(ir)
   lv = liveness(ir)
-  # Would be better to do this as part of the pipe – fix this in IRTools2.
-  for b in IRTools.blocks(ir)
-    # TODO: could pushfirst! to free earlier, but this causes issues with multiple
-    # statements. This is an issue if the block errors.
-    rel(x) = (T = exprtype(ir, x); isreftype(T) && release!(b, T, x))
+  pr = IRTools.Pipe(ir)
+  for bl in blocks(pr)
+    rel(x) = (T = exprtype(ir, x); isreftype(T) && release!(pr, T, x))
     # unused block arguments
-    foreach(rel, filter(x -> !(x in lv[b.id]), arguments(b)))
+    foreach(rel, filter(x -> !(x in lv[bl.id]), arguments(block(ir, bl.id))))
     # conditionally dropped variables
-    dropped = [filter(x -> isreftype(exprtype(ir, x)), setdiff(liveness_after(c, lv), lv[b.id])) for c in predecessors(b)]
+    dropped = [filter(x -> isreftype(exprtype(ir, x)), setdiff(liveness_after(c, lv), lv[bl.id])) for c in predecessors(block(ir, bl.id))]
     if !isempty(dropped)
       @assert all(xs -> xs == dropped[1], dropped) # condition mentioned above
       foreach(rel, dropped[1])
     end
-  end
-  pr = IRTools.Pipe(ir)
-  for (v, st) in pr
-    if isexpr(st, :release)
-      delete!(pr, v)
-      x = st.expr.args[1]
-      T = exprtype(ir, x)
-      isreftype(T) && !(x in lv[v]) || continue
-      release!(pr, T, x)
-    elseif isexpr(st, :retain)
-      delete!(pr, v)
-      x = st.expr.args[1]
-      T = exprtype(ir, x)
-      isreftype(T) && x in lv[v] || continue
-      retain!(pr, T, x)
-    elseif isexpr(st, :call, :tuple, :branch) && haskey(lv, v)
-      live = isexpr(st, :branch) ? liveness_after(block(ir, v), lv) : lv[v]
-      delete!(pr, v)
-      # reused argument
-      for x in unique(st.expr.args)
-        isnothing(x) && continue # branch condition
+    for (v, st) in bl
+      if isexpr(st, :release)
+        delete!(pr, v)
+        x = st.expr.args[1]
         T = exprtype(ir, x)
-        isreftype(T) || continue
-        ret = isglobal(ir, x) + count(==(x), st.expr.args) - !(x in live)
-        for _ = 1:ret
-          retain!(pr, T, x)
+        isreftype(T) && !(x in lv[v]) || continue
+        release!(pr, T, x)
+      elseif isexpr(st, :retain)
+        delete!(pr, v)
+        x = st.expr.args[1]
+        T = exprtype(ir, x)
+        isreftype(T) && x in lv[v] || continue
+        retain!(pr, T, x)
+      elseif isexpr(st, :call, :tuple, :branch)
+        live = isexpr(st, :branch) ? liveness_after(block(ir, v), lv) : lv[v]
+        delete!(pr, v)
+        # reused argument
+        for x in unique(st.expr.args)
+          isnothing(x) && continue # branch condition
+          T = exprtype(ir, x)
+          isreftype(T) || continue
+          ret = isglobal(ir, x) + count(==(x), st.expr.args) - !(x in live)
+          for _ = 1:ret
+            retain!(pr, T, x)
+          end
         end
+        v′ = push!(pr, st)
+        replace!(pr, v, v′)
+        # dropped variable
+        isreftype(st.type) && (v in lv[v] || release!(pr, st.type, v′))
       end
-      v′ = push!(pr, st)
-      replace!(pr, v, v′)
-      # dropped variable
-      isreftype(st.type) && (v in lv[v] || release!(pr, st.type, v′))
     end
   end
   ir = IRTools.finish(pr)
@@ -244,7 +241,7 @@ function refcounts(c::Cache)
       count_ir(sig[2], sig[1] == retain_method ? retain : release)
     else
       ir = c[sig]
-      ir isa Redirect ? ir : elide_counts!(refcounts!(copy(ir)))
+      ir isa Redirect ? ir : elide_counts!(refcounts(ir))
     end
   end
 end

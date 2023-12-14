@@ -35,29 +35,28 @@ Base.isempty(q::WorkQueue) = isempty(q.items)
 
 function trim_unreachable(ir)
   pr = IRTools.Pipe(ir)
-  flag = false
-  for (v, st) in pr
-    if v == first(IRTools.block(ir, v))[1]
-      flag = false
-    end
-    if flag
-      delete!(pr, v)
-    elseif isexpr(st, :branch)
-      br = st.expr
-      if br.args[2] == nothing
-        flag = true
-      else
-        cond = exprtype(ir, br.args[2])
-        if cond == false
-          delete!(pr, v)
-        elseif cond == true
+  for bl in blocks(pr)
+    flag = false
+    for (v, st) in bl
+      if flag
+        delete!(pr, v)
+      elseif isexpr(st, :branch)
+        br = st.expr
+        if br.args[2] == nothing
           flag = true
-          pr[v] = IRTools.branch(br.args[1], arguments(br)...)
+        else
+          cond = exprtype(ir, br.args[2])
+          if cond == false
+            delete!(pr, v)
+          elseif cond == true
+            flag = true
+            pr[v] = IRTools.branch(br.args[1], arguments(br)...)
+          end
         end
+      elseif st.type == ⊥
+        push!(pr, IRTools.unreachable)
+        flag = true
       end
-    elseif st.type == ⊥
-      push!(pr, IRTools.unreachable)
-      flag = true
     end
   end
   return IRTools.finish(pr)
@@ -69,7 +68,6 @@ function fuseable(bl)
 end
 
 function fuseblocks(ir)
-  oldir = deepcopy(ir)
   bls = blocks(ir)
   ir = empty(ir)
   skip = Set(i for i = 2:length(bls) if fuseable(bls[i]))
