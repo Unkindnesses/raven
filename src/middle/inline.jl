@@ -18,6 +18,7 @@ function inlineable(ir::IR)
 end
 
 function inlineable(cache, T)
+  T[1] == tag"common.hold" && return false
   fr = Caches.value(cache, T) # avoid self dependency in cycles
   fr == nothing && return false # hit a cycle
   fr isa Redirect && return inlineable(cache, cache[T].to)

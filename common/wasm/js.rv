@@ -40,7 +40,7 @@ fn property(obj, prop) {
   obj = tojs(obj)
   prop = tojs(prop)
   ref = wasm { call("jsproperty", jsref(obj): i32, jsref(prop): i32): i32 }
-  preserve(obj, prop)
+  hold(obj, prop)
   return JSObject(ref)
 }
 
@@ -48,7 +48,7 @@ fn call(obj, meth) {
   obj = tojs(obj)
   meth = tojs(meth)
   ref = wasm { call("jscall0", jsref(obj): i32, jsref(meth): i32): i32 }
-  preserve(obj, meth)
+  hold(obj, meth)
   return JSObject(ref)
 }
 
@@ -57,14 +57,14 @@ fn call(obj, meth, x) {
   meth = tojs(meth)
   x = tojs(x)
   ref = wasm { call("jscall1", jsref(obj): i32, jsref(meth): i32, jsref(x): i32): i32 }
-  preserve(obj, meth, x)
+  hold(obj, meth, x)
   return JSObject(ref)
 }
 
 fn await(obj: JSObject) {
   susp = wasm { (global.get)(0): externref }
   ref = wasm { call("jsawait", susp: externref, jsref(obj): i32): i32 }
-  preserve(obj)
+  hold(obj)
   return JSObject(ref)
 }
 
@@ -72,7 +72,7 @@ fn equal(a: JSObject, b: JSObject) {
   a = tojs(a)
   b = tojs(b)
   result = wasm { call("jseq", jsref(a): i32, jsref(b): i32): i32 }
-  preserve(a, b)
+  hold(a, b)
   return result
 }
 
@@ -93,7 +93,7 @@ fn tojs(x: Int32) { tojs(Float64(x)) }
 
 extend fn Float64(obj: JSObject) {
   x = wasm { call("jsunbox", jsref(obj): i32): f64 }
-  preserve(obj)
+  hold(obj)
   return x
 }
 

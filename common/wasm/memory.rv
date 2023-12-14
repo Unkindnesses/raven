@@ -60,7 +60,7 @@ extend fn invoke(f: Function, xs...) {
 
 # Managed pointer
 
-fn preserve(x...) { nil }
+fn hold(x...) { nil }
 
 bundle { Ref(p: Ptr) }
 
@@ -75,6 +75,6 @@ fn pointer(Ref(ptr)) { ptr+8 }
 fn cleanup!(r: Ref(ptr), func) {
   f = function(func, [TPtr], TNil)
   i32store!(ptr, f)
-  preserve(r) # retain r until cleanup is set
+  hold(r) # retain r until cleanup is set
   return
 }
