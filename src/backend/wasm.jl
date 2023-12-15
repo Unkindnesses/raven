@@ -203,6 +203,8 @@ Caches.subcaches(w::Wasm) = (w.env, w.names, w.funcs)
 Caches.reset!(w::Wasm; deps = []) =
   reset!(Pipeline([w.env, w.names, w.funcs]); deps)
 
+# Batch emitter, for AOT compilation
+
 struct BatchEmitter
   main::Vector{Symbol}
   seen::Set{Symbol}
@@ -214,18 +216,23 @@ BatchEmitter() = BatchEmitter([], Set(), [])
 Base.copy(em::BatchEmitter) =
   BatchEmitter(copy(em.main), copy(em.seen), copy(em.funcs))
 
-function emit!(e::BatchEmitter, mod::Wasm, func::WebAssembly.Func)
+function _emit!(e::BatchEmitter, mod::Wasm, func::WebAssembly.Func)
   func.name in e.seen && return
   push!(e.seen, func.name)
   push!(e.funcs, func)
   for f in WebAssembly.callees(func)
     Caches.hasvalue(mod.names, f) || continue
-    emit!(e, mod, f)
+    _emit!(e, mod, f)
   end
 end
 
-emit!(e::BatchEmitter, mod::Wasm, f::Symbol) =
-  emit!(e, mod, mod[f])
+_emit!(e::BatchEmitter, mod::Wasm, f::Symbol) = _emit!(e, mod, mod[f])
+
+function emit!(e::BatchEmitter, mod::Wasm, func::WebAssembly.Func)
+  _emit!(e, mod, func)
+  foreach(f -> _emit!(e, mod, f), mod.env.table)
+  push!(e.main, func.name)
+end
 
 default_imports = [
   WebAssembly.Import(:support, :global, :jsglobal, [] => [i32]),
@@ -239,15 +246,17 @@ default_imports = [
   WebAssembly.Import(:support, :equal, :jseq, [i32, i32] => [i32]),
   WebAssembly.Import(:support, :release, :jsfree, [i32] => [])]
 
-function wasmmodule(em::BatchEmitter, env::WEnv)
-  start = WebAssembly.Func(:_start, [externref]=>[], [],
+startfunc(main) =
+  WebAssembly.Func(:_start, [externref]=>[], [],
     WebAssembly.Block([
       WebAssembly.Local(0),
       WebAssembly.SetGlobal(0),
-      [WebAssembly.Call(m) for m in em.main]...
+      [WebAssembly.Call(m) for m in main]...
       ]),
     FuncInfo(tag"common.core.main", trampoline = true))
-  pushfirst!(em.funcs, start)
+
+function wasmmodule(em::BatchEmitter, env::WEnv)
+  pushfirst!(em.funcs, startfunc(em.main))
   wmod = WebAssembly.Module(
     funcs = em.funcs,
     imports = default_imports,
@@ -297,4 +306,52 @@ function emitjs(path, wasm, strings)
       println(io, "main({memcheck: false});")
     end
   end
+end
+
+# Stream emitter, for REPL
+
+mutable struct StreamEmitter
+  seen::Set{Symbol}
+  queue::Vector{WebAssembly.Module}
+  globals::Int
+end
+
+StreamEmitter() = StreamEmitter(Set(), [], 0)
+
+Base.copy(em::StreamEmitter) = StreamEmitter(copy(em.seen), copy(em.queue), em.globals)
+
+function _emit!(e::StreamEmitter, mod::Wasm, func::WebAssembly.Func, fs, imports)
+  push!(imports, func.name)
+  func.name in e.seen && return
+  push!(e.seen, func.name)
+  push!(fs, func)
+  for f in WebAssembly.callees(func)
+    Caches.hasvalue(mod.names, f) || continue
+    _emit!(e, mod, f, fs, imports)
+  end
+  return fs, imports
+end
+
+_emit!(e::StreamEmitter, mod::Wasm, f::Symbol, fs, imports) = _emit!(e, mod, mod[f], fs, imports)
+
+function emit!(e::StreamEmitter, mod::Wasm, func::WebAssembly.Func)
+  first = e.globals == 0
+  fs, imports = _emit!(e, mod, func, WebAssembly.Func[], Symbol[])
+  foreach(f -> _emit!(e, mod, f, fs, imports), mod.env.table)
+  pushfirst!(fs, startfunc([func.name]))
+  imports = filter(x -> !any(f -> f.name == x, fs), unique(imports))
+  imports = [WebAssembly.Import(:wasm, f, f, mod[f].sig) for f in imports]
+  exports = [WebAssembly.Export(f.name, f.name) for f in fs]
+  first || push!(imports, WebAssembly.Import(:wasm, :memory, WebAssembly.Mem(0)))
+  # TODO shared globals / table
+  wmod = WebAssembly.Module(
+    funcs = fs,
+    imports = vcat(default_imports, imports),
+    exports = [WebAssembly.Export(f.name, f.name) for f in fs],
+    globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in mod.env.globals.types]...],
+    tables = [WebAssembly.Table(length(mod.env.table))],
+    elems = [WebAssembly.Elem(0, copy(mod.env.table))],
+    mems = first ? [WebAssembly.Mem(0, name = :memory)] : [])
+  push!(e.queue, wmod)
+  e.globals = length(mod.env.globals.types)+1
 end

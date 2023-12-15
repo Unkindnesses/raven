@@ -1,9 +1,9 @@
 struct Compiler
   pipe::Pipeline
-  emitter::BatchEmitter
+  emitter
 end
 
-function Compiler()
+function Compiler(; emitter = BatchEmitter())
   pipe = @Pipeline(
     sources = Modules(),
     defs = Definitions(sources),
@@ -13,11 +13,11 @@ function Compiler()
     counted = refcounts(inlined),
     wasm = Wasm(defs, counted),
   )
-  return Compiler(pipe, BatchEmitter()) |> loadcommon!
+  return Compiler(pipe, emitter) |> loadcommon!
 end
 
-function Compiler(src)
-  c = Compiler()
+function Compiler(src; emitter = BatchEmitter())
+  c = Compiler(; emitter)
   reload!(c, src)
   return c
 end
@@ -32,7 +32,7 @@ withemit(f, p) = dynamic_bind(f, :emit, p)
 emit(x::IR) = dynamic_value(:emit, _ -> nothing)(x)
 
 # TODO less backend-dependent
-function emit!(c::Compiler, em::BatchEmitter, m::RMethod)
+function emit!(c::Compiler, em, m::RMethod)
   ir = c.pipe.counted[(m,)]
   gs = assigned_globals(ir)
   for (b, T) in gs
@@ -45,11 +45,10 @@ function emit!(c::Compiler, em::BatchEmitter, m::RMethod)
   name = c.pipe.wasm.names[(m,)]
   ir = WebAssembly.irfunc(name, ir)
   emit!(em, c.pipe.wasm, ir)
-  push!(em.main, name)
 end
 
-emit!(c::Compiler, em::BatchEmitter, ir::IR) =
-  emit!(c::Compiler, em::BatchEmitter,
+emit!(c::Compiler, em, ir::IR) =
+  emit!(c::Compiler, em,
         RMethod(tag"common.core.main", lowerpattern(AST.List()), ir))
 
 function loadcommon!(c::Compiler)
@@ -79,7 +78,6 @@ function reload!(c::Compiler, src)
   end
   reset!(c.pipe)
   options().memcheck && emit!(c, emitter, c.pipe.defs[tag"common.checkAllocations"][1])
-  foreach(f -> emit!(emitter, c.pipe.wasm, f), c.pipe.wasm.env.table)
   return emitter
 end
 
