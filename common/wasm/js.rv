@@ -36,25 +36,25 @@ fn global() {
   return JSObject(ref)
 }
 
-fn property(obj, prop) {
-  obj = tojs(obj)
-  prop = tojs(prop)
+fn property(obj, prop) { property(tojs(obj), tojs(prop)) }
+
+fn property(obj: JSObject, prop: JSObject) {
   ref = wasm { call("jsproperty", jsref(obj): i32, jsref(prop): i32): i32 }
   hold(obj, prop)
   return JSObject(ref)
 }
 
-fn call(obj, meth) {
-  obj = tojs(obj)
-  meth = tojs(meth)
+fn call(obj, meth) { call(tojs(obj), tojs(meth)) }
+
+fn call(obj: JSObject, meth: JSObject) {
   ref = wasm { call("jscall0", jsref(obj): i32, jsref(meth): i32): i32 }
   hold(obj, meth)
   return JSObject(ref)
 }
 
-fn call(obj, meth, x) {
-  obj = tojs(obj)
-  meth = tojs(meth)
+fn call(obj, meth, x) { call(tojs(obj), tojs(meth), tojs(x)) }
+
+fn call(obj: JSObject, meth: JSObject, x: JSObject) {
   x = tojs(x)
   ref = wasm { call("jscall1", jsref(obj): i32, jsref(meth): i32, jsref(x): i32): i32 }
   hold(obj, meth, x)
@@ -69,14 +69,12 @@ fn await(obj: JSObject) {
 }
 
 fn equal(a: JSObject, b: JSObject) {
-  a = tojs(a)
-  b = tojs(b)
   result = wasm { call("jseq", jsref(a): i32, jsref(b): i32): i32 }
   hold(a, b)
   return result
 }
 
-fn new(T) {
+fn new(T: JSObject) {
   Object = property(global(), "Object")
   this = call(Object, "create", property(T, "prototype"))
   call(T, "call", this)
@@ -107,12 +105,14 @@ fn string(x: (Int32 | Int64 | Float32 | Float64)) {
   String(call(x, "toString"))
 }
 
-fn _print(x: String) {
+fn _print(x: JSObject) {
   process = property(global(), "process")
   stdout = property(process, "stdout")
   call(stdout, "write", x)
   return
 }
+
+fn _print(x: String) { _print(tojs(x)) }
 
 fn println(x: JSObject) {
   console = property(global(), "console")
