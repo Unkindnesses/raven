@@ -33,15 +33,16 @@ emit(x::IR) = dynamic_value(:emit, _ -> nothing)(x)
 
 # TODO less backend-dependent
 function emit!(c::Compiler, em::BatchEmitter, m::RMethod)
-  name = c.pipe.wasm.names[(m,)]
   ir = c.pipe.counted[(m,)]
   gs = assigned_globals(ir)
-  ir = lowerwasm(ir, c.pipe.wasm.names, c.pipe.wasm.env)
   for (b, T) in gs
     c.pipe.sources[b] = T
   end
+  opcount(ir) > 0 || return
+  ir = lowerwasm(ir, c.pipe.wasm.names, c.pipe.wasm.env)
   isempty(gs) || reset!(c.pipe)
   ir = lowerwasm_globals(ir, c.pipe.wasm.env.globals)
+  name = c.pipe.wasm.names[(m,)]
   ir = WebAssembly.irfunc(name, ir)
   emit!(em, c.pipe.wasm, ir)
   push!(em.main, name)

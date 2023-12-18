@@ -2,7 +2,7 @@ function opcount(ir::IR)
   count = 0
   for (v, st) in ir
     if isexpr(st, :tuple, :ref, :branch, :cast, :retain, :release)
-    elseif isexpr(st, :global)
+    elseif isexpr(st, :global, :(=))
       count += (nregisters(layout(st.type)) > 0)
     elseif isexpr(st, :call, :func, :call_indirect)
       count += 1
