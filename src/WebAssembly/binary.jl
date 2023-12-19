@@ -292,15 +292,22 @@ function globals(io::BinaryContext, gs)
   end
 end
 
-function exports(io::BinaryContext, exs)
-  isempty(exs) && return
+function exports(io::BinaryContext, exs, gs, ms, ts)
+  n = length(exs) + sum(xs -> count(x -> !isnothing(x.name), xs), (gs, ms, ts))
+  n == 0 && return
   write(io, 0x07)
   withsize(io) do io
-    u32(io, length(exs))
+    u32(io, n)
     for ex in exs
       name(io, ex.as)
       write(io, 0x00) # func export
       u32(io, io.funcs[ex.name])
+    end
+    for xs in (gs, ms, ts), (i, x) in enumerate(xs)
+      isnothing(x.name) && continue
+      name(io, x.name)
+      write(io, x isa Table ? 0x01 : x isa Mem ? 0x02 : 0x03)
+      u32(io, i-1)
     end
   end
 end
@@ -409,7 +416,7 @@ function binary(io::IO, m::Module; path)
   tables(cx, m.tables)
   memories(cx, m.mems)
   globals(cx, m.globals)
-  exports(cx, m.exports)
+  exports(cx, m.exports, m.globals, m.mems, m.tables)
   elems(cx, m.elems)
   dbg = code(cx, m.funcs)
   names(cx, m)

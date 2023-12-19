@@ -132,25 +132,32 @@ end
 
 struct Table
   min::UInt32
+  name::Union{Symbol,Nothing}
 end
+
+Table(i; name = nothing) = Table(i, name)
 
 struct Mem
   min::UInt32
   max::Union{UInt32,Nothing}
-  Mem(min::Integer, max = nothing) = new(min, max)
+  name::Union{Symbol,Nothing}
 end
+
+Mem(min, max = nothing; name = nothing) = Mem(min, max, name)
 
 struct Global
   type::WType
   mut::Bool
   init::Instruction
+  name::Union{Symbol,Nothing}
 end
 
-Global(val::Number, mut = true) = Global(WType(typeof(val)), mut, Const(val))
-Global(T::WType, mut = true) =
+Global(val::Number, mut = true; name = nothing) = Global(WType(typeof(val)), mut, Const(val), name)
+
+Global(T::WType, mut = true; name = nothing) =
   T == externref ?
-    Global(T, mut, RefNull(T)) :
-    Global(jltype(T)(0), mut)
+    Global(T, mut, RefNull(T), name) :
+    Global(jltype(T)(0), mut; name)
 
 struct Elem
   table::UInt32
