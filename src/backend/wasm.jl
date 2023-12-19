@@ -299,7 +299,7 @@ function emitjs(path, wasm, strings)
     write(io, Base.read(support))
     println(io)
     println(io, "const wasmFile = '$wasm';")
-    println(io, "registerStrings([$(join(jsstring.(strings), ", "))])")
+    println(io, "[$(join(jsstring.(strings), ", "))].forEach(registerString)")
     if options().jsalloc
       println(io, "main();")
     else

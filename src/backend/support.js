@@ -20,15 +20,15 @@ let await = new WebAssembly.Function(
     {suspending: "first"}
 );
 
-function registerStrings(ss) {
-  nStrings = ss.length;
-  for (const s of ss) {
-    const ref = createRef(s);
-  }
+let nStrings = 0;
+
+function registerString(s) {
+  nStrings += 1;
+  return createRef(s);
 }
 
 function release(ref) {
-  if (ref >= nStrings) delete table[ref];
+  delete table[ref];
 }
 
 function global() {
@@ -84,7 +84,7 @@ async function loadWasm(f, imports = {support}) {
   return res.instance.exports;
 }
 
-module.exports = {loadWasm, registerStrings, support};
+module.exports = {loadWasm, registerString, support};
 
 async function main({memcheck = true} = {}) {
   let {_start} = await loadWasm(__dirname + '/' + wasmFile);
