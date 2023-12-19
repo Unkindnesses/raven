@@ -119,6 +119,7 @@ const unreachable = Unreachable()
 Base.:(==)(a::Signature, b::Signature) = a.params == b.params && a.result == b.result
 Base.hash(s::Signature, h::UInt) = hash((0xa0029abae2de0ab6, s.params, s.result), h)
 
+Signature((p, r)::Pair) = Signature(p, r)
 Base.convert(::Type{Signature}, (p,r)::Pair) = Signature(p, r)
 
 struct Func
@@ -166,8 +167,13 @@ struct Import
   mod::Symbol
   name::Symbol
   as::Symbol
-  sig::Signature
+  sig::Union{Signature,Global,Mem,Table}
 end
+
+Import(mod::Symbol, name::Symbol, as::Symbol, sig::Pair) =
+  Import(mod, name, as, Signature(sig))
+
+Import(mod::Symbol, name::Symbol, sig) = Import(mod, name, name, sig)
 
 struct Export
   as::Symbol
@@ -187,6 +193,8 @@ end
 
 Module(; funcs = [], mems = [], tables = [], globals = [], elems = [], data = [], imports = [], exports = []) =
   Module(funcs, mems, tables, globals, elems, data, imports, exports)
+
+signatures(m::Module) = unique(f.sig for f in vcat(m.imports, m.funcs) if f.sig isa Signature)
 
 # Some AST utils
 

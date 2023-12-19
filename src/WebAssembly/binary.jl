@@ -24,14 +24,13 @@ BinaryContext(io::IO, cx::BinaryContext) =
 function BinaryContext(io::IO, m::Module)
   types = Dict{Signature,Int}()
   funcs = Dict{Symbol,Int}()
-  i = 0 # assign ids to type signatures
-  for f in vcat(m.imports, m.funcs)
-    haskey(types, f.sig) && continue
-    types[f.sig] = i
-    i += 1
+  # assign ids to type signatures
+  for (i, sig) in enumerate(signatures(m))
+    types[sig] = i-1
   end
   i = 0 # assign ids to function names
   for f in vcat(m.imports, m.funcs)
+    f.sig isa Signature || continue
     name = f isa Func ? f.name : f.as
     @assert !haskey(funcs, name)
     funcs[name] = i
@@ -188,7 +187,7 @@ function custom(f, io::IO, nm)
 end
 
 function types(io::IO, m::Module)
-  sigs = unique(f.sig for f in vcat(m.imports, m.funcs))
+  sigs = signatures(m)
   isempty(sigs) && return
   write(io, 0x01) # section id
   withsize(io) do io
@@ -207,8 +206,21 @@ function imports(io::BinaryContext, imps)
     for i in imps
       name(io, i.mod)
       name(io, i.name)
-      write(io, 0x00) # func import
-      u32(io, io.types[i.sig])
+      if i.sig isa Signature
+        write(io, 0x00)
+        u32(io, io.types[i.sig])
+      elseif i.sig isa Table
+        write(io, 0x01)
+        table(io, i.sig)
+      elseif i.sig isa Mem
+        write(io, 0x02)
+        mem(io, i.sig)
+      elseif i.sig isa Global
+        write(io, 0x03)
+        globaltype(io, i.sig)
+      else
+        error("unsupported sig $(i.sig)")
+      end
     end
   end
 end
@@ -224,35 +236,47 @@ function functions(io::BinaryContext, funcs)
   end
 end
 
+function table(io, t)
+  write(io, 0x70) # funcref
+  write(io, 0x00)
+  u32(io, t.min)
+end
+
 function tables(io::BinaryContext, ts)
   isempty(ts) && return
   write(io, 0x04) # section id
   withsize(io) do io
     u32(io, length(ts))
     for t in ts
-      write(io, 0x70) # funcref
-      write(io, 0x00)
-      u32(io, t.min)
+      table(io, t)
     end
+  end
+end
+
+function mem(io::IO, m::Mem)
+  if m.max == nothing
+    write(io, 0x00)
+    u32(io, m.min)
+  else
+    write(io, 0x01)
+    u32(io, m.min)
+    u32(io, m.max)
   end
 end
 
 function memories(io::IO, mems)
   isempty(mems) && return
-  @assert length(mems) == 1
-  m = mems[1]
+  m = only(mems)
   write(io, 0x05) # section id
   withsize(io) do io
-    u32(io, length(mems))
-    if m.max == nothing
-      write(io, 0x00)
-      u32(io, m.min)
-    else
-      write(io, 0x01)
-      u32(io, m.min)
-      u32(io, m.max)
-    end
+    u32(io, 1)
+    mem(io, m)
   end
+end
+
+function globaltype(io::IO, g)
+  write(io, numtypes[g.type])
+  write(io, UInt8(g.mut))
 end
 
 function globals(io::BinaryContext, gs)
@@ -261,8 +285,7 @@ function globals(io::BinaryContext, gs)
   withsize(io) do io
     u32(io, length(gs))
     for g in gs
-      write(io, numtypes[g.type])
-      write(io, UInt8(g.mut))
+      globaltype(io, g)
       instr(io, g.init)
       write(io, 0x0B) # end
     end
@@ -342,11 +365,12 @@ function code(io::IO, funcs)
 end
 
 function names(io::IO, m)
+  fs = filter(f -> f.sig isa Signature, vcat(m.imports, m.funcs))
   custom(io, "name") do io
     write(io, 0x01) # func map
     withsize(io) do io
-      u32(io, length(m.imports) + length(m.funcs))
-      for (i, f) in enumerate(vcat(m.imports, m.funcs))
+      u32(io, length(fs))
+      for (i, f) in enumerate(fs)
         u32(io, i-1)
         name(io, f isa Func ? f.name : f.as)
       end
