@@ -83,15 +83,14 @@ end
 
 Base.getindex(gs::WGlobals, b::Binding) = gs.globals[b]
 
+Caches.subcaches(g::WGlobals) = (g.globals,)
+
 struct WEnv
-  globals::WGlobals
   strings::Vector{String}
   table::Vector{Symbol}
 end
 
-WEnv(gs::WGlobals) = WEnv(gs, String[], Symbol[])
-
-Caches.subcaches(w::WEnv) = (w.globals.globals,)
+WEnv() = WEnv(String[], Symbol[])
 
 function tableid!(xs, x)
   i = findfirst(==(x), xs)
@@ -100,7 +99,7 @@ function tableid!(xs, x)
   return Int32(length(xs)-1)
 end
 
-function lowerwasm(ir::IR, names, env)
+function lowerwasm(ir::IR, names, globals, env)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     if !isexpr(st)
@@ -115,7 +114,7 @@ function lowerwasm(ir::IR, names, env)
       @assert layout(st.type) == layout(exprtype(ir, st.expr.args[1]))
       pr[v] = st.expr.args[1]
     elseif isexpr(st, :global)
-      l = env.globals[st.expr.args[1]::Binding]
+      l = globals[st.expr.args[1]::Binding]
       ps = [insert!(pr, v, stmt(Expr(:call, WebAssembly.GetGlobal(id)), type = T))
             for (id, T) in zip(l, wparts(st.type))]
       pr[v] = length(ps) == 1 ? only(ps) : Expr(:tuple, ps...)
@@ -170,12 +169,16 @@ end
 
 struct Wasm
   env::WEnv
+  globals::WGlobals
   names::DualCache{Any,Symbol}
   funcs::Cache{Any,WebAssembly.Func}
 end
 
-function Wasm(env::WEnv, code)
+function Wasm(defs::Definitions, code, env)
+  globals = WGlobals(defs)
   count = Dict{Symbol,Int}()
+  # TODO should be `funcs`, not `code`, to make global redefs of the same type
+  # more efficient. But that creates an awkward cycle between names and funcs.
   names = DualCache{Any,Symbol}() do self, sig
     code[sig] # new name if code changes
     id = sig[1] isa Tag ? Symbol(sig[1]) : Symbol(Symbol(sig[1].name), ":method")
@@ -187,21 +190,21 @@ function Wasm(env::WEnv, code)
   funcs = Cache{Any,WebAssembly.Func}() do self, sig
     # TODO: we use `frame` to avoid redirects, but this can duplicate function
     # bodies. Should instead avoid calling redirected sigs, eg via casting.
-    ir = lowerwasm(frame(code, sig), names, env)
+    ir = lowerwasm(frame(code, sig), names, globals, env)
     return WebAssembly.irfunc(names[sig], ir)
   end
-  return Wasm(env, names, funcs)
+  return Wasm(env, globals, names, funcs)
 end
-
-Wasm(inf, code) = Wasm(WEnv(WGlobals(inf)), code)
 
 Base.getindex(w::Wasm, sig::Tuple) = w.funcs[sig]
 Base.getindex(w::Wasm, name::Symbol) = w[Caches.getkey(w.names,name)]
 
-Caches.subcaches(w::Wasm) = (w.env, w.names, w.funcs)
+Caches.subcaches(w::Wasm) = (w.globals, w.names, w.funcs)
 
 Caches.reset!(w::Wasm; deps = []) =
-  reset!(Pipeline([w.env, w.names, w.funcs]); deps)
+  reset!(Pipeline([w.globals, w.names, w.funcs]); deps)
+
+lowerwasm(ir, w::Wasm) = lowerwasm(ir, w.names, w.globals, w.env)
 
 # Batch emitter, for AOT compilation
 
@@ -215,6 +218,8 @@ BatchEmitter() = BatchEmitter([], Set(), [])
 
 Base.copy(em::BatchEmitter) =
   BatchEmitter(copy(em.main), copy(em.seen), copy(em.funcs))
+
+wenv(em::BatchEmitter) = WEnv()
 
 function _emit!(e::BatchEmitter, mod::Wasm, func::WebAssembly.Func)
   func.name in e.seen && return
@@ -255,13 +260,13 @@ startfunc(main) =
       ]),
     FuncInfo(tag"common.core.main", trampoline = true))
 
-function wasmmodule(em::BatchEmitter, env::WEnv)
+function wasmmodule(em::BatchEmitter, globals::WGlobals, env::WEnv)
   pushfirst!(em.funcs, startfunc(em.main))
   wmod = WebAssembly.Module(
     funcs = em.funcs,
     imports = default_imports,
     exports = [WebAssembly.Export(:_start, :_start)],
-    globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in env.globals.types]...],
+    globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in globals.types]...],
     tables = [WebAssembly.Table(length(env.table))],
     elems = [WebAssembly.Elem(0, env.table)],
     mems = [WebAssembly.Mem(0)])
@@ -282,9 +287,9 @@ function binary(m::WebAssembly.Module, file; path)
   return
 end
 
-function emitwasm(em::BatchEmitter, env::WEnv, out; path)
-  binary(wasmmodule(em, env), out; path)
-  return env.strings
+function emitwasm(em::BatchEmitter, mod::Wasm, out; path)
+  binary(wasmmodule(em, mod.globals, mod.env), out; path)
+  return mod.env.strings
 end
 
 # JS support
@@ -320,6 +325,8 @@ StreamEmitter() = StreamEmitter(Set(), [], 0)
 
 Base.copy(em::StreamEmitter) = StreamEmitter(copy(em.seen), copy(em.queue), em.globals)
 
+wenv(em::StreamEmitter) = WEnv()
+
 function _emit!(e::StreamEmitter, mod::Wasm, func::WebAssembly.Func, fs, imports)
   push!(imports, func.name)
   func.name in e.seen && return
@@ -348,10 +355,10 @@ function emit!(e::StreamEmitter, mod::Wasm, func::WebAssembly.Func)
     funcs = fs,
     imports = vcat(default_imports, imports),
     exports = [WebAssembly.Export(f.name, f.name) for f in fs],
-    globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in mod.env.globals.types]...],
+    globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in mod.globals.types]...],
     tables = [WebAssembly.Table(length(mod.env.table))],
     elems = [WebAssembly.Elem(0, copy(mod.env.table))],
     mems = first ? [WebAssembly.Mem(0, name = :memory)] : [])
   push!(e.queue, wmod)
-  e.globals = length(mod.env.globals.types)+1
+  e.globals = length(mod.globals.types)+1
 end

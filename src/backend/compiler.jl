@@ -11,7 +11,7 @@ function Compiler(; emitter = BatchEmitter())
     expanded = Expanded(inferred),
     inlined = Inlined(expanded),
     counted = refcounts(inlined),
-    wasm = Wasm(defs, counted),
+    wasm = Wasm(defs, counted, wenv(emitter)),
   )
   return Compiler(pipe, emitter) |> loadcommon!
 end
@@ -39,9 +39,9 @@ function emit!(c::Compiler, em, m::RMethod)
     c.pipe.sources[b] = T
   end
   opcount(ir) > 0 || return
-  ir = lowerwasm(ir, c.pipe.wasm.names, c.pipe.wasm.env)
+  ir = lowerwasm(ir, c.pipe.wasm)
   isempty(gs) || reset!(c.pipe)
-  ir = lowerwasm_globals(ir, c.pipe.wasm.env.globals)
+  ir = lowerwasm_globals(ir, c.pipe.wasm.globals)
   name = c.pipe.wasm.names[(m,)]
   ir = WebAssembly.irfunc(name, ir)
   emit!(em, c.pipe.wasm, ir)
@@ -91,7 +91,7 @@ function compile(file, opts = Options();
   mkpath(dir)
   withoptions(opts) do
     em = reload!(compiler, file)
-    strings = emitwasm(em, compiler.pipe.wasm.env, joinpath(dir, "$name.wasm"); path)
+    strings = emitwasm(em, compiler.pipe.wasm, joinpath(dir, "$name.wasm"); path)
     emitjs(joinpath(dir, "$name.js"), "$name.wasm", strings)
   end
   return joinpath(dir, "$name.js")
