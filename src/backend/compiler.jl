@@ -81,17 +81,24 @@ function reload!(c::Compiler, src)
   return emitter
 end
 
+compiler = nothing
+
 function compile(file, opts = Options();
                  dir = dirname(file),
-                 compiler = compiler)
-  opts == Options() || (compiler = Compiler())
+                 comp = nothing)
+  if comp == nothing
+    global compiler
+    compiler == nothing && (compiler = Compiler())
+    comp = compiler
+  end
+  opts == Options() || (comp = Compiler())
   path = normpath(joinpath(pwd(), file))
   path, _ = splitext(path)
   name = basename(path)
   mkpath(dir)
   withoptions(opts) do
-    em = reload!(compiler, file)
-    strings = emitwasm(em, compiler.pipe.wasm, joinpath(dir, "$name.wasm"); path)
+    em = reload!(comp, file)
+    strings = emitwasm(em, comp.pipe.wasm, joinpath(dir, "$name.wasm"); path)
     emitjs(joinpath(dir, "$name.js"), "$name.wasm", strings)
   end
   return joinpath(dir, "$name.js")

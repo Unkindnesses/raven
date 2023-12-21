@@ -38,11 +38,12 @@ include("backend/repl.jl")
 include("reflection.jl")
 include("test.jl")
 
+include("repl-mode.jl")
+
 function __init__()
   name = "raven-repl-$(rand(UInt64))"
   global addr = Sys.iswindows() ? "\\\\.\\pipe\\$name" : joinpath(tempdir(), name)
   global server = listen(addr)
-  global compiler = Compiler()
 end
 
 end # module

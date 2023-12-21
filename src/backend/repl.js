@@ -5,14 +5,14 @@ let {loadWasm, registerString, support} = require('./support.js');
 let imports = {support, wasm: {}};
 
 async function runWasm(file) {
-  let exports = await loadWasm(file, imports);
-  Object.assign(imports.wasm, exports);
-  _start = new WebAssembly.Function(
-    {parameters: [], results: ['externref']},
-    exports._start,
-    {promising: 'first'}
-  );
   try {
+    let exports = await loadWasm(file, imports);
+    Object.assign(imports.wasm, exports);
+    _start = new WebAssembly.Function(
+      {parameters: [], results: ['externref']},
+      exports._start,
+      {promising: 'first'}
+    );
     await _start();
   } catch (e) {
     console.error(e);
