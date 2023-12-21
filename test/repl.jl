@@ -1,13 +1,9 @@
 using Raven, Test
-using Raven: @src_str
 
 let
   out = Pipe()
   repl = Raven.REPL(stdout = out)
-  em = Raven.reload!(repl.compiler, src"println(2+2)")
-  for mod in em.emitter.queue
-    Raven.runWasm(repl.conn, mod)
-  end
+  em = Raven.eval!(repl, "2+2")
   @test readline(out) == "4"
   close(repl)
 end

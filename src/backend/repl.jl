@@ -56,7 +56,51 @@ end
 
 function REPL(; stdin = stdin, stdout = stdout, stderr = stderr)
   conn = REPLConn(; stdin, stdout, stderr)
-  return REPL(conn, Compiler(emitter = REPLEmitter(conn)))
+  repl = REPL(conn, Compiler(emitter = REPLEmitter(conn)))
+  reload!(repl.compiler, src"") # init imports
+  flush!(repl)
+  return repl
 end
 
 Base.close(r::REPL) = close(r.conn)
+
+function flush!(r::REPL)
+  while !isempty(r.compiler.emitter.emitter.queue)
+    runWasm(r.conn, popfirst!(r.compiler.emitter.emitter.queue))
+  end
+end
+
+function toplevels(src; path)
+  exs = []
+  io = LineNumberingReader(IOBuffer(src))
+  while true
+    Parse.skip(io)
+    cur = cursor(io)
+    (ex = parse(io; path)) == nothing && break
+    push!(exs, (cur, ex))
+  end
+  return exs
+end
+
+function wrap_print(ex)
+  ex isa AST.Syntax && return ex
+  return AST.Call(:println, ex)
+end
+
+function eval!(r::REPL, src)
+  function emit(ir)
+    reset!(r.compiler.pipe)
+    emit!(r.compiler, r.compiler.emitter, ir)
+    flush!(r)
+  end
+  withemit(emit) do
+    defs = r.compiler.pipe.sources
+    cx = LoadState(defs, defs[tag""])
+    exs = toplevels(src; path = "repl")
+    for (i, (cur, ex)) in enumerate(exs)
+      ex = wrap_print(ex)
+      vload(cx, ex, src = Source("repl", cur.line, cur.column))
+    end
+  end
+  return
+end
