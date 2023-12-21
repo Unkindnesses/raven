@@ -1,19 +1,20 @@
-struct Compiler
-  pipe::Pipeline
-  emitter
-end
-
-function Compiler(; emitter = BatchEmitter())
-  pipe = @Pipeline(
+compile_pipeline(; env = WEnv()) =
+  @Pipeline(
     sources = Modules(),
     defs = Definitions(sources),
     inferred = Inferred(defs),
     expanded = Expanded(inferred),
     inlined = Inlined(expanded),
     counted = refcounts(inlined),
-    wasm = Wasm(defs, counted, wenv(emitter)),
-  )
-  return Compiler(pipe, emitter) |> loadcommon!
+    wasm = Wasm(defs, counted, env))
+
+struct Compiler
+  pipe::Pipeline
+  emitter
+end
+
+function Compiler(; emitter = BatchEmitter())
+  return Compiler(compile_pipeline(), emitter) |> loadcommon!
 end
 
 function Compiler(src; emitter = BatchEmitter())
@@ -32,38 +33,42 @@ withemit(f, p) = dynamic_bind(f, :emit, p)
 emit(x::IR) = dynamic_value(:emit, _ -> nothing)(x)
 
 # TODO less backend-dependent
-function emit!(c::Compiler, em, m::RMethod)
-  ir = c.pipe.counted[(m,)]
+function emit!(c::Pipeline, em, m::RMethod)
+  ir = c.counted[(m,)]
   gs = assigned_globals(ir)
   for (b, T) in gs
-    c.pipe.sources[b] = T
+    c.sources[b] = T
   end
   opcount(ir) > 0 || return
-  ir = lowerwasm(ir, c.pipe.wasm)
-  isempty(gs) || reset!(c.pipe)
-  ir = lowerwasm_globals(ir, c.pipe.wasm.globals)
-  name = c.pipe.wasm.names[(m,)]
+  ir = lowerwasm(ir, c.wasm)
+  isempty(gs) || reset!(c)
+  ir = lowerwasm_globals(ir, c.wasm.globals)
+  name = c.wasm.names[(m,)]
   ir = WebAssembly.irfunc(name, ir)
-  emit!(em, c.pipe.wasm, ir)
+  emit!(em, c.wasm, ir)
 end
 
-emit!(c::Compiler, em, ir::IR) =
-  emit!(c::Compiler, em,
-        RMethod(tag"common.core.main", lowerpattern(AST.List()), ir))
+emit!(c::Pipeline, em, ir::IR) =
+  emit!(c, em, RMethod(tag"common.core.main", lowerpattern(AST.List()), ir))
 
-function loadcommon!(c::Compiler)
+function loadcommon!(c::Pipeline, emitter)
   function emit(ir)
-    reset!(c.pipe)
-    emit!(c, c.emitter, ir)
+    reset!(c)
+    emit!(c, emitter, ir)
   end
   withemit(emit) do
-    module!(c.pipe.sources, core())
+    module!(c.sources, core())
     # TODO toplevel exprs should compile in the context of the relevant module,
     # rather than main. Which would make the following unnecessary.
-    import!(module!(c.pipe.sources, tag""), module!(c.pipe.sources, tag"common"))
-    loadmodule(c.pipe.sources, tag"common.core", "$common/core.rv")
-    loadmodule(c.pipe.sources, tag"common", "$common/common.rv")
+    import!(module!(c.sources, tag""), module!(c.sources, tag"common"))
+    loadmodule(c.sources, tag"common.core", "$common/core.rv")
+    loadmodule(c.sources, tag"common", "$common/common.rv")
   end
+  return c
+end
+
+function loadcommon!(c::Compiler)
+  loadcommon!(c.pipe, c.emitter)
   return c
 end
 
@@ -71,13 +76,13 @@ function reload!(c::Compiler, src)
   emitter = copy(c.emitter)
   function emit(ir)
     reset!(c.pipe)
-    emit!(c, emitter, ir)
+    emit!(c.pipe, emitter, ir)
   end
   withemit(emit) do
     reload!(c.pipe.sources, src)
   end
   reset!(c.pipe)
-  options().memcheck && emit!(c, emitter, c.pipe.defs[tag"common.checkAllocations"][1])
+  options().memcheck && emit!(c.pipe, emitter, c.pipe.defs[tag"common.checkAllocations"][1])
   return emitter
 end
 

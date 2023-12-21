@@ -222,8 +222,6 @@ BatchEmitter() = BatchEmitter([], Set(), [])
 Base.copy(em::BatchEmitter) =
   BatchEmitter(copy(em.main), copy(em.seen), copy(em.funcs))
 
-wenv(em::BatchEmitter) = WEnv()
-
 function _emit!(e::BatchEmitter, mod::Wasm, func::WebAssembly.Func)
   func.name in e.seen && return
   push!(e.seen, func.name)
@@ -329,8 +327,6 @@ end
 StreamEmitter() = StreamEmitter(Set(), [], 0)
 
 Base.copy(em::StreamEmitter) = StreamEmitter(copy(em.seen), copy(em.queue), em.globals)
-
-wenv(em::StreamEmitter) = WEnv()
 
 function _emit!(e::StreamEmitter, mod::Wasm, func::WebAssembly.Func, fs, imports)
   push!(imports, func.name)

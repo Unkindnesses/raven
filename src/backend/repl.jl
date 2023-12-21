@@ -45,19 +45,21 @@ REPLEmitter(conn::REPLConn) = REPLEmitter(conn, StreamEmitter())
 
 Base.copy(em::REPLEmitter) = REPLEmitter(em.conn, copy(em.emitter))
 
-wenv(em::REPLEmitter) = REnv(em.conn)
-
 emit!(em::REPLEmitter, args...) = emit!(em.emitter, args...)
 
 struct REPL
   conn::REPLConn
-  compiler::Compiler
+  compiler::Pipeline
+  emitter::REPLEmitter
 end
 
 function REPL(; stdin = stdin, stdout = stdout, stderr = stderr)
   conn = REPLConn(; stdin, stdout, stderr)
-  repl = REPL(conn, Compiler(emitter = REPLEmitter(conn)))
-  reload!(repl.compiler, src"") # init imports
+  compiler = compile_pipeline(env = REnv(conn))
+  emitter = REPLEmitter(conn)
+  repl = REPL(conn, compiler, emitter)
+  loadcommon!(repl.compiler, repl.emitter)
+  reload!(compiler.sources, src"") # init imports
   flush!(repl)
   return repl
 end
@@ -65,8 +67,8 @@ end
 Base.close(r::REPL) = close(r.conn)
 
 function flush!(r::REPL)
-  while !isempty(r.compiler.emitter.emitter.queue)
-    runWasm(r.conn, popfirst!(r.compiler.emitter.emitter.queue))
+  while !isempty(r.emitter.emitter.queue)
+    runWasm(r.conn, popfirst!(r.emitter.emitter.queue))
   end
 end
 
@@ -89,12 +91,12 @@ end
 
 function eval!(r::REPL, src)
   function emit(ir)
-    reset!(r.compiler.pipe)
-    emit!(r.compiler, r.compiler.emitter, ir)
+    reset!(r.compiler)
+    emit!(r.compiler, r.emitter, ir)
     flush!(r)
   end
   withemit(emit) do
-    defs = r.compiler.pipe.sources
+    defs = r.compiler.sources
     cx = LoadState(defs, defs[tag""])
     exs = toplevels(src; path = "repl")
     for (i, (cur, ex)) in enumerate(exs)
