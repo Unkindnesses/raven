@@ -40,7 +40,7 @@ async function main() {
       socket.write(JSON.stringify({id}));
     } else if (command.type === 'wasm') {
       let module = Buffer.from(command.module, 'base64');
-      runWasm(module);
+      await runWasm(module);
       socket.write(JSON.stringify({}));
     } else {
       process.stderr.write(`REPL subprocess: unknown command ${JSON.stringify(command)}\n`);

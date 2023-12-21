@@ -1,4 +1,5 @@
 using Raven, Test
+using Raven: @src_str
 
 let
   out = Pipe()

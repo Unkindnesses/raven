@@ -39,7 +39,8 @@ include("reflection.jl")
 include("test.jl")
 
 function __init__()
-  global addr = joinpath(tempdir(), "raven-repl-$(rand(UInt64))")
+  name = "raven-repl-$(rand(UInt64))"
+  global addr = Sys.iswindows() ? "\\\\.\\pipe\\$name" : joinpath(tempdir(), name)
   global server = listen(addr)
   global compiler = Compiler()
 end
