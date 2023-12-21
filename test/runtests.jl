@@ -30,6 +30,10 @@ end
   include("language/language.jl")
 end
 
+@testset "REPL" begin
+  include("repl.jl")
+end
+
 if !Sys.iswindows()
   @testset "Debug" begin
     include("debug/runtests.jl")

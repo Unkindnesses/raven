@@ -102,7 +102,3 @@ function exec(file, opts = Options(); kw...)
   run(`node --experimental-wasm-stack-switching $js`)
   return
 end
-
-function __init__()
-  global compiler = Compiler()
-end

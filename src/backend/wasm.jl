@@ -85,13 +85,6 @@ Base.getindex(gs::WGlobals, b::Binding) = gs.globals[b]
 
 Caches.subcaches(g::WGlobals) = (g.globals,)
 
-struct WEnv
-  strings::Vector{String}
-  table::Vector{Symbol}
-end
-
-WEnv() = WEnv(String[], Symbol[])
-
 function tableid!(xs, x)
   i = findfirst(==(x), xs)
   i === nothing || return Int32(i-1)
@@ -99,16 +92,26 @@ function tableid!(xs, x)
   return Int32(length(xs)-1)
 end
 
+struct WEnv
+  strings::Vector{String}
+  table::Vector{Symbol}
+end
+
+WEnv() = WEnv(String[], Symbol[])
+
+stringid!(w::WEnv, s) = tableid!(w.strings, s)
+funcid!(w::WEnv, f) = tableid!(w.table, f)
+
 function lowerwasm(ir::IR, names, globals, env)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     if !isexpr(st)
       pr[v] = stmt(st.expr, type = wlayout(st.type))
     elseif isexpr(st, :ref) && st.expr.args[1] isa String
-      pr[v] = tableid!(env.strings, st.expr.args[1])
+      pr[v] = stringid!(env, st.expr.args[1])
     elseif isexpr(st, :func)
       f, I, O = st.expr.args
-      pr[v] = tableid!(env.table, names[(f, I)])
+      pr[v] = funcid!(env, names[(f, I)])
     elseif isexpr(st, :tuple, :ref)
     elseif isexpr(st, :cast)
       @assert layout(st.type) == layout(exprtype(ir, st.expr.args[1]))
@@ -168,7 +171,7 @@ function lowerwasm_globals(ir::IR, types)
 end
 
 struct Wasm
-  env::WEnv
+  env
   globals::WGlobals
   names::DualCache{Any,Symbol}
   funcs::Cache{Any,WebAssembly.Func}
@@ -286,6 +289,8 @@ function binary(m::WebAssembly.Module, file; path)
   end
   return
 end
+
+base64(m::WebAssembly.Module; path) = base64encode(io -> WebAssembly.binary(io, m; path))
 
 function emitwasm(em::BatchEmitter, mod::Wasm, out; path)
   binary(wasmmodule(em, mod.globals, mod.env), out; path)

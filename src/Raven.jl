@@ -5,6 +5,7 @@ include("IRTools/IRTools.jl")
 include("Dwarf/Dwarf.jl")
 include("WebAssembly/WebAssembly.jl")
 
+using Base64, JSON, Sockets
 using MacroTools: @q, @forward, isexpr
 
 using .Caches, .IRTools, .Dwarf, .WebAssembly
@@ -32,8 +33,15 @@ include("middle/load.jl")
 
 include("backend/wasm.jl")
 include("backend/compiler.jl")
+include("backend/repl.jl")
 
 include("reflection.jl")
 include("test.jl")
+
+function __init__()
+  global addr = joinpath(tempdir(), "raven-repl-$(rand(UInt64))")
+  global server = listen(addr)
+  global compiler = Compiler()
+end
 
 end # module

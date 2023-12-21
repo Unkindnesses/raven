@@ -78,8 +78,9 @@ const support = {global, property, call,
                  createRef, fromRef, panic,
                  equal, release, await};
 
-async function loadWasm(f, imports = {support}) {
-  let buf = await fs.readFile(f)
+async function loadWasm(buf, imports = {support}) {
+  if (typeof buf === 'string')
+    buf = await fs.readFile(buf);
   let res = await WebAssembly.instantiate(new Uint8Array(buf), imports);
   return res.instance.exports;
 }
