@@ -568,7 +568,7 @@ function rewrite_globals(ir::IR, cx::RModule)
   foreach(x -> push!(pr, :($(Slot(x)) = $(Binding(cx.name, x)))), locals)
   for (v, st) in pr
     # Global loads use the new slot
-    ex = IRTools.prewalk(x -> x isa Binding && x.name in locals ? Slot(x.name) : x, st.expr)
+    ex = IRTools.prewalk(x -> x isa Binding && (x.name in locals || x.name in globals) ? Slot(x.name) : x, st.expr)
     # Global stores use the new slot
     if isexpr(ex, :(=)) && ex.args[1] isa Binding
       push!(globals, ex.args[1].name)
