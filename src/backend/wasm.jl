@@ -69,11 +69,11 @@ struct WGlobals
 end
 
 function WGlobals(types)
-  gtypes = WType[]
+  gtypes = WType[externref]
   globals = Cache{Binding,Vector{Int}}() do self, b
     T = types[b]
     T isa Binding && return self[T]
-    start = length(gtypes)
+    start = length(gtypes)-1
     l = wparts(T)
     append!(gtypes, l)
     collect(start .+ (1:length(l)))
@@ -269,7 +269,7 @@ function wasmmodule(em::BatchEmitter, globals::WGlobals, env::WEnv)
     funcs = em.funcs,
     imports = default_imports,
     exports = [WebAssembly.Export(:_start, :_start)],
-    globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in globals.types]...],
+    globals = [WebAssembly.Global(t) for t in globals.types],
     tables = [WebAssembly.Table(length(env.table))],
     elems = [WebAssembly.Elem(0, env.table)],
     mems = [WebAssembly.Mem(0)])
@@ -354,16 +354,18 @@ function emit!(e::StreamEmitter, mod::Wasm, func::WebAssembly.Func)
   imports = filter(x -> !any(f -> f.name == x, fs), unique(imports))
   imports = [WebAssembly.Import(:wasm, f, f, mod[f].sig) for f in imports]
   exports = [WebAssembly.Export(f.name, f.name) for f in fs]
+  gimports = [WebAssembly.Import(:wasm, Symbol(:global, i-1), WebAssembly.Global(mod.globals.types[i])) for i = 1:e.globals]
+  globals = [WebAssembly.Global(mod.globals.types[i], name = Symbol(:global, i-1)) for i in e.globals+1:length(mod.globals.types)]
   first || push!(imports, WebAssembly.Import(:wasm, :memory, WebAssembly.Mem(0)))
-  # TODO shared globals / table
+  # TODO shared table
   wmod = WebAssembly.Module(
     funcs = fs,
-    imports = vcat(default_imports, imports),
+    imports = vcat(default_imports, imports, gimports),
     exports = [WebAssembly.Export(f.name, f.name) for f in fs],
-    globals = [WebAssembly.Global(externref), [WebAssembly.Global(t) for t in mod.globals.types]...],
+    globals = globals,
     tables = [WebAssembly.Table(length(mod.env.table))],
     elems = [WebAssembly.Elem(0, copy(mod.env.table))],
     mems = first ? [WebAssembly.Mem(0, name = :memory)] : [])
   push!(e.queue, wmod)
-  e.globals = length(mod.globals.types)+1
+  e.globals = length(mod.globals.types)
 end
