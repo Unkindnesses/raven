@@ -1,4 +1,4 @@
-export { global, call, await, tojs, sleep }
+export { global, call, await, tojs, sleep, readline }
 
 fn jsfree(ptr: Ptr) {
   id = i32load(ptr)
@@ -125,4 +125,8 @@ fn println(x: JSObject) {
 fn sleep(n) {
   await(call(global(), "sleep", n))
   return
+}
+
+fn readline() {
+  return await(call(global(), "readline", n))
 }

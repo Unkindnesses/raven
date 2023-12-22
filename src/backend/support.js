@@ -63,14 +63,23 @@ function panic(obj) {
   throw new Error(obj);
 }
 
-globalThis.sleep = async function (n) {
+globalThis.sleep = function (n) {
   return new Promise(resolve => {
       setTimeout(() => { resolve() }, n * 1000)
   });
 }
 
+globalThis.readline = function () {
+  return new Promise(resolve => {
+      process.stdin.once('data', data => {
+          process.stdin.pause();
+          resolve(data.toString().trim());
+      });
+  });
+}
+
 // TODO: used for testing, remove
-globalThis.dummyPromise = async function (n) {
+globalThis.dummyPromise = function (n) {
   return new Promise(resolve => resolve(n));
 }
 
