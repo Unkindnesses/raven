@@ -10,6 +10,8 @@ fingerprint(ch::Ref) = Set([ch.id])
 Ref{T}(x::T) where T = Ref{T}(x, NFT())
 Ref(x) = Ref{typeof(x)}(x)
 
+Base.copy(x::Ref{T}) where T = Ref{T}(x.value, x.id)
+
 function getindex(ch::Ref)
   track!(ch.id)
   return ch.value
@@ -32,6 +34,9 @@ end
 
 Dict{K,V}() where {K,V} = Dict{K,V}(Set{NFT}(), IdDict{K,Tuple{NFT,V}}(), IdDict{K,NFT}())
 Dict() = Dict{Any,Any}()
+
+Base.copy(d::Dict{K,V}) where {K,V} =
+  Dict{K,V}(copy(d.fingerprint), copy(d.data), copy(d.haskey))
 
 fingerprint(ch::Dict) = ch.fingerprint
 

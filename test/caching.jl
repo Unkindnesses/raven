@@ -65,6 +65,7 @@ end
 
 @testset "Compiler" begin
   compiler = Raven.Compiler()
+  @test copy(compiler.pipe.sources) isa Raven.Modules
   reset!(compiler.pipe)
   compiler.pipe[(tag"common.malloc!", rlist(Int32))]
   print = fingerprint(compiler.pipe)
