@@ -91,12 +91,12 @@ compiler = nothing
 function compile(file, opts = Options();
                  dir = dirname(file),
                  comp = nothing)
+  opts == Options() || (comp = Compiler())
   if comp == nothing
     global compiler
     compiler == nothing && (compiler = Compiler())
     comp = compiler
   end
-  opts == Options() || (comp = Compiler())
   path = normpath(joinpath(pwd(), file))
   path, _ = splitext(path)
   name = basename(path)

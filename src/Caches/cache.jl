@@ -47,6 +47,14 @@ function topokeys(c::Cache)
   return ks
 end
 
+function setindex!(c::Cache{K,V}, v::CacheValue{V}, k::K) where {K,V}
+  kid, id = v.id
+  c.keys[kid] = k
+  push!(c.fingerprint, id)
+  c.data[k] = v
+  return v
+end
+
 function Base.delete!(c::Cache{K,V}, k::K) where {K,V}
   haskey(c.data, k) || return
   kid, id = c.data[k].id
@@ -59,11 +67,7 @@ end
 function set!(c::Cache{K,V}, k::K, v::V; deps = current_deps(objectid(c))) where {K,V}
   # TODO preserve key id
   haskey(c.data, k) && delete!(c, k)
-  kid = NFT()
-  id = NFT()
-  c.keys[kid] = k
-  c.data[k] = CacheValue{V}(v, kid=>id, deps)
-  push!(c.fingerprint, id)
+  c[k] = CacheValue{V}(v, NFT()=>NFT(), deps)
   return v
 end
 
@@ -79,11 +83,7 @@ function value(c::Cache{K,V}, k::K) where {K,V}
       delete!(c, k)
     end
     # TODO preserve key id
-    kid = NFT()
-    id = NFT()
-    c.keys[kid] = k
-    c.data[k] = CacheValue{V}(value, kid => id, deps)
-    push!(c.fingerprint, id)
+    c[k] = CacheValue{V}(value, NFT()=>NFT(), deps)
   end
   return c.data[k].value
 end
