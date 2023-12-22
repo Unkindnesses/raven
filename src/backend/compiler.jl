@@ -1,4 +1,4 @@
-compile_pipeline(; env = WEnv()) =
+compile_pipeline(tables) =
   @Pipeline(
     sources = Modules(),
     defs = Definitions(sources),
@@ -6,7 +6,7 @@ compile_pipeline(; env = WEnv()) =
     expanded = Expanded(inferred),
     inlined = Inlined(expanded),
     counted = refcounts(inlined),
-    wasm = Wasm(defs, counted, env))
+    wasm = Wasm(defs, counted, tables))
 
 struct Compiler
   pipe::Pipeline
@@ -14,7 +14,7 @@ struct Compiler
 end
 
 function Compiler(; emitter = BatchEmitter())
-  return Compiler(compile_pipeline(), emitter) |> loadcommon!
+  return Compiler(compile_pipeline(tables(emitter)), emitter) |> loadcommon!
 end
 
 function Compiler(src; emitter = BatchEmitter())
@@ -40,7 +40,7 @@ function emit!(c::Pipeline, em, m::RMethod)
     c.sources[b] = T
   end
   opcount(ir) > 0 || return
-  ir = lowerwasm(ir, c.wasm)
+  ir = lowerwasm(ir, c.wasm, tables(em))
   isempty(gs) || reset!(c)
   ir = lowerwasm_globals(ir, c.wasm.globals)
   name = c.wasm.names[(m,)]

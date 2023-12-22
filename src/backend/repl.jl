@@ -23,27 +23,29 @@ registerString(r::REPLConn, s) = command!(r, Dict(:type => "string", :value => s
 runWasm(r::REPLConn, m::WebAssembly.Module) =
   command!(r, Dict(:type => "wasm", :module => base64(m; path = "repl")))
 
-struct REnv
+struct REPLTables
   conn::REPLConn
   strings::Dict{String,Int32}
-  table::Vector{Symbol}
+  funcs::Vector{Symbol}
 end
 
-REnv(conn::REPLConn) = REnv(conn, Dict(), [])
+REPLTables(conn::REPLConn) = REPLTables(conn, Dict(), [])
 
-stringid!(env::REnv, s) =
-  get!(() -> registerString(env.conn, s), env.strings, s)
+stringid!(tables::REPLTables, s) =
+  get!(() -> registerString(tables.conn, s), tables.strings, s)
 
-funcid!(env::REnv, f) = tableid!(env.table, f)
+funcid!(tables::REPLTables, f) = tableid!(tables.funcs, f)
 
 struct REPLEmitter
   conn::REPLConn
   emitter::StreamEmitter
 end
 
-REPLEmitter(conn::REPLConn) = REPLEmitter(conn, StreamEmitter())
+REPLEmitter(conn::REPLConn) = REPLEmitter(conn, StreamEmitter(REPLTables(conn)))
 
 Base.copy(em::REPLEmitter) = REPLEmitter(em.conn, copy(em.emitter))
+
+tables(em::REPLEmitter) = tables(em.emitter)
 
 emit!(em::REPLEmitter, args...) = emit!(em.emitter, args...)
 
@@ -55,8 +57,8 @@ end
 
 function REPL(; stdin = stdin, stdout = stdout, stderr = stderr)
   conn = REPLConn(; stdin, stdout, stderr)
-  compiler = compile_pipeline(env = REnv(conn))
   emitter = REPLEmitter(conn)
+  compiler = compile_pipeline(tables(emitter))
   repl = REPL(conn, compiler, emitter)
   loadcommon!(repl.compiler, repl.emitter)
   reload!(compiler.sources, src"") # init imports

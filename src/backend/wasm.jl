@@ -92,26 +92,26 @@ function tableid!(xs, x)
   return Int32(length(xs)-1)
 end
 
-struct WEnv
+struct Tables
   strings::Vector{String}
-  table::Vector{Symbol}
+  funcs::Vector{Symbol}
 end
 
-WEnv() = WEnv(String[], Symbol[])
+Tables() = Tables(String[], Symbol[])
 
-stringid!(w::WEnv, s) = tableid!(w.strings, s)
-funcid!(w::WEnv, f) = tableid!(w.table, f)
+stringid!(w::Tables, s) = tableid!(w.strings, s)
+funcid!(w::Tables, f) = tableid!(w.funcs, f)
 
-function lowerwasm(ir::IR, names, globals, env)
+function lowerwasm(ir::IR, names, globals, tables)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     if !isexpr(st)
       pr[v] = stmt(st.expr, type = wlayout(st.type))
     elseif isexpr(st, :ref) && st.expr.args[1] isa String
-      pr[v] = stringid!(env, st.expr.args[1])
+      pr[v] = stringid!(tables, st.expr.args[1])
     elseif isexpr(st, :func)
       f, I, O = st.expr.args
-      pr[v] = funcid!(env, names[(f, I)])
+      pr[v] = funcid!(tables, names[(f, I)])
     elseif isexpr(st, :tuple, :ref)
     elseif isexpr(st, :cast)
       @assert layout(st.type) == layout(exprtype(ir, st.expr.args[1]))
@@ -171,13 +171,12 @@ function lowerwasm_globals(ir::IR, types)
 end
 
 struct Wasm
-  env
   globals::WGlobals
   names::DualCache{Any,Symbol}
   funcs::Cache{Any,WebAssembly.Func}
 end
 
-function Wasm(defs::Definitions, code, env)
+function Wasm(defs::Definitions, code, tables)
   globals = WGlobals(defs)
   count = Dict{Symbol,Int}()
   # TODO should be `funcs`, not `code`, to make global redefs of the same type
@@ -193,10 +192,10 @@ function Wasm(defs::Definitions, code, env)
   funcs = Cache{Any,WebAssembly.Func}() do self, sig
     # TODO: we use `frame` to avoid redirects, but this can duplicate function
     # bodies. Should instead avoid calling redirected sigs, eg via casting.
-    ir = lowerwasm(frame(code, sig), names, globals, env)
+    ir = lowerwasm(frame(code, sig), names, globals, tables)
     return WebAssembly.irfunc(names[sig], ir)
   end
-  return Wasm(env, globals, names, funcs)
+  return Wasm(globals, names, funcs)
 end
 
 Base.getindex(w::Wasm, sig::Tuple) = w.funcs[sig]
@@ -207,20 +206,23 @@ Caches.subcaches(w::Wasm) = (w.globals, w.names, w.funcs)
 Caches.reset!(w::Wasm; deps = []) =
   reset!(Pipeline([w.globals, w.names, w.funcs]); deps)
 
-lowerwasm(ir, w::Wasm) = lowerwasm(ir, w.names, w.globals, w.env)
+lowerwasm(ir, w::Wasm, t) = lowerwasm(ir, w.names, w.globals, t)
 
 # Batch emitter, for AOT compilation
 
 struct BatchEmitter
   main::Vector{Symbol}
   seen::Set{Symbol}
+  tables::Tables
   funcs::Vector{WebAssembly.Func}
 end
 
-BatchEmitter() = BatchEmitter([], Set(), [])
+BatchEmitter() = BatchEmitter([], Set(), Tables(), [])
 
 Base.copy(em::BatchEmitter) =
-  BatchEmitter(copy(em.main), copy(em.seen), copy(em.funcs))
+  BatchEmitter(copy(em.main), copy(em.seen), em.tables, copy(em.funcs))
+
+tables(em::BatchEmitter) = em.tables
 
 function _emit!(e::BatchEmitter, mod::Wasm, func::WebAssembly.Func)
   func.name in e.seen && return
@@ -236,7 +238,7 @@ _emit!(e::BatchEmitter, mod::Wasm, f::Symbol) = _emit!(e, mod, mod[f])
 
 function emit!(e::BatchEmitter, mod::Wasm, func::WebAssembly.Func)
   _emit!(e, mod, func)
-  foreach(f -> _emit!(e, mod, f), mod.env.table)
+  foreach(f -> _emit!(e, mod, f), e.tables.funcs)
   push!(e.main, func.name)
 end
 
@@ -261,15 +263,15 @@ startfunc(main) =
       ]),
     FuncInfo(tag"common.core.main", trampoline = true))
 
-function wasmmodule(em::BatchEmitter, globals::WGlobals, env::WEnv)
+function wasmmodule(em::BatchEmitter, globals::WGlobals)
   pushfirst!(em.funcs, startfunc(em.main))
   wmod = WebAssembly.Module(
     funcs = em.funcs,
     imports = default_imports,
     exports = [WebAssembly.Export(:_start, :_start)],
     globals = [WebAssembly.Global(t) for t in globals.types],
-    tables = [WebAssembly.Table(length(env.table))],
-    elems = [WebAssembly.Elem(0, env.table)],
+    tables = [WebAssembly.Table(length(em.tables.funcs))],
+    elems = [WebAssembly.Elem(0, em.tables.funcs)],
     mems = [WebAssembly.Mem(0)])
   return wmod
 end
@@ -291,8 +293,8 @@ end
 base64(m::WebAssembly.Module; path) = base64encode(io -> WebAssembly.binary(io, m; path))
 
 function emitwasm(em::BatchEmitter, mod::Wasm, out; path)
-  binary(wasmmodule(em, mod.globals, mod.env), out; path)
-  return mod.env.strings
+  binary(wasmmodule(em, mod.globals), out; path)
+  return em.tables.strings
 end
 
 # JS support
@@ -321,12 +323,15 @@ end
 mutable struct StreamEmitter
   seen::Set{Symbol}
   queue::Vector{WebAssembly.Module}
+  tables
   globals::Int
 end
 
-StreamEmitter() = StreamEmitter(Set(), [], 0)
+StreamEmitter(tables = Tables()) = StreamEmitter(Set(), [], tables, 0)
 
-Base.copy(em::StreamEmitter) = StreamEmitter(copy(em.seen), copy(em.queue), em.globals)
+Base.copy(em::StreamEmitter) = StreamEmitter(copy(em.seen), copy(em.queue), em.tables, em.globals)
+
+tables(em::StreamEmitter) = em.tables
 
 function _emit!(e::StreamEmitter, mod::Wasm, func::WebAssembly.Func, fs, imports)
   push!(imports, func.name)
@@ -345,7 +350,7 @@ _emit!(e::StreamEmitter, mod::Wasm, f::Symbol, fs, imports) = _emit!(e, mod, mod
 function emit!(e::StreamEmitter, mod::Wasm, func::WebAssembly.Func)
   first = e.globals == 0
   fs, imports = _emit!(e, mod, func, WebAssembly.Func[], Symbol[])
-  foreach(f -> _emit!(e, mod, f, fs, imports), mod.env.table)
+  foreach(f -> _emit!(e, mod, f, fs, imports), tables(e).funcs)
   pushfirst!(fs, startfunc([func.name]))
   imports = filter(x -> !any(f -> f.name == x, fs), unique(imports))
   imports = [WebAssembly.Import(:wasm, f, f, mod[f].sig) for f in imports]
@@ -359,8 +364,8 @@ function emit!(e::StreamEmitter, mod::Wasm, func::WebAssembly.Func)
     imports = vcat(default_imports, imports, gimports),
     exports = [WebAssembly.Export(f.name, f.name) for f in fs],
     globals = globals,
-    tables = [WebAssembly.Table(length(mod.env.table))],
-    elems = [WebAssembly.Elem(0, copy(mod.env.table))],
+    tables = [WebAssembly.Table(length(e.tables.funcs))],
+    elems = [WebAssembly.Elem(0, copy(e.tables.funcs))],
     mems = first ? [WebAssembly.Mem(0, name = :memory)] : [])
   push!(e.queue, wmod)
   e.globals = length(mod.globals.types)
