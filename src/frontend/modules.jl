@@ -54,6 +54,8 @@ function Base.empty!(ms::Methods)
   empty!(ms.methods)
 end
 
+Base.delete!(ms::Methods, k::Tag) = delete!(ms.methods, k)
+
 struct RModule
   name::Tag
   defs::Caches.Dict{Symbol,Any}

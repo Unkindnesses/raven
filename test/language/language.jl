@@ -492,6 +492,18 @@ test_rv"""
   }
   """
 
+@test_rv("""
+  x = 1
+  clear x
+  println(x)
+  """, error = true, output = "x is not defined")
+
+@test_rv("""
+  fn square(x) { x * x }
+  clear square
+  tag"square"(5)
+  """, error = true, output = "No matching method")
+
 # Test compiling without JS refcounting
 @test_rv("""
   fn pow(x, n: Int64) {

@@ -41,6 +41,17 @@ function load_import(cx, x)
   return
 end
 
+function load_clear(cx, x)
+  for x in x[2:end]
+    @assert x isa Symbol
+    haskey(cx.mod.defs, x) || continue
+    T = cx.mod[x]
+    @assert T isa Tag || isempty(symbolValues(T))
+    T isa Tag && delete!(cx.mod.methods, T)
+    delete!(cx.mod.defs, x)
+  end
+end
+
 function load_include(cx, x)
   path = "$common/$(x[2])"
   open(io -> loadfile(cx, io; path), path)
@@ -59,6 +70,7 @@ function vload(cx::LoadState, x::AST.Syntax; src)
   x[1] == :include && return load_include(cx, x)
   x[1] == :export && return load_export(cx, x)
   x[1] == :import && return load_import(cx, x)
+  x[1] == :clear && return load_clear(cx, x)
   x[1] == :bundle && return vload(cx, bundlemacro(x); src)
   isfn(x) || return load_expr(cx, x; src)
   extend = x[1] == :extend
