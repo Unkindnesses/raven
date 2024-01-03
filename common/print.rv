@@ -1,36 +1,53 @@
-export { print, println }
+export { show, print, println }
 
 String = tag".String"
 
-fn println(x) {
-  print(x)
+fn print(x) {
+  show(x)
+}
+
+fn println() {
   print("\n")
 }
 
-fn print(x) {
+fn println(x) {
+  print(x)
+  println()
+}
+
+fn show(x) {
   print("pack(")
-  print(tag(x))
+  show(tag(x))
   i = 1
   while i <= nparts(x) {
     print(", ")
-    print(part(x, i))
+    show(part(x, i))
     i = i + 1
   }
   print(")")
 }
 
-fn print(s: String) { _print(s) }
+fn show(x: String) {
+  print("'")
+  print(x)
+  print("'")
+}
 
-fn print(x: Tag) {
+fn show(x: Tag) {
   print("tag'") # TODO: escaping
   print(string(x))
   print("'")
 }
 
-fn print(x: (Int32 | Int64 | Float32 | Float64)) {
+fn show(x: (Int32 | Int64 | Float32 | Float64)) {
   print(string(x))
 }
 
-fn print(x: Nil) {
+fn show(x: Nil) {
   print("nil")
+}
+
+fn replshow(x) {
+  show(x)
+  println()
 }

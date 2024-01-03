@@ -88,7 +88,7 @@ end
 
 function wrap_print(ex)
   ex isa AST.Syntax && return ex
-  return AST.Call(:println, ex)
+  return AST.Call(AST.Template(:tag, "common.replshow"), ex)
 end
 
 function eval!(r::REPL, src)

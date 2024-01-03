@@ -107,16 +107,14 @@ fn string(x: (Int32 | Int64 | Float32 | Float64)) {
   String(call(x, "toString"))
 }
 
-fn _print(x: JSObject) {
+fn print(x: String) {
   process = property(global(), "process")
   stdout = property(process, "stdout")
-  call(stdout, "write", x)
+  call(stdout, "write", tojs(x))
   return
 }
 
-fn _print(x: String) { _print(tojs(x)) }
-
-fn println(x: JSObject) {
+fn replshow(x: JSObject) {
   console = property(global(), "console")
   call(console, "log", x)
   return

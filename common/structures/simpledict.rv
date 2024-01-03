@@ -5,10 +5,10 @@ export { Pair, simpledict, setkey, getkey, haskey, merge }
 
 bundle { Pair(a, b) }
 
-fn print(Pair(a, b)) {
-  print(a)
+fn show(Pair(a, b)) {
+  show(a)
   print(" => ")
-  print(b)
+  show(b)
 }
 
 fn simpledict() { seq() }

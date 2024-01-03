@@ -6,7 +6,7 @@ fn Ptr(x: Int64) { Ptr(Int32(x)) }
 
 fn addr(Ptr(x)) { x }
 
-fn print(x: Ptr) {
+fn show(x: Ptr) {
   print("Ptr@")
   print(addr(x))
 }

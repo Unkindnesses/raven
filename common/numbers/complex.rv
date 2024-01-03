@@ -24,9 +24,9 @@ fn Complex(ra, ia) * Complex(rb, ib) {
   Complex((ra*rb) - (ia*ib), (ra*ib) + (rb*ia))
 }
 
-fn print(Complex(re, im)) {
-  print(re)
+fn show(Complex(re, im)) {
+  show(re)
   print(" + ")
-  print(im)
+  show(im)
   print("im")
 }

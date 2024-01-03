@@ -49,7 +49,7 @@ fn printList(Prepend(xs, x)) {
   printList(xs)
 }
 
-fn print(xs: Sequence) {
+fn show(xs: Sequence) {
   print("seq(")
   printList(xs)
 }

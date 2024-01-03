@@ -32,13 +32,13 @@ fn rest(xs: List) {
   return result
 }
 
-fn print(x: List) {
+fn show(x: List) {
   print("[")
   for i in range(1, nparts(x)) {
     if i != 1 {
       print(", ")
     }
-    print(get(x, i))
+    show(get(x, i))
     i = i + 1
   }
   print("]")
