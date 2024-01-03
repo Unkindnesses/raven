@@ -70,6 +70,7 @@ globalThis.sleep = function (n) {
 }
 
 globalThis.readline = function () {
+  process.stdin.resume();
   return new Promise(resolve => {
       process.stdin.once('data', data => {
           process.stdin.pause();

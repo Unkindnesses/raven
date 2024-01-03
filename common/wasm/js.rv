@@ -128,5 +128,5 @@ fn sleep(n) {
 }
 
 fn readline() {
-  return await(call(global(), "readline", n))
+  return String(await(call(global(), "readline")))
 }
