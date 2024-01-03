@@ -64,7 +64,7 @@ fn call(obj: JSObject, meth: JSObject, x: JSObject) {
 }
 
 fn await(obj: JSObject) {
-  susp = wasm { (global.get)(0): externref }
+  susp = wasm { global.get(0): externref }
   ref = wasm { call("jsawait", susp: externref, jsref(obj): i32): i32 }
   hold(obj)
   return JSObject(ref)
