@@ -66,6 +66,10 @@ fn div(a: Int32, b: Int32) {
   wasm { (i32.div_s)(a: i32, b: i32): i32 }
 }
 
+fn rem(a: Int64, b: Int64) {
+  wasm { (i64.rem_s)(a: i64, b: i64): i64 }
+}
+
 fn (a: Int64) > (b: Int64) {
   wasm { (i64.gt_s)(a: i64, b: i64): i32 }
 }
@@ -102,14 +106,6 @@ fn (a: Int32) == (b: Int32) {
   wasm { (i32.eq)(a: i32, b: i32): i32 }
 }
 
-fn (a: Float64) == (b: Float64) {
-  wasm { (f64.eq)(a: f64, b: f64): i32 }
-}
-
-fn (a: Float32) == (b: Float32) {
-  wasm { (f32.eq)(a: f32, b: f32): i32 }
-}
-
 fn not(x: Int32) {
   wasm { (i32.eqz)(x: i32): i32 }
 }
@@ -118,6 +114,20 @@ fn (a: Int32) & (b: Int32) {
   wasm { (i32.and)(a: i32, b: i32): i32 }
 }
 
-fn rem(a: Int64, b: Int64) {
-  wasm { (i64.rem_s)(a: i64, b: i64): i64 }
+# Float operators
+
+fn (a: Float64) / (b: Float64) {
+  wasm { (f64.div)(a: f64, b: f64): f64 }
 }
+
+fn (a: Float64) == (b: Float64) {
+  wasm { (f64.eq)(a: f64, b: f64): i32 }
+}
+
+fn (a: Float32) == (b: Float32) {
+  wasm { (f32.eq)(a: f32, b: f32): i32 }
+}
+
+# Conversions
+
+fn (a: Int64) / (b: Int64) { Float64(a) / Float64(b) }
