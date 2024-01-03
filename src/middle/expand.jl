@@ -26,9 +26,9 @@ frame(inf::Union{Inferred,Cache}, T) = inf[sig(inf, T)]
 
 # Panic
 
-function panic!(ir, s)
+function abort!(ir, s)
   s = push!(ir, stmt(Expr(:ref, s), type = Int32))
-  push!(ir, stmt(xcall(WIntrinsic(WebAssembly.Call(:panic), ⊥), s), type = ⊥))
+  push!(ir, stmt(xcall(WIntrinsic(WebAssembly.Call(:abort), ⊥), s), type = ⊥))
 end
 
 # Pack primitives
@@ -106,7 +106,7 @@ function partir(x, i)
     return!(ir, y)
     block!(ir)
   end
-  panic!(ir, "Invalid index for $x")
+  abort!(ir, "Invalid index for $x")
   return ir
 end
 
@@ -146,7 +146,7 @@ function indexer!(ir, T::Union{Primitive,Type{<:Primitive}}, i::Int, x, _)
   elseif i == 1
     push!(ir, x)
   else
-    panic!(ir, "Invalid index $i for $T")
+    abort!(ir, "Invalid index $i for $T")
   end
 end
 
@@ -160,7 +160,7 @@ function indexer!(ir, T::Pack, i::Int, x, _)
       push!(ir, stmt(Expr(:tuple, _part.(range)...), type = part(T, i)))
     end
   else
-    panic!(ir, "Invalid index $i for $T")
+    abort!(ir, "Invalid index $i for $T")
   end
 end
 
@@ -213,7 +213,7 @@ outlinePrimitive[packcat_method] = function (T::Pack)
   ir = IR(meta = FuncInfo(tag"common.core.packcat"))
   xs = argument!(ir, type = T)
   if layout(T′.parts) == ()
-    panic!(ir, "unsupported")
+    abort!(ir, "unsupported")
     return ir
   end
   ps = [indexer!(ir, T, i, xs, i) for i in 1:nparts(T)]
@@ -239,7 +239,7 @@ outlinePrimitive[packcat_method] = function (T::Pack)
       end
     elseif P isa VPack
       if P.parts != Int64
-        panic!(ir, "unsupported")
+        abort!(ir, "unsupported")
       end
       sz = push!(ir, stmt(Expr(:ref, ps[i], 1), type = Int32))
       src = push!(ir, stmt(Expr(:ref, ps[i], 2), type = Int32))
@@ -329,7 +329,7 @@ function lowerdata(ir)
       end
     elseif isexpr(st, :global) && st.type == ⊥
       delete!(pr, v)
-      panic!(pr, "$(st.expr.args[1].name) is not defined")
+      abort!(pr, "$(st.expr.args[1].name) is not defined")
     end
   end
   return IRTools.finish(pr)

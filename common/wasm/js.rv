@@ -97,10 +97,10 @@ extend fn Float64(obj: JSObject) {
   return x
 }
 
-fn panic(s: String) {
+fn abort(s: String) {
   ref = jsref(s)
   # TODO preserve s
-  wasm { call("panic", ref: i32): unreachable }
+  wasm { call("abort", ref: i32): unreachable }
 }
 
 fn string(x: (Int32 | Int64 | Float32 | Float64)) {

@@ -24,7 +24,7 @@ fn append(&xs, x) {
 fn iterator(xs: List) { IndexIterator(xs) }
 
 fn rest(xs: List) {
-  if isempty(xs) { panic("List is empty")  }
+  if isempty(xs) { abort("List is empty")  }
   result = []
   for i in range(2, length(xs)) {
     append(&result, get(xs, i))

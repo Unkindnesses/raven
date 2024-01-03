@@ -396,7 +396,7 @@ function lowermatch!(sc, ir::IR, val, pat)
   branch!(ir, length(blocks(ir))+1, when = isnil)
   branch!(ir, length(blocks(ir))+2)
   block!(ir)
-  push!(ir, rcall(tag"common.panic", "match failed: $(sig.pattern)"))
+  push!(ir, rcall(tag"common.abort", "match failed: $(sig.pattern)"))
   block!(ir)
   m = push!(ir, xcall(notnil_method, m))
   for arg in sig.args

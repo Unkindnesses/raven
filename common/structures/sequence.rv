@@ -9,10 +9,10 @@ fn prepend(xs: Sequence, x) { Prepend(xs, x) }
 fn seq() { Empty() }
 fn seq(x, xs...) { prepend(seq(xs...), x) }
 
-fn first(l: Empty) { panic("first: seq is empty") }
+fn first(l: Empty) { abort("first: seq is empty") }
 fn first(l: Prepend) { part(l, 2) }
 
-fn rest(l: Empty)  { panic("rest: seq is empty") }
+fn rest(l: Empty)  { abort("rest: seq is empty") }
 fn rest(l: Prepend) { part(l, 1) }
 
 fn isempty(_: Prepend) { false }

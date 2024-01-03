@@ -142,7 +142,7 @@ inlinePrimitive[notnil_method] = function (pr, ir, v)
   elseif ir[v].type == ⊥
     # TODO make sure `not` in dispatcher infers
     delete!(pr, v)
-    replace!(pr, v, panic!(pr, "notnil(nil)"))
+    replace!(pr, v, abort!(pr, "notnil(nil)"))
   else
     @assert T isa Or && !(ir[v].type isa Or)
     pr[v] = Expr(:tuple, [insert!(pr, v, Expr(:ref, x, i)) for i = 2:length(layout(T))]...)

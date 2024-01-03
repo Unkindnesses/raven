@@ -58,7 +58,7 @@ function equal(a, b) {
   return fromRef(a) === fromRef(b);
 }
 
-function panic(obj) {
+function abort(obj) {
   obj = fromRef(obj);
   throw new Error(obj);
 }
@@ -84,7 +84,7 @@ globalThis.dummyPromise = function (n) {
 }
 
 const support = {global, property, call,
-                 createRef, fromRef, panic,
+                 createRef, fromRef, abort,
                  equal, release, await};
 
 async function loadWasm(buf, imports = {support}) {

@@ -28,7 +28,7 @@ fn isa(pack(tag"common.core.Tag", _), tag"common.core.Tag") { true }
 
 fn (x |> f) { f(x) }
 
-fn condition(x) { panic("Non-boolean used as a condition") }
+fn condition(x) { abort("Non-boolean used as a condition") }
 fn condition(x: Int32) { x }
 
 bundle Optional { Some(x), Nil() }

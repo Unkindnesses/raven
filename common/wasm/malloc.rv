@@ -146,7 +146,7 @@ fn retain!(p: Ptr) {
   p = p - headerSize
   n = getBlockUsed(p)
   if n == Int32(0) {
-    panic("Memory management fault: retain")
+    abort("Memory management fault: retain")
   }
   setBlockUsed!(p, n+Int32(1))
   return
@@ -156,7 +156,7 @@ fn release!(p: Ptr, f: Int32) {
   p = p - headerSize
   n = getBlockUsed(p)
   if n == Int32(0) {
-    panic("Memory management fault: release")
+    abort("Memory management fault: release")
   } else if (n == Int32(1)) && (f != Int32(-1)) {
     invoke(Function(f, [TPtr], TNil), (p + headerSize) + 8)
   }

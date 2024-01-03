@@ -17,7 +17,7 @@ fn haskey(d: Empty, k: Tag) { false }
 fn haskey(d: Prepend, k: Tag) { (part(first(d), 1) == k) || haskey(rest(d), k) }
 
 fn getkey(d: Empty, k: Tag) {
-  panic(concat("No such key: ", string(k)))
+  abort(concat("No such key: ", string(k)))
 }
 
 fn getkey(d: Prepend, k: Tag) {

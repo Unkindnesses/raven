@@ -257,11 +257,11 @@ function dispatcher(comp::Definitions, func::Tag, Ts)
       block!(ir)
     end
   end
-  if func == tag"common.panic" && issubset(Ts, rlist(String))
-    error("Compiler fault: couldn't guarantee panic method matches")
+  if func == tag"common.abort" && issubset(Ts, rlist(String))
+    error("Compiler fault: couldn't guarantee abort method matches")
   end
   if options().jspanic
-    push!(ir, xcall(tag"common.panic", xlist("No matching method: $func: $Ts")))
+    push!(ir, xcall(tag"common.abort", xlist("No matching method: $func: $Ts")))
   end
   unreachable!(ir)
   return ir
