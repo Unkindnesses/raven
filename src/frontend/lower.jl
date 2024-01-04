@@ -283,7 +283,8 @@ _lower!(sc, ir, x::Vector) = foreach(x -> _lower!(sc, ir, x), x)
 
 lower!(sc, ir::IR, x::Union{Integer,String,Pack}) = x
 lower!(sc, ir::IR, x::Vector) =
-  isempty(x) ? nothing : (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
+  isempty(x) ? Binding(tag"common", :nil) :
+  (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
 
 lower!(sc, ir::IR, x::AST.Block) = lower!(Scope(sc), ir, x[:])
 _lower!(sc, ir::IR, x::AST.Block) = _lower!(Scope(sc), ir, x[:])
@@ -536,7 +537,7 @@ fnsig(ex) = lowerpattern(AST.List(ex[2][:]...))
 withresolve(f, r) = dynamic_bind(f, :resolve, r)
 resolve_static(x) = dynamic_value(:resolve)(x)
 
-function lowerfn(mod::Tag, sig::Signature, body::AST.Expr; meta = nothing, resolve)
+function lowerfn(mod::Tag, sig::Signature, body; meta = nothing, resolve)
   sc = Scope(mod, swap = sig.swap)
   ir = IR(; meta)
   for arg in sig.args
