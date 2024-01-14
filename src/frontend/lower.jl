@@ -14,6 +14,7 @@ end
 
 struct Bind
   name::Symbol
+  pattern
 end
 
 struct Trait
@@ -49,7 +50,7 @@ Base.:(==)(a::Or, b::Or) = a.patterns == b.patterns
 rvpattern(::Hole) = pack(tag"common.Hole")
 rvpattern(x::Primitive) = x
 rvpattern(x::Literal) = pack(tag"common.Literal", x.value)
-rvpattern(x::Bind) = pack(tag"common.Bind", Tag(x.name))
+rvpattern(x::Bind) = pack(tag"common.Bind", Tag(x.name), rvpattern(x.pattern))
 rvpattern(xs::Pack) = pack(tag"common.Pack", rvpattern.(xs.parts)...)
 rvpattern(xs::And) = pack(tag"common.And", rvpattern.(xs.patterns)...)
 rvpattern(x::Trait) = pack(tag"common.Trait", x.pattern)
@@ -82,7 +83,7 @@ end
 function _lowerpattern(ex, as, resolve)
   if ex isa Symbol
     ex == :_ || ex in as || push!(as, ex)
-    return ex == :_ ? hole : Bind(ex)
+    return ex == :_ ? hole : Bind(ex, hole)
   elseif ex isa Primitive
     return Literal(ex)
   elseif ex isa AST.List
@@ -93,7 +94,7 @@ function _lowerpattern(ex, as, resolve)
       lowerisa(T, as, resolve)
     else
       name in as || push!(as, name)
-      And([Bind(name), lowerisa(T, as, resolve)])
+      Bind(name, lowerisa(T, as, resolve))
     end
   elseif ex isa AST.Splat
     Repeat(_lowerpattern(ex[1], as, resolve))

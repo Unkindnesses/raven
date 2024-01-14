@@ -5,7 +5,7 @@ bundle Pattern {
   Literal(x)
   Trait(T)
   Pack(xs...)
-  Bind(name)
+  Bind(name, pat)
   Constructor(name, args...)
   And(p, q)
 }
@@ -30,8 +30,9 @@ fn match(val, pack(tag".Trait", pat)) {
   }
 }
 
-fn match(val, pack(tag".Bind", name)) {
-  bs = simpledict()
+fn match(val, pack(tag".Bind", name, p)) {
+  bs = match(val, p)
+  isnil(bs) && return
   setkey(&bs, name, val)
   return bs
 }
