@@ -94,7 +94,12 @@ function partial_match(mod, pat::Or, val, path)
   return
 end
 
-partial_match(mod, pat::Constructor, val, path) = missing
+function partial_match(mod, pat::Constructor, val, path)
+  pat = rvpattern(pat)
+  pat = mod[(tag"common.constructorPattern", rlist(parts(pat)...))]
+  isvalue(pat) || return missing
+  return partial_match(mod, jlpattern(part(pat, 1)), val, path)
+end
 
 ishole(x::Hole) = true
 ishole(x::Bind) = ishole(x.pattern)
@@ -184,8 +189,8 @@ partial_match(mod, pat, val) = partial_match(mod, pat, val, [])
 
 function trivial_isa(int, val, T::Tag)
   r = int[(tag"common.isa", rlist(val, T))]
-  (isnothing(r) || !(r isa Int32)) && return missing
-  return Bool(r)
+  (isnothing(r) || !isvalue(r) || !issubset(r, rlist(Int32))) && return missing
+  return Bool(part(r, 1))
 end
 
 # Generate dispatchers

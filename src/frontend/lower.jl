@@ -56,6 +56,24 @@ rvpattern(xs::And) = pack(tag"common.And", rvpattern.(xs.patterns)...)
 rvpattern(x::Trait) = pack(tag"common.Trait", x.pattern)
 rvpattern(xs::Constructor) = pack(tag"common.Constructor", xs.func, rvpattern.(xs.args)...)
 
+function jlpattern(x)
+  if tag(x) == tag"common.Hole"
+    Hole()
+  elseif tag(x) == tag"common.Literal"
+    Literal(part(x, 1))
+  elseif tag(x) == tag"common.Bind"
+    Bind(Symbol(part(x, 1)), jlpattern(part(x, 2)))
+  elseif tag(x) == tag"common.Pack"
+    pack(jlpattern.(parts(x))...)
+  elseif tag(x) == tag"common.And"
+    And(collect(jlpattern.(parts(x))))
+  elseif tag(x) == tag"common.Trait"
+    Trait(part(x, 1))
+  else
+    error("unrecognised pattern $(tag(x))")
+  end
+end
+
 # Pattern lowering
 
 function resolvetags(ex::AST.Template, mod::Tag)

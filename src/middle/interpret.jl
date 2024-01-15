@@ -7,7 +7,19 @@ function interpret(int, ir::IR, args...)
   bl = 1
   while true
     for (v, st) in block(ir, bl)
-      if isexpr(st, :branch)
+      if isexpr(st, :call)
+        if (w = st.expr.args[1]) isa WIntrinsic
+          haskey(wasmPartials, w.op) || return
+          args = resolve.(st.expr.args[2:end])
+          env[v] = all(isvalue, args) ? wasmPartials[w.op](args...) : rvtype(w.ret)
+        else
+          result = int[(resolve.(st.expr.args)...,)]
+          isnothing(result) && return
+          env[v] = result
+        end
+      elseif isexpr(st, :pack)
+        env[v] = pack(resolve.(st.expr.args)...)
+      elseif isexpr(st, :branch)
         if isreturn(st.expr)
           return arguments(st.expr)[1] |> resolve
         else
@@ -29,7 +41,8 @@ function interpret(int, func::Tag, args)
     isnothing(m) && continue
     ismissing(m) && return
     args = [m[a][1] for a in meth.sig.args]
-    return interpret(int, meth, args...)
+    result = interpret(int, meth, args...)
+    return isempty(meth.sig.swap) ? rlist(result) : result
   end
 end
 
