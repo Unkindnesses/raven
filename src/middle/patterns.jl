@@ -182,35 +182,10 @@ end
 
 partial_match(mod, pat, val) = partial_match(mod, pat, val, [])
 
-function partial_ismatch(mod, pat, val)
-  result = partial_match(mod, pat, val)
-  ismissing(result) && return missing
-  return result isa AbstractDict
-end
-
-function trivial_method(comp, func::Tag, Ts)
-  for meth in reverse(comp[func])
-    m = partial_match(comp, meth.sig.pattern, Ts)
-    if m === nothing
-      continue
-    elseif m isa AbstractDict
-      return meth
-    else
-      return nothing
-    end
-  end
-end
-
-function trivial_isa(defs, val, T::Tag)
-  meth = trivial_method(defs, tag"common.isa", rlist(val, T))
-  meth == nothing && return missing
-  ir = meth.func
-  (length(ir) == 1 && length(blocks(ir)) == 1) || return missing
-  ret = IRTools.returnvalue(block(ir, 1))
-  ret isa Binding || return missing
-  ret = resolve_global(defs, ret)
-  ret isa Int32 || return missing
-  return Bool(ret)
+function trivial_isa(int, val, T::Tag)
+  r = int[(tag"common.isa", rlist(val, T))]
+  (isnothing(r) || !(r isa Int32)) && return missing
+  return Bool(r)
 end
 
 # Generate dispatchers
@@ -226,11 +201,11 @@ function indexer!(ir::IR, arg, path)
   arg = indexer!(ir, arg, rest)
 end
 
-function dispatcher(comp::Definitions, func::Tag, Ts)
+function dispatcher(int, func::Tag, Ts)
   ir = IR(meta = FuncInfo(func, trampoline = true))
   args = argument!(ir)
-  for meth in reverse(comp[func])
-    m = partial_match(comp, meth.sig.pattern, Ts)
+  for meth in reverse(int.defs[func])
+    m = partial_match(int, meth.sig.pattern, Ts)
     if m === nothing
       continue
     elseif m isa AbstractDict
@@ -268,6 +243,6 @@ end
 
 const Dispatchers = Cache{Tuple{Tag,Any},IR}
 
-dispatchers(defs::Definitions) = Cache{Tuple{Tag,Any},IR}() do self, (tag, Ts)
-  dispatcher(defs, tag, Ts)
+dispatchers(int) = Cache{Tuple{Tag,Any},IR}() do self, (tag, Ts)
+  dispatcher(int, tag, Ts)
 end

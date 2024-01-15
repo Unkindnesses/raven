@@ -336,8 +336,8 @@ struct Inferred
   results::Cache{Any,Any}
 end
 
-function Inferred(defs::Definitions)
-  ds = dispatchers(defs)
+function Inferred(defs::Definitions, int::Interpreter)
+  ds = dispatchers(int)
   inf = Inference(defs, ds)
   return Inferred(ds, inf, Cache())
 end

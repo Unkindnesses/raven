@@ -2,7 +2,8 @@ compile_pipeline(tables) =
   @Pipeline(
     sources = Modules(),
     defs = Definitions(sources),
-    inferred = Inferred(defs),
+    interp = Interpreter(defs),
+    inferred = Inferred(defs, interp),
     expanded = Expanded(inferred),
     inlined = Inlined(expanded),
     counted = refcounts(inlined),

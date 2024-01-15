@@ -1,5 +1,5 @@
 using Raven, Test
-using Raven: @tag_str, @src_str, @rvx_str, Definitions, Inferred, Binding, rlist
+using Raven: @tag_str, @src_str, @rvx_str, Definitions, Interpreter, Inferred, Binding, rlist
 using Raven.Caches: Caches, reset!, valueid, fingerprint
 
 @testset "Globals" begin
@@ -23,7 +23,9 @@ end
 @testset "Methods" begin
   cx = Raven.load(src"fn foo(x) { x+1 }")
   defs = Definitions(cx)
-  disps = Raven.dispatchers(defs)
+  int = Interpreter(defs)
+  disps = Raven.dispatchers(int)
+  pipe = Pipeline((cx, defs, int, disps))
 
   @test length(defs[tag"foo"]) == 1
   @test !isempty(defs[tag"common.core.main"])
@@ -35,8 +37,7 @@ end
   @test disps[(tag"common.+", rlist(Int, Int))] isa Raven.IR
 
   Raven.reload!(cx, src"fn foo(x) { x+2 }")
-  reset!(defs, deps = cx)
-  reset!(disps, deps = defs)
+  reset!(pipe)
 
   @test length(defs[tag"foo"]) == 1
 
