@@ -10,7 +10,7 @@ bundle { JSObject(ref: Ref) }
 
 # We have a compiler option which skips the `Ref` wrapper, which lets us avoid
 # compiling malloc. (And of course JS objects won't be freed.)
-fn isa(pack(tag".JSObject", ref: Int32), tag".JSObject") { true }
+fn matchTrait(x: pack(tag".JSObject", _: Int32), tag".JSObject") { Some(x) }
 
 fn JSObject(id: Int32, free: Int32) {
   if jsalloc() {

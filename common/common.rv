@@ -13,8 +13,8 @@ import {
 export {
     true, false
     pack, part, nparts, widen
-    Tag, Nil, nil, isnil
-    tag, identity, ==, isa
+    Tag, Some, Nil, nil, isnil
+    tag, identity, ==
 }
 
 fn tag(x) { part(x, 0) }
@@ -22,9 +22,10 @@ fn tag(x) { part(x, 0) }
 fn identity(x) { x }
 
 fn _ == _ { false }
-fn isa(_, _) { false }
 
-fn isa(pack(tag"common.core.Tag", _), tag"common.core.Tag") { true }
+fn matchTrait(_, _) { nil }
+
+fn matchTrait(t: pack(tag"common.core.Tag", _), tag"common.core.Tag") { Some(t) }
 
 fn (x |> f) { f(x) }
 

@@ -4,14 +4,14 @@ export {
   zero, one
 }
 
-fn isa(pack(tag"common.core.Int32", _), tag"common.core.Int32") { true }
-fn isa(pack(tag"common.core.Int64", _), tag"common.core.Int64") { true }
-fn isa(pack(tag"common.core.Float32", _), tag"common.core.Float32") { true }
-fn isa(pack(tag"common.core.Float64", _), tag"common.core.Float64") { true }
+fn matchTrait(x: pack(tag"common.core.Int32", _), tag"common.core.Int32") { Some(x) }
+fn matchTrait(x: pack(tag"common.core.Int64", _), tag"common.core.Int64") { Some(x) }
+fn matchTrait(x: pack(tag"common.core.Float32", _), tag"common.core.Float32") { Some(x) }
+fn matchTrait(x: pack(tag"common.core.Float64", _), tag"common.core.Float64") { Some(x) }
 
 Integer = tag".Integer"
 
-fn isa(_: (Int32 | Int64), tag".Integer") { true }
+fn matchTrait(x: (Int32 | Int64), tag".Integer") { Some(x) }
 
 include "numbers/complex.rv"
 

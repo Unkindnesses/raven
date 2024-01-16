@@ -34,7 +34,7 @@ end
   main_id = valueid(defs.methods, tag"common.core.main")
 
   @test disps[(tag"foo", rlist(Int))] isa Raven.IR
-  @test disps[(tag"common.+", rlist(Int, Int))] isa Raven.IR
+  @test disps[(tag"common.add", rlist(Int, Int))] isa Raven.IR
 
   Raven.reload!(cx, src"fn foo(x) { x+2 }")
   reset!(pipe)
@@ -45,7 +45,7 @@ end
   @test main_id == valueid(defs.methods, tag"common.core.main")
 
   @test !Caches.iscached(disps, (tag"foo", rlist(Int)))
-  @test Caches.iscached(disps, (tag"common.+", rlist(Int, Int)))
+  @test Caches.iscached(disps, (tag"common.add", rlist(Int, Int)))
 end
 
 @testset "Inference" begin

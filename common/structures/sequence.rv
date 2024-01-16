@@ -1,5 +1,5 @@
 export {
-  Sequence, seq, first, rest, prepend, isempty, length, seqRange, repeat, sum
+  Sequence, Prepend, Empty, seq, first, rest, prepend, isempty, length, seqRange, repeat, sum
 }
 
 bundle Sequence { Prepend(xs, x), Empty() }

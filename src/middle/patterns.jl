@@ -187,10 +187,14 @@ end
 
 partial_match(mod, pat, val) = partial_match(mod, pat, val, [])
 
+# TODO assumes the value is unchanged by the match
 function trivial_isa(int, val, T::Tag)
-  r = int[(tag"common.isa", rlist(val, T))]
-  (isnothing(r) || !isvalue(r) || !issubset(r, rlist(Int32))) && return missing
-  return Bool(part(r, 1))
+  r = int[(tag"common.matchTrait", rlist(val, T))]
+  isnothing(r) && return missing
+  T = tag(part(r, 1))
+  T == tag"common.Some" ? true :
+  T == tag"common.Nil" ? false :
+  missing
 end
 
 # Generate dispatchers

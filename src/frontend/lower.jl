@@ -173,9 +173,8 @@ function bundlemacro(ex::AST.Syntax)
     push!(body, AST.Syntax(:fn, spec,
                                 AST.Block(
                                  AST.Call(:pack, tag, namify.(args)...))))
-    push!(body, AST.Syntax(:fn, AST.Call(:isa, AST.Call(:pack, tag, args...),
-                                               tag),
-                                AST.Block(Symbol("true"))))
+    push!(body, AST.Syntax(:fn, AST.Call(:matchTrait, AST.Operator(:(:), :val, AST.Call(:pack, tag, args...)), tag),
+                                AST.Block(AST.Call(:Some, :val))))
     push!(body, AST.Syntax(:fn, AST.Call(:constructorPattern, tag, namify.(args)...),
                                 AST.Block(
                                   AST.Call(:And, AST.Call(:Trait, tag),
@@ -183,9 +182,9 @@ function bundlemacro(ex::AST.Syntax)
   end
   if super != nothing
     push!(body, AST.Operator(:(=), super, AST.Template(:tag, string(super))))
-    push!(body, AST.Syntax(:fn, AST.Call(:isa, AST.Operator(:(:), :_, AST.Operator(:|, names...)),
-                                               AST.Template(:tag, string(super))),
-                                AST.Block(Symbol("true"))))
+    push!(body, AST.Syntax(:fn, AST.Call(:matchTrait, AST.Operator(:(:), :val, AST.Operator(:|, names...)),
+                                                      AST.Template(:tag, string(super))),
+                                AST.Block(AST.Call(:Some, :val))))
   end
   return AST.Group(body...)
 end

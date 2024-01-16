@@ -20,7 +20,7 @@ Base.iterate(x::Pack, st...) = iterate(x.parts, st...)
 Base.:(==)(a::Pack, b::Pack) = a.parts == b.parts
 Base.hash(x::Pack, h::UInt) = hash((Pack, x.parts), h)
 
-tag(x) = part(x, 0)
+tag(x) = partial_part(x, 0)
 
 struct VPack # variable width
   tag::Any
