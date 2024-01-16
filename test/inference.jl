@@ -1,38 +1,51 @@
 using Raven, Test
-using Raven: @src_str, rlist
+using Raven: @tag_str, @src_str, reload!, rlist
 
-let
-  inf = Raven.code_typed(src"""
-    fn pow(x, n: Int64) {
-      r = one(x)
-      while n > 0 {
-        n = n - one(n)
-        r = r * x
-      }
-      return r
-    }
-    pow(2, 3)
-    """, tag"pow")
-  fs = filter(inf) do (sig, fr)
-    sig[1] isa Raven.RMethod
-  end |> collect
-  @test only(fs)[2][2] == 8
-end
+compiler = Raven.global_compiler()
+inf = compiler.pipe.inferred
 
-let
-  inf = Raven.code_typed(src"""
-    fn fib(n) {
-      if widen(n <= 1) {
-        return n
-      } else {
-        return fib(n-1) + fib(n-2)
-      }
+reload!(compiler, src"""
+  fn pow(x, n: Int64) {
+    r = one(x)
+    while n > 0 {
+      n = n - one(n)
+      r = r * x
     }
-    fn main() { fib(20) }
-    main()
-    """, tag"main")
-  fs = filter(inf) do (sig, fr)
-    sig[1] isa Raven.RMethod
-  end |> collect
-  @test fs[1][2][2] == Int64
-end
+    return r
+  }
+  """)
+
+ir, T = inf[(tag"pow", rlist(2, 3))]
+@test length(ir) == 2
+@test T == rlist(8)
+
+reload!(compiler, src"""
+  fn fib(n) {
+    if widen(n <= 1) {
+      return n
+    } else {
+      return fib(n-1) + fib(n-2)
+    }
+  }
+  """)
+
+ir, T = inf[(tag"fib", rlist(20))]
+@test T == rlist(Int64)
+
+reload!(compiler, src"""
+  fn fib(n) { fib(n-1) + fib(n-2) }
+  fn fib(1) { 1 }
+  fn fib(0) { 0 }
+
+  fn fibSequence(n) {
+    xs = []
+    for i in range(1, n) {
+      append(&xs, fib(i))
+    }
+    return xs
+  }
+  """)
+
+ir, T = inf[(tag"fibSequence", rlist(10))]
+@test length(ir) == 2
+@test T == rlist(rlist(1, 1, 2, 3, 5, 8, 13, 21, 34, 55))

@@ -63,8 +63,8 @@ end
 
 Base.show(io::IO, ::Frame) = print(io, "Frame(...)")
 
-Frame(P, ir::LoopIR) =
-  Frame(P, ir, Set{Loc}(), Set(), ⊥)
+Frame(P, ir::LoopIR, T = ⊥) =
+  Frame(P, ir, Set{Loc}(), Set(), T)
 
 function frame(P, ir::IR, args...)
   ir = prepare_ir!(copy(ir))
@@ -73,17 +73,27 @@ function frame(P, ir::IR, args...)
   return Frame(P, ir)
 end
 
+function const_frame(P, T, F, sig...)
+  name = F isa Tag ? F : F.name
+  ir = IR(meta = FuncInfo(name, trampoline = true))
+  foreach(T -> argument!(ir, T), sig)
+  r = push!(ir, stmt(Expr(:tuple), type = T))
+  return!(ir, r)
+  return Frame(P, looped(ir), T)
+end
+
 struct Inference
   defs::Definitions
+  int::Interpreter
   dispatchers::Dispatchers
   deps::IdDict{Any,Caches.NFT}
   frames::IdDict{Any,Union{Frame,GlobalFrame,Redirect}}
   queue::WorkQueue{Loc}
 end
 
-function Inference(defs::Definitions, ds::Dispatchers)
+function Inference(defs::Definitions, int::Interpreter, ds::Dispatchers)
   gs = Dict{Binding,GlobalFrame}()
-  Inference(defs, ds, IdDict(), gs, WorkQueue{Loc}())
+  Inference(defs, int, ds, IdDict(), gs, WorkQueue{Loc}())
 end
 
 function frame!(inf::Inference, name::Binding)
@@ -118,29 +128,42 @@ function recursionDepth(inf, T, F)
   return 1
 end
 
-function irframe!(inf, P, T, ir, args...)
-  haskey(inf.frames, T) && return frame(inf, T)
-  fr = frame(P, ir, args...)
-  inf.frames[T] = fr
-  push!(inf.queue, Loc(T))
+function irframe!(inf, P, ir, F, Ts...)
+  fr = frame(P, ir, Ts...)
+  inf.frames[(F, Ts...)] = fr
+  push!(inf.queue, Loc((F, Ts...)))
+  return fr
+end
+
+function interpframe!(inf, P, sig...)
+  T = inf.int[sig]
+  (isnothing(T) || !isvalue(T)) && return
+  fr = inf.frames[sig] = const_frame(P, T, sig...)
+  inf.deps[sig] = Caches.valueid(inf.int.results, sig)
   return fr
 end
 
 function frame!(inf, P, meth::RMethod, Ts...)
-  meth.partial && return meth.func(Ts...)
-  if P.depth > recursionLimit
+  if meth.partial
+    meth.func(Ts...)
+  elseif haskey(inf.frames, (meth, Ts...))
+    frame(inf, (meth, Ts...))
+  elseif (fr = interpframe!(inf, P, meth, Ts...)) != nothing
+    fr
+  elseif P.depth > recursionLimit
     mergeFrames(inf, P.sig, (meth, Ts...))
   else
     meth.func isa IR || error("No IR for $meth: $Ts")
-    irframe!(inf, P, (meth, Ts...), meth.func, Ts...)
+    irframe!(inf, P, meth.func, meth, Ts...)
   end
 end
 
 function frame!(inf, P, F, Ts)
   haskey(inf.frames, (F, Ts)) && return frame(inf, (F, Ts))
+  (fr = interpframe!(inf, P, F, Ts)) == nothing || return fr
   ir = inf.dispatchers[(F, Ts)]
   inf.deps[(F, Ts)] = Caches.valueid(inf.dispatchers, (F, Ts))
-  irframe!(inf, P, (F, Ts), ir, Ts)
+  irframe!(inf, P, ir, F, Ts)
 end
 
 # TODO some methods become unreachable, remove them somewhere?
@@ -338,7 +361,7 @@ end
 
 function Inferred(defs::Definitions, int::Interpreter)
   ds = dispatchers(int)
-  inf = Inference(defs, ds)
+  inf = Inference(defs, int, ds)
   return Inferred(ds, inf, Cache())
 end
 
