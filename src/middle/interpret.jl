@@ -22,8 +22,18 @@ function interpret(int, ir::IR, args...)
       elseif isexpr(st, :branch)
         if isreturn(st.expr)
           return arguments(st.expr)[1] |> resolve
+        elseif isunreachable(st.expr)
+          return
         else
-          error("branch")
+          target, cond, args... =  st.expr.args
+          if !isnothing(cond)
+            cond = resolve(cond)
+            cond isa Int32 || return
+            Bool(cond) || continue
+          end
+          bl = target
+          foreach(((v, x),) -> env[v] = x, zip(arguments(block(ir, bl)), resolve.(args)))
+          break
         end
       else
         error("Unknown expr type $(st.expr.head)")
