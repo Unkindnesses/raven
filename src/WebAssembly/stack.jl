@@ -21,22 +21,23 @@
 using DataStructures: PriorityQueue, dequeue!
 using ..IRTools: Variable
 
-struct Locals
-  stack::Vector{Variable}
-  store::Set{Variable}
+struct Locals{T}
+  stack::Vector{Union{T,Const}}
+  store::Set{T}
 end
 
 Base.:(==)(a::Locals, b::Locals) = (a.stack, a.store) == (b.stack, b.store)
 Base.hash(ls::Locals, h::UInt64) = hash((ls.stack, ls.store), h ⊻ 0x205dbdcc02f546cb)
 
-Locals(stack) = Locals(stack, Set())
+Locals(stack, store = Set{eltype(stack)}()) =
+  Locals{Union{eltype(stack),eltype(store)}}(stack, store)
 
 top(ls::Locals) = ls.stack[end]
 top(ls::Locals, n) = ls.stack[max(1,end-n+1):end]
-drop(ls::Locals) = Locals(ls.stack[1:end-1], ls.store)
-set(ls::Locals) = Locals(ls.stack[1:end-1], push!(copy(ls.store), top(ls)))
-tee(ls::Locals) = Locals(ls.stack, push!(copy(ls.store), top(ls)))
-load(ls::Locals, v) = Locals([ls.stack..., v], ls.store)
+drop(ls::Locals) = typeof(ls)(ls.stack[1:end-1], ls.store)
+set(ls::Locals) = typeof(ls)(ls.stack[1:end-1], push!(copy(ls.store), top(ls)))
+tee(ls::Locals) = typeof(ls)(ls.stack, push!(copy(ls.store), top(ls)))
+load(ls::Locals, v) = typeof(ls)([ls.stack..., v], ls.store)
 
 matches(state::Locals, target::Locals; strict = false) =
   (!strict || length(state.stack) == length(target.stack)) &&
@@ -52,12 +53,12 @@ heuristic(state::Locals, target::Locals) =
 
 function stackshuffle(locals::Locals, target::Locals; strict = false)
   stored = setdiff(target.stack, locals.stack)
-  paths = Dict{Locals,Vector{Instruction}}()
-  q = PriorityQueue{Locals,Int}()
+  paths = Dict{Locals,Vector{Union{Instruction,Expr}}}()
+  q = PriorityQueue{Locals,Tuple{Int,Int,Int}}()
   function visit!(locals, path)
     haskey(paths, locals) && return
     paths[locals] = path
-    q[locals] = length(path) + heuristic(locals, target)
+    q[locals] = (length(path) + heuristic(locals, target), length(locals.stack), length(locals.store))
   end
   visit!(locals, [])
   while true
@@ -66,13 +67,14 @@ function stackshuffle(locals::Locals, target::Locals; strict = false)
     if !isempty(locals.stack)
       if !(top(locals) in union(target.stack, target.store))
         visit!(drop(locals), [paths[locals]..., Drop()])
-        continue
       end
-      visit!(set(locals), [paths[locals]..., SetLocal(false, top(locals).id)])
-      visit!(tee(locals), [paths[locals]..., SetLocal(true, top(locals).id)])
+      if !(top(locals) isa Const)
+        visit!(set(locals), [paths[locals]..., Expr(:set, top(locals))])
+        visit!(tee(locals), [paths[locals]..., Expr(:tee, top(locals))])
+      end
     end
     for v in union(stored, locals.store)
-      visit!(load(locals, v), [paths[locals]..., Local(v.id)])
+      visit!(load(locals, v), [paths[locals]..., v isa Instruction ? v : Expr(:get, v)])
     end
   end
 end

@@ -241,3 +241,35 @@ function inlinehere!(ir, source, args...)
   return b[end].expr == unreachable ? nothing :
     rename(returnvalue(b))
 end
+
+# Liveness
+
+function liveness_after(block, lv)
+  live = Set{Variable}()
+  for b in successors(block)
+    union!(live, setdiff(lv[b.id], arguments(b)))
+  end
+  return live
+end
+
+# Variables needed before each block is run, and after each statement is run.
+# Block variables include their arguments.
+function liveness(ir)
+  result = Dict(v => Set{Variable}() for v in keys(ir))
+  result = merge(result, Dict(b.id => Set{Variable}() for b in blocks(ir)))
+  queue = WorkQueue(1:length(blocks(ir)))
+  while !isempty(queue)
+    b = block(ir, pop!(queue))
+    live = liveness_after(b, result)
+    for v in reverse(keys(b))
+      union!(result[v], live)
+      delete!(live, v)
+      IRTools.varmap(x -> push!(live, x), b[v])
+    end
+    if !isempty(setdiff(live, result[b.id]))
+      union!(result[b.id], live)
+      foreach(b -> push!(queue, b.id), predecessors(b))
+    end
+  end
+  return result
+end

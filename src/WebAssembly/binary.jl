@@ -106,6 +106,10 @@ function instr(io::IO, c::CallIndirect)
   u32(io, c.table)
 end
 
+function instr(io::IO, ::Drop)
+  write(io, 0x1a)
+end
+
 function instr(io::IO, v::Local)
   write(io, 0x20)
   u32(io, v.id)

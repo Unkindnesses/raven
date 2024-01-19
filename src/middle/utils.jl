@@ -1,36 +1,3 @@
-# Unique Work Queue
-
-struct WorkQueue{T}
-  items::Vector{T}
-end
-
-WorkQueue{T}() where T = WorkQueue(T[])
-
-WorkQueue() = WorkQueue{Any}()
-
-WorkQueue(xs) = WorkQueue(collect(xs))
-
-function Base.delete!(q::WorkQueue, x)
-  i = findfirst(y -> x === y, q.items)
-  i === nothing || (deleteat!(q.items, i))
-  return q
-end
-
-function Base.push!(q::WorkQueue, x)
-  delete!(q, x)
-  push!(q.items, x)
-  return q
-end
-
-function Base.pushfirst!(q::WorkQueue, x)
-  delete!(q, x)
-  pushfirst!(q.items, x)
-  return q
-end
-
-Base.pop!(q::WorkQueue) = pop!(q.items)
-Base.isempty(q::WorkQueue) = isempty(q.items)
-
 # Trim unreachable code
 
 function trim_unreachable(ir)

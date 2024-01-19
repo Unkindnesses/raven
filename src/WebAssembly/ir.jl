@@ -15,71 +15,107 @@ function Base.show(io::IO, t::WTuple)
   print(io, ")")
 end
 
-function locals(ir::IR)
-  locals = WType[]
+flattype(Ts) = vcat(flattype.(Ts)...)
+flattype(T::WType) = [T]
+flattype(T::WTuple) = T.parts
+
+function stack(ir::IR)
   ret = WType[]
   env = Dict()
   parts(x::Variable) = env[x]
   parts(x::Real) = [Const(x)]
-  local!(T) = (push!(locals, T); Local(length(locals)-1))
-  local!(v, T) = get!(() -> [local!(T)], env, v)
-  local!(v, T::WTuple) = get!(() -> local!.(T.parts), env, v)
-  for (arg, T) in zip(arguments(ir), argtypes(ir))
-    local!(arg, T)
+  parts(xs::AbstractVector) = [p for x in xs for p in parts(x)]
+  parts!(x, T) = (env[x] = [(x, i) for (i, _) in enumerate(flattype(T))])
+  lv = IRTools.liveness(ir)
+  live(v) = Set([p for x in lv[v] for p in parts(x)])
+  for bl in blocks(ir), (x, T) in zip(arguments(bl), argtypes(bl))
+    parts!(x, T)
   end
   pr = IRTools.Pipe(ir)
-  for (v, st) in pr
-    ex = st.expr
-    src = st.src
-    if ex isa Variable
-      delete!(pr, v)
-      env[v] = env[ex]
-    elseif ex == unreachable
-      # leave it alone
-    elseif !isexpr(ex)
-      delete!(pr, v)
-      env[v] = [Const(ex)]
-    elseif isexpr(ex, :call)
-      for arg in ex.args[2:end], i in 1:length(parts(arg))
-        insert!(pr, v, stmt(parts(arg)[i]; src))
-      end
-      pr[v] = ex.args[1]::Instruction
-      ls = local!(v, st.type)
-      foreach(l -> push!(pr, stmt(SetLocal(false, l.id); src)), reverse(ls))
-    elseif isexpr(ex, :tuple)
-      env[v] = vcat([parts(x) for x in ex.args]...)
-      delete!(pr, v)
-    elseif isexpr(ex, :ref)
-      env[v] = [parts(ex.args[1])[ex.args[2]]]
-      delete!(pr, v)
-    elseif isexpr(ex, :branch)
-      if isreturn(ex)
-        x = arguments(ex)[1]
-        ret = [p isa Const ? WType(p) : locals[p.id+1] for p in parts(x)]
-        for arg in parts(x)
-          insert!(pr, v, stmt(arg; src))
-        end
-        pr[v] = Return()
-      elseif ex == IRTools.unreachable
-        pr[v] = unreachable
-      else
-        for (x, y) in zip(arguments(ex), arguments(IRTools.block(ir, ex.args[1])))
-          ls = local!(y, IRTools.exprtype(ir, y))
-          for (xl, yl) in zip(parts(x), ls)
-            push!(pr, stmt(xl; src))
-            push!(pr, stmt(SetLocal(false, yl.id); src))
+  for bl in blocks(pr)
+    stack = []
+    for (v, st) in bl
+      ex = st.expr
+      src = st.src
+      if ex isa Variable
+        env[v] = env[ex]
+        delete!(pr, v)
+      elseif isexpr(st, :tuple)
+        env[v] = vcat([parts(x) for x in ex.args]...)
+        delete!(pr, v)
+      elseif isexpr(st, :ref)
+        env[v] = [parts(ex.args[1])[ex.args[2]]]
+        delete!(pr, v)
+      elseif ex isa Number
+        env[v] = [Const(ex)]
+        delete!(pr, v)
+      elseif isexpr(st, :call)
+        parts!(v, st.type)
+        args = parts(ex.args[2:end])
+        ops, state = stackshuffle(Locals(stack), Locals(args, intersect(live(v), stack)))
+        foreach(op -> insert!(pr, v, stmt(op; src)), ops)
+        pr[v] = ex.args[1]::Instruction
+        stack = vcat(state.stack[1:end-length(args)], parts(v))
+      elseif isexpr(st, :branch)
+        if isreturn(ex)
+          result = only(arguments(ex))
+          parttype(x::Const) = WType(x)
+          parttype((x, i)::Tuple) = flattype(IRTools.exprtype(ir, x))[i]
+          ret = parttype.(parts(result))
+          ops, _ = stackshuffle(Locals(stack), Locals(parts(result)))
+          foreach(op -> insert!(pr, v, stmt(op; src)), ops)
+          pr[v] = Return()
+          stack = []
+        elseif ex == IRTools.unreachable
+          pr[v] = unreachable
+        else
+          args = parts(arguments(ex))
+          # TODO in this case the args could be in any order
+          ops, state = stackshuffle(Locals(stack), Locals(args, intersect(live(v), stack)))
+          foreach(op -> insert!(pr, v, stmt(op; src)), ops)
+          args = reverse(parts(arguments(IRTools.block(ir, ex.args[1]))))
+          for x in args
+            insert!(pr, v, stmt(Expr(:set, x); src))
           end
+          stack = state.stack[1:end-length(args)]
+          args = isconditional(ex) ? parts(ex.args[2]) : []
+          ops, state = stackshuffle(Locals(stack), Locals(args, intersect(live(v), stack)), strict = true)
+          foreach(op -> insert!(pr, v, stmt(op; src)), ops)
+          pr[v] = Branch(isconditional(ex), ex.args[1])
+          stack = state.stack[1:end-length(args)]
         end
-        isconditional(ex) && push!(pr, stmt(only(parts(ex.args[2])); src))
-        pr[v] = Branch(isconditional(ex), ex.args[1])
+      else
+        error("Unrecognised expression $(ex)")
       end
-    else
-      error("Unrecognised wasm expression $ex")
     end
   end
   ir = IRTools.finish(pr)
+  for (v, st) in ir
+    isexpr(st, :get, :set, :tee) || continue
+    (x, i) = only(st.expr.args)
+    ir[v] = Expr(st.expr.head, (IRTools.substitute(pr, x), i))
+  end
+  return ir, ret
+end
+
+# TODO new liveness / interference analysis so we can reuse slots.
+# Will also have to filter redundant moves (due to block args) in that case.
+function locals!(ir::IR)
+  locals = WType[]
+  slots = Dict{Tuple{Variable,Int},Int}()
+  for (x, T) in zip(arguments(ir), argtypes(ir)), (i, t) in enumerate(flattype(T))
+    slots[(x, i)] = length(locals)
+    push!(locals, t)
+  end
+  slot(v, i) = get!(() -> length(push!(locals, flattype(IRTools.exprtype(ir, v))[i]))-1, slots, (v, i))
+  for (v, st) in ir
+    isexpr(st, :get, :set, :tee) || continue
+    (x, i) = only(st.expr.args)
+    s = slot(x, i)
+    ir[v] = st.expr.head == :get ? Local(s) : SetLocal(st.expr.head == :tee, s)
+  end
   foreach(bl -> empty!(arguments(bl)), blocks(ir))
-  return ir, locals, ret
+  return ir, locals
 end
 
 # When stepping over, debuggers will go to either the next line or the next
@@ -158,15 +194,12 @@ function reloop(ir, cfg)
   return rl.scopes[1]
 end
 
-flattentype(Ts) = vcat(flattentype.(Ts)...)
-flattentype(T::WType) = [T]
-flattentype(T::WTuple) = T.parts
-
 function irfunc(name, ir)
   cfg = CFG(ir)
-  ir, ls, ret = locals(ir)
+  params = flattype(argtypes(ir))
+  ir, ret = stack(ir)
+  ir, ls = locals!(ir)
   ir = shiftbps!(ir)
-  params = flattentype(argtypes(ir))
   ls = ls[length(params)+1:end]
   Func(name, params => ret, ls, reloop(ir, cfg), ir.meta)
 end

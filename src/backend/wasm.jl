@@ -136,8 +136,8 @@ function lowerwasm(ir::IR, names, globals, tables)
                    type = wlayout(st.type))
     elseif isexpr(st, :call_indirect)
       f, args = st.expr.args
-      I = wlayout(exprtype(ir, args)) |> WebAssembly.flattentype
-      O = wlayout(st.type) |> WebAssembly.flattentype
+      I = wlayout(exprtype(ir, args)) |> WebAssembly.flattype
+      O = wlayout(st.type) |> WebAssembly.flattype
       pr[v] = stmt(st,
                    expr = xcall(WebAssembly.CallIndirect(I => O, 0), args, f),
                    type = wlayout(st.type))

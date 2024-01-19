@@ -3,7 +3,7 @@ module WASMTest
 using Raven, Raven.WebAssembly, Test
 using Raven.WebAssembly.Instructions
 import Raven.WebAssembly: Func, Mem, Import, Export, Global, leb128, binary
-import Raven.WebAssembly: Variable, Locals, Local, SetLocal, Drop, stackshuffle
+import Raven.WebAssembly: Locals, Local, SetLocal, Drop, stackshuffle
 using Raven: FuncInfo, pscmd, @tag_str
 
 function leb128(x)
@@ -25,20 +25,20 @@ end
 end
 
 @testset "stack shuffling" begin
-  state = Locals([Variable(6), Variable(3), Variable(2)])
-  target = Locals([Variable(3), Variable(4)], Set([Variable(3)]))
-  @test stackshuffle(state, target)[1] == [Drop(), SetLocal(true, 3), Local(4)]
+  state = Locals([6, 3, 2])
+  target = Locals([3, 4], Set([3]))
+  @test stackshuffle(state, target)[1] == [Drop(), Expr(:tee, 3), Expr(:get, 4)]
   @test stackshuffle(state, target, strict = true)[1] ==
-    [Drop(), SetLocal(false, 3), Drop(), Local(3), Local(4)]
+    [Drop(), Expr(:set, 3), Drop(), Expr(:get, 3), Expr(:get, 4)]
 
-  state = Locals([Variable(3)])
-  target = Locals([Variable(3), Variable(3)])
-  @test stackshuffle(state, target)[1] == [SetLocal(true, 3), Local(3)]
+  state = Locals([3])
+  target = Locals([3, 3])
+  @test stackshuffle(state, target)[1] == [Expr(:tee, 3), Expr(:get, 3)]
 
-  state = Locals([Variable(1), Variable(2)])
+  state = Locals([1, 2])
   target = Locals([])
   @test stackshuffle(state, target)[1] == []
-  stackshuffle(state, target, strict = true) == [Drop(), Drop()]
+  @test stackshuffle(state, target, strict = true)[1] == [Drop(), Drop()]
 end
 
 function compiled_wat(m)
