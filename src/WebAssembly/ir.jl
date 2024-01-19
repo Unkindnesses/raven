@@ -79,7 +79,9 @@ function stack(ir::IR)
           end
           stack = state.stack[1:end-length(args)]
           args = isconditional(ex) ? parts(ex.args[2]) : []
-          ops, state = stackshuffle(Locals(stack), Locals(args, intersect(live(v), stack)), strict = true)
+          # We are allowed to leave dead values on the stack when branching, but
+          # anything live must be stored in a local.
+          ops, state = stackshuffle(Locals(stack), Locals(args, intersect(live(v), stack)), store = true)
           foreach(op -> insert!(pr, v, stmt(op; src)), ops)
           pr[v] = Branch(isconditional(ex), ex.args[1])
           stack = state.stack[1:end-length(args)]

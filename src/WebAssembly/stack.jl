@@ -39,19 +39,18 @@ set(ls::Locals) = typeof(ls)(ls.stack[1:end-1], push!(copy(ls.store), top(ls)))
 tee(ls::Locals) = typeof(ls)(ls.stack, push!(copy(ls.store), top(ls)))
 load(ls::Locals, v) = typeof(ls)([ls.stack..., v], ls.store)
 
-matches(state::Locals, target::Locals; strict = false) =
+matches(state::Locals, target::Locals; strict = false, store = false) =
   (!strict || length(state.stack) == length(target.stack)) &&
   top(state, length(target.stack)) == target.stack &&
-  state.stack[end-length(target.stack)+1:end] == target.stack &&
-  all(v -> v in state.stack[1:end-length(target.stack)] ||
-           v in state.store,
+  all(v -> v in state.store ||
+           !store && v in state.stack[1:end-length(target.stack)],
       target.store)
 
 # Lower bound number of ops needed to reach target
 heuristic(state::Locals, target::Locals) =
   length(setdiff(target.stack, top(state, length(target.stack))))
 
-function stackshuffle(locals::Locals, target::Locals; strict = false)
+function stackshuffle(locals::Locals, target::Locals; strict = false, store = false)
   stored = setdiff(target.stack, locals.stack)
   paths = Dict{Locals,Vector{Union{Instruction,Expr}}}()
   q = PriorityQueue{Locals,Tuple{Int,Int,Int}}()
@@ -63,7 +62,7 @@ function stackshuffle(locals::Locals, target::Locals; strict = false)
   visit!(locals, [])
   while true
     locals = dequeue!(q)
-    matches(locals, target; strict) && return paths[locals], locals
+    matches(locals, target; strict, store) && return paths[locals], locals
     if !isempty(locals.stack)
       if !(top(locals) in union(target.stack, target.store))
         visit!(drop(locals), [paths[locals]..., Drop()])
