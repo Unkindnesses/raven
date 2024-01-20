@@ -17,7 +17,7 @@ repository:
     patterns:
     - include: '#keywords'
     - include: '#places'
-    - include: '#variables'
+    # - include: '#variables'
     - include: '#strings'
     - include: '#numbers'
     - include: '#operators'
