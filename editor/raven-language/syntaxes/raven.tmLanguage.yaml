@@ -1,18 +1,14 @@
 "$schema": https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json
 name: Raven
+fileTypes: ['rv'] # atom only
 patterns:
 - include: '#macros'
 - include: '#expressions'
 - include: '#comments'
 repository:
   macros:
-    begin: '[A-Za-z][A-Za-z\.0-9]*\b(?![ ]*[\+\-\*/><\=,])(?=[^{}#]*{)'
-    beginCaptures:
-      0:
-        name: keyword.other.raven
-    end: '{'
-    patterns:
-      - include: '#expressions'
+    match: '((?<=^)|(?<=[\[\(\{]))\s*[_A-Za-z][_A-Za-z\.0-9]*\s+(?=[\{\[\(\"_A-Za-z0-9])'
+    name: keyword.other.raven
   expressions:
     patterns:
     - include: '#keywords'
