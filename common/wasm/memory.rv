@@ -1,6 +1,6 @@
 export { Ptr, Function, Ref, addr, pointer, invoke }
 
-bundle { Ptr(x: Int32) }
+bundle Ptr(x: Int32)
 
 fn Ptr(x: Int64) { Ptr(Int32(x)) }
 
@@ -51,7 +51,7 @@ fn Function(f, I, O) {
   Function(ptr, I, O)
 }
 
-bundle { Function(f: Int32, I, O) }
+bundle Function(f: Int32, I, O)
 
 extend fn invoke(f: Function, xs...) {
   Function(f, I, O) = f
@@ -62,7 +62,7 @@ extend fn invoke(f: Function, xs...) {
 
 fn hold(x...) { nil }
 
-bundle { Ref(p: Ptr) }
+bundle Ref(p: Ptr)
 
 fn Ref(n: Int64) {
   ptr = malloc!(Int32(n+8))

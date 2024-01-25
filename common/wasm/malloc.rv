@@ -39,7 +39,7 @@ fn npages(bytes: Int32) {
 
 # Block struct
 
-bundle { Block(ptr: Ptr, size: Int32) }
+bundle Block(ptr: Ptr, size: Int32)
 
 fn getBlockSize(Block(_, size)) { size }
 

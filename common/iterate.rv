@@ -1,6 +1,6 @@
 export { Range, range, iterate, iterator }
 
-bundle { IndexIterator(xs, i: Int64) }
+bundle IndexIterator(xs, i: Int64)
 
 fn IndexIterator(xs) { IndexIterator(xs, 1) }
 
@@ -15,7 +15,7 @@ fn iterate(&itr: IndexIterator(xs, i)) {
   }
 }
 
-bundle { Range(start, stop) }
+bundle Range(start, stop)
 
 fn range(start, stop) { Range(start, stop) }
 

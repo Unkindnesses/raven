@@ -162,7 +162,7 @@ namify(ex::AST.Splat) = AST.Splat(namify(ex[1]))
 
 function bundlemacro(ex::AST.Syntax)
   super, specs = length(ex) == 2 ? (nothing, ex[2]) : (ex[2], ex[3])
-  specs = specs[:]
+  specs = specs isa AST.Block ? specs[:] : [specs]
   names = []
   body = []
   for spec in specs

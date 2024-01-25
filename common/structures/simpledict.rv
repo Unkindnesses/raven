@@ -3,7 +3,7 @@
 
 export { Pair, simpledict, setkey, getkey, haskey, merge }
 
-bundle { Pair(a, b) }
+bundle Pair(a, b)
 
 fn show(Pair(a, b)) {
   show(a)

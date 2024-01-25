@@ -1,6 +1,6 @@
 export { String, string, concat }
 
-bundle { String(obj: JSObject) }
+bundle String(obj: JSObject)
 
 fn tojs(s: String) { part(s, 1) }
 
