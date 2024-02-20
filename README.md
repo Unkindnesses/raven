@@ -2,8 +2,6 @@
 <img width="400px" src=".github/logo.png"/>
 </p>
 
-See the [documentation](https://quoththeraven.io/docs/manual/setup) for setup.
-
 `test.rv`:
 
 ```rust
