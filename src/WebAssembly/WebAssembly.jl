@@ -7,8 +7,6 @@ using ..Dwarf: LineInfo
 include("wasm.jl")
 include("wat.jl")
 include("binary.jl")
-
-include("stack.jl")
 include("ir.jl")
 
 module Instructions

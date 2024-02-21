@@ -28,8 +28,6 @@ end
   state = Locals([6, 3, 2])
   target = Locals([3, 4], Set([3]))
   @test stackshuffle(state, target)[1] == [Drop(), Expr(:tee, 3), Expr(:get, 4)]
-  @test stackshuffle(state, target, strict = true)[1] ==
-    [Drop(), Expr(:set, 3), Drop(), Expr(:get, 3), Expr(:get, 4)]
 
   state = Locals([3])
   target = Locals([3, 3])
@@ -38,7 +36,6 @@ end
   state = Locals([1, 2])
   target = Locals([])
   @test stackshuffle(state, target)[1] == []
-  @test stackshuffle(state, target, strict = true)[1] == [Drop(), Drop()]
 end
 
 function compiled_wat(m)

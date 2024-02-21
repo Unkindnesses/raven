@@ -2,7 +2,7 @@
 
 julia_version = "1.9.2"
 manifest_format = "2.0"
-project_hash = "4fb3fbbc429bce1f21ca68dfeeb878d1c88e7146"
+project_hash = "adc152814d6911fd991892257ac265de79a1e958"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
@@ -19,12 +19,6 @@ version = "4.13.0"
     [deps.Compat.weakdeps]
     Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
     LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-
-[[deps.DataStructures]]
-deps = ["Compat", "InteractiveUtils", "OrderedCollections"]
-git-tree-sha1 = "ac67408d9ddf207de5cfa9a97e114352430f01ed"
-uuid = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
-version = "0.18.16"
 
 [[deps.Dates]]
 deps = ["Printf"]
@@ -69,11 +63,6 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[deps.Mmap]]
 uuid = "a63ad114-7e13-5084-954f-fe012c677804"
-
-[[deps.OrderedCollections]]
-git-tree-sha1 = "dfdf5519f235516220579f949664f1bf44e741c5"
-uuid = "bac558e1-5e72-5ebc-8fee-abe8a469f55d"
-version = "1.6.3"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]

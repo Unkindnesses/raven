@@ -19,6 +19,66 @@ flattype(Ts) = vcat(flattype.(Ts)...)
 flattype(T::WType) = [T]
 flattype(T::WTuple) = T.parts
 
+struct Locals{T}
+  stack::Vector{Union{T,Const}}
+  store::Set{T}
+end
+
+Base.:(==)(a::Locals, b::Locals) = (a.stack, a.store) == (b.stack, b.store)
+Base.hash(ls::Locals, h::UInt64) = hash((ls.stack, ls.store), h ⊻ 0x205dbdcc02f546cb)
+
+Locals(stack, store = Set{eltype(stack)}()) =
+  Locals{Union{eltype(stack),eltype(store)}}(stack, store)
+
+function prefix(xs, ys)
+  dp = zeros(Int, length(ys)+1)
+  len, pos = 0, length(ys)
+  for i in 1:length(xs), j in length(ys):-1:1
+    if xs[i] == ys[j]
+      dp[j+1] = dp[j] + 1
+      if i == dp[j+1] && dp[j+1] > len
+        len = dp[j+1]
+        pos = j
+      end
+    else
+        dp[j+1] = 0
+    end
+  end
+  return len, pos
+end
+
+function stackshuffle(locals::Locals, target::Locals; store = false)
+  implicit = filter(x -> !(x isa Const), setdiff(target.stack, locals.stack))
+  locals = Locals(copy(locals.stack), union(locals.store, implicit))
+  needed = union(target.store, target.stack)
+  path = Union{Instruction,Expr}[]
+  load(x::Const) = (push!(path, x); push!(locals.stack, x))
+  function load(x)
+    !isempty(path) && path[end] == Expr(:set, x) ? (path[end] = Expr(:tee, x)) : push!(path, Expr(:get, x))
+    push!(locals.stack, x)
+  end
+  while true
+    len, pos = prefix(target.stack, locals.stack)
+    live = locals.store
+    store || (live = union(locals.store, locals.stack[1:end-len]))
+    if pos == length(locals.stack) &&
+        all(x -> x isa Const || x in locals.store, target.stack[len+1:end]) &&
+        all(x -> x in live, target.store)
+      foreach(load, target.stack[len+1:end])
+      break
+    else
+      v = pop!(locals.stack)
+      if v isa Const || v in locals.store || !(v in needed)
+        push!(path, Drop())
+      else
+        push!(path, Expr(:set, v))
+        push!(locals.store, v)
+      end
+    end
+  end
+  return path, locals
+end
+
 function stack(ir::IR)
   ret = WType[]
   env = Dict()
