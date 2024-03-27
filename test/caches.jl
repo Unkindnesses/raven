@@ -110,3 +110,12 @@ end
   @test level2[1] == 10
   @test log == [1, 1]
 end
+
+@testset "Cycle Cache" begin
+  ch = CycleCache(x -> x) do self, x
+    y = self[x]
+    return (y + x/y)/2
+  end
+  @test ch[2] ≈ sqrt(2)
+  @test isempty(Caches.invalid(ch.cache))
+end

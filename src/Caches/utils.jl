@@ -50,6 +50,7 @@ track!(v::NFT) = track!(nullkey => v)
 subcaches(ch) = error("$(typeof(ch)) isn't a cache")
 fingerprint(ch) = reduce(union!, (fingerprint(ch) for ch in subcaches(ch)), init = Set{NFT}())
 fingerprint(s::Set{NFT}) = s
+fingerprint(s::NFT) = Set([s])
 fingerprint(a, b, c...) = union(fingerprint(a), fingerprint(b, c...))
 
 fingerprint(s::AbstractVector) =

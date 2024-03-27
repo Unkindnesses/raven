@@ -18,6 +18,7 @@ Cache(f) = Cache{Any,Any}(f)
 
 keys(c::Cache) = keys(c.data)
 keytype(c::Cache{K,V}) where {K,V} = K
+valtype(c::Cache{K,V}) where {K,V} = V
 fingerprint(ch::Cache) = ch.fingerprint
 
 iscached(ch::Cache, k) = haskey(ch.data, k)
@@ -102,6 +103,19 @@ function invalid(c::Cache; deps = [])
   return keys
 end
 
+function invalidated(c::Cache; deps = [])
+  print = fingerprint(deps)
+  keys = keytype(c)[]
+  rm = Set{NFT}()
+  for k in topokeys(c)
+    v = c.data[k]
+    any(((_, id),) -> id in print || id in rm, v.deps) || continue
+    push!(rm, v.id[2])
+    push!(keys, k)
+  end
+  return keys
+end
+
 reset!(c::Cache; deps = []) = foreach(k -> delete!(c, k), invalid(c; deps))
 
 Base.IdDict(c::Cache) = IdDict(k => v.value for (k, v) in c.data)
@@ -125,14 +139,49 @@ fingerprint(c::EagerCache) = fingerprint(c.cache)
 
 function reset!(c::EagerCache{K,V}; deps = []) where {K,V}
   for k in invalid(c.cache; deps)
-    old = cached(c.cache, k)
-    new, deps = value(c.cache, k)
-    if old == new
-      set!(c.cache, k, CacheValue{V}(new, id(c, k), deps))
+    v, deps = value(c.cache, k)
+    if v == cached(c.cache, k)
+      set!(c.cache, k, CacheValue{V}(v, id(c, k), deps))
     else
-      set!(c.cache, k, new; deps)
+      set!(c.cache, k, v; deps)
     end
   end
+end
+
+# Fixed point iteration
+
+struct CycleCache{K,V}
+  init::Any
+  cache::Cache{K,V}
+  CycleCache{K,V}(init, c::Cache{K,V}) where {K,V} = new{K,V}(init, c)
+  CycleCache(init, c::Cache{K,V}) where {K,V} = new{K,V}(init, c)
+end
+
+CycleCache(f, init) = CycleCache(init, Cache(f))
+CycleCache{K,V}(f, init) where {K,V} = CycleCache{K,V}(init, Cache{K,V}(f))
+
+id(c::CycleCache, k) = id(c.cache, k)
+valtype(c::CycleCache) = valtype(c.cache)
+
+function getindex(c::CycleCache, k)
+  if !iscached(c.cache, k)
+    v, deps = trackdeps(() -> c.init(k))
+    @assert isempty(deps)
+    set!(c.cache, k, v)
+    while true
+      v, deps = value(c.cache, k)
+      if v == cached(c.cache, k)
+        set!(c.cache, k, CacheValue{valtype(c)}(v, id(c, k), deps))
+      else
+        vi = id(c, k)[2]
+        set!(c.cache, k, v; deps)
+        ks = invalidated(c.cache, deps = vi)
+        isempty(ks) || continue
+      end
+      break
+    end
+  end
+  return cached(c.cache, k)
 end
 
 # Value -> key mapping
