@@ -44,6 +44,8 @@ keys(ch::Dict) = keys(ch.data)
 
 reset!(ch::Dict; deps = []) = return
 
+id(ch::Dict, k) = (nullkey, ch.data[k][1])
+
 function getindex(ch::Dict{K,V}, k::K) where {K,V}
   (id, value) = ch.data[k]
   track!(id)
@@ -84,6 +86,8 @@ function Base.empty!(ch::Dict)
   return ch
 end
 
+iscached(ch::Dict{K,V}, k::K) where {K,V} = haskey(ch.data, k)
+
 function haskey(ch::Dict{K,V}, k::K) where {K,V}
   id = get!(() -> NFT(), ch.haskey, k)
   push!(ch.fingerprint, id)
@@ -98,3 +102,5 @@ end
 function get!(ch::Dict{K,V}, k::K, default::V) where {K,V}
   haskey(ch, k) ? ch[k] : (ch[k] = default)
 end
+
+Base.IdDict(ch::Dict) = copy(ch.data)

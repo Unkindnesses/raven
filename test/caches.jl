@@ -52,7 +52,7 @@ reset!(optional, deps = level1)
 
 @testset "Recursive Fibonacci" begin
   log = []
-  init = Cache{Int,Int}()
+  init = Caches.Dict{Int,Int}()
   init[0] = 0; init[1] = 1
 
   fib = Cache{Int,Int}() do self, i
@@ -73,35 +73,6 @@ reset!(optional, deps = level1)
   reset!(fib, deps = init)
   @test fib[10] == 89
   @test fib[5] == 8
-end
-
-@testset "Iterative Fibonacci" begin
-  log = []
-  init = Cache{Int,Int}()
-  init[0] = 0; init[1] = 1
-
-  fib = Cache{Int,Int}() do self, i
-    push!(log, i)
-    for i = 0:i
-      self[i] = i <= 1 ? init[i] : self[i-1] + self[i-2]
-    end
-    return self[i]
-  end
-
-  @test fib[10] == 55
-  @test fib[5] == 5
-  @test log == [10]
-  empty!(log)
-
-  reset!(fib, deps = init)
-  @test fib[10] == 55
-  @test isempty(log)
-
-  init[0] = 1
-  reset!(fib, deps = init)
-  @test fib[5] == 8
-  @test fib[10] == 89
-  @test log == [5, 10]
 end
 
 @testset "Eager cache" begin

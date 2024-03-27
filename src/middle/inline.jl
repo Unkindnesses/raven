@@ -19,7 +19,7 @@ end
 
 function inlineable(cache, T)
   T[1] == tag"common.hold" && return false
-  fr = Caches.value(cache, T) # avoid self dependency in cycles
+  fr = Caches.get(cache, T) # avoid self dependency in cycles
   fr == nothing && return false # hit a cycle
   fr isa Redirect && return inlineable(cache, cache[T].to)
   inlineable(cache[T])
@@ -43,7 +43,7 @@ function Inlined(cache)
     ir = cache[sig]
     options().inline || return ir
     ir isa Redirect && return ir
-    self[sig] = nothing # TODO Cache itself could handle cycles
+    Caches.set!(self, sig, nothing) # TODO Cache itself could handle cycles
     inline(ir, self)
   end
 end

@@ -11,22 +11,64 @@ struct Cache{K,V}
   default::Any
 end
 
-_cache_default(ch::Cache, x) = throw(KeyError(x))
-
-Cache{K,V}(f = _cache_default) where {K,V} =
+Cache{K,V}(f) where {K,V} =
   Cache{K,V}(Set{NFT}(), IdDict{K,V}(), Base.Dict{NFT,K}(), f)
 
-Cache(f = _cache_default) = Cache{Any,Any}(f)
+Cache(f) = Cache{Any,Any}(f)
 
+keys(c::Cache) = keys(c.data)
 keytype(c::Cache{K,V}) where {K,V} = K
-
 fingerprint(ch::Cache) = ch.fingerprint
 
 iscached(ch::Cache, k) = haskey(ch.data, k)
+cached(ch::Cache, k) = ch.data[k].value
+id(c::Cache, k) = c.data[k].id
+deps(c::Cache, k) = c.data[k].deps
 
-valueid(c::Cache, k) = c.data[k].id[2]
+function Base.delete!(c::Cache{K,V}, k::K) where {K,V}
+  haskey(c.data, k) || return
+  ki, vi = id(c, k)
+  delete!(c.keys, ki)
+  delete!(c.fingerprint, vi)
+  delete!(c.data, k)
+  return c
+end
 
-keys(c::Cache) = keys(c.data)
+function set!(c::Cache{K,V}, k::K, v::CacheValue{V}) where {K,V}
+  delete!(c, k)
+  ki, vi = v.id
+  c.keys[ki] = k
+  push!(c.fingerprint, vi)
+  c.data[k] = v
+  return v
+end
+
+function set!(c::Cache{K,V}, k::K, v::V; deps = Set()) where {K,V}
+  ki = iscached(c, k) ? id(c, k)[1] : NFT()
+  set!(c, k, CacheValue{V}(v, ki=>NFT(), deps))
+  return v
+end
+
+function value(c::Cache{K,V}, k::K) where {K,V}
+  trackdeps() do
+    convert(V, c.default(c, k))::V
+  end
+end
+
+# TODO inline into `getindex`
+function get(c::Cache{K,V}, k::K) where {K,V}
+  if !iscached(c, k)
+    v, deps = value(c, k)
+    set!(c, k, v; deps)
+  end
+  return cached(c, k)
+end
+
+function getindex(c::Cache{K,V}, k::K) where {K,V}
+  v = get(c, k)
+  track!(id(c, k))
+  return v
+end
 
 function topokeys!(c::Cache, k::NFT, ks, seen)
   (haskey(c.keys, k) && !(k in seen)) || return
@@ -45,53 +87,6 @@ function topokeys(c::Cache)
     topokeys!(c, k, ks, seen)
   end
   return ks
-end
-
-function setindex!(c::Cache{K,V}, v::CacheValue{V}, k::K) where {K,V}
-  kid, id = v.id
-  c.keys[kid] = k
-  push!(c.fingerprint, id)
-  c.data[k] = v
-  return v
-end
-
-function Base.delete!(c::Cache{K,V}, k::K) where {K,V}
-  haskey(c.data, k) || return
-  kid, id = c.data[k].id
-  delete!(c.keys, kid)
-  delete!(c.fingerprint, id)
-  delete!(c.data, k)
-  return c
-end
-
-function set!(c::Cache{K,V}, k::K, v::V; deps = current_deps(objectid(c))) where {K,V}
-  # TODO preserve key id
-  haskey(c.data, k) && delete!(c, k)
-  c[k] = CacheValue{V}(v, NFT()=>NFT(), deps)
-  return v
-end
-
-setindex!(c::Cache{K,V}, v::V, k::K) where {K,V} = set!(c, k, v)
-
-function value(c::Cache{K,V}, k::K) where {K,V}
-  if !haskey(c.data, k)
-    value, deps = trackdeps(objectid(c)) do
-      convert(V, c.default(c, k))::V
-    end
-    if haskey(c.data, k)
-      delete!(deps, c.data[k].id)
-      delete!(c, k)
-    end
-    # TODO preserve key id
-    c[k] = CacheValue{V}(value, NFT()=>NFT(), deps)
-  end
-  return c.data[k].value
-end
-
-function getindex(c::Cache{K,V}, k::K) where {K,V}
-  v = value(c, k)
-  track!(c.data[k].id)
-  return v
 end
 
 function invalid(c::Cache; deps = [])
@@ -122,24 +117,20 @@ end
 EagerCache(args...) = EagerCache(Cache(args...))
 EagerCache{K,V}(args...) where {K,V} = EagerCache{K,V}(Cache{K,V}(args...))
 
-value(c::EagerCache, args...) = value(c.cache, args...)
 getindex(c::EagerCache, args...) = getindex(c.cache, args...)
-setindex!(c::EagerCache, args...) = setindex!(c.cache, args...)
 
-valueid(c::EagerCache, k) = valueid(c.cache, k)
+id(c::EagerCache, k) = id(c.cache, k)
 
 fingerprint(c::EagerCache) = fingerprint(c.cache)
 
 function reset!(c::EagerCache{K,V}; deps = []) where {K,V}
   for k in invalid(c.cache; deps)
-    v = c.cache.data[k]
-    value, deps = trackdeps(objectid(c.cache)) do
-      convert(V, c.cache.default(c, k))::V
-    end
-    if v.value == value
-      c.cache.data[k] = CacheValue{V}(value, v.id, deps)
+    old = cached(c.cache, k)
+    new, deps = value(c.cache, k)
+    if old == new
+      set!(c.cache, k, CacheValue{V}(new, id(c, k), deps))
     else
-      set!(c.cache, k, value; deps)
+      set!(c.cache, k, new; deps)
     end
   end
 end
@@ -165,7 +156,7 @@ end
 
 function reset!(c::DualCache; deps = [])
   for k in invalid(c.cache; deps)
-    v = c.cache.data[k].value
+    v = cached(c.cache, k)
     delete!(c.cache, k)
     delete!(c.keys, v)
   end

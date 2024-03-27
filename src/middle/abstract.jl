@@ -99,7 +99,7 @@ end
 function frame!(inf::Inference, name::Binding)
   get!(inf.frames, name) do
     T = inf.defs[name]
-    inf.deps[name] = Caches.valueid(inf.defs.globals, name)
+    inf.deps[name] = Caches.id(inf.defs.globals, name)[2]
     if T isa Binding
       parent = frame!(inf, T)
       push!(parent.edges, name)
@@ -139,7 +139,7 @@ function interpframe!(inf, P, sig...)
   T = inf.int[sig]
   (isnothing(T) || !isvalue(T)) && return
   fr = inf.frames[sig] = const_frame(P, T, sig...)
-  inf.deps[sig] = Caches.valueid(inf.int.results, sig)
+  inf.deps[sig] = Caches.id(inf.int.results, sig)[2]
   return fr
 end
 
@@ -162,7 +162,7 @@ function frame!(inf, P, F, Ts)
   haskey(inf.frames, (F, Ts)) && return frame(inf, (F, Ts))
   (fr = interpframe!(inf, P, F, Ts)) == nothing || return fr
   ir = inf.dispatchers[(F, Ts)]
-  inf.deps[(F, Ts)] = Caches.valueid(inf.dispatchers, (F, Ts))
+  inf.deps[(F, Ts)] = Caches.id(inf.dispatchers, (F, Ts))[2]
   irframe!(inf, P, ir, F, Ts)
 end
 
@@ -356,35 +356,37 @@ end
 struct Inferred
   dispatchers::Dispatchers
   inf::Inference
-  results::Cache{Any,Any}
+  results::Caches.Dict{Any,Any}
 end
 
 function Inferred(defs::Definitions, int::Interpreter)
   ds = dispatchers(int)
   inf = Inference(defs, int, ds)
-  return Inferred(ds, inf, Cache())
+  return Inferred(ds, inf, Caches.Dict())
 end
 
+Caches.iscached(i::Inferred, k) = iscached(i.results, k)
+
 function Base.getindex(i::Inferred, sig)
-  Caches.iscached(i.results, sig) && return i.results[sig]
+  iscached(i, sig) && return i.results[sig]
   # Don't let inference dependencies leak
-  Caches.trackdeps(objectid(i.results)) do
+  Caches.trackdeps() do
     frame!(i.inf, Parent((), 1), sig...)
     infer!(i.inf)
   end
   for (k, fr) in i.inf.frames
-    (k isa Binding || Caches.iscached(i.results, k)) && continue
+    (k isa Binding || iscached(i, k)) && continue
     i.results[k] = fr isa Redirect ? fr : (prune!(unloop(fr.ir)) => fr.rettype)
   end
   return i.results[sig]
 end
 
-Caches.fingerprint(i::Inferred) = Caches.fingerprint(i.results)
+Caches.fingerprint(i::Inferred) = fingerprint(i.results)
 
 function Caches.reset!(i::Inferred; deps = [])
-  print = Caches.fingerprint(deps)
+  print = fingerprint(deps)
   reset!(i.dispatchers, deps = print)
-  print = Base.union(print, Caches.fingerprint(i.dispatchers))
+  print = Base.union(print, fingerprint(i.dispatchers))
   for (x, dep) in i.inf.deps
     dep in print || delete!(i.inf, x)
   end

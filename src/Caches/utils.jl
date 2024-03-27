@@ -21,13 +21,13 @@ end
 const nullkey = NFT()
 
 let sym = gensym(:cache_deps)
-  global cache_deps() = get!(() -> Tuple{UInt64,Set{Pair{NFT,NFT}}}[], task_local_storage(), sym)::Vector{Tuple{UInt64,Set{Pair{NFT,NFT}}}}
+  global cache_deps() = get!(() -> Set{Pair{NFT,NFT}}[], task_local_storage(), sym)::Vector{Set{Pair{NFT,NFT}}}
 end
 
-function trackdeps(f, id::UInt64)
+function trackdeps(f)
   stack = cache_deps()
   deps = Set{Pair{NFT,NFT}}()
-  push!(stack, (id,deps))
+  push!(stack, deps)
   result = nothing
   try
     result = f()
@@ -39,17 +39,11 @@ end
 
 function track!(id::Pair{NFT,NFT})
   stack = cache_deps()
-  isempty(stack) || push!(stack[end][2], id)
+  isempty(stack) || push!(stack[end], id)
   return
 end
 
 track!(v::NFT) = track!(nullkey => v)
-
-function current_deps(id::UInt64)::Set{Pair{NFT,NFT}}
-  deps = cache_deps()
-  (isempty(deps) || deps[end][1] != id) && return Set{Pair{NFT,NFT}}()
-  return copy(deps[end][2])
-end
 
 # Collect IDs available in a given cache
 

@@ -1,6 +1,6 @@
 using Raven, Test
 using Raven: @tag_str, @src_str, @rvx_str, Definitions, Interpreter, Inferred, Binding, rlist
-using Raven.Caches: Caches, reset!, valueid, fingerprint
+using Raven.Caches: Caches, Pipeline, reset!, id, fingerprint
 
 @testset "Globals" begin
   comp = Raven.load(src"foo = 1, bar = 1")
@@ -8,16 +8,16 @@ using Raven.Caches: Caches, reset!, valueid, fingerprint
 
   @test defs[Binding(tag"", :foo)] == 1
   @test defs[Binding(tag"", :bar)] == 1
-  id_foo = valueid(defs.globals, Binding(tag"", :foo))
-  id_bar = valueid(defs.globals, Binding(tag"", :bar))
+  id_foo = id(defs.globals, Binding(tag"", :foo))
+  id_bar = id(defs.globals, Binding(tag"", :bar))
 
   Raven.reload!(comp, src"foo = 1, bar = 2")
   reset!(defs, deps = comp)
 
   @test defs[Binding(tag"", :foo)] == 1
   @test defs[Binding(tag"", :bar)] == 2
-  @test_broken id_foo == valueid(defs.globals, Binding(tag"", :foo))
-  @test id_bar != valueid(defs.globals, Binding(tag"", :bar))
+  @test_broken id_foo == id(defs.globals, Binding(tag"", :foo))
+  @test id_bar != id(defs.globals, Binding(tag"", :bar))
 end
 
 @testset "Methods" begin
@@ -30,8 +30,8 @@ end
   @test length(defs[tag"foo"]) == 1
   @test !isempty(defs[tag"common.core.main"])
 
-  foo_id = valueid(defs.methods, tag"foo")
-  main_id = valueid(defs.methods, tag"common.core.main")
+  foo_id = id(defs.methods, tag"foo")
+  main_id = id(defs.methods, tag"common.core.main")
 
   @test disps[(tag"foo", rlist(Int))] isa Raven.IR
   @test disps[(tag"common.add", rlist(Int, Int))] isa Raven.IR
@@ -41,8 +41,8 @@ end
 
   @test length(defs[tag"foo"]) == 1
 
-  @test foo_id != valueid(defs.methods, tag"foo")
-  @test main_id == valueid(defs.methods, tag"common.core.main")
+  @test foo_id != id(defs.methods, tag"foo")
+  @test main_id == id(defs.methods, tag"common.core.main")
 
   @test !Caches.iscached(disps, (tag"foo", rlist(Int)))
   @test Caches.iscached(disps, (tag"common.add", rlist(Int, Int)))
@@ -56,12 +56,12 @@ end
   @test inf[(tag"foo", rlist(5))][2] == rlist(6)
 
   inf[(tag"common.+", rlist(Int, Int))]
-  id_plus = Caches.valueid(inf.results, (tag"common.+", rlist(Int, Int)))
+  id_plus = id(inf.results, (tag"common.+", rlist(Int, Int)))
 
   Raven.reload!(cx, src"n = 2, fn foo(x) { x+n }, foo(5)")
 
   @test inf[(tag"foo", rlist(5))][2] == rlist(7)
-  @test id_plus == Caches.valueid(inf.results, (tag"common.+", rlist(Int, Int)))
+  @test id_plus == id(inf.results, (tag"common.+", rlist(Int, Int)))
 end
 
 @testset "Compiler" begin

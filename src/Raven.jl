@@ -13,7 +13,7 @@ using .IRTools: IR, Variable, Statement, Variable, argument!, block, blocks,
   arguments, argtypes, block, isreturn, isunreachable, branches, prune!,
   return!, unreachable!, branch!, block!, stmt, predecessors, successors, Slot,
   isvariable, Source, liveness, liveness_after, WorkQueue
-using .Caches: reset!
+using .Caches: reset!, iscached, cached, fingerprint
 
 include("frontend/tag.jl")
 include("frontend/ast.jl")
