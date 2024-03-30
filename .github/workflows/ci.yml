@@ -33,9 +33,9 @@ jobs:
         #     arch: x64
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: 19.8
+          node-version: 21.7
       - name: Install Julia
         uses: julia-actions/setup-julia@v1
         with:
@@ -52,20 +52,11 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - name: Cache LLVM
-        id: cache-llvm
-        uses: actions/cache@v3
-        with:
-          path: |
-            C:/Program Files/LLVM
-            ./llvm
-          key: llvm-14
       - name: Install LLVM
         uses: KyleMayes/install-llvm-action@v1
         with:
-          version: "14"
-          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
+          version: "17"
       - name: Install WABT
-        run: npm install --global wabt@1.0.30
+        run: npm install --global wabt@1.0.32
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
