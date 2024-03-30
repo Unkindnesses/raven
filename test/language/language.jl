@@ -1,11 +1,11 @@
 using Raven, Test
 using Raven: @test_rv, @test_rv_str
 
+@test_rv("show 2+2", output = "(2 + 2) = 4")
+
 @test_rv("println(x)", error = true, output = "x is not defined")
 
 @test_rv("foo()", error = true, output = "foo is not defined")
-
-@test_rv("show 2+2", output = "(2 + 2) = 4")
 
 @test_rv("""
   if "true" { println("hi") }
