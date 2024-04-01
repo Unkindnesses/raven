@@ -205,7 +205,7 @@ function elide_counts!(ir)
   return ir
 end
 
-function refcounts(c::Cache)
+function refcounts(c::CycleCache)
   Cache{Any,Union{Redirect,IR}}() do self, sig
     if sig[1] in (retain_method, release_method)
       count_ir(sig[2], sig[1] == retain_method ? retain : release)

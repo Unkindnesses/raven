@@ -56,19 +56,13 @@ function value(c::Cache{K,V}, k::K; self = c) where {K,V}
   end
 end
 
-# TODO inline into `getindex`
-function get(c::Cache{K,V}, k::K) where {K,V}
+function getindex(c::Cache{K,V}, k::K) where {K,V}
   if !iscached(c, k)
     v, deps = value(c, k)
     set!(c, k, v; deps)
   end
-  return cached(c, k)
-end
-
-function getindex(c::Cache{K,V}, k::K) where {K,V}
-  v = get(c, k)
   track!(id(c, k))
-  return v
+  return cached(c, k)
 end
 
 function topokeys!(c::Cache, k::NFT, ks, seen)

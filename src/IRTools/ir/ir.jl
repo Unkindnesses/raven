@@ -1,4 +1,4 @@
-import Base: push!, insert!, getindex, setindex!, iterate, length
+import Base: push!, insert!, getindex, setindex!, iterate, length, ==
 
 struct Undefined end
 const undef = Undefined()
@@ -72,6 +72,9 @@ Statement(x::Statement; expr = x.expr, type = x.type, src = x.src, bp = x.bp) =
 
 MacroTools.isexpr(st::Statement, ts...) = isexpr(st.expr, ts...)
 
+(a::Statement == b::Statement) =
+  (a.expr, a.type, a.src, a.bp) == (b.expr, b.type, b.src, b.bp)
+
 Base.copy(::Nothing) = nothing
 Base.copy(st::Statement) = Statement(copy(st.expr), st.type, st.src, st.bp)
 
@@ -81,14 +84,17 @@ arguments(ex::Statement) = arguments(ex.expr)
 isreturn(ex::Statement) = isreturn(ex.expr)
 
 struct BasicBlock
-    stmts::Vector{Tuple{Variable,Statement}}
-    args::Vector{Variable}
-    argtypes::Vector{Any}
+  stmts::Vector{Tuple{Variable,Statement}}
+  args::Vector{Variable}
+  argtypes::Vector{Any}
 end
 
 BasicBlock(stmts = []) = BasicBlock(stmts, [], [])
 
 Base.copy(bb::BasicBlock) = BasicBlock(map(x -> copy.(x), bb.stmts), copy(bb.args), copy(bb.argtypes))
+
+(a::BasicBlock == b::BasicBlock) =
+  (a.stmts, a.args, a.argtypes) == (b.stmts, b.args, b.argtypes)
 
 # TODO filter deleted
 branches(bb::BasicBlock) = filter(x -> isexpr(x, :branch), map(x -> x[2].expr, bb.stmts))
@@ -104,6 +110,8 @@ struct IR
 end
 
 IR(; meta = nothing) = IR([],[BasicBlock()],meta)
+
+(a::IR == b::IR) = (a.defs, a.blocks) == (b.defs, b.blocks)
 
 Base.copy(ir::IR) = IR(copy(ir.defs), copy.(ir.blocks), ir.meta)
 
