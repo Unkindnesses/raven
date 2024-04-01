@@ -50,9 +50,9 @@ function set!(c::Cache{K,V}, k::K, v::V; deps = Set()) where {K,V}
   return v
 end
 
-function value(c::Cache{K,V}, k::K) where {K,V}
+function value(c::Cache{K,V}, k::K; self = c) where {K,V}
   trackdeps() do
-    convert(V, c.default(c, k))::V
+    convert(V, c.default(self, k))::V
   end
 end
 
@@ -103,19 +103,6 @@ function invalid(c::Cache; deps = [])
   return keys
 end
 
-function invalidated(c::Cache; deps = [])
-  print = fingerprint(deps)
-  keys = keytype(c)[]
-  rm = Set{NFT}()
-  for k in topokeys(c)
-    v = c.data[k]
-    any(((_, id),) -> id in print || id in rm, v.deps) || continue
-    push!(rm, v.id[2])
-    push!(keys, k)
-  end
-  return keys
-end
-
 reset!(c::Cache; deps = []) = foreach(k -> delete!(c, k), invalid(c; deps))
 
 Base.IdDict(c::Cache) = IdDict(k => v.value for (k, v) in c.data)
@@ -153,35 +140,76 @@ end
 struct CycleCache{K,V}
   init::Any
   cache::Cache{K,V}
-  CycleCache{K,V}(init, c::Cache{K,V}) where {K,V} = new{K,V}(init, c)
-  CycleCache(init, c::Cache{K,V}) where {K,V} = new{K,V}(init, c)
+  edges::Base.Dict{NFT,Set{NFT}}
 end
 
-CycleCache(f, init) = CycleCache(init, Cache(f))
-CycleCache{K,V}(f, init) where {K,V} = CycleCache{K,V}(init, Cache{K,V}(f))
+CycleCache(f, init) = CycleCache(init, Cache(f), Base.Dict{NFT,Set{NFT}}())
+CycleCache{K,V}(f, init) where {K,V} = CycleCache{K,V}(init, Cache{K,V}(f), Base.Dict{NFT,Set{NFT}}())
+
+valtype(c::CycleCache) = valtype(c.cache)
+fingerprint(c::CycleCache) = fingerprint(c.cache)
+keys(c::CycleCache) = keys(c.cache)
 
 id(c::CycleCache, k) = id(c.cache, k)
-valtype(c::CycleCache) = valtype(c.cache)
+deps(c::CycleCache, k) = deps(c.cache, k)
+iscached(c::CycleCache, k) = iscached(c.cache, k)
+cached(c::CycleCache, k) = cached(c.cache, k)
+value(c::CycleCache, k) = value(c.cache, k, self = c)
 
-function getindex(c::CycleCache, k)
-  if !iscached(c.cache, k)
-    v, deps = trackdeps(() -> c.init(k))
-    @assert isempty(deps)
-    set!(c.cache, k, v)
+edges(c::CycleCache, k::NFT) = get!(() -> Set{NFT}(), c.edges, k)
+
+function set!(c::CycleCache{K,V}, k::K, v::CacheValue{V}) where {K,V}
+  iscached(c, k) && (id(c, k) == v.id || delete!(c, k))
+  set!(c.cache, k, v)
+  ki = v.id[1]
+  for (k, _) in v.deps
+    haskey(c.cache.keys, k) && push!(edges(c, k), ki)
+  end
+end
+
+function delete!(c::CycleCache{K,V}, k::K) where {K,V}
+  iscached(c, k) || return
+  ki = id(c, k)[1]
+  ds = deps(c, k)
+  es = edges(c, ki)
+  delete!(c.cache, k)
+  delete!(c.edges, ki)
+  for (i, _) in ds
+    haskey(c.edges, i) && delete!(c.edges[i], ki)
+  end
+  for i in es
+    haskey(c.cache.keys, i) && delete!(c, c.cache.keys[i])
+  end
+  return c
+end
+
+function getindex(c::CycleCache{K,V}, k::K) where {K,V}
+  if !iscached(c, k)
+    ki = NFT()
+    v, ideps = trackdeps(() -> c.init(k))
+    set!(c, k, CacheValue{V}(v, ki=>NFT(), ideps))
     while true
-      v, deps = value(c.cache, k)
-      if v == cached(c.cache, k)
-        set!(c.cache, k, CacheValue{valtype(c)}(v, id(c, k), deps))
+      v, deps = value(c, k)
+      deps = union(deps, ideps)
+      if v == cached(c, k)
+        set!(c, k, CacheValue{valtype(c)}(v, id(c, k), deps))
       else
-        vi = id(c, k)[2]
-        set!(c.cache, k, v; deps)
-        ks = invalidated(c.cache, deps = vi)
-        isempty(ks) || continue
+        set!(c, k, CacheValue{V}(v, ki=>NFT(), deps))
+        (!isempty(edges(c, ki)) || ki in first.(deps)) && continue
       end
       break
     end
   end
-  return cached(c.cache, k)
+  track!(id(c, k))
+  return cached(c, k)
+end
+
+function reset!(c::CycleCache; deps = [])
+  print = fingerprint(deps)
+  for k in keys(c)
+    all(((_, id),) -> id in print || id in fingerprint(c), Caches.deps(c, k)) && continue
+    delete!(c, k)
+  end
 end
 
 # Value -> key mapping
