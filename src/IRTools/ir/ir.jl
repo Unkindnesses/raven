@@ -82,6 +82,7 @@ const stmt = Statement
 
 arguments(ex::Statement) = arguments(ex.expr)
 isreturn(ex::Statement) = isreturn(ex.expr)
+isunreachable(ex::Statement) = isunreachable(ex.expr)
 
 struct BasicBlock
   stmts::Vector{Tuple{Variable,Statement}}

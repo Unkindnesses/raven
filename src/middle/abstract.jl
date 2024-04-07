@@ -29,42 +29,37 @@ function blockargs!(b, args)
   return changed
 end
 
-struct Loc
-  sig::Tuple
-  path::Path
-  ip::Int
-end
-
-Loc(sig, path = Path()) = Loc(sig, path, 1)
-
-next(l::Loc) = Loc(l.sig, l.path, l.ip+1)
-
 struct Parent
   sig::Tuple
   depth::Int
-end
-
-mutable struct Frame
-  parent::Parent
-  ir::LoopIR
-  edges::Set{Loc}
-  seen::Set{Int}
-  rettype
-end
-
-mutable struct GlobalFrame
-  edges::Set{Union{Loc,Binding}}
-  type
 end
 
 struct Redirect
   to::Tuple
 end
 
-Base.show(io::IO, ::Frame) = print(io, "Frame(...)")
+const Sig = Union{Tuple,Binding}
+
+mutable struct GlobalFrame
+  type
+  deps::Set{Sig}
+  edges::Set{Sig}
+end
+
+GlobalFrame(T) = GlobalFrame(T, Set(), Set())
+
+mutable struct Frame
+  parent::Parent
+  ir::LoopIR
+  deps::Set{Sig}
+  edges::Set{Sig}
+  rettype
+end
 
 Frame(P, ir::LoopIR, T = ⊥) =
-  Frame(P, ir, Set{Loc}(), Set(), T)
+  Frame(P, ir, Set(), Set(), T)
+
+Base.show(io::IO, ::Frame) = print(io, "Frame(...)")
 
 function frame(P, ir::IR, args...)
   ir = prepare_ir!(copy(ir))
@@ -87,26 +82,12 @@ struct Inference
   int::Interpreter
   dispatchers::Dispatchers
   deps::IdDict{Any,Caches.NFT}
-  frames::IdDict{Any,Union{Frame,GlobalFrame,Redirect}}
-  queue::WorkQueue{Loc}
+  frames::IdDict{Sig,Union{Frame,GlobalFrame,Redirect}}
+  queue::WorkQueue{Tuple}
 end
 
 function Inference(defs::Definitions, int::Interpreter, ds::Dispatchers)
-  gs = Dict{Binding,GlobalFrame}()
-  Inference(defs, int, ds, IdDict(), gs, WorkQueue{Loc}())
-end
-
-function frame!(inf::Inference, name::Binding)
-  get!(inf.frames, name) do
-    T = inf.defs[name]
-    inf.deps[name] = Caches.id(inf.defs.globals, name)[2]
-    if T isa Binding
-      parent = frame!(inf, T)
-      push!(parent.edges, name)
-      T = parent.type
-    end
-    GlobalFrame(Set{Loc}(), T)
-  end
+  Inference(defs, int, ds, IdDict(), Dict(), WorkQueue{Tuple}())
 end
 
 function sig(inf::Inference, T)
@@ -128,14 +109,26 @@ function recursionDepth(inf, T, F)
   return 1
 end
 
-function irframe!(inf, P, ir, F, Ts...)
-  fr = frame(P, ir, Ts...)
-  inf.frames[(F, Ts...)] = fr
-  push!(inf.queue, Loc((F, Ts...)))
-  return fr
+function frame!(inf::Inference, name::Binding)
+  get!(inf.frames, name) do
+    T = inf.defs[name]
+    inf.deps[name] = Caches.id(inf.defs.globals, name)[2]
+    if T isa Binding
+      parent = frame!(inf, T)
+      push!(parent.edges, name)
+      T = parent.type
+    end
+    GlobalFrame(T)
+  end
 end
 
-function interpframe!(inf, P, sig...)
+function irframe!(inf::Inference, P, ir, F, Ts...)
+  inf.frames[(F, Ts...)] = frame(P, ir, Ts...)
+  update!(inf, (F, Ts...))
+  return frame(inf, (F, Ts...))
+end
+
+function interpframe!(inf::Inference, P, sig...)
   T = inf.int[sig]
   (isnothing(T) || !isvalue(T)) && return
   fr = inf.frames[sig] = const_frame(P, T, sig...)
@@ -143,7 +136,7 @@ function interpframe!(inf, P, sig...)
   return fr
 end
 
-function frame!(inf, P, meth::RMethod, Ts...)
+function frame!(inf::Inference, P, meth::RMethod, Ts...)
   if meth.partial
     meth.func(Ts...)
   elseif haskey(inf.frames, (meth, Ts...))
@@ -158,7 +151,7 @@ function frame!(inf, P, meth::RMethod, Ts...)
   end
 end
 
-function frame!(inf, P, F, Ts)
+function frame!(inf::Inference, P, F, Ts)
   haskey(inf.frames, (F, Ts)) && return frame(inf, (F, Ts))
   (fr = interpframe!(inf, P, F, Ts)) == nothing || return fr
   ir = inf.dispatchers[(F, Ts)]
@@ -167,7 +160,7 @@ function frame!(inf, P, F, Ts)
 end
 
 # TODO some methods become unreachable, remove them somewhere?
-function mergeFrames(inf, T, F)
+function mergeFrames(inf::Inference, T, F)
   sigs = filter(t -> t[1] == F[1], [stack(inf, T).frames..., F])
   @assert length(sigs) > 1
   sig = reduce((a, b) -> union.(a, b), sigs)
@@ -180,7 +173,7 @@ function mergeFrames(inf, T, F)
         @assert sig == inf.frames[s].to # TODO figure out whether to move backedges here
       else
         union!(fr.edges, inf.frames[s].edges)
-        push!(fr.edges, Loc(s)) # propagate deletions
+        push!(fr.edges, s) # propagate deletions
       end
     end
     inf.frames[s] = Redirect(sig)
@@ -188,102 +181,104 @@ function mergeFrames(inf, T, F)
   return fr
 end
 
-function infercall!(inf, loc, block, ex)
+function infercall!(inf::Inference, sig, block, ex)
   Ts = exprtype(block.ir, ex.args)
   any(==(⊥), Ts) && return ⊥
-  P = Parent(loc.sig, recursionDepth(inf, loc.sig, Ts[1]))
+  P = Parent(sig, recursionDepth(inf, sig, Ts[1]))
   fr = frame!(inf, P, Ts...)
   fr isa Frame || return fr
-  push!(fr.edges, loc)
+  pf = inf.frames[sig]
+  pf isa Redirect && return
+  push!(pf.deps, (Ts...,))
+  push!(fr.edges, sig)
   return fr.rettype
 end
 
-function openbranches(bl)
-  brs = []
-  for br in IRTools.branches(bl)
-    br.args[2] == nothing && (push!(brs, br); break)
-    cond = exprtype(bl.ir, br.args[2])
-    cond == false && continue
-    cond == true && (push!(brs, br); break)
-    push!(brs, br)
+function cleardeps!(inf::Inference, sig)
+  fr = inf.frames[sig]
+  for dep in fr.deps
+    delete!(inf.frames[dep].edges, sig)
   end
-  return brs
+  empty!(fr.deps)
+  return
 end
 
-function step!(inf::Inference, loc)
-  haskey(inf.frames, loc.sig) || return # TODO remove old backedges
-  p, ip = loc.path, loc.ip
-  frame = inf.frames[loc.sig]
-  frame isa Redirect && return
-  bl = block(frame.ir, p)
-  bl == nothing && return
-  stmts = keys(bl)
-  var = stmts[ip]
-  st = bl[var]
-  if isexpr(st, :call) && st.expr.args[1] isa WIntrinsic
-    op = st.expr.args[1].op
-    T = rvtype(st.expr.args[1].ret)
-    Ts = exprtype(bl.ir, st.expr.args[2:end])
-    if all(isvalue, Ts) && haskey(wasmPartials, op)
-      T = wasmPartials[op](Ts...)
-    end
-    bl.ir[var] = stmt(bl[var], type = T)
-    push!(inf.queue, next(loc))
-  elseif isexpr(st, :call)
-    T = infercall!(inf, loc, bl, st.expr)
-    if T != ⊥
-      bl.ir[var] = stmt(bl[var], type = T)
-      push!(inf.queue, next(loc))
-    end
-  elseif isexpr(st, :pack)
-    Ts = exprtype(bl.ir, st.expr.args)
-    if !any(==(⊥), Ts)
-      bl.ir[var] = stmt(bl[var], type = pack(Ts...))
-      push!(inf.queue, next(loc))
-    end
-  elseif isexpr(st, :loop)
-    l = loop(bl)
-    if blockargs!(l.body[1], argtypes(bl))
-      push!(inf.queue, Loc(loc.sig, Path([p.parts..., (1,1)])))
-    end
-  elseif isexpr(st, :global)
-    fr = frame!(inf, st.expr.args[1])
-    push!(fr.edges, loc)
-    if fr.type != ⊥
-      bl.ir[var] = stmt(bl[var], type = fr.type)
-    end
-    push!(inf.queue, next(loc))
-  elseif isexpr(st, :(=)) && st.expr.args[1] isa Binding
-    T = exprtype(bl.ir, st.expr.args[2])
-    bl.ir[var] = stmt(st, type = T)
-    push!(inf.queue, next(loc))
-  elseif isexpr(st, :branch)
-    brs = openbranches(bl)
+# TODO: rm work queue
+function update!(inf::Inference, sig)
+  cleardeps!(inf, sig)
+  fr = inf.frames[sig]
+  ret = ⊥
+  path = Path()
+  seen = Set{Path}()
+  queue = WorkQueue{Path}()
+  push!(queue, Path())
+  while !isempty(queue)
+    path = pop!(queue)
+    push!(seen, path)
+    bl = block(fr.ir, path)
     reroll = false
-    for br in brs
-      if isreturn(br)
-        T = exprtype(bl.ir, IRTools.returnvalue(bl))
-        T = union(frame.rettype, T)
-        T == frame.rettype && return
-        frame.rettype = T
-        foreach(loc -> push!(inf.queue, loc), frame.edges)
-      elseif isunreachable(br)
-      else
-        args = exprtype(bl.ir, arguments(br))
-        p′, reroll = nextpath(frame.ir, p, br.args[1])
-        backedge = br.args[1] < bl.id
-        if reroll || (isempty(args) && !(br.args[1] in frame.seen)) || blockargs!(block(frame.ir, p′), args)
-          push!(frame.seen, br.args[1])
-          # Unroll loops late; try to widen types in the body first, so as not
-          # to unroll too eagerly.
-          p! = (backedge && p′.parts[end][1] != 1) ? pushfirst! : push!
-          p!(inf.queue, Loc(loc.sig, p′))
+    for (v, st) in bl
+      if isexpr(st, :call) && st.expr.args[1] isa WIntrinsic
+        op = st.expr.args[1].op
+        T = rvtype(st.expr.args[1].ret)
+        Ts = exprtype(bl.ir, st.expr.args[2:end])
+        if all(isvalue, Ts) && haskey(wasmPartials, op)
+          T = wasmPartials[op](Ts...)
         end
+        bl.ir[v] = stmt(bl[v], type = T)
+      elseif isexpr(st, :call)
+        T = infercall!(inf, sig, bl, st.expr)
+        T == nothing && return ⊥
+        T == ⊥ && break
+        bl.ir[v] = stmt(bl[v], type = T)
+      elseif isexpr(st, :pack)
+        Ts = exprtype(bl.ir, st.expr.args)
+        any(==(⊥), Ts) && break
+        bl.ir[v] = stmt(bl[v], type = pack(Ts...))
+      elseif isexpr(st, :global)
+        g = frame!(inf, st.expr.args[1])
+        push!(fr.deps, st.expr.args[1])
+        push!(g.edges, sig)
+        g.type == ⊥ && break
+        bl.ir[v] = stmt(bl[v], type = g.type)
+      elseif isexpr(st, :(=)) && st.expr.args[1] isa Binding
+        T = exprtype(bl.ir, st.expr.args[2])
+        T == ⊥ && break
+        bl.ir[v] = stmt(st, type = T)
+      elseif isexpr(st, :loop)
+        l = loop(bl)
+        if blockargs!(l.body[1], argtypes(bl))
+          push!(queue, Path([path.parts..., (1,1)]))
+        end
+      elseif isexpr(st, :branch)
+        br = st.expr
+        if isreturn(br)
+          ret = union(ret, exprtype(bl.ir, only(arguments(br))))
+        elseif isunreachable(br)
+          break
+        else
+          cond = exprtype(bl.ir, something(br.args[2], Int32(1)))
+          cond == false && continue
+          args = exprtype(bl.ir, arguments(br))
+          p′, reroll = nextpath(fr.ir, path, br.args[1])
+          backedge = br.args[1] < bl.id
+          if reroll || blockargs!(block(fr.ir, p′), args) || !(p′ in seen)
+            # Unroll loops late; try to widen types in the body first, so as not
+            # to unroll too eagerly.
+            p! = (backedge && p′.parts[end][1] != 1) ? pushfirst! : push!
+            p!(queue, p′)
+          end
+          cond == true && break
+        end
+      else
+        error("Unknown expr type $(st.expr.head)")
       end
+      reroll || checkExit(inf.queue, fr.ir, path)
     end
-    reroll || checkExit(inf.queue, frame.ir, loc)
-  else
-    error("Unknown expr type $(st.expr.head)")
+  end
+  if !(issubset(ret, fr.rettype))
+    fr.rettype = ret
+    foreach(s -> push!(inf.queue, s), fr.edges)
   end
   return
 end
@@ -292,13 +287,12 @@ end
 function Base.delete!(inf::Inference, sig::Union{Tuple,Binding})
   haskey(inf.frames, sig) || return
   fr = inf.frames[sig]
+  # cleardeps!(inf, sig)
   delete!(inf.frames, sig)
   delete!(inf.deps, sig)
   fr isa Redirect && return
   foreach(loc -> delete!(inf, loc), fr.edges)
 end
-
-Base.delete!(inf::Inference, loc::Loc) = delete!(inf, loc.sig)
 
 # Virtual stack traces
 
@@ -340,12 +334,12 @@ end
 
 function infer!(inf::Inference; partial = false)
   while !isempty(inf.queue)
-    loc = pop!(inf.queue)
+    sig = pop!(inf.queue)
     try
-      step!(inf, loc)
+      update!(inf, sig)
     catch e
       partial && break
-      rethrow(CompileError(e, stack(inf, loc.sig)))
+      rethrow(CompileError(e, stack(inf, sig)))
     end
   end
   return inf

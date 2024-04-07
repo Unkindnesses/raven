@@ -119,6 +119,18 @@ function merge_branchtypes!(a, b)
   return a
 end
 
+function openbranches(bl)
+  brs = []
+  for br in IRTools.branches(bl)
+    br.args[2] == nothing && (push!(brs, br); break)
+    cond = exprtype(bl.ir, br.args[2])
+    cond == false && continue
+    cond == true && (push!(brs, br); break)
+    push!(brs, br)
+  end
+  return brs
+end
+
 function exitBranches(l::LoopIR, b::Block)
   l′ = loop(b)
   l′ == nothing || error("unimplemented")
@@ -159,13 +171,13 @@ function checkUnroll(l::LoopIR, itr)
     (length(brs) == 1 && !all(issubset.(inputs, brs[l.bls[1]])))
 end
 
-function checkExit(q, l::LoopIR, loc)
+function checkExit(q, l::LoopIR, path)
   p′ = Tuple{Int,Int}[]
-  for (itr, bl) in loc.path.parts
+  for (itr, bl) in path.parts
     if length(l.body) > 1 && !checkUnroll(l, itr)
       reroll!(l)
       push!(p′, (1, 1))
-      push!(q, Loc(loc.sig, Path(p′)))
+      push!(q, Path(p′))
       break
     end
     push!(p′, (itr, bl))
@@ -191,6 +203,9 @@ struct Path
 end
 
 Path() = Path([(1,1)])
+
+(a::Path == b::Path) = (a.parts == b.parts)
+hash(x::Path, h::UInt64) = hash(x.parts, h ⊻ 0x7fcfb6faea593cfb)
 
 function IRTools.block(l::LoopIR, path::Path)
   for (itr, bl) in path.parts[1:end-1]

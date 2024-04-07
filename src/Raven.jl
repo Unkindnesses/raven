@@ -15,6 +15,8 @@ using .IRTools: IR, Variable, Statement, Variable, argument!, block, blocks,
   isvariable, Source, liveness, liveness_after, WorkQueue
 using .Caches: reset!, iscached, cached, fingerprint
 
+import Base: ==, hash
+
 include("frontend/tag.jl")
 include("frontend/ast.jl")
 include("frontend/parse.jl")
@@ -28,6 +30,7 @@ include("middle/primitives.jl")
 include("middle/patterns.jl")
 include("middle/interpret.jl")
 include("middle/abstract.jl")
+include("middle/inference.jl")
 include("middle/expand.jl")
 include("middle/inline.jl")
 include("middle/refcount.jl")

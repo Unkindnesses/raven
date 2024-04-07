@@ -8,6 +8,8 @@ T = union(T1, T2)
 
 @test T == Recursive(Or([pack(tag"Empty"), pack(tag"Prepend", Recur(), Int)]))
 
+@test union(T2, T1) == T
+
 @test issubset(T1, T)
 @test issubset(T2, T)
 @test !issubset(T, T1)

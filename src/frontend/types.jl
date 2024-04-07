@@ -156,14 +156,21 @@ end
 
 _recursion_candidate(T, x::Union{Primitive,Type{<:Primitive}}) = false
 
-_recursion_candidate(T, x::Pack) = any(_recursion_candidate.((T,), x.parts))
+_recursion_candidate(T, x::Pack) = any(_recursion_candidate.((T,), parts(x)))
+
+_recursion_candidate(T, x::VPack) = _recursion_candidate(T, x.parts)
 
 _recursion_candidate(T, x::Or) =
   issubset(x, T) || any(_recursion_candidate.((T,), x.patterns))
 
+# TODO: unhack
+_recursion_candidate(T, x::Recursive) = false
+
 recursion_candidate(T) = false
 
 recursion_candidate(T::Or) = any(_recursion_candidate.((T,), T.patterns))
+
+recursion_candidate(T::VPack) = _recursion_candidate(T, T.parts)
 
 _makerecursive(T, x::Or) =
   issubset(x, T) ? Recur() : Or(_makerecursive.((T,), x.patterns))
@@ -171,11 +178,16 @@ _makerecursive(T, x::Or) =
 _makerecursive(T, x::Pack) =
   issubset(x, T) ? Recur() : pack(_makerecursive.((T,), x.parts)...)
 
+_makerecursive(T, x::VPack) =
+  issubset(x, T) ? Recur() : VPack(x.tag, _makerecursive(T, x.parts))
+
 _makerecursive(T, x::Union{Primitive,Type{<:Primitive}}) =
   issubset(x, T) ? Recur() : x
 
 makerecursive(T::Or) =
-  Recursive(Or([pack(tag(x), _makerecursive.((T,), parts(x))...)
+  Recursive(Or([x isa Pack ? pack(tag(x), _makerecursive.((T,), parts(x))...) :
+                x isa VPack ? VPack(tag(x), _makerecursive(T, x.parts)) :
+                x
                 for x in T.patterns]))
 
 recursive(T) = recursion_candidate(T) ? makerecursive(T) : T
@@ -186,6 +198,7 @@ unroll(S, T::Union{Primitive,Type{<:Primitive}}) = T
 
 unroll(S, T::Or) = Or(unroll.((S,), T.patterns))
 unroll(S, T::Pack) = Pack(unroll.((S,), T.parts))
+unroll(S, T::VPack) = VPack(tag(T), unroll(S, T.parts))
 unroll(S, T::Recur) = S
 
 unroll(T::Recursive) = unroll(T, T.type)
@@ -202,6 +215,7 @@ union(x::T, y::T) where T<:Number = x == y ? x : T
 union(x::T, y::Type{T}) where T<:Number = T
 union(x::Type{T}, y::T) where T<:Number = T
 union(x::Type{T}, y::Type{T}) where T<:Number = T
+union(x::String, y::String) = x == y ? x : RString()
 
 function union(x, y)
   if x == ⊥
@@ -232,7 +246,7 @@ function union(x, y)
       return pack(tag(x), [union(part(x, i), part(y, i)) for i = 1:nparts(x)]...)
     end
   else
-    return Or([x, y])
+    return recursive(Or([x, y]))
   end
 end
 
