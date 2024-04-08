@@ -21,7 +21,9 @@ struct Trait
   pattern::Tag
 end
 
-# TODO we reuse the `Or` type as a pattern, don't
+struct Or
+  patterns::Vector{Any}
+end
 
 struct And
   patterns::Vector{Any}
@@ -35,15 +37,6 @@ struct Constructor
   func::Tag
   args::Vector{Any}
 end
-
-function Base.show(io::IO, or::Or)
-  for i = 1:length(or.patterns)
-    i == 1 || print(io, " | ")
-    show(io, or.patterns[i])
-  end
-end
-
-Base.:(==)(a::Or, b::Or) = a.patterns == b.patterns
 
 # Raven versions
 

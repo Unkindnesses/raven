@@ -111,23 +111,23 @@ options() = dynamic_value(:options, Options())::Options
 
 # Union splitting
 
-function union_downcast!(ir, T::Or, i::Integer, x)
-  offset = sum(length, layout.(T.patterns[1:i-1]), init = 0)+1
-  parts = [push!(ir, Expr(:ref, x, j+offset)) for j = 1:length(layout(T.patterns[i]))]
-  return layout(T.patterns[i]) isa Tuple ? push!(ir, stmt(Expr(:tuple, parts...), type = T.patterns[i])) : parts[1]
+function union_downcast!(ir, T::Onion, i::Integer, x)
+  offset = sum(length, layout.(T.types[1:i-1]), init = 0)+1
+  parts = [push!(ir, Expr(:ref, x, j+offset)) for j = 1:length(layout(T.types[i]))]
+  return layout(T.types[i]) isa Tuple ? push!(ir, stmt(Expr(:tuple, parts...), type = T.types[i])) : parts[1]
 end
 
 # `f` is reponsible for freeing its argument value, but not for freeing `x`
 # (since they are the same object)
-function union_cases!(f, ir, T::Or, x)
+function union_cases!(f, ir, T::Onion, x)
   j = push!(ir, Expr(:ref, x, 1))
-  for case in 1:length(T.patterns)
+  for case in 1:length(T.types)
     cond = push!(ir, xcall(WIntrinsic(i32.eq, i32), j, Int32(case)))
     branch!(ir, length(blocks(ir))+1, when = cond)
     branch!(ir, length(blocks(ir))+2)
     block!(ir)
     val = union_downcast!(ir, T, case, x)
-    ret = f(T.patterns[case], val)
+    ret = f(T.types[case], val)
     return!(ir, ret)
     block!(ir)
   end

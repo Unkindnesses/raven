@@ -58,9 +58,9 @@ const ⊥ = Unreachable()
 
 Base.show(io::IO, ::Unreachable) = print(io, "⊥")
 
-struct Or
-  patterns::NTuple{N,Any} where N
-  Or(xs) = new((sort(collect(xs), lt = t_isless)...,))
+struct Onion
+  types::NTuple{N,Any} where N
+  Onion(xs) = new((sort(collect(xs), lt = t_isless)...,))
 end
 
 # Primitive Types
@@ -108,7 +108,7 @@ typedepth(::Unreachable) = 0
 typedepth(::Union{Primitive,Type{<:Primitive}}) = 1
 typedepth(x::Pack) = 1 + maximum(typedepth.(x.parts), init = 0)
 typedepth(x::VPack) = 1 + typedepth(x.parts)
-typedepth(x::Or) = 1 + maximum(typedepth.(x.patterns), init = 0)
+typedepth(x::Onion) = 1 + maximum(typedepth.(x.types), init = 0)
 typedepth(x::Recursive) = 1 + typedepth(x.type)
 typedepth(x::Recur) = 1
 
@@ -141,10 +141,10 @@ function issubset(x, y)
     issubset(unroll(x), y)
   elseif y isa Recursive
     issubset(x, unroll(y))
-  elseif x isa Or
-    all(issubset.(x.patterns, (y,)))
-  elseif y isa Or
-    any(issubset.((x,), y.patterns))
+  elseif x isa Onion
+    all(issubset.(x.types, (y,)))
+  elseif y isa Onion
+    any(issubset.((x,), y.types))
   else
     false
   end
@@ -160,20 +160,20 @@ _recursion_candidate(T, x::Pack) = any(_recursion_candidate.((T,), parts(x)))
 
 _recursion_candidate(T, x::VPack) = _recursion_candidate(T, x.parts)
 
-_recursion_candidate(T, x::Or) =
-  issubset(x, T) || any(_recursion_candidate.((T,), x.patterns))
+_recursion_candidate(T, x::Onion) =
+  issubset(x, T) || any(_recursion_candidate.((T,), x.types))
 
 # TODO: unhack
 _recursion_candidate(T, x::Recursive) = false
 
 recursion_candidate(T) = false
 
-recursion_candidate(T::Or) = any(_recursion_candidate.((T,), T.patterns))
+recursion_candidate(T::Onion) = any(_recursion_candidate.((T,), T.types))
 
 recursion_candidate(T::VPack) = _recursion_candidate(T, T.parts)
 
-_makerecursive(T, x::Or) =
-  issubset(x, T) ? Recur() : Or(_makerecursive.((T,), x.patterns))
+_makerecursive(T, x::Onion) =
+  issubset(x, T) ? Recur() : Onion(_makerecursive.((T,), x.types))
 
 _makerecursive(T, x::Pack) =
   issubset(x, T) ? Recur() : pack(_makerecursive.((T,), x.parts)...)
@@ -184,11 +184,11 @@ _makerecursive(T, x::VPack) =
 _makerecursive(T, x::Union{Primitive,Type{<:Primitive}}) =
   issubset(x, T) ? Recur() : x
 
-makerecursive(T::Or) =
-  Recursive(Or([x isa Pack ? pack(tag(x), _makerecursive.((T,), parts(x))...) :
-                x isa VPack ? VPack(tag(x), _makerecursive(T, x.parts)) :
-                x
-                for x in T.patterns]))
+makerecursive(T::Onion) =
+  Recursive(Onion([x isa Pack ? pack(tag(x), _makerecursive.((T,), parts(x))...) :
+                   x isa VPack ? VPack(tag(x), _makerecursive(T, x.parts)) :
+                   x
+                   for x in T.types]))
 
 recursive(T) = recursion_candidate(T) ? makerecursive(T) : T
 
@@ -196,7 +196,7 @@ recursive(T) = recursion_candidate(T) ? makerecursive(T) : T
 
 unroll(S, T::Union{Primitive,Type{<:Primitive}}) = T
 
-unroll(S, T::Or) = Or(unroll.((S,), T.patterns))
+unroll(S, T::Onion) = Onion(unroll.((S,), T.types))
 unroll(S, T::Pack) = Pack(unroll.((S,), T.parts))
 unroll(S, T::VPack) = VPack(tag(T), unroll(S, T.parts))
 unroll(S, T::Recur) = S
@@ -228,14 +228,14 @@ function union(x, y)
   elseif y isa Recursive
     @assert issubset(x, y)
     return y
-  elseif y isa Or
-    return reduce(union, y.patterns, init = x)
-  elseif x isa Or
+  elseif y isa Onion
+    return reduce(union, y.types, init = x)
+  elseif x isa Onion
     typedepth(x) > 10 && error("exploding type: $y")
-    ps = x.patterns
+    ps = x.types
     i = findfirst(x -> typekey(x) == typekey(y), ps)
-    i == nothing && return Or([ps..., x])
-    T = Or([j == i ? union(y, ps[j]) : ps[j] for j = 1:length(ps)])
+    i == nothing && return Onion([ps..., x])
+    T = Onion([j == i ? union(y, ps[j]) : ps[j] for j = 1:length(ps)])
     return T == x ? T : recursive(T)
   elseif typekey(x) == typekey(y)
     if x isa Tag && y isa Tag
@@ -246,7 +246,7 @@ function union(x, y)
       return pack(tag(x), [union(part(x, i), part(y, i)) for i = 1:nparts(x)]...)
     end
   else
-    return recursive(Or([x, y]))
+    return recursive(Onion([x, y]))
   end
 end
 
@@ -254,7 +254,7 @@ end
 
 symbolValues(x::Union{Primitive,Type{<:Primitive},Pack}) = []
 symbolValues(x::Tag) = [x]
-symbolValues(x::Or) = reduce(vcat, map(symbolValues, x.patterns))
+symbolValues(x::Onion) = reduce(vcat, map(symbolValues, x.types))
 
 # Raven value -> compiler type
 

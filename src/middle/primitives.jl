@@ -13,8 +13,8 @@ partial_part(data::Pack, i::Type{<:Integer}) =
 partial_part(data::VPack, i::Union{Int,Type{<:Integer}}) =
   i == 0 ? data.tag : data.parts
 
-partial_part(data::Or, i) =
-  reduce(union, partial_part.(data.patterns, (i,)))
+partial_part(data::Onion, i) =
+  reduce(union, partial_part.(data.types, (i,)))
 
 partial_part(data::Recursive, i) =
   partial_part(unroll(data), i)
@@ -22,8 +22,8 @@ partial_part(data::Recursive, i) =
 partial_nparts(x::Pack) = nparts(x)
 partial_nparts(::VPack) = Int64
 
-partial_nparts(x::Or) =
-  reduce(union, partial_nparts.(x.patterns))
+partial_nparts(x::Onion) =
+  reduce(union, partial_nparts.(x.types))
 
 partial_nparts(x::Recursive) = partial_nparts(unroll(x))
 
@@ -41,18 +41,18 @@ partial_shortcutEquals(a, b) =
 # to deal with unions.
 partial_isnil(x::Union{Primitive,Type{<:Primitive},VPack}) = Int32(0)
 partial_isnil(x::Pack) = Int32(x == nil)
-partial_isnil(x::Or) = any(==(nil), x.patterns) ? Int32 : Int32(0)
+partial_isnil(x::Onion) = any(==(nil), x.types) ? Int32 : Int32(0)
 
 # Duct tape until the thatcher algorithm works.
 partial_notnil(x::Pack) = tag(x) == tag"common.Nil" ? ⊥ : x
 
-function partial_notnil(x::Or)
-  ps = filter(x -> tag(x) != tag"common.Nil", x.patterns)
-  return length(ps) == 1 ? ps[1] : Or(ps)
+function partial_notnil(x::Onion)
+  ps = filter(x -> tag(x) != tag"common.Nil", x.types)
+  return length(ps) == 1 ? ps[1] : Onion(ps)
 end
 
 partial_tagstring(x::Tag) = string(x)
-partial_tagstring(x::Or) = RString()
+partial_tagstring(x::Onion) = RString()
 
 partial_function(f, I, O) = Int32
 partial_invoke(f::Union{Int32,Type{Int32}}, I, O, xs...) = rvtype(O)
@@ -104,8 +104,8 @@ inlinePrimitive[widen_method] = function (pr, ir, v)
   pr[v] = val
 end
 
-symoverlap(x::Tag, ys::Or) = [i for (i, y) in enumerate(ys.patterns) if x == y]
-symoverlap(xs::Or, y::Tag) = symoverlap(y, xs)
+symoverlap(x::Tag, ys::Onion) = [i for (i, y) in enumerate(ys.types) if x == y]
+symoverlap(xs::Onion, y::Tag) = symoverlap(y, xs)
 
 inlinePrimitive[shortcutEquals_method] = function (pr, ir, v)
   if isvalue(ir[v].type)
@@ -113,7 +113,7 @@ inlinePrimitive[shortcutEquals_method] = function (pr, ir, v)
   else # symbol case
     a, b = ir[v].expr.args[2:3]
     Ta, Tb = exprtype(ir, [a, b])
-    Tb isa Or && ((a, Ta, b, Tb) = (b, Tb, a, Ta))
+    Tb isa Onion && ((a, Ta, b, Tb) = (b, Tb, a, Ta))
     ov = symoverlap(Ta, Tb)
     length(ov) == 1 || error("not implemented")
     i = insert!(pr, v, Expr(:ref, a, 1))
@@ -127,7 +127,7 @@ inlinePrimitive[isnil_method] = function (pr, ir, v)
   if ir[v].type isa Int32
     pr[v] = ir[v].type
   else
-    i = findfirst(==(nil), T.patterns)
+    i = findfirst(==(nil), T.types)
     j = insert!(pr, v, Expr(:ref, x, 1))
     pr[v] = xcall(WIntrinsic(i32.eq, i32), j, Int32(i))
   end
@@ -144,7 +144,7 @@ inlinePrimitive[notnil_method] = function (pr, ir, v)
     delete!(pr, v)
     replace!(pr, v, abort!(pr, "notnil(nil)"))
   else
-    @assert T isa Or && !(ir[v].type isa Or)
+    @assert T isa Onion && !(ir[v].type isa Onion)
     pr[v] = Expr(:tuple, [insert!(pr, v, Expr(:ref, x, i)) for i = 2:length(layout(T))]...)
   end
 end
@@ -160,7 +160,7 @@ function string!(ir, s)
   push!(ir, stmt(xcall(part_method, s, 1), type = RString()))
 end
 
-outlinePrimitive[tagstring_method] = function (T::Or)
+outlinePrimitive[tagstring_method] = function (T::Onion)
   ir = IR(meta = FuncInfo(tag"common.core.tagstring"))
   x = argument!(ir, type = T)
   union_cases!(ir, T, x) do S, _

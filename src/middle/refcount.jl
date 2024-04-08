@@ -28,7 +28,7 @@
 isrefobj(x::Pack) = tag(x) == tag"common.Ref"
 
 isreftype(x) = false
-isreftype(xs::Or) = any(isreftype, xs.patterns)
+isreftype(xs::Onion) = any(isreftype, xs.types)
 isreftype(xs::Pack) = isrefobj(xs) || any(isreftype, xs.parts)
 isreftype(x::VPack) = layout(x.parts) != ()
 isreftype(x::Recursive) = true
@@ -83,7 +83,7 @@ function count_inline!(ir, T::VPack, x, mode)
   countptr!(ir, ptr, mode)
 end
 
-function count_inline!(ir, T::Or, x, mode)
+function count_inline!(ir, T::Onion, x, mode)
   union_cases!(ir, T, x) do T, x
     if isreftype(T)
       count!(ir, T, x, mode)

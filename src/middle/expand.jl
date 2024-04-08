@@ -52,7 +52,7 @@ layout(x::Pack) = cat_layout(layout.(x.parts)...)
 layout(x::VPack) = (Int32, Int32) # size, pointer
 layout(x::Recursive) = (Int32,)
 layout(x::Recur) = Int32
-layout(xs::Or) = (Int32, cat_layout(layout.(xs.patterns)...)...)
+layout(xs::Onion) = (Int32, cat_layout(layout.(xs.types)...)...)
 
 nregisters(l::Type) = 1
 nregisters(l::Tuple) = length(l)
@@ -110,7 +110,7 @@ function partir(x, i)
   return ir
 end
 
-function partir(x::Or, i)
+function partir(x::Onion, i)
   ir = IR(meta = FuncInfo(tag"common.core.part"))
   retT = partial_part(x, i)
   vx = argument!(ir, type = x)
@@ -185,7 +185,7 @@ inlinePrimitive[part_method] = function (pr, ir, v)
   x, i = ir[v].expr.args[2:end]
   T, I = exprtype(ir, [x, i])
   if T isa Pack && I isa Type{<:Integer}
-  elseif T isa Or
+  elseif T isa Onion
   elseif T isa String && I == 1
   elseif T isa Recursive
     T = unroll(T)
@@ -193,7 +193,7 @@ inlinePrimitive[part_method] = function (pr, ir, v)
     x′ = unbox!(pr, T, x)
     y = push!(pr, stmt(xcall(part_method, x′, i), type = ir[v].type))
     replace!(pr, v, y)
-    @assert T isa Or
+    @assert T isa Onion
     isreftype(ir[v].type) && push!(pr, Expr(:release, y))
   else
     delete!(pr, v)
@@ -269,7 +269,7 @@ end
 # nparts
 # ======
 
-outlinePrimitive[nparts_method] = function (x::Or)
+outlinePrimitive[nparts_method] = function (x::Onion)
   ir = IR(meta = FuncInfo(tag"common.core.nparts"))
   retT = partial_nparts(x)
   vx = argument!(ir, type = x)
@@ -295,14 +295,14 @@ end
 inlinePrimitive[nparts_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
   T = exprtype(ir, x)
-  if T isa Or
+  if T isa Onion
   elseif T isa Recursive
     T = unroll(T)
     delete!(pr, v)
     x′ = unbox!(pr, T, x)
     y = push!(pr, stmt(xcall(nparts_method, x′), type = Int64))
     replace!(pr, v, y)
-    @assert T isa Or
+    @assert T isa Onion
     isreftype(ir[v].type) && push!(pr, Expr(:release, y))
   else
     delete!(pr, v)
@@ -379,8 +379,8 @@ function cast!(ir, from, to, x)
   (to == ⊥ || from == ⊥ || from == to) && return x
   if from isa Number && to == typeof(from)
     from
-  elseif from isa Or
-    error("casting Or not implemented")
+  elseif from isa Onion
+    error("casting union not implemented")
   elseif from isa Pack && to isa Pack
     @assert nparts(from) == nparts(to)
     parts = [indexer!(ir, from, i, x, nothing) for i = 0:nparts(from)]
@@ -392,13 +392,13 @@ function cast!(ir, from, to, x)
     push!(ir, stmt(Expr(:tuple, Int32(0), ptr), type = to))
   elseif from isa String && to == RString()
     string!(ir, from)
-  elseif to isa Or
-    i = findfirst(==(from), to.patterns)
+  elseif to isa Onion
+    i = findfirst(==(from), to.types)
     @assert i != nothing
     x = (isvariable(x) ? [x] : [])
     return push!(ir, Expr(:tuple, Int32(i),
                           reduce(vcat, [j == i ? x : collect(zero.(layout(p)))
-                                        for (j, p) in enumerate(to.patterns)])...))
+                                        for (j, p) in enumerate(to.types)])...))
   elseif from isa Pack && to isa Recursive
     to = unroll(to)
     x = cast!(ir, from, to, x)

@@ -150,18 +150,18 @@ end
 
 # TODO match results don't have to be identical, if
 # bindings and paths are right we can merge types.
-function partial_match_union(mod, pat, val::Or, path)
-  ms = map(x -> partial_match(mod, pat, x, path), val.patterns)
+function partial_match_union(mod, pat, val::Onion, path)
+  ms = map(x -> partial_match(mod, pat, x, path), val.types)
   any(x -> x === missing, ms) && return missing
   all(==(first(ms)), ms) && return first(ms)
   return missing
 end
 
-function partial_match(mod, pat::Pack, val::Or, path)
+function partial_match(mod, pat::Pack, val::Onion, path)
   partial_match_union(mod, pat, val, path)
 end
 
-function partial_match(mod, pat::Or, val::Or, path)
+function partial_match(mod, pat::Or, val::Onion, path)
   partial_match_union(mod, pat, val, path)
 end
 
