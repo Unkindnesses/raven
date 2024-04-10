@@ -2,9 +2,10 @@
 
 struct Pack{N}
   parts::NTuple{N,Any}
+  Pack(x...) = new{length(x)}(x)
 end
 
-pack(x...) = Pack((x...,))
+pack(x...) = Pack(x...)
 
 nil = pack(tag"common.Nil")
 
@@ -26,6 +27,8 @@ struct VPack # variable width
   tag::Any
   parts::Any
 end
+
+vpack(tag, parts) = VPack(tag, parts)
 
 tag(x::VPack) = x.tag
 
@@ -60,8 +63,30 @@ Base.show(io::IO, ::Unreachable) = print(io, "⊥")
 
 struct Onion
   types::NTuple{N,Any} where N
-  Onion(xs) = new((sort(collect(xs), lt = t_isless)...,))
+  function Onion(xs)
+    length(xs) == 1 && return only(xs)
+    @assert !isempty(xs) && !any(x -> x isa Onion, xs)
+    return new((sort(collect(xs), lt = t_isless)...,))
+  end
 end
+
+function Base.show(io::IO, or::Onion)
+  for i = 1:length(or.types)
+    i == 1 || print(io, " | ")
+    show(io, or.types[i])
+  end
+end
+
+function splittags(f, x::Onion)
+  tags = filter(t -> t isa Tag, x.types)
+  t = filter(t -> !(t isa Tag), x.types)
+  result = Any[f(t) for t in tags]
+  isempty(t) || push!(result, f(Onion(t)))
+  return Onion(result)
+end
+
+pack(ts::Onion, xs...) = splittags(tag -> Pack(tag, xs...), ts)
+vpack(ts::Onion, xs) = splittags(tag -> VPack(tag, xs), ts)
 
 # Primitive Types
 
@@ -114,7 +139,10 @@ typedepth(x::Recur) = 1
 
 # Order
 
-t_isless(x, y) = repr(x) < repr(y)
+_repr(x) = repr(x)
+_repr(x::Int32) = "$x::Int32"
+
+t_isless(x, y) = _repr(x) < _repr(y)
 
 # Subset
 
@@ -123,7 +151,7 @@ function issubset(x, y)
     true
   elseif y == ⊥
     false
-  elseif x == y
+  elseif x === y
     true
   elseif x isa Primitive && y isa Type{<:Primitive}
     x isa y
@@ -158,13 +186,14 @@ _recursion_candidate(T, x::Union{Primitive,Type{<:Primitive}}) = false
 
 _recursion_candidate(T, x::Pack) = any(_recursion_candidate.((T,), parts(x)))
 
-_recursion_candidate(T, x::VPack) = _recursion_candidate(T, x.parts)
-
 _recursion_candidate(T, x::Onion) =
   issubset(x, T) || any(_recursion_candidate.((T,), x.types))
 
 # TODO: unhack
 _recursion_candidate(T, x::Recursive) = false
+
+_recursion_candidate(T, x::VPack) =
+  (T isa VPack && issubset(x, T)) || _recursion_candidate(T, x.parts)
 
 recursion_candidate(T) = false
 
@@ -190,14 +219,19 @@ makerecursive(T::Onion) =
                    x
                    for x in T.types]))
 
-recursive(T) = recursion_candidate(T) ? makerecursive(T) : T
+makerecursive(T::VPack) = Recursive(VPack(T.tag, _makerecursive(T, T.parts)))
+
+const enable_recursion = Ref(true)
+
+recursive(T) =
+  enable_recursion[] && recursion_candidate(T) ? makerecursive(T) : T
 
 # Recursion unrolling
 
 unroll(S, T::Union{Primitive,Type{<:Primitive}}) = T
 
 unroll(S, T::Onion) = Onion(unroll.((S,), T.types))
-unroll(S, T::Pack) = Pack(unroll.((S,), T.parts))
+unroll(S, T::Pack) = Pack(unroll.((S,), T.parts)...)
 unroll(S, T::VPack) = VPack(tag(T), unroll(S, T.parts))
 unroll(S, T::Recur) = S
 
@@ -205,7 +239,10 @@ unroll(T::Recursive) = unroll(T, T.type)
 
 # Union
 
-typekey(x) = tag(x)
+tokey(x::Tag) = x
+tokey(x) = nothing
+
+typekey(x) = tokey(tag(x))
 typekey(x::Tag) = (tag(x), x)
 
 partial_eltype(x::Pack) = reduce(union, parts(x), init = ⊥)
@@ -231,22 +268,21 @@ function union(x, y)
   elseif y isa Onion
     return reduce(union, y.types, init = x)
   elseif x isa Onion
-    typedepth(x) > 10 && error("exploding type: $y")
     ps = x.types
-    i = findfirst(x -> typekey(x) == typekey(y), ps)
-    i == nothing && return Onion([ps..., x])
-    T = Onion([j == i ? union(y, ps[j]) : ps[j] for j = 1:length(ps)])
+    i = findfirst(x -> typekey(x) === typekey(y), ps)
+    i == nothing && return Onion((ps..., y))
+    T = Onion(j == i ? union(y, ps[j]) : ps[j] for j = 1:length(ps))
     return T == x ? T : recursive(T)
-  elseif typekey(x) == typekey(y)
+  elseif typekey(x) === typekey(y)
     if x isa Tag && y isa Tag
       return x
     elseif x isa VPack || y isa VPack || nparts(x) != nparts(y)
-      return VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))
+      return recursive(VPack(union(tag(x), tag(y)), union(partial_eltype(x), partial_eltype(y))))
     else
-      return pack(tag(x), [union(part(x, i), part(y, i)) for i = 1:nparts(x)]...)
+      return pack(union(tag(x), tag(y)), (union(part(x, i), part(y, i)) for i = 1:nparts(x))...)
     end
   else
-    return recursive(Onion([x, y]))
+    return recursive(Onion((x, y)))
   end
 end
 
