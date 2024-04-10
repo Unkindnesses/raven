@@ -17,6 +17,8 @@ using .Caches: reset!, iscached, cached, fingerprint
 
 import Base: ==, hash
 
+include("utils.jl")
+
 include("frontend/tag.jl")
 include("frontend/ast.jl")
 include("frontend/parse.jl")

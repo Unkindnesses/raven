@@ -1,4 +1,40 @@
-# Types
+# Primitives
+
+Primitive = Union{Int64,Int32,Float64,Float32,Tag,String}
+
+JSObject() =
+  options().jsalloc ?
+    pack(tag"common.JSObject", pack(tag"common.Ref", pack(tag"common.Ptr", Int32))) :
+    pack(tag"common.JSObject", Int32)
+
+RString() = pack(tag"common.String", JSObject())
+
+const fromSymbol = Dict{Tag,Type}()
+
+for T in :[Int64, Int32, Float64, Float32, Tag].args
+  local tag = Tag(tag"common.core", T)
+  @eval fromSymbol[$tag] = $T
+  @eval part(x::Union{$T,Type{$T}}, i::Integer) =
+          i == 0 ? $tag :
+          i == 1 ? x :
+          error("Tried to access part $i of 1")
+  @eval nparts(x::Union{$T,Type{$T}}) = 1
+  @eval allparts(x::Union{$T,Type{$T}}) = ($tag, x)
+end
+
+part(s::String, i::Integer) =
+  i == 0 ? tag"common.String" :
+  i == 1 ? JSObject() :
+  error("Tried to access part $i of 1")
+
+allparts(s::String) = (tag"common.String", JSObject())
+
+nparts(s::String) = 1
+
+isvalue(x) = false
+isvalue(x::Primitive) = true
+
+# Packs
 
 struct Pack{N}
   parts::NTuple{N,Any}
@@ -13,13 +49,12 @@ nparts(x::Pack) = length(x.parts)-1
 part(x::Pack, i) = x.parts[i+1]
 parts(x) = x.parts[2:end]
 allparts(x::Pack) = x.parts
+isvalue(xs::Pack) = all(isvalue, parts(xs))
 
 Base.getindex(x::Pack, i::Integer) = x.parts[i+1]
 Base.getindex(x::Pack, i::AbstractVector) = pack(x.parts[i.+1]...)
 Base.lastindex(x::Pack) = lastindex(x.parts)
 Base.iterate(x::Pack, st...) = iterate(x.parts, st...)
-Base.:(==)(a::Pack, b::Pack) = a.parts == b.parts
-Base.hash(x::Pack, h::UInt) = hash((Pack, x.parts), h)
 
 tag(x) = partial_part(x, 0)
 
@@ -43,16 +78,7 @@ packcat(x::Pack, y::Pack) = invoke(packcat, Tuple{Any,Any}, x, y)
 packcat(x::Union{VPack,Pack}, y::Union{VPack,Pack}) =
   VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))
 
-struct Recursive
-  type::Any
-end
-
-struct Recur end
-
-Base.show(io::IO, T::Recursive) = print(io, "T = ", T.type)
-Base.show(io::IO, ::Recur) = print(io, "T")
-
-Base.:(==)(a::Recursive, b::Recursive) = a.type == b.type
+const SimpleType = Union{Primitive,Type{<:Primitive},Pack,VPack}
 
 # Abstract Types
 
@@ -88,54 +114,29 @@ end
 pack(ts::Onion, xs...) = splittags(tag -> Pack(tag, xs...), ts)
 vpack(ts::Onion, xs) = splittags(tag -> VPack(tag, xs), ts)
 
-# Primitive Types
+# Recursion
 
-Primitive = Union{Int64,Int32,Float64,Float32,Tag,String}
-
-JSObject() =
-  options().jsalloc ?
-    pack(tag"common.JSObject", pack(tag"common.Ref", pack(tag"common.Ptr", Int32))) :
-    pack(tag"common.JSObject", Int32)
-
-RString() = pack(tag"common.String", JSObject())
-
-const fromSymbol = Dict{Tag,Type}()
-
-for T in :[Int64, Int32, Float64, Float32, Tag].args
-  local tag = Tag(tag"common.core", T)
-  @eval fromSymbol[$tag] = $T
-  @eval part(x::Union{$T,Type{$T}}, i::Integer) =
-          i == 0 ? $tag :
-          i == 1 ? x :
-          error("Tried to access part $i of 1")
-  @eval nparts(x::Union{$T,Type{$T}}) = 1
-  @eval allparts(x::Union{$T,Type{$T}}) = ($tag, x)
+struct Recursive
+  type::Any
 end
 
-part(s::String, i::Integer) =
-  i == 0 ? tag"common.String" :
-  i == 1 ? JSObject() :
-  error("Tried to access part $i of 1")
+struct Recur end
 
-allparts(s::String) = (tag"common.String", JSObject())
+Base.show(io::IO, T::Recursive) = print(io, "T = ", T.type)
+Base.show(io::IO, ::Recur) = print(io, "T")
 
-nparts(s::String) = 1
+Base.:(==)(a::Recursive, b::Recursive) = a.type == b.type
 
-isvalue(x) = false
-isvalue(x::Primitive) = true
-isvalue(xs::Pack) = all(isvalue, parts(xs))
+unroll(S, T::Union{Primitive,Type{<:Primitive}}) = T
 
-const SimpleType = Union{Primitive,Type{<:Primitive},Pack,VPack}
+unroll(S, T::Onion) = Onion(unroll.((S,), T.types))
+unroll(S, T::Pack) = Pack(unroll.((S,), T.parts)...)
+unroll(S, T::VPack) = VPack(tag(T), unroll(S, T.parts))
+unroll(S, T::Recur) = S
 
-# Depth
+unroll(T::Recursive) = unroll(T, T.type)
 
-typedepth(::Unreachable) = 0
-typedepth(::Union{Primitive,Type{<:Primitive}}) = 1
-typedepth(x::Pack) = 1 + maximum(typedepth.(x.parts), init = 0)
-typedepth(x::VPack) = 1 + typedepth(x.parts)
-typedepth(x::Onion) = 1 + maximum(typedepth.(x.types), init = 0)
-typedepth(x::Recursive) = 1 + typedepth(x.type)
-typedepth(x::Recur) = 1
+unroll(T) = T
 
 # Order
 
@@ -146,36 +147,39 @@ t_isless(x, y) = _repr(x) < _repr(y)
 
 # Subset
 
-function issubset(x, y)
+function _issubset(self, x, y)
   if x == ⊥
     true
   elseif y == ⊥
     false
-  elseif x === y
-    true
-  elseif x isa Primitive && y isa Type{<:Primitive}
-    x isa y
-  elseif x isa Pack && y isa Pack
-    nparts(x) == nparts(y) && all(issubset.(x.parts, y.parts))
-  elseif x isa Pack && y isa VPack
-    issubset(tag(x), tag(y)) && all(issubset.(parts(x), (y.parts,)))
-  elseif x isa VPack && y isa VPack
-    issubset(tag(x), tag(y)) && issubset(x.parts, y.parts)
-  elseif x isa Recursive && y isa Recursive
-    issubset(x.type, y)
-  elseif x isa Recur && y isa Recursive
-    true
-  elseif x isa Recursive
-    issubset(unroll(x), y)
-  elseif y isa Recursive
-    issubset(x, unroll(y))
+  elseif x isa Recursive || y isa Recursive
+    self(unroll(x), unroll(y))
   elseif x isa Onion
-    all(issubset.(x.types, (y,)))
+    all(self(T, y) for T in x.types)
   elseif y isa Onion
-    any(issubset.((x,), y.types))
+    any(self(x, T) for T in y.types)
+  elseif x isa Primitive && y isa Primitive
+    x === y
+  elseif x isa Primitive && y isa Type
+    x isa y
+  elseif x isa Type && y isa Type
+    x <: y
+  elseif x isa Pack && y isa Pack
+    nparts(x) == nparts(y) && all(self.(x.parts, y.parts))
+  elseif x isa Pack && y isa VPack
+    self(tag(x), tag(y)) && all(self.(parts(x), (y.parts,)))
+  elseif x isa VPack && y isa VPack
+    self(tag(x), tag(y)) && self(x.parts, y.parts)
   else
     false
   end
+end
+
+function issubset(x, y)
+  fp = Fixpoint(_ -> true) do self, (x, y)
+    _issubset((x, y) -> self[(x, y)], x, y)
+  end
+  return fp[(x, y)]
 end
 
 # Recursion widening
@@ -225,17 +229,6 @@ const enable_recursion = Ref(true)
 
 recursive(T) =
   enable_recursion[] && recursion_candidate(T) ? makerecursive(T) : T
-
-# Recursion unrolling
-
-unroll(S, T::Union{Primitive,Type{<:Primitive}}) = T
-
-unroll(S, T::Onion) = Onion(unroll.((S,), T.types))
-unroll(S, T::Pack) = Pack(unroll.((S,), T.parts)...)
-unroll(S, T::VPack) = VPack(tag(T), unroll(S, T.parts))
-unroll(S, T::Recur) = S
-
-unroll(T::Recursive) = unroll(T, T.type)
 
 # Union
 

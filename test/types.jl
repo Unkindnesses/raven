@@ -24,8 +24,6 @@ Tw = pack(tag"Prepend", T, Int)
 @test issubset(unroll(T), T)
 @test issubset(T, unroll(T))
 
-Raven.enable_recursion[] = false
-
 struct Generator
   func
   depth::Int
@@ -62,9 +60,11 @@ end
 using Random
 Random.seed!(42)
 
+Raven.enable_recursion[] = false
+
 for i = 1:10
   g = Generator()
-  global A, B, C = g(), g(), g()
+  A, B, C = g(), g(), g()
   @test union(A, A) === A
   @test @iff issubset(A, B) && issubset(B, A) A === B
   @test union(A, B) === union(B, A)
