@@ -28,13 +28,11 @@ function trackdeps(f)
   stack = cache_deps()
   deps = Set{Pair{NFT,NFT}}()
   push!(stack, deps)
-  result = nothing
   try
-    result = f()
+    return f(), deps
   finally
     pop!(stack)
   end
-  return result, deps
 end
 
 function track!(id::Pair{NFT,NFT})
