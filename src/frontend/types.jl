@@ -222,45 +222,50 @@ tokey(x) = nothing
 typekey(x) = tokey(tag(x))
 typekey(x::Tag) = (tag(x), x)
 
-partial_eltype(x::Pack) = reduce(union, parts(x), init = ⊥)
-partial_eltype(x::VPack) = x.parts
+partial_eltype(x::Pack; union = union) = reduce(union, parts(x), init = ⊥)
+partial_eltype(x::VPack; union = union) = x.parts
 
-union(x::T, y::T) where T<:Number = x == y ? x : T
-union(x::T, y::Type{T}) where T<:Number = T
-union(x::Type{T}, y::T) where T<:Number = T
-union(x::Type{T}, y::Type{T}) where T<:Number = T
-union(x::String, y::String) = x == y ? x : RString()
-
-function union(x, y)
+function _union(self, x, y)
   if x == ⊥
     return y
   elseif y == ⊥
     return x
-  elseif x isa Recursive
-    @assert issubset(y, x)
-    return x
-  elseif y isa Recursive
-    @assert issubset(x, y)
-    return y
+  elseif x isa Recursive || y isa Recursive
+    # TODO merge only overlapping recursions
+    return self(unroll(x), unroll(y))
   elseif y isa Onion
-    return reduce(union, y.types, init = x)
+    return reduce(self, y.types, init = x)
   elseif x isa Onion
     ps = x.types
     i = findfirst(x -> typekey(x) === typekey(y), ps)
     i == nothing && return Onion((ps..., y))
-    T = Onion(j == i ? union(y, ps[j]) : ps[j] for j = 1:length(ps))
-    return T == x ? T : recursive(T)
+    T = Onion(j == i ? self(y, ps[j]) : ps[j] for j = 1:length(ps))
+    return recursive(T)
   elseif typekey(x) === typekey(y)
-    if x isa Tag && y isa Tag
+    if x isa Primitive && y isa Primitive
+      return x == y ? x : x isa String ? RString() : typeof(x)
+    elseif x isa Type
       return x
+    elseif y isa Type
+      return y
     elseif x isa VPack || y isa VPack || nparts(x) != nparts(y)
-      return recursive(VPack(union(tag(x), tag(y)), union(partial_eltype(x), partial_eltype(y))))
+      return recursive(VPack(self(tag(x), tag(y)),
+                             self(partial_eltype(x; union = self),
+                                  partial_eltype(y; union = self))))
     else
-      return pack(union(tag(x), tag(y)), (union(part(x, i), part(y, i)) for i = 1:nparts(x))...)
+      return pack(self(tag(x), tag(y)), (self(part(x, i), part(y, i)) for i = 1:nparts(x))...)
     end
   else
     return recursive(Onion((x, y)))
   end
+end
+
+# TODO use cached `issubset`
+function union(x, y)
+  fp = Fixpoint(((x, y),) -> x) do self, (x, y)
+    _union((x, y) -> self[(x, y)], x, y)
+  end
+  return fp[(x, y)]
 end
 
 # Internal symbols

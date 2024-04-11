@@ -2,21 +2,21 @@ using Raven, Test
 using Raven: @tag_str, Onion, Recursive, Recur, VPack, pack, union, issubset, recursive, unroll
 
 T1 = Recursive(Onion([pack(tag"Empty"), pack(tag"Prepend", Recur(), Int)]))
-T2 = Recursive(Onion([pack(tag"Empty"), pack(tag"Prepend", Recur(), Onion([Int, String]))]))
+T2 = Recursive(Onion([pack(tag"Empty"), pack(tag"Prepend", Recur(), Float64)]))
+T3 = union(T1, T2)
 
 @test issubset(T1, T1)
-@test issubset(T2, T2)
-@test issubset(T1, T2)
-@test !issubset(T2, T1)
+@test issubset(T3, T3)
+@test issubset(T1, T3)
+@test !issubset(T3, T1)
 
 T1 = Onion([pack(tag"Empty"), pack(tag"Prepend", pack(tag"Empty"), Int64)])
 T2 = pack(tag"Prepend", Onion([pack(tag"Empty"), pack(tag"Prepend", pack(tag"Empty"), Int64)]), Int64)
 
 T = union(T1, T2)
+@test union(T2, T1) == T
 
 @test T == Recursive(Onion([pack(tag"Empty"), pack(tag"Prepend", Recur(), Int)]))
-
-@test union(T2, T1) == T
 
 @test issubset(T1, T)
 @test issubset(T2, T)
