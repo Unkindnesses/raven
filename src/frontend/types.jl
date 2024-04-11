@@ -34,6 +34,8 @@ nparts(s::String) = 1
 isvalue(x) = false
 isvalue(x::Primitive) = true
 
+reconstruct(x::Union{Primitive,Type{<:Primitive}}) = (), _ -> x
+
 # Packs
 
 struct Pack{N}
@@ -58,6 +60,8 @@ Base.iterate(x::Pack, st...) = iterate(x.parts, st...)
 
 tag(x) = partial_part(x, 0)
 
+reconstruct(x::Pack) = x.parts, ps -> pack(ps...)
+
 struct VPack # variable width
   tag::Any
   parts::Any
@@ -78,6 +82,8 @@ packcat(x::Pack, y::Pack) = invoke(packcat, Tuple{Any,Any}, x, y)
 packcat(x::Union{VPack,Pack}, y::Union{VPack,Pack}) =
   VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))
 
+reconstruct(x::VPack) = (x.tag, x.parts), args -> vpack(args...)
+
 const SimpleType = Union{Primitive,Type{<:Primitive},Pack,VPack}
 
 # Abstract Types
@@ -95,6 +101,8 @@ struct Onion
     return new((sort(collect(xs), lt = t_isless)...,))
   end
 end
+
+reconstruct(x::Onion) = x.types, Onion
 
 function Base.show(io::IO, or::Onion)
   for i = 1:length(or.types)
@@ -125,18 +133,16 @@ struct Recur end
 Base.show(io::IO, T::Recursive) = print(io, "T = ", T.type)
 Base.show(io::IO, ::Recur) = print(io, "T")
 
-Base.:(==)(a::Recursive, b::Recursive) = a.type == b.type
-
-unroll(S, T::Union{Primitive,Type{<:Primitive}}) = T
-
-unroll(S, T::Onion) = Onion(unroll.((S,), T.types))
-unroll(S, T::Pack) = Pack(unroll.((S,), T.parts)...)
-unroll(S, T::VPack) = VPack(tag(T), unroll(S, T.parts))
+unroll(S, T::Recursive) = T
 unroll(S, T::Recur) = S
 
-unroll(T::Recursive) = unroll(T, T.type)
+function unroll(S, T)
+  xs, re = reconstruct(T)
+  re(unroll.((S,), xs))
+end
 
 unroll(T) = T
+unroll(T::Recursive) = unroll(T, T.type)
 
 # Order
 
@@ -183,52 +189,30 @@ function issubset(x, y)
 end
 
 # Recursion widening
-# This has two passes, checking for candidacy and then converting internal
-# subtypes to `Recur`. (Some simple internal subtypes don't trigger widening.)
 
-_recursion_candidate(T, x::Union{Primitive,Type{<:Primitive}}) = false
+# TODO unroll/fixpoint?
+recursive(T, x::Recursive) = issubset(x, T) ? (Recur(), true) : (x, false)
 
-_recursion_candidate(T, x::Pack) = any(_recursion_candidate.((T,), parts(x)))
+function _recursive(T, x)
+  xs, re = reconstruct(x)
+  xs = recursive.((T,), xs)
+  return re(first.(xs)), any(x[2] for x in xs)
+end
 
-_recursion_candidate(T, x::Onion) =
-  issubset(x, T) || any(_recursion_candidate.((T,), x.types))
-
-# TODO: unhack
-_recursion_candidate(T, x::Recursive) = false
-
-_recursion_candidate(T, x::VPack) =
-  (T isa VPack && issubset(x, T)) || _recursion_candidate(T, x.parts)
-
-recursion_candidate(T) = false
-
-recursion_candidate(T::Onion) = any(_recursion_candidate.((T,), T.types))
-
-recursion_candidate(T::VPack) = _recursion_candidate(T, T.parts)
-
-_makerecursive(T, x::Onion) =
-  issubset(x, T) ? Recur() : Onion(_makerecursive.((T,), x.types))
-
-_makerecursive(T, x::Pack) =
-  issubset(x, T) ? Recur() : pack(_makerecursive.((T,), x.parts)...)
-
-_makerecursive(T, x::VPack) =
-  issubset(x, T) ? Recur() : VPack(x.tag, _makerecursive(T, x.parts))
-
-_makerecursive(T, x::Union{Primitive,Type{<:Primitive}}) =
-  issubset(x, T) ? Recur() : x
-
-makerecursive(T::Onion) =
-  Recursive(Onion([x isa Pack ? pack(tag(x), _makerecursive.((T,), parts(x))...) :
-                   x isa VPack ? VPack(tag(x), _makerecursive(T, x.parts)) :
-                   x
-                   for x in T.types]))
-
-makerecursive(T::VPack) = Recursive(VPack(T.tag, _makerecursive(T, T.parts)))
+recursive(T, x) =
+  typeof(T) == typeof(x) && issubset(x, T) ?
+    (Recur(), true) :
+    _recursive(T, x)
 
 const enable_recursion = Ref(true)
 
-recursive(T) =
-  enable_recursion[] && recursion_candidate(T) ? makerecursive(T) : T
+recursive(T) = T
+
+function recursive(T::Union{Onion,VPack})
+  enable_recursion[] || return T
+  T, r = _recursive(T, T)
+  return r ? Recursive(T) : T
+end
 
 # Union
 
