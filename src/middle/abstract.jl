@@ -273,7 +273,7 @@ function update!(inf::Inference, sig)
       else
         error("Unknown expr type $(st.expr.head)")
       end
-      reroll || checkExit(inf.queue, fr.ir, path)
+      reroll || checkExit(queue, fr.ir, path)
     end
   end
   if !(issubset(ret, fr.rettype))
