@@ -268,14 +268,14 @@ isdisjoint(x, y) = disjointer()(x, y)
 
 # Subtract
 
-function _subtract(self, x, y)
+function _subtract(self, x, y; issubset)
   y = unroll(y)
   if x == ⊥
     return x
   elseif y == ⊥
     return x
   elseif x isa Recursive
-    reroll(self(unroll(x), y))
+    reroll(self(unroll(x), y); issubset)
   elseif y isa Onion
     reduce(self, disjuncts(y), init = x)
   elseif x isa Onion
@@ -296,9 +296,9 @@ function _subtract(self, x, y)
   end
 end
 
-function subtracter()
+function subtracter(; issubset = issubset)
   fp = Fixpoint(_ -> ⊥) do self, (x, y)
-    _subtract((x, y) -> self[(x, y)], x, y)
+    _subtract((x, y) -> self[(x, y)], x, y; issubset)
   end
   (x, y) -> fp[(x, y)]
 end
@@ -341,40 +341,40 @@ splitby(f, xs::Tuple) = splitby(f, collect(xs))
 occursin(x, y) = x == y || any(y -> occursin(x, y), reconstruct(y)[1])
 occursin(x, y::Union{Recur,Recursive}) = x == y
 
-function reroll_inner(T, x; self = reroll, seen)
+function reroll_inner(T, x; self = reroll, seen, issubset)
   xs, re = reconstruct(x)
-  ys = self.((T,), xs; seen)
+  ys = self.((T,), xs; seen, issubset)
   re(first.(ys)), reduce(Base.union, second.(ys), init = Set())
 end
 
-reroll(T, x; seen) = reroll_inner(T, x; seen)
+reroll(T, x; seen, issubset) = reroll_inner(T, x; seen, issubset)
 
-reroll_outer(T, x; seen) = reroll_inner(T, x; seen)
+reroll_outer(T, x; seen, issubset) = reroll_inner(T, x; seen, issubset)
 
-reroll_outer(T, x::Onion; seen) =
-  reroll_inner(T, x, self = reroll_inner; seen)
+reroll_outer(T, x::Onion; seen, issubset) =
+  reroll_inner(T, x, self = reroll_inner; seen, issubset)
 
-function reroll_inner(T, x::Recursive; seen)
+function reroll_inner(T, x::Recursive; seen, issubset)
   x in seen && return nothing, Set()
-  y, ks = reroll_outer(T, unroll(x); seen = Set([seen..., x]))
+  y, ks = reroll_outer(T, unroll(x); seen = Set([seen..., x]), issubset)
   isempty(ks) && return x, ks
   occursin(nothing, y) && throw(TypeError("recur"))
   return y, ks
 end
 
-reroll(T, x::Recursive; seen) =
-  issubset(x, T) ? (Recur(), typekeys(x)) : reroll_inner(T, x; seen)
+reroll(T, x::Recursive; seen, issubset) =
+  issubset(x, T) ? (Recur(), typekeys(x)) : reroll_inner(T, x; seen, issubset)
 
-reroll(T, x::Union{VPack,Onion}; seen) =
+reroll(T, x::Union{VPack,Onion}; seen, issubset) =
   issubset(x, T) ? (Recur(), typekeys(x)) :
-  reroll_outer(T, x; seen)
+  reroll_outer(T, x; seen, issubset)
 
 reroll(T::Recursive) = T
 reroll(T::Unreachable) = T
 
-function reroll(T)
+function reroll(T; issubset)
   xs = disjuncts(unroll(T))
-  ys = reroll_inner.((T,), xs; seen = Set())
+  ys = reroll_inner.((T,), xs; seen = Set(), issubset)
   ys = [(x, Base.union(k1, k2)) for ((x, k1), k2) in zip(ys, typekeys.(xs))]
   xs = []
   # Group by typekeys in common
@@ -391,12 +391,12 @@ end
 # Lift
 # (type to merge, subset present, recursion present)
 
-function isdistinct(x, y)
+function isdistinct(x, y; isdisjoint)
   x, y = unroll.((x, y))
   if x isa Onion || y isa Onion
-    all(isdistinct(x, y) for x in disjuncts(x) for y in disjuncts(y))
+    all(isdistinct(x, y; isdisjoint) for x in disjuncts(x) for y in disjuncts(y))
   elseif x isa VPack && y isa Pack
-    isdistinct(y, x)
+    isdistinct(y, x; isdisjoint)
   elseif x isa Pack && y isa Pack
     nparts(x) < 1 || isdisjoint(x, y)
   elseif x isa Pack && y isa VPack
@@ -408,30 +408,30 @@ function isdistinct(x, y)
   end
 end
 
-function lift_inner(T, x; seen, union)
+function lift_inner(T, x; seen, self)
   xs, _ = reconstruct(x)
-  ys = lift.((T,), xs; seen, union)
-  reduce(union, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
+  ys = lift.((T,), xs; seen, self)
+  reduce(self.union, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
 end
 
-lift(T, x; seen, union) =
-  !isdistinct(x, T) ? (subtract(x, T), true, false) :
-  lift_inner(T, x; seen, union)
+lift(T, x; seen, self) =
+  !isdistinct(x, T, isdisjoint = self.isdisjoint) ? (self.subtract(x, T), true, false) :
+  lift_inner(T, x; seen, self)
 
-function lift(T, x::Recursive; seen, union)
+function lift(T, x::Recursive; seen, self)
   if x in seen
     ⊥, false, true
-  elseif !isdistinct(x, T)
-    subtract(x, T), true, false
+  elseif !isdistinct(x, T, isdisjoint = self.isdisjoint)
+    self.subtract(x, T), true, false
   else
-    inner, s, r = lift_inner(T, unroll(x); seen = Set([seen..., x]), union)
-    s && r ? (union(subtract(x, T), inner), true, false) :
+    inner, s, r = lift_inner(T, unroll(x); seen = Set([seen..., x]), self)
+    s && r ? (self.union(self.subtract(x, T), inner), true, false) :
       (inner, s, false)
   end
 end
 
-function lift(T; union = union)
-  reduce(union, first.(lift_inner.((T,), disjuncts(T); seen = Set(), union)))
+function lift(T; self)
+  reduce(self.union, first.(lift_inner.((T,), disjuncts(T); seen = Set(), self)))
 end
 
 lifted(self, T) = T
@@ -439,8 +439,8 @@ lifted(self, T) = T
 # TODO fold into `recursive`
 function lifted(self, T::Union{Onion,VPack})
   L = self.lifted(T)
-  lifted = lift(L, union = self.union)
-  L = basic_union(L, lifted, self = self.union)
+  lifted = lift(L; self)
+  L = basic_union(L, lifted, self = self.union, issubset = self.issubset)
 end
 
 # Reroll
@@ -465,12 +465,12 @@ function recursive(self, T::Union{Onion,VPack})
   R = unroll(self.recursive(T))
   R = recurse_inner(self, R)
   R = lifted(self, R)
-  R = reroll(R)
+  R = reroll(R, issubset = self.issubset)
 end
 
 # Union
 
-function basic_union(x, y; self = basic_union)
+function basic_union(x, y; self = basic_union, issubset)
   left = x
   x, y = unroll.((x, y))
   if x == ⊥
@@ -483,7 +483,7 @@ function basic_union(x, y; self = basic_union)
       while true
         xs, ys = splitby(y -> overlapping(x, y), ys)
         isempty(xs) && break
-        x = reduce((x, y) -> basic_union(x, y; self), xs, init = x)
+        x = reduce((x, y) -> basic_union(x, y; self, issubset), xs, init = x)
       end
       append!(ys, disjuncts(x))
     end
@@ -514,29 +514,33 @@ function basic_union(x, y; self = basic_union)
   end
 end
 
-function wrap_merger(self)
+function wrap_merger(self; issubset, isdisjoint, subtract)
   (; union = (x, y) -> self[(:union, x, y)],
      lifted = T -> self[(:lifted, T)],
-     recursive = T -> self[(:recursive, T)])
+     recursive = T -> self[(:recursive, T)],
+     issubset, isdisjoint, subtract)
 end
 
 function merger()
+  issubset = subsetter()
+  subtract = subtracter(; issubset)
+  isdisjoint = disjointer()
   function check(old, new)
     @assert typesize(new) <= 200
     @assert issubset(old, new)
   end
-  init((f, args...)) = f == :recursive ? reroll(only(args)) : args[1]
+  init((f, args...)) = f == :recursive ? reroll(only(args); issubset) : args[1]
   fp = Fixpoint(init; check) do self, (f, args...)
-    self = wrap_merger(self)
+    self = wrap_merger(self; issubset, isdisjoint, subtract)
     if f == :union
-      return self.recursive(basic_union(args...; self = self.union))
+      return self.recursive(basic_union(args...; self = self.union, issubset))
     elseif f == :lifted
       return lifted(self, args...)
     elseif f == :recursive
       return recursive(self, args...)
     end
   end
-  return wrap_merger(fp)
+  return wrap_merger(fp; issubset, isdisjoint, subtract)
 end
 
 union(x, y) = merger().union(x, y)
