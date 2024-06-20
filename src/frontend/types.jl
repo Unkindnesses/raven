@@ -347,8 +347,6 @@ function reroll_inner(T, x; self = reroll, seen, issubset)
   re(first.(ys)), reduce(Base.union, second.(ys), init = Set())
 end
 
-reroll(T, x; seen, issubset) = reroll_inner(T, x; seen, issubset)
-
 reroll_outer(T, x; seen, issubset) = reroll_inner(T, x; seen, issubset)
 
 reroll_outer(T, x::Onion; seen, issubset) =
@@ -368,6 +366,11 @@ reroll(T, x::Recursive; seen, issubset) =
 reroll(T, x::Union{VPack,Onion}; seen, issubset) =
   issubset(x, T) ? (Recur(), typekeys(x)) :
   reroll_outer(T, x; seen, issubset)
+
+function reroll(T, x; seen, issubset)
+  y, ks = reroll_inner(T, x; seen, issubset)
+  (!isempty(ks) || occursin(nothing, y)) && issubset(x, T) ? (Recur(), typekeys(x)) : (y, ks)
+end
 
 reroll(T::Recursive) = T
 reroll(T::Unreachable) = T
@@ -414,7 +417,13 @@ function lift_inner(T, x; seen, self)
   reduce(self.union, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
 end
 
-lift(T, x; seen, self) =
+function lift(T, x; seen, self)
+  inner, s, r = lift_inner(T, x; seen, self)
+  (s || r) && !isdisjoint(x, T) ? (self.subtract(x, T), true, false) :
+    (inner, s, r)
+end
+
+lift(T, x::Union{Onion,VPack}; seen, self) =
   !isdistinct(x, T, isdisjoint = self.isdisjoint) ? (self.subtract(x, T), true, false) :
   lift_inner(T, x; seen, self)
 

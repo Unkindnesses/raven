@@ -192,7 +192,7 @@ let
   A = pack(tag"b")
   B = pack(tag"b", pack(tag"a", onion(Int64, Float64)), vpack(tag"c", Float64))
   C = Float64
-  @test_throws Any union(union(A, B), C) == union(A, union(B, C))
+  @test union(union(A, B), C) == union(A, union(B, C))
 end
 
 let
@@ -210,18 +210,18 @@ let
 end
 
 let
+  T = pack(tag"a", Recursive(vpack(tag"b", Recur())))
+  @test union(T, tag"b") == onion(T, tag"b")
+end
+
+# Failing cases
+
+let
   A = pack(tag"a", Int64, vpack(tag"a", Int64))
   B = onion(pack(tag"a", onion(Float64, Int64), Int64), Int64)
   C = Int64
   # Convergence issue: union of two onions doesn't produce a superset of the first
   @test_throws Any union(A, union(B, C))
-end
-
-let
-  A = vpack(tag"b", Int64)
-  B = tag"b"
-  C = pack(tag"b", onion(Recursive(onion(Int64, tag"a", vpack(tag"c", pack(tag"b", Recur())))), pack(tag"b")), vpack(tag"b", Float64))
-  @test union(union(A, B), C) != union(A, union(B, C))
 end
 
 struct Generator
