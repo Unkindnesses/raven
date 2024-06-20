@@ -1,8 +1,7 @@
 .DS_Store
 .envrc
-*.jl.cov
-*.jl.*.cov
-*.jl.mem
 /dev
 *.wasm
 /test.*
+/*.jl
+/*.md
