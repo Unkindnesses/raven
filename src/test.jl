@@ -36,8 +36,8 @@ function test_rv(code; error = false, source = nothing,
   end
   @assert (exit != 0) == error
   if output != nothing
-    result = occursin(output, out)
-    Test.do_test(Test.Returned(result, nothing, source), :(occursin($output, $out)))
+    result = Base.occursin(output, out)
+    Test.do_test(Test.Returned(result, nothing, source), :(Base.occursin($output, $out)))
   elseif !error
     results = split(out, "\n", keepempty = false)
     @assert !isempty(results)

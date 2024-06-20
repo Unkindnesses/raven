@@ -88,4 +88,5 @@ function Base.pushfirst!(q::WorkQueue, x)
 end
 
 Base.pop!(q::WorkQueue) = pop!(q.items)
+Base.popfirst!(q::WorkQueue) = popfirst!(q.items)
 Base.isempty(q::WorkQueue) = isempty(q.items)

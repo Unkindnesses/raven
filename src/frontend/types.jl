@@ -1,3 +1,12 @@
+# Bottom
+
+struct Unreachable end
+const ⊥ = Unreachable()
+
+Base.show(io::IO, ::Unreachable) = print(io, "⊥")
+
+reconstruct(::Unreachable) = (), _ -> ⊥
+
 # Primitives
 
 Primitive = Union{Int64,Int32,Float64,Float32,Tag,String}
@@ -43,7 +52,7 @@ struct Pack{N}
   Pack(x...) = new{length(x)}(x)
 end
 
-pack(x...) = Pack(x...)
+pack(x...) = any(==(⊥), x) ? ⊥ : Pack(x...)
 
 nil = pack(tag"common.Nil")
 
@@ -67,7 +76,10 @@ struct VPack # variable width
   parts::Any
 end
 
-vpack(tag, parts) = VPack(tag, parts)
+vpack(tag, parts) =
+  tag == ⊥ ? ⊥ :
+  parts == ⊥ ? pack(tag) :
+  VPack(tag, parts)
 
 tag(x::VPack) = x.tag
 
@@ -88,21 +100,23 @@ const SimpleType = Union{Primitive,Type{<:Primitive},Pack,VPack}
 
 # Abstract Types
 
-struct Unreachable end
-const ⊥ = Unreachable()
-
-Base.show(io::IO, ::Unreachable) = print(io, "⊥")
-
 struct Onion
   types::NTuple{N,Any} where N
   function Onion(xs)
+    isempty(xs) && return ⊥
     length(xs) == 1 && return only(xs)
-    @assert !isempty(xs) && !any(x -> x isa Onion, xs)
+    @assert !any(x -> x isa Onion, xs)
     return new((sort(collect(xs), lt = t_isless)...,))
   end
 end
 
-reconstruct(x::Onion) = x.types, Onion
+onion(xs...) = Onion([d for ds in xs for d in disjuncts(ds)])
+
+reconstruct(x::Onion) = x.types, xs -> onion(xs...)
+
+disjuncts(::Unreachable) = ()
+disjuncts(x) = (x,)
+disjuncts(x::Onion) = x.types
 
 function Base.show(io::IO, or::Onion)
   for i = 1:length(or.types)
@@ -119,18 +133,22 @@ function splittags(f, x::Onion)
   return Onion(result)
 end
 
-pack(ts::Onion, xs...) = splittags(tag -> Pack(tag, xs...), ts)
-vpack(ts::Onion, xs) = splittags(tag -> VPack(tag, xs), ts)
+pack(ts::Onion, xs...) = error("unsupported")
+vpack(ts::Onion, xs) = error("unsupported")
 
 # Recursion
 
 struct Recursive
   type::Any
+  function Recursive(type)
+    @assert !any(x -> x isa Recursive, disjuncts(type))
+    return new(type)
+  end
 end
 
 struct Recur end
 
-Base.show(io::IO, T::Recursive) = print(io, "T = ", T.type)
+Base.show(io::IO, T::Recursive) = print(io, "(T = ", T.type, ")")
 Base.show(io::IO, ::Recur) = print(io, "T")
 
 unroll(S, T::Recursive) = T
@@ -143,6 +161,17 @@ end
 
 unroll(T) = T
 unroll(T::Recursive) = unroll(T, T.type)
+unroll(T::Onion) = Onion([x for S in disjuncts(T) for x in disjuncts(unroll(S))])
+
+# Size
+
+typesize(::Unreachable) = 1
+typesize(x::Union{Primitive,Type{<:Primitive}}) = 1
+typesize(x::Recur) = 1
+typesize(x::Onion) = 1 + sum(typesize, x.types)
+typesize(x::Raven.Pack) = 1 + sum(typesize, x.parts)
+typesize(x::Raven.VPack) = 1 + typesize(x.tag) + typesize(x.parts)
+typesize(x::Recursive) = 1 + typesize(x.type)
 
 # Order
 
@@ -150,6 +179,12 @@ _repr(x) = repr(x)
 _repr(x::Int32) = "$x::Int32"
 
 t_isless(x, y) = _repr(x) < _repr(y)
+
+# Type errors (known bugs / unsupported cases)
+
+struct TypeError
+  name::String
+end
 
 # Subset
 
@@ -170,6 +205,8 @@ function _issubset(self, x, y)
     x isa y
   elseif x isa Type && y isa Type
     x <: y
+  elseif x isa String
+    self(RString(), y)
   elseif x isa Pack && y isa Pack
     nparts(x) == nparts(y) && all(self.(x.parts, y.parts))
   elseif x isa Pack && y isa VPack
@@ -181,66 +218,278 @@ function _issubset(self, x, y)
   end
 end
 
-function issubset(x, y)
+function subsetter()
   fp = Fixpoint(_ -> true) do self, (x, y)
     _issubset((x, y) -> self[(x, y)], x, y)
   end
-  return fp[(x, y)]
+  (x, y) -> fp[(x, y)]
 end
 
-# Recursion widening
+issubset(x, y) = subsetter()(x, y)
 
-# TODO unroll/fixpoint?
-recursive(T, x::Recursive) = issubset(x, T) ? (Recur(), true) : (x, false)
+# Disjoint
 
-function _recursive(T, x)
-  xs, re = reconstruct(x)
-  xs = recursive.((T,), xs)
-  return re(first.(xs)), any(x[2] for x in xs)
+function _isdisjoint(self, x, y)
+  if ⊥ in (x, y)
+    true
+  elseif x isa Recursive || y isa Recursive
+    self(unroll(x), unroll(y))
+  elseif x isa Onion || y isa Onion
+    all(self(x, y) for x in disjuncts(x) for y in disjuncts(y))
+  elseif x isa Primitive && y isa Primitive
+    x !== y
+  elseif x isa Primitive && y isa Type
+    !(x isa y)
+  elseif x isa Type && y isa Primitive
+    self(y, x)
+  elseif x isa Type && y isa Type
+    x != y
+  elseif x isa Pack && y isa Pack
+    nparts(x) != nparts(y) || any(self.(x.parts, y.parts))
+  elseif x isa Pack && y isa VPack
+    self(tag(x), tag(y)) || any(self.(parts(x), (y.parts,)))
+  elseif x isa VPack && y isa Pack
+    self(y, x)
+  elseif x isa VPack && y isa VPack
+    self(tag(x), tag(y))
+  else
+    true
+  end
 end
 
-recursive(T, x) =
-  typeof(T) == typeof(x) && issubset(x, T) ?
-    (Recur(), true) :
-    _recursive(T, x)
-
-const enable_recursion = Ref(true)
-
-recursive(T) = T
-
-function recursive(T::Union{Onion,VPack})
-  enable_recursion[] || return T
-  T, r = _recursive(T, T)
-  return r ? Recursive(T) : T
+function disjointer()
+  fp = Fixpoint(_ -> false) do self, (x, y)
+    _isdisjoint((x, y) -> self[(x, y)], x, y)
+  end
+  (x, y) -> fp[(x, y)]
 end
 
-# Union
+isdisjoint(x, y) = disjointer()(x, y)
+
+# Subtract
+
+function _subtract(self, x, y)
+  y = unroll(y)
+  if x == ⊥
+    return x
+  elseif y == ⊥
+    return x
+  elseif x isa Recursive
+    reroll(self(unroll(x), y))
+  elseif y isa Onion
+    reduce(self, disjuncts(y), init = x)
+  elseif x isa Onion
+    xs = self.(disjuncts(x), (y,))
+    onion((d for x in xs for d in disjuncts(x))...)
+  elseif x isa Primitive && y isa Primitive || x isa Type{<:Primitive} && y isa Type{<:Primitive}
+    x === y ? ⊥ : x
+  elseif x isa Primitive && y isa Type{<:Primitive}
+    x isa y ? ⊥ : x
+  elseif x isa Pack && y isa Pack
+    nparts(x) == nparts(y) && all(==(⊥), self.(x.parts, y.parts)) ? ⊥ : x
+  elseif x isa Pack && y isa VPack
+    self(part(x, 0), y.tag) == ⊥ && all(==(⊥), self.(parts(x), (y.parts,))) ? ⊥ : x
+  elseif x isa VPack && y isa VPack
+    self(x.tag, y.tag) == ⊥ && self(x.parts, y.parts) == ⊥ ? ⊥ : x
+  else
+    x
+  end
+end
+
+function subtracter()
+  fp = Fixpoint(_ -> ⊥) do self, (x, y)
+    _subtract((x, y) -> self[(x, y)], x, y)
+  end
+  (x, y) -> fp[(x, y)]
+end
+
+# TODO consider removing
+subtract(x, y) = subtracter()(x, y)
+
+# Type keys
 
 tokey(x::Tag) = x
 tokey(x) = nothing
 
 typekey(x) = tokey(tag(x))
 typekey(x::Tag) = (tag(x), x)
+typekey(x::Unreachable) = nothing
+
+typekeys(x) = Set([typekey(x)])
+typekeys(x::Recursive) = typekeys(x.type)
+typekeys(x::Onion) = reduce(Base.union, typekeys.(x.types))
+typekeys(x::Set) = x
+
+overlapping(a, b) = !Base.isdisjoint(typekeys(a), typekeys(b))
 
 partial_eltype(x::Pack; union = union) = reduce(union, parts(x), init = ⊥)
 partial_eltype(x::VPack; union = union) = x.parts
 
-function _union(self, x, y)
+function splitby(f, xs)
+  ts = empty(xs)
+  fs = empty(xs)
+  for x in xs
+    push!(f(x) ? ts : fs, x)
+  end
+  return ts, fs
+end
+
+splitby(f, xs::Tuple) = splitby(f, collect(xs))
+
+# Reroll
+
+occursin(x, y) = x == y || any(y -> occursin(x, y), reconstruct(y)[1])
+occursin(x, y::Union{Recur,Recursive}) = x == y
+
+function reroll_inner(T, x; self = reroll, seen)
+  xs, re = reconstruct(x)
+  ys = self.((T,), xs; seen)
+  re(first.(ys)), reduce(Base.union, second.(ys), init = Set())
+end
+
+reroll(T, x; seen) = reroll_inner(T, x; seen)
+
+reroll_outer(T, x; seen) = reroll_inner(T, x; seen)
+
+reroll_outer(T, x::Onion; seen) =
+  reroll_inner(T, x, self = reroll_inner; seen)
+
+function reroll_inner(T, x::Recursive; seen)
+  x in seen && return nothing, Set()
+  y, ks = reroll_outer(T, unroll(x); seen = Set([seen..., x]))
+  isempty(ks) && return x, ks
+  occursin(nothing, y) && throw(TypeError("recur"))
+  return y, ks
+end
+
+reroll(T, x::Recursive; seen) =
+  issubset(x, T) ? (Recur(), typekeys(x)) : reroll_inner(T, x; seen)
+
+reroll(T, x::Union{VPack,Onion}; seen) =
+  issubset(x, T) ? (Recur(), typekeys(x)) :
+  reroll_outer(T, x; seen)
+
+reroll(T::Recursive) = T
+reroll(T::Unreachable) = T
+
+function reroll(T)
+  xs = disjuncts(unroll(T))
+  ys = reroll_inner.((T,), xs; seen = Set())
+  ys = [(x, Base.union(k1, k2)) for ((x, k1), k2) in zip(ys, typekeys.(xs))]
+  xs = []
+  # Group by typekeys in common
+  for (x, ks) in ys
+    as, bs = splitby(((_, k),) -> !Base.isdisjoint(ks, k), xs)
+    x = onion(x, [d for a in first.(as) for d in disjuncts(a)]...)
+    ks = reduce(Base.union, second.(as), init = ks)
+    xs = [bs..., (x, ks)]
+  end
+  xs = [occursin(Recur(), x) ? Recursive(x) : x for x in first.(xs)]
+  return onion(xs...)
+end
+
+# Lift
+# (type to merge, subset present, recursion present)
+
+function isdistinct(x, y)
+  x, y = unroll.((x, y))
+  if x isa Onion || y isa Onion
+    all(isdistinct(x, y) for x in disjuncts(x) for y in disjuncts(y))
+  elseif x isa VPack && y isa Pack
+    isdistinct(y, x)
+  elseif x isa Pack && y isa Pack
+    nparts(x) < 1 || isdisjoint(x, y)
+  elseif x isa Pack && y isa VPack
+    nparts(x) < 1 || isdisjoint(x, y)
+  elseif x isa VPack && y isa VPack
+    isdisjoint(x.tag, y.tag) || isdisjoint(x.parts, y.parts)
+  else
+    isdisjoint(x, y)
+  end
+end
+
+function lift_inner(T, x; seen, union)
+  xs, _ = reconstruct(x)
+  ys = lift.((T,), xs; seen, union)
+  reduce(union, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
+end
+
+lift(T, x; seen, union) =
+  !isdistinct(x, T) ? (subtract(x, T), true, false) :
+  lift_inner(T, x; seen, union)
+
+function lift(T, x::Recursive; seen, union)
+  if x in seen
+    ⊥, false, true
+  elseif !isdistinct(x, T)
+    subtract(x, T), true, false
+  else
+    inner, s, r = lift_inner(T, unroll(x); seen = Set([seen..., x]), union)
+    s && r ? (union(subtract(x, T), inner), true, false) :
+      (inner, s, false)
+  end
+end
+
+function lift(T; union = union)
+  reduce(union, first.(lift_inner.((T,), disjuncts(T); seen = Set(), union)))
+end
+
+lifted(self, T) = T
+
+# TODO fold into `recursive`
+function lifted(self, T::Union{Onion,VPack})
+  L = self.lifted(T)
+  lifted = lift(L, union = self.union)
+  L = basic_union(L, lifted, self = self.union)
+end
+
+# Reroll
+
+recurse_inner(self, T::Recursive) = T
+
+function recurse_inner(self, T::Onion)
+  xs, re = reconstruct(T)
+  xs = recurse_inner.((self,), xs)
+  return re(xs)
+end
+
+function recurse_inner(self, T)
+  xs, re = reconstruct(T)
+  xs = self.recursive.(recurse_inner.((self,), xs))
+  return re(xs)
+end
+
+recursive(self, T) = T
+
+function recursive(self, T::Union{Onion,VPack})
+  R = unroll(self.recursive(T))
+  R = recurse_inner(self, R)
+  R = lifted(self, R)
+  R = reroll(R)
+end
+
+# Union
+
+function basic_union(x, y; self = basic_union)
+  left = x
+  x, y = unroll.((x, y))
   if x == ⊥
     return y
   elseif y == ⊥
     return x
-  elseif x isa Recursive || y isa Recursive
-    # TODO merge only overlapping recursions
-    return self(unroll(x), unroll(y))
-  elseif y isa Onion
-    return reduce(self, y.types, init = x)
-  elseif x isa Onion
-    ps = x.types
-    i = findfirst(x -> typekey(x) === typekey(y), ps)
-    i == nothing && return Onion((ps..., y))
-    T = Onion(j == i ? self(y, ps[j]) : ps[j] for j = 1:length(ps))
-    return recursive(T)
+  elseif x isa Onion || y isa Onion
+    ys = []
+    for x in (disjuncts(y)..., disjuncts(x)...)
+      while true
+        xs, ys = splitby(y -> overlapping(x, y), ys)
+        isempty(xs) && break
+        x = reduce((x, y) -> basic_union(x, y; self), xs, init = x)
+      end
+      append!(ys, disjuncts(x))
+    end
+    z = onion(ys...)
+    issubset(left, z) || throw(TypeError("subset"))
+    return z
   elseif typekey(x) === typekey(y)
     if x isa Primitive && y isa Primitive
       return x == y ? x : x isa String ? RString() : typeof(x)
@@ -249,24 +498,50 @@ function _union(self, x, y)
     elseif y isa Type
       return y
     elseif x isa VPack || y isa VPack || nparts(x) != nparts(y)
-      return recursive(VPack(self(tag(x), tag(y)),
-                             self(partial_eltype(x; union = self),
-                                  partial_eltype(y; union = self))))
+      t = self(tag(x), tag(y))
+      t == ⊥ && return ⊥
+      parts = self(partial_eltype(x; union = self),
+                   partial_eltype(y; union = self))
+      parts == ⊥ && return pack(t)
+      z = VPack(t, parts)
+      issubset(left, z) || throw(TypeError("subset"))
+      return z
     else
-      return pack(self(tag(x), tag(y)), (self(part(x, i), part(y, i)) for i = 1:nparts(x))...)
+      return pack([self(part(x, i), part(y, i)) for i = 0:nparts(x)]...)
     end
   else
-    return recursive(Onion((x, y)))
+    return onion(x, y)
   end
 end
 
-# TODO use cached `issubset`
-function union(x, y)
-  fp = Fixpoint(((x, y),) -> x) do self, (x, y)
-    _union((x, y) -> self[(x, y)], x, y)
-  end
-  return fp[(x, y)]
+function wrap_merger(self)
+  (; union = (x, y) -> self[(:union, x, y)],
+     lifted = T -> self[(:lifted, T)],
+     recursive = T -> self[(:recursive, T)])
 end
+
+function merger()
+  function check(old, new)
+    @assert typesize(new) <= 200
+    @assert issubset(old, new)
+  end
+  init((f, args...)) = f == :recursive ? reroll(only(args)) : args[1]
+  fp = Fixpoint(init; check) do self, (f, args...)
+    self = wrap_merger(self)
+    if f == :union
+      return self.recursive(basic_union(args...; self = self.union))
+    elseif f == :lifted
+      return lifted(self, args...)
+    elseif f == :recursive
+      return recursive(self, args...)
+    end
+  end
+  return wrap_merger(fp)
+end
+
+union(x, y) = merger().union(x, y)
+
+recursive(T) = merger().recursive(T)
 
 # Internal symbols
 
@@ -317,14 +592,14 @@ function vprint(io::IO, s::Pack)
 end
 
 function vprint(io::IO, s::VPack)
-  print(io, "pack(")
+  print(io, "vpack(")
   vprint(io, s.tag)
   print(io, ", ")
   vprint(io, s.parts)
   print(io, " ...)")
 end
 
-vprint(io::IO, ::Type{T}) where T = print(io, "_: $T")
+vprint(io::IO, ::Type{T}) where T = print(io, "$T")
 
 vprint(io::IO, x::AST.Expr) = print(io, "`", x, "`")
 

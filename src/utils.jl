@@ -1,3 +1,6 @@
+second(x) = x[2]
+third(x) = x[3]
+
 let sym = gensym(:deps)
   global deps() = get!(() -> Set{Any}[], task_local_storage(), sym)::Vector{Set{Any}}
 end
@@ -19,62 +22,92 @@ function track!(id)
   return
 end
 
+mutable struct FixpointFrame{K,V}
+  value::V
+  deps::Set{K}
+  edges::Set{K}
+  active::Bool
+end
+
+FixpointFrame{K,V}(val) where {K,V} =
+  FixpointFrame{K,V}(val, Set(), Set(), false)
+
 struct Fixpoint{K,V}
   init
   update
-  frames::IdDict{K,Tuple{V,Set{K},Set{K}}}
+  check
+  frames::IdDict{K,FixpointFrame{K,V}} # val, deps, edges
   queue::WorkQueue{K}
 end
 
-Fixpoint{K,V}(update, init) where {K,V} = Fixpoint{K,V}(init, update, Dict(), WorkQueue{K}())
-Fixpoint(update, init) = Fixpoint{Any,Any}(update, init)
+default_check(x, y) = return
+
+Fixpoint{K,V}(update, init; check = default_check) where {K,V} =
+  Fixpoint{K,V}(init, update, check, Dict(), WorkQueue{K}())
+
+Fixpoint(update, init; check = default_check) =
+  Fixpoint{Any,Any}(update, init; check)
 
 struct Inner{K,V}
   fp::Fixpoint{K,V}
 end
 
-function Base.getindex(fp::Inner{K}, k) where K
-  k = convert(K, k)
-  track!(k)
-  frame!(fp.fp, k)[1]
-end
-
-function frame!(fp::Fixpoint{K,V}, k::K) where {K,V}
-  haskey(fp.frames, k) && return fp.frames[k]
-  fp.frames[k] = (fp.init(k), Set(), Set())
-  update!(fp, k)
-  return fp.frames[k]
-end
-
 function cleardeps!(fp::Fixpoint, k)
   fr = fp.frames[k]
-  for dep in fr[2]
-    delete!(fp.frames[dep][3], k)
+  for dep in fr.deps
+    delete!(fp.frames[dep].edges, k)
   end
-  empty!(fr[2])
+  empty!(fr.deps)
   return
 end
 
 function update!(fp::Fixpoint, k)
+  yield()
   cleardeps!(fp, k)
   fr = fp.frames[k]
-  val, deps = trackdeps() do
-    fp.update(Inner(fp), k)
-  end
-  union!(fr[2], deps)
-  foreach(dep -> push!(fp.frames[dep][3], k), deps)
-  if val != fr[1]
-    fp.frames[k] = (val, fr[2], fr[3])
-    foreach(s -> push!(fp.queue, s), fr[3])
+  try
+    fr.active = true
+    val, deps = trackdeps() do
+      fp.update(Inner(fp), k)
+    end
+    fp.check(fr.value, val)
+    union!(fr.deps, deps)
+    foreach(dep -> push!(fp.frames[dep].edges, k), deps)
+    if val != fr.value
+      fr.value = val
+      foreach(s -> push!(fp.queue, s), fr.edges)
+    end
+  finally
+    fr.active = false
   end
   return
+end
+
+function frame!(fp::Fixpoint{K,V}, k::K) where {K,V}
+  fr = get!(fp.frames, k) do
+    push!(fp.queue, k)
+    FixpointFrame{K,V}(fp.init(k))
+  end
+  if !fr.active
+    while k in fp.queue.items
+      delete!(fp.queue, k)
+      update!(fp, k)
+    end
+  end
+  return fr
+end
+
+function Base.getindex(fp::Inner{K}, k) where K
+  k = convert(K, k)
+  track!(k)
+  frame!(fp.fp, k).value
 end
 
 function Base.getindex(fp::Fixpoint{K}, k) where {K}
   k = convert(K, k)
   frame!(fp, k)
   while !isempty(fp.queue)
-    update!(fp, pop!(fp.queue))
+    update!(fp, popfirst!(fp.queue))
   end
-  return frame!(fp, k)[1]
+  return frame!(fp, k).value
 end

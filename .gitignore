@@ -5,3 +5,5 @@
 /test.*
 /*.jl
 /*.md
+/cases*
+/*.jl
