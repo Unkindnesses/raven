@@ -355,8 +355,8 @@ reroll_outer(T, x::Onion; seen, issubset) =
 function reroll_inner(T, x::Recursive; seen, issubset)
   x in seen && return nothing, Set()
   y, ks = reroll_outer(T, unroll(x); seen = Set([seen..., x]), issubset)
-  isempty(ks) && return x, ks
-  occursin(nothing, y) && throw(TypeError("recur"))
+  isempty(ks) && return x, Set()
+  occursin(nothing, y) && return x, Set()
   return y, ks
 end
 
@@ -443,6 +443,8 @@ function lift(T; self)
   reduce(self.union, first.(lift_inner.((T,), disjuncts(T); seen = Set(), self)))
 end
 
+lift(::Unreachable; self) = ⊥
+
 # Reroll
 
 recurse_inner(self, T::Recursive) = T
@@ -460,7 +462,8 @@ function recurse_inner(self, T)
 end
 
 function recursive(self, T::Union{Onion,VPack})
-  R = unroll(self.recursive(T))
+  R = self.recursive(T)
+  R = basic_union(R, self.subtract(T, R); self = self.union, self.issubset)
   R = recurse_inner(self, R)
   R = basic_union(R, lift(R; self); self = self.union, self.issubset)
   R = reroll(R; self.issubset)
@@ -469,7 +472,6 @@ end
 # Union
 
 function basic_union(x, y; self = basic_union, issubset)
-  left = x
   x, y = unroll.((x, y))
   if x == ⊥
     return y
@@ -486,7 +488,6 @@ function basic_union(x, y; self = basic_union, issubset)
       append!(ys, disjuncts(x))
     end
     z = onion(ys...)
-    issubset(left, z) || throw(TypeError("subset"))
     return z
   elseif typekey(x) === typekey(y)
     if x isa Primitive && y isa Primitive
@@ -502,7 +503,6 @@ function basic_union(x, y; self = basic_union, issubset)
                    partial_eltype(y; union = self))
       parts == ⊥ && return pack(t)
       z = VPack(t, parts)
-      issubset(left, z) || throw(TypeError("subset"))
       return z
     else
       return pack([self(part(x, i), part(y, i)) for i = 0:nparts(x)]...)
@@ -525,9 +525,9 @@ function merger()
   function check(old, new)
     @assert typesize(new) <= 200
     @assert issubset(old, new)
+    @assert !issubset(new, old) || old === new
   end
-  init((f, args...)) = f == :recursive ? reroll(only(args); issubset) : args[1]
-  fp = Fixpoint(init; check) do self, (f, args...)
+  fp = Fixpoint(_ -> ⊥; check) do self, (f, args...)
     self = wrap_merger(self; issubset, isdisjoint, subtract)
     if f == :union
       T = basic_union(args...; self = self.union, issubset)
