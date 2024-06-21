@@ -372,10 +372,9 @@ function reroll(T, x; seen, issubset)
   (!isempty(ks) || occursin(nothing, y)) && issubset(x, T) ? (Recur(), typekeys(x)) : (y, ks)
 end
 
-reroll(T::Recursive) = T
-reroll(T::Unreachable) = T
+reroll(T; issubset) = T
 
-function reroll(T; issubset)
+function reroll(T::Union{VPack,Onion,Recursive}; issubset)
   xs = disjuncts(unroll(T))
   ys = reroll_inner.((T,), xs; seen = Set(), issubset)
   ys = [(x, Base.union(k1, k2)) for ((x, k1), k2) in zip(ys, typekeys.(xs))]
@@ -449,7 +448,7 @@ lifted(self, T) = T
 function lifted(self, T::Union{Onion,VPack})
   L = self.lifted(T)
   lifted = lift(L; self)
-  L = basic_union(L, lifted, self = self.union, issubset = self.issubset)
+  L = basic_union(L, lifted; self = self.union, self.issubset)
 end
 
 # Reroll
@@ -470,11 +469,11 @@ end
 
 recursive(self, T) = T
 
-function recursive(self, T::Union{Onion,VPack})
+function recursive(self, T::Union{Onion,VPack,Recursive})
   R = unroll(self.recursive(T))
   R = recurse_inner(self, R)
   R = lifted(self, R)
-  R = reroll(R, issubset = self.issubset)
+  R = reroll(R; self.issubset)
 end
 
 # Union

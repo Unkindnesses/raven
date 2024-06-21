@@ -214,6 +214,11 @@ let
   @test union(T, tag"b") == onion(T, tag"b")
 end
 
+let
+  T = Recursive(vpack(tag"a", vpack(tag"c", onion(Int64, vpack(tag"c", Recur())))))
+  @test union(T, Int64) == Recursive(onion(Int64, vpack(tag"a", Recur()), vpack(tag"c", Recur())))
+end
+
 # Failing cases
 
 let
@@ -221,7 +226,7 @@ let
   B = onion(pack(tag"a", onion(Float64, Int64), Int64), Int64)
   C = Int64
   # Convergence issue: union of two onions doesn't produce a superset of the first
-  @test_throws Any union(A, union(B, C))
+  @test_throws Raven.TypeError("subset") union(A, union(B, C))
 end
 
 struct Generator
