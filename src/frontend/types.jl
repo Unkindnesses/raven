@@ -374,8 +374,9 @@ end
 
 reroll(T; issubset) = T
 
-function reroll(T::Union{VPack,Onion,Recursive}; issubset)
-  xs = disjuncts(unroll(T))
+function reroll(T::Union{VPack,Onion}; issubset)
+  xs = disjuncts(T)
+  @assert !any(x -> x isa Recursive, xs)
   ys = reroll_inner.((T,), xs; seen = Set(), issubset)
   ys = [(x, Base.union(k1, k2)) for ((x, k1), k2) in zip(ys, typekeys.(xs))]
   xs = []
@@ -454,13 +455,11 @@ end
 
 function recurse_inner(self, T)
   xs, re = reconstruct(T)
-  xs = self.recursive.(recurse_inner.((self,), xs))
+  xs = recursive.(recurse_inner.((self,), xs); self)
   return re(xs)
 end
 
-recursive(self, T) = T
-
-function recursive(self, T::Union{Onion,VPack,Recursive})
+function recursive(self, T::Union{Onion,VPack})
   R = unroll(self.recursive(T))
   R = recurse_inner(self, R)
   R = basic_union(R, lift(R; self); self = self.union, self.issubset)
@@ -531,7 +530,8 @@ function merger()
   fp = Fixpoint(init; check) do self, (f, args...)
     self = wrap_merger(self; issubset, isdisjoint, subtract)
     if f == :union
-      return self.recursive(basic_union(args...; self = self.union, issubset))
+      T = basic_union(args...; self = self.union, issubset)
+      return recursive(T; self)
     elseif f == :recursive
       return recursive(self, args...)
     end
@@ -539,9 +539,14 @@ function merger()
   return wrap_merger(fp; issubset, isdisjoint, subtract)
 end
 
-union(x, y) = merger().union(x, y)
+union(x, y; self = merger()) = self.union(x, y)
 
-recursive(T) = merger().recursive(T)
+recursive(T; self = nothing) = T
+
+function recursive(T::Union{Onion,VPack}; self = merger())
+  any(x -> x isa Recursive, disjuncts(T)) && return T
+  self.recursive(T)
+end
 
 # Internal symbols
 
