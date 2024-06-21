@@ -442,15 +442,6 @@ function lift(T; self)
   reduce(self.union, first.(lift_inner.((T,), disjuncts(T); seen = Set(), self)))
 end
 
-lifted(self, T) = T
-
-# TODO fold into `recursive`
-function lifted(self, T::Union{Onion,VPack})
-  L = self.lifted(T)
-  lifted = lift(L; self)
-  L = basic_union(L, lifted; self = self.union, self.issubset)
-end
-
 # Reroll
 
 recurse_inner(self, T::Recursive) = T
@@ -472,7 +463,7 @@ recursive(self, T) = T
 function recursive(self, T::Union{Onion,VPack,Recursive})
   R = unroll(self.recursive(T))
   R = recurse_inner(self, R)
-  R = lifted(self, R)
+  R = basic_union(R, lift(R; self); self = self.union, self.issubset)
   R = reroll(R; self.issubset)
 end
 
@@ -524,7 +515,6 @@ end
 
 function wrap_merger(self; issubset, isdisjoint, subtract)
   (; union = (x, y) -> self[(:union, x, y)],
-     lifted = T -> self[(:lifted, T)],
      recursive = T -> self[(:recursive, T)],
      issubset, isdisjoint, subtract)
 end
@@ -542,8 +532,6 @@ function merger()
     self = wrap_merger(self; issubset, isdisjoint, subtract)
     if f == :union
       return self.recursive(basic_union(args...; self = self.union, issubset))
-    elseif f == :lifted
-      return lifted(self, args...)
     elseif f == :recursive
       return recursive(self, args...)
     end
