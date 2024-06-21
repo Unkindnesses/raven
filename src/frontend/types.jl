@@ -266,6 +266,46 @@ end
 
 isdisjoint(x, y) = disjointer()(x, y)
 
+# Subtract
+
+function _subtract(self, x, y; issubset)
+  y = unroll(y)
+  if x == ⊥
+    return x
+  elseif y == ⊥
+    return x
+  elseif x isa Recursive
+    reroll(self(unroll(x), y); issubset)
+  elseif y isa Onion
+    reduce(self, disjuncts(y), init = x)
+  elseif x isa Onion
+    xs = self.(disjuncts(x), (y,))
+    onion((d for x in xs for d in disjuncts(x))...)
+  elseif x isa Primitive && y isa Primitive || x isa Type{<:Primitive} && y isa Type{<:Primitive}
+    x === y ? ⊥ : x
+  elseif x isa Primitive && y isa Type{<:Primitive}
+    x isa y ? ⊥ : x
+  elseif x isa Pack && y isa Pack
+    nparts(x) == nparts(y) && all(==(⊥), self.(x.parts, y.parts)) ? ⊥ : x
+  elseif x isa Pack && y isa VPack
+    self(part(x, 0), y.tag) == ⊥ && all(==(⊥), self.(parts(x), (y.parts,))) ? ⊥ : x
+  elseif x isa VPack && y isa VPack
+    self(x.tag, y.tag) == ⊥ && self(x.parts, y.parts) == ⊥ ? ⊥ : x
+  else
+    x
+  end
+end
+
+function subtracter(; issubset = issubset)
+  fp = Fixpoint(_ -> ⊥) do self, (x, y)
+    _subtract((x, y) -> self[(x, y)], x, y; issubset)
+  end
+  (x, y) -> fp[(x, y)]
+end
+
+# TODO consider removing
+subtract(x, y) = subtracter()(x, y)
+
 # Type keys
 
 tokey(x::Tag) = x
@@ -378,22 +418,22 @@ end
 
 function lift(T, x; seen, self)
   inner, s, r = lift_inner(T, x; seen, self)
-  (s || r) && !isdisjoint(x, T) ? (x, true, false) :
+  (s || r) && !isdisjoint(x, T) ? (self.subtract(x, T), true, false) :
     (inner, s, r)
 end
 
 lift(T, x::Union{Onion,VPack}; seen, self) =
-  !isdistinct(x, T, isdisjoint = self.isdisjoint) ? (x, true, false) :
+  !isdistinct(x, T, isdisjoint = self.isdisjoint) ? (self.subtract(x, T), true, false) :
   lift_inner(T, x; seen, self)
 
 function lift(T, x::Recursive; seen, self)
   if x in seen
     ⊥, false, true
   elseif !isdistinct(x, T, isdisjoint = self.isdisjoint)
-    x, true, false
+    self.subtract(x, T), true, false
   else
     inner, s, r = lift_inner(T, unroll(x); seen = Set([seen..., x]), self)
-    s && r ? (self.union(x, inner), true, false) :
+    s && r ? (self.union(self.subtract(x, T), inner), true, false) :
       (inner, s, false)
   end
 end
@@ -473,14 +513,15 @@ function basic_union(x, y; self = basic_union, issubset)
   end
 end
 
-function wrap_merger(self; issubset, isdisjoint)
+function wrap_merger(self; issubset, isdisjoint, subtract)
   (; union = (x, y) -> self[(:union, x, y)],
      recursive = T -> self[(:recursive, T)],
-     issubset, isdisjoint)
+     issubset, isdisjoint, subtract)
 end
 
 function merger()
   issubset = subsetter()
+  subtract = subtracter(; issubset)
   isdisjoint = disjointer()
   function check(old, new)
     @assert typesize(new) <= 200
@@ -488,14 +529,14 @@ function merger()
   end
   init((f, args...)) = f == :recursive ? reroll(only(args); issubset) : args[1]
   fp = Fixpoint(init; check) do self, (f, args...)
-    self = wrap_merger(self; issubset, isdisjoint)
+    self = wrap_merger(self; issubset, isdisjoint, subtract)
     if f == :union
       return self.recursive(basic_union(args...; self = self.union, issubset))
     elseif f == :recursive
       return recursive(self, args...)
     end
   end
-  return wrap_merger(fp; issubset, isdisjoint)
+  return wrap_merger(fp; issubset, isdisjoint, subtract)
 end
 
 union(x, y) = merger().union(x, y)
