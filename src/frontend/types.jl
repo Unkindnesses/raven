@@ -391,7 +391,8 @@ function reroll(T::Union{VPack,Onion})
     xs = [bs..., (x, ks)]
   end
   xs = [occursin(Recur(), x) ? Recursive(x) : x for x in first.(xs)]
-  return onion(xs...)
+  R = onion(xs...)
+  issubset(R, T) ? R : reroll(unroll(R))
 end
 
 # Lift

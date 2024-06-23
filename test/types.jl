@@ -236,6 +236,11 @@ let
   @test recursive(T) == T
 end
 
+let
+  T = onion(Int64, pack(tag"c", vpack(tag"c", Recursive(onion(Float64, Int64, pack(tag"b", Recur()))))))
+  @test recursive(T) == Recursive(onion(Float64, Int64, pack(tag"b", Recur()), vpack(tag"c", Recur())))
+end
+
 struct Generator
   func
   depth::Int
