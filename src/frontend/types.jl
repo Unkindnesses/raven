@@ -359,7 +359,6 @@ function reroll_inner(T, x::Recursive; seen)
   x in seen && return nothing, Set()
   y, ks = reroll_outer(T, unroll(x); seen = Set([seen..., x]))
   isempty(ks) && return x, Set()
-  # occursin(nothing, y) && throw(TypeError("recur"))
   occursin(nothing, y) && return x, Set()
   return y, ks
 end
@@ -480,11 +479,8 @@ end
 recursive(self, T) = error("foo")
 
 function recursive(self, T::Union{Onion,VPack})
-  R = self.recursive(T)
-  if R isa Recursive
-    R = reroll(recurse_inner(self, unroll(R)))
-  end
-  R = self.union(R, self.subtract(T, R))
+  R = unroll(self.recursive(T))
+  R = recurse_inner(self, R)
   R = self.union(R, lift(R; self))
   R = reroll(R)
 end
@@ -547,7 +543,8 @@ function merger()
     @assert issubset(old, new)
     @assert !issubset(new, old) || old === new
   end
-  fp = Fixpoint(_ -> ⊥; check) do self, (f, args...)
+  init((f, args...)) = f == :recursive ? reroll(args[1]) : ⊥
+  fp = Fixpoint(init; check) do self, (f, args...)
     self = wrap_merger(self; issubset, isdisjoint, subtract)
     if f == :union
       return basic_union(args...; self = (x, y) -> union(x, y; self), issubset)

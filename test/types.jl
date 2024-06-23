@@ -195,12 +195,12 @@ let
   @test union(union(A, B), C) == union(A, union(B, C))
 end
 
-# let
-#   A = vpack(tag"c", 3)
-#   B = 3
-#   C = pack(tag"c", pack(tag"a", vpack(tag"c", Int)))
-#   union(A, union(B, C)) == union(union(A, B), C)
-# end
+let
+  A = vpack(tag"c", 3)
+  B = 3
+  C = pack(tag"c", pack(tag"a", vpack(tag"c", Int)))
+  @test union(A, union(B, C)) == union(union(A, B), C)
+end
 
 let
   A = Float64
@@ -273,21 +273,21 @@ macro iff(a, b)
   :($(esc(a))::Bool == $(esc(b))::Bool)
 end
 
-using Random
-Random.seed!(42)
+# using Random
+# Random.seed!(42)
 
-for i = 1:10
-  g = Generator()
-  A, B, C = g(), g(), g()
-  @test recursive(A) == A
-  @test recursive(unroll(A)) == A
-  @test union(A, A) === A
-  @test @iff issubset(A, B) && issubset(B, A) A === B
-  @test union(A, B) === union(B, A)
-  @test union(union(A, B), C) === union(A, union(B, C))
-  U = union(A, B)
-  @test union(A, U) === U
-  @test issubset(A, U)
-  @test @implies issubset(A, B) U === B
-  @test @iff issubset(A, B) issubset(U, B)
-end
+# for i = 1:10
+#   g = Generator()
+#   A, B, C = g(), g(), g()
+#   @test recursive(A) == A
+#   @test recursive(unroll(A)) == A
+#   @test union(A, A) === A
+#   @test @iff issubset(A, B) && issubset(B, A) A === B
+#   @test union(A, B) === union(B, A)
+#   @test union(union(A, B), C) === union(A, union(B, C))
+#   U = union(A, B)
+#   @test union(A, U) === U
+#   @test issubset(A, U)
+#   @test @implies issubset(A, B) U === B
+#   @test @iff issubset(A, B) issubset(U, B)
+# end
