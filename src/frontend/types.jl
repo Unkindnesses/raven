@@ -481,6 +481,7 @@ recursive(self, T) = error("foo")
 function recursive(self, T::Union{Onion,VPack})
   R = unroll(self.recursive(T))
   R = recurse_inner(self, R)
+  R = self.union(R, subtract(T, R))
   R = self.union(R, lift(R; self))
   R = reroll(R)
 end
@@ -543,7 +544,8 @@ function merger()
     @assert issubset(old, new)
     @assert !issubset(new, old) || old === new
   end
-  init((f, args...)) = f == :recursive ? reroll(args[1]) : ⊥
+  # init((f, args...)) = f == :recursive ? reroll(args[1]) : ⊥
+  init(_) = ⊥
   fp = Fixpoint(init; check) do self, (f, args...)
     self = wrap_merger(self; issubset, isdisjoint, subtract)
     if f == :union
