@@ -392,7 +392,6 @@ function reroll(T::Union{VPack,Onion})
   end
   xs = [occursin(Recur(), x) ? Recursive(x) : x for x in first.(xs)]
   R = onion(xs...)
-  issubset(R, T) ? R : reroll(unroll(R))
 end
 
 # Lift
@@ -477,14 +476,10 @@ function recurse_inner(self, T)
   return re(xs)
 end
 
-recursive(self, T) = error("foo")
-
 function recursive(self, T::Union{Onion,VPack})
-  R = unroll(self.recursive(T))
-  R = recurse_inner(self, R)
-  R = self.union(R, subtract(T, R))
-  R = self.union(R, lift(R; self))
-  R = reroll(R)
+  R = reroll(self.union(T, lift(T; self)))
+  self.issubset(R, T) && return R
+  R = recursive(recurse_inner(self, unroll(R)); self)
 end
 
 # Union
