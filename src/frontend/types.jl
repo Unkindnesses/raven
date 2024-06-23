@@ -275,7 +275,7 @@ function _subtract(self, x, y; issubset)
   elseif y == ⊥
     return x
   elseif x isa Recursive
-    reroll(self(unroll(x), y); issubset)
+    reroll(self(unroll(x), y))
   elseif y isa Onion
     reduce(self, disjuncts(y), init = x)
   elseif x isa Onion
@@ -341,43 +341,47 @@ splitby(f, xs::Tuple) = splitby(f, collect(xs))
 occursin(x, y) = x == y || any(y -> occursin(x, y), reconstruct(y)[1])
 occursin(x, y::Union{Recur,Recursive}) = x == y
 
-function reroll_inner(T, x; self = reroll, seen, issubset)
+# TODO caching
+isrecur(x, T) = !isdistinct(x, T; isdisjoint) && issubset(x, T)
+
+function reroll_inner(T, x; self = reroll, seen)
   xs, re = reconstruct(x)
-  ys = self.((T,), xs; seen, issubset)
+  ys = self.((T,), xs; seen)
   re(first.(ys)), reduce(Base.union, second.(ys), init = Set())
 end
 
-reroll_outer(T, x; seen, issubset) = reroll_inner(T, x; seen, issubset)
+reroll_outer(T, x; seen) = reroll_inner(T, x; seen)
 
-reroll_outer(T, x::Onion; seen, issubset) =
-  reroll_inner(T, x, self = reroll_inner; seen, issubset)
+reroll_outer(T, x::Onion; seen) =
+  reroll_inner(T, x, self = reroll_inner; seen)
 
-function reroll_inner(T, x::Recursive; seen, issubset)
+function reroll_inner(T, x::Recursive; seen)
   x in seen && return nothing, Set()
-  y, ks = reroll_outer(T, unroll(x); seen = Set([seen..., x]), issubset)
+  y, ks = reroll_outer(T, unroll(x); seen = Set([seen..., x]))
   isempty(ks) && return x, Set()
+  # occursin(nothing, y) && throw(TypeError("recur"))
   occursin(nothing, y) && return x, Set()
   return y, ks
 end
 
-reroll(T, x::Recursive; seen, issubset) =
-  issubset(x, T) ? (Recur(), typekeys(x)) : reroll_inner(T, x; seen, issubset)
+reroll(T, x::Recursive; seen) =
+  isrecur(x, T) ? (Recur(), typekeys(x)) : reroll_inner(T, x; seen)
 
-reroll(T, x::Union{VPack,Onion}; seen, issubset) =
-  issubset(x, T) ? (Recur(), typekeys(x)) :
-  reroll_outer(T, x; seen, issubset)
+reroll(T, x::Union{VPack,Onion}; seen) =
+  isrecur(x, T) ? (Recur(), typekeys(x)) :
+  reroll_outer(T, x; seen)
 
-function reroll(T, x; seen, issubset)
-  y, ks = reroll_inner(T, x; seen, issubset)
-  (!isempty(ks) || occursin(nothing, y)) && issubset(x, T) ? (Recur(), typekeys(x)) : (y, ks)
+function reroll(T, x; seen)
+  y, ks = reroll_inner(T, x; seen)
+  (!isempty(ks) || occursin(nothing, y)) && isrecur(x, T) ? (Recur(), typekeys(x)) : (y, ks)
 end
 
-reroll(T; issubset) = T
+reroll(T) = T
 
-function reroll(T::Union{VPack,Onion}; issubset)
+function reroll(T::Union{VPack,Onion})
   xs = disjuncts(T)
   @assert !any(x -> x isa Recursive, xs)
-  ys = reroll_inner.((T,), xs; seen = Set(), issubset)
+  ys = reroll_inner.((T,), xs; seen = Set())
   ys = [(x, Base.union(k1, k2)) for ((x, k1), k2) in zip(ys, typekeys.(xs))]
   xs = []
   # Group by typekeys in common
@@ -466,7 +470,7 @@ function recursive(self, T::Union{Onion,VPack})
   R = basic_union(R, self.subtract(T, R); self = self.union, self.issubset)
   R = recurse_inner(self, R)
   R = basic_union(R, lift(R; self); self = self.union, self.issubset)
-  R = reroll(R; self.issubset)
+  R = reroll(R)
 end
 
 # Union
