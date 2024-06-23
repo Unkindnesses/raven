@@ -451,6 +451,18 @@ lift(::Unreachable; self) = ⊥
 
 # Reroll
 
+finite(T) = T
+finite(T::Onion) = onion(finite.(disjuncts(T))...)
+
+function finite(T::Recursive)
+  term = unroll(⊥, T.type)
+  F = unroll(term, T.type)
+  if !(term isa Union{Onion,VPack}) || isdistinct(term, unroll(T); isdisjoint)
+      F = unroll(F, T.type)
+  end
+  return F
+end
+
 recurse_inner(self, T::Recursive) = T
 
 function recurse_inner(self, T::Onion)
@@ -465,18 +477,22 @@ function recurse_inner(self, T)
   return re(xs)
 end
 
+recursive(self, T) = error("foo")
+
 function recursive(self, T::Union{Onion,VPack})
   R = self.recursive(T)
-  R = basic_union(R, self.subtract(T, R); self = self.union, self.issubset)
-  R = recurse_inner(self, R)
-  R = basic_union(R, lift(R; self); self = self.union, self.issubset)
+  if R isa Recursive
+    R = reroll(recurse_inner(self, unroll(R)))
+  end
+  R = self.union(R, self.subtract(T, R))
+  R = self.union(R, lift(R; self))
   R = reroll(R)
 end
 
 # Union
 
 function basic_union(x, y; self = basic_union, issubset)
-  x, y = unroll.((x, y))
+  x, y = finite.((x, y))
   if x == ⊥
     return y
   elseif y == ⊥
@@ -534,16 +550,15 @@ function merger()
   fp = Fixpoint(_ -> ⊥; check) do self, (f, args...)
     self = wrap_merger(self; issubset, isdisjoint, subtract)
     if f == :union
-      T = basic_union(args...; self = self.union, issubset)
-      return recursive(T; self)
+      return basic_union(args...; self = (x, y) -> union(x, y; self), issubset)
     elseif f == :recursive
-      return recursive(self, args...)
+      return recursive(self, T)
     end
   end
   return wrap_merger(fp; issubset, isdisjoint, subtract)
 end
 
-union(x, y; self = merger()) = self.union(x, y)
+union(x, y; self = merger()) = recursive(self.union(x, y); self)
 
 recursive(T; self = nothing) = T
 

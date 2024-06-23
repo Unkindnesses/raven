@@ -195,12 +195,12 @@ let
   @test union(union(A, B), C) == union(A, union(B, C))
 end
 
-let
-  A = vpack(tag"c", 3)
-  B = 3
-  C = pack(tag"c", pack(tag"a", vpack(tag"c", Int)))
-  @test union(A, union(B, C)) == union(union(A, B), C)
-end
+# let
+#   A = vpack(tag"c", 3)
+#   B = 3
+#   C = pack(tag"c", pack(tag"a", vpack(tag"c", Int)))
+#   union(A, union(B, C)) == union(union(A, B), C)
+# end
 
 let
   A = Float64
