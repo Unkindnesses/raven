@@ -418,23 +418,6 @@ end
 # Lift
 # (type to merge, subset present, recursion present)
 
-function isdistinct(x, y; isdisjoint)
-  x, y = unroll.((x, y))
-  if x isa Onion || y isa Onion
-    all(isdistinct(x, y; isdisjoint) for x in disjuncts(x) for y in disjuncts(y))
-  elseif x isa VPack && y isa Pack
-    isdistinct(y, x; isdisjoint)
-  elseif x isa Pack && y isa Pack
-    nparts(x) < 1 || isdisjoint(x, y)
-  elseif x isa Pack && y isa VPack
-    nparts(x) < 1 || isdisjoint(x, y)
-  elseif x isa VPack && y isa VPack
-    isdisjoint(x.tag, y.tag) || isdisjoint(x.parts, y.parts)
-  else
-    isdisjoint(x, y)
-  end
-end
-
 function lift_inner(T, x; seen, self)
   xs, _ = reconstruct(x)
   ys = lift.((T,), xs; seen, self)
