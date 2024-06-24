@@ -229,7 +229,7 @@ issubset(x, y) = subsetter()(x, y)
 
 # Disjoint
 
-function _isdisjoint(self, x, y)
+function _isdisjoint(self, x, y; distinct = false)
   if ⊥ in (x, y)
     true
   elseif x isa Recursive || y isa Recursive
@@ -245,26 +245,47 @@ function _isdisjoint(self, x, y)
   elseif x isa Type && y isa Type
     x != y
   elseif x isa Pack && y isa Pack
+    (distinct && nparts(x) < 1) ||
     nparts(x) != nparts(y) || any(self.(x.parts, y.parts))
   elseif x isa Pack && y isa VPack
+    (distinct && nparts(x) < 1) ||
     self(tag(x), tag(y)) || any(self.(parts(x), (y.parts,)))
   elseif x isa VPack && y isa Pack
     self(y, x)
   elseif x isa VPack && y isa VPack
-    self(tag(x), tag(y))
+    self(tag(x), tag(y)) || (distinct && self(x.parts, y.parts))
   else
     true
   end
 end
 
-function disjointer()
+function disjointer(; distinct = false)
   fp = Fixpoint(_ -> false) do self, (x, y)
-    _isdisjoint((x, y) -> self[(x, y)], x, y)
+    _isdisjoint((x, y) -> self[(x, y)], x, y; distinct)
   end
   (x, y) -> fp[(x, y)]
 end
 
-isdisjoint(x, y) = disjointer()(x, y)
+isdisjoint(x, y; distinct = false) = disjointer(; distinct)(x, y)
+
+isdistinct(x, y; isdisjoint = nothing) = isdisjoint(x, y)
+
+# function isdistinct(x, y; isdisjoint)
+#   x, y = unroll.((x, y))
+#   if x isa Onion || y isa Onion
+#     all(isdistinct(x, y; isdisjoint) for x in disjuncts(x) for y in disjuncts(y))
+#   elseif x isa VPack && y isa Pack
+#     isdistinct(y, x; isdisjoint)
+#   elseif x isa Pack && y isa Pack
+#     nparts(x) < 1 || isdisjoint(x, y)
+#   elseif x isa Pack && y isa VPack
+#     nparts(x) < 1 || isdisjoint(x, y)
+#   elseif x isa VPack && y isa VPack
+#     isdisjoint(x.tag, y.tag) || isdisjoint(x.parts, y.parts)
+#   else
+#     isdisjoint(x, y)
+#   end
+# end
 
 # Subtract
 
