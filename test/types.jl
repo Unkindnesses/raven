@@ -157,9 +157,9 @@ let
 end
 
 let
-  x = pack(tag"c", vpack(tag"c", Float64), vpack(tag"c", onion(Float64, tag"b")))
+  x = pack(tag"a", vpack(tag"a", Float64), vpack(tag"a", onion(Float64, Int64)))
   y = Float64
-  @test union(x, y) == Recursive(onion(Float64, tag"b", vpack(tag"c", Recur())))
+  @test union(x, y) == Recursive(onion(Float64, Int64, vpack(tag"a", Recur())))
 end
 
 let
@@ -239,6 +239,11 @@ end
 let
   T = onion(Int64, pack(tag"c", vpack(tag"c", Recursive(onion(Float64, Int64, pack(tag"b", Recur()))))))
   @test recursive(T) == Recursive(onion(Float64, Int64, pack(tag"b", Recur()), vpack(tag"c", Recur())))
+end
+
+let
+  T = onion(Int32, pack(tag"d", vpack(tag"c", pack(tag"d", onion(Int64, pack(tag"d", vpack(tag"c", Int32))), Int64))))
+  @test recursive(T) isa Any
 end
 
 struct Generator

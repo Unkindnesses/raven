@@ -457,29 +457,37 @@ function finite(T::Recursive)
   term = unroll(⊥, T.type)
   F = unroll(term, T.type)
   if !(term isa Union{Onion,VPack}) || isdistinct(term, unroll(T); isdisjoint)
-      F = unroll(F, T.type)
+    F = unroll(F, T.type)
   end
   return F
 end
 
-recurse_inner(self, T::Recursive) = T
-
-function recurse_inner(self, T::Onion)
-  xs, re = reconstruct(T)
-  xs = recurse_inner.((self,), xs)
+function recurse_children_inner(self, T, x)
+  xs, re = reconstruct(x)
+  xs = recurse_children.((self,), (T,), xs)
   return re(xs)
 end
 
-function recurse_inner(self, T)
-  xs, re = reconstruct(T)
-  xs = recursive.(recurse_inner.((self,), xs); self)
-  return re(xs)
+recurse_children_inner(self, T, x::Onion) =
+  onion(recurse_children_inner.((self,), (T,), disjuncts(x))...)
+
+recurse_children_inner(self, T, x::Recursive) = x
+
+recurse_children(self, T, x) = recurse_children_inner(self, T, x)
+
+function recurse_children(self, T, x::Union{Onion,VPack})
+  isdistinct(T, x; self.isdisjoint) || return x
+  x = recurse_children_inner(self, T, x)
+  return recursive(x; self)
 end
+
+recurse_children(self, T) = recurse_children_inner(self, T, unroll(T))
 
 function recursive(self, T::Union{Onion,VPack})
   R = reroll(self.union(T, lift(T; self)))
   self.issubset(R, T) && return R
-  R = recursive(recurse_inner(self, unroll(R)); self)
+  R isa Recursive && (R = recurse_children(self, R))
+  R = recursive(R; self)
 end
 
 # Union
