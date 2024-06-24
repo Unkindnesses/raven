@@ -487,7 +487,7 @@ function recursive(self, T::Union{Onion,VPack})
   R = reroll(self.union(T, lift(T; self)))
   self.issubset(R, T) && return R
   R isa Recursive && (R = recurse_children(self, R))
-  R = recursive(R; self)
+  R = recursive(unroll(R); self)
 end
 
 # Union
