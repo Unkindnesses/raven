@@ -362,10 +362,12 @@ end
 # Lift
 # (type to merge, subset present, recursion present)
 
+runion(x, y) = reroll(_union(x, y; self = runion))
+
 function lift_inner(T, x; seen)
   xs, _ = reconstruct(x)
   ys = lift.((T,), xs; seen)
-  reduce(_union, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
+  reduce(runion, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
 end
 
 function lift(T, x; seen)
@@ -385,13 +387,13 @@ function lift(T, x::Recursive; seen)
     x, true, false
   else
     inner, s, r = lift_inner(T, unroll(x); seen = Set([seen..., x]))
-    s && r ? (_union(x, inner), true, false) :
+    s && r ? (runion(x, inner), true, false) :
       (inner, s, false)
   end
 end
 
 function lift(T)
-  reduce(_union, first.(lift_inner.((T,), disjuncts(T); seen = Set())))
+  reduce(runion, first.(lift_inner.((T,), disjuncts(T); seen = Set())))
 end
 
 function recurse_children_inner(x)
@@ -410,7 +412,7 @@ recurse_children(x) = recurse_children_inner(x)
 function recurse_children(x::Union{Onion,VPack})
   isrecursive(x) && return x
   x = recurse_children_inner(x)
-  return reroll(_union(x, lift(x)))
+  return runion(x, lift(x))
 end
 
 recursive(T) = T
@@ -476,7 +478,7 @@ function _union(x, y; self = _union)
   end
 end
 
-union(x, y) = recursive(_union(x, y; self = union))
+union(x, y) = recursive(_union(x, y, self = union))
 
 # Internal symbols
 
