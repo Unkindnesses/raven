@@ -272,46 +272,6 @@ isdisjoint(x, y; distinct = false) = disjointer(; distinct)(x, y)
 
 isdistinct(x, y) = isdisjoint(x, y)
 
-# Subtract
-
-function _subtract(self, x, y; issubset)
-  y = unroll(y)
-  if x == ⊥
-    return x
-  elseif y == ⊥
-    return x
-  elseif x isa Recursive
-    reroll(self(unroll(x), y))
-  elseif y isa Onion
-    reduce(self, disjuncts(y), init = x)
-  elseif x isa Onion
-    xs = self.(disjuncts(x), (y,))
-    onion((d for x in xs for d in disjuncts(x))...)
-  elseif x isa Primitive && y isa Primitive || x isa Type{<:Primitive} && y isa Type{<:Primitive}
-    x === y ? ⊥ : x
-  elseif x isa Primitive && y isa Type{<:Primitive}
-    x isa y ? ⊥ : x
-  elseif x isa Pack && y isa Pack
-    nparts(x) == nparts(y) && all(==(⊥), self.(x.parts, y.parts)) ? ⊥ : x
-  elseif x isa Pack && y isa VPack
-    self(part(x, 0), y.tag) == ⊥ && all(==(⊥), self.(parts(x), (y.parts,))) ? ⊥ : x
-  elseif x isa VPack && y isa VPack
-    self(x.tag, y.tag) == ⊥ && self(x.parts, y.parts) == ⊥ ? ⊥ : x
-  else
-    x
-  end
-end
-
-function subtracter(; issubset = issubset)
-  fp = Fixpoint(_ -> ⊥) do self, (x, y)
-    _subtract((x, y) -> self[(x, y)], x, y; issubset)
-  end
-  (x, y) -> fp[(x, y)]
-end
-
-# TODO consider removing
-subtract(x, y) = subtracter()(x, y)
-
 # Type keys
 
 tokey(x::Tag) = x
@@ -410,22 +370,22 @@ end
 
 function lift(T, x; seen)
   inner, s, r = lift_inner(T, x; seen)
-  (s || r) && !isdistinct(x, T) ? (subtract(x, T), true, false) :
+  (s || r) && !isdistinct(x, T) ? (x, true, false) :
     (inner, s, r)
 end
 
 lift(T, x::Union{Onion,VPack}; seen) =
-  !isdistinct(x, T) ? (subtract(x, T), true, false) :
+  !isdistinct(x, T) ? (x, true, false) :
   lift_inner(T, x; seen)
 
 function lift(T, x::Recursive; seen)
   if x in seen
     ⊥, false, true
   elseif !isdistinct(x, T)
-    subtract(x, T), true, false
+    x, true, false
   else
     inner, s, r = lift_inner(T, unroll(x); seen = Set([seen..., x]))
-    s && r ? (_union(subtract(x, T), inner), true, false) :
+    s && r ? (_union(x, inner), true, false) :
       (inner, s, false)
   end
 end
@@ -457,7 +417,8 @@ recursive(T) = T
 
 function recursive(T::Union{VPack,Onion})
   R = recurse_children(T)
-  @assert issubset(T, R)
+  typesize(R) < 100 || throw(TypeError("size"))
+  issubset(T, R) || throw(TypeError("subset"))
   issubset(R, T) ? R : recursive(unroll(R))
 end
 
