@@ -362,7 +362,11 @@ end
 # Lift
 # (type to merge, subset present, recursion present)
 
-runion(x, y) = reroll(_union(x, y; self = runion))
+function runion(x, y)
+  typesize(x) < 100 || throw(TypeError("size"))
+  typesize(y) < 100 || throw(TypeError("size"))
+  reroll(_union(x, y; self = runion))
+end
 
 function lift_inner(T, x; seen)
   xs, _ = reconstruct(x)
