@@ -418,8 +418,8 @@ end
 recursive(T) = T
 
 function recursive(T::Union{VPack,Onion})
+  typesize(T) < 100 || throw(TypeError("size"))
   R = recurse_children(T)
-  typesize(R) < 100 || throw(TypeError("size"))
   issubset(T, R) || throw(TypeError("subset"))
   issubset(R, T) ? R : recursive(unroll(R))
 end
