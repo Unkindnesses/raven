@@ -419,9 +419,7 @@ function recurse_children(x::Union{Onion,VPack})
   return runion(x, lift(x))
 end
 
-recursive(T) = T
-
-function recursive(T::Union{VPack,Onion})
+function recursive(T)
   typesize(T) < 100 || throw(TypeError("size"))
   R = recurse_children(T)
   issubset(T, R) || throw(TypeError("subset"))
