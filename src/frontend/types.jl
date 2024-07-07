@@ -478,7 +478,7 @@ function _union(x, y; self = _union)
   end
 end
 
-union(x, y) = recursive(_union(x, y, self = union))
+union(x, y) = recursive(_union(x, y))
 
 # Internal symbols
 
