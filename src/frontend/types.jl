@@ -243,7 +243,7 @@ function _isdisjoint(self, x, y)
   elseif x isa Primitive && y isa Type
     !(x isa y)
   elseif x isa Type && y isa Primitive
-    self(y, x)
+    !(y isa x)
   elseif x isa Type && y isa Type
     x != y
   elseif x isa Pack && y isa Pack
@@ -251,7 +251,7 @@ function _isdisjoint(self, x, y)
   elseif x isa Pack && y isa VPack
     self(tag(x), tag(y)) || any(self.(parts(x), (y.parts,)))
   elseif x isa VPack && y isa Pack
-    self(y, x)
+    self(tag(x), tag(y)) || any(self.((x.parts,), parts(y)))
   elseif x isa VPack && y isa VPack
     self(tag(x), tag(y))
   else
