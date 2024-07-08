@@ -268,14 +268,6 @@ end
 
 isdisjoint(x, y) = disjointer()(x, y)
 
-function rdisjoint(T, x)
-  fp = Fixpoint(_ -> false) do self, (x, y)
-    y isa Union{VPack,Onion} && !isdisjoint(T, y) && (y = _union(T, y))
-    return _isdisjoint((x, y) -> self[(x, y)], x, y)
-  end
-  return fp[(T, x)]
-end
-
 # Type keys
 
 tokey(x::Tag) = x
@@ -374,18 +366,18 @@ end
 
 function lift(T, x; seen)
   inner, s, r = lift_inner(T, x; seen)
-  (s || r) && !rdisjoint(T, x) ? (x, true, false) :
+  (s || r) && !isdisjoint(T, x) ? (x, true, false) :
     (inner, s, r)
 end
 
 lift(T, x::Union{Onion,VPack}; seen) =
-  !rdisjoint(T, x) ? (x, true, false) :
+  !isdisjoint(T, x) ? (x, true, false) :
   lift_inner(T, x; seen)
 
 function lift(T, x::Recursive; seen)
   if x in seen
     ⊥, false, true
-  elseif !rdisjoint(T, x)
+  elseif !isdisjoint(T, x)
     x, true, false
   else
     inner, s, r = lift_inner(T, unroll(x); seen = Set([seen..., x]))
@@ -414,12 +406,12 @@ lift_children(x) = lift_children_inner(x)
 function lift_children(x::Union{Onion,VPack})
   isrecursive(x) && return x
   x = lift_children_inner(x)
-  return _union(x, lift(x))
+  return reroll(_union(x, lift(x)))
 end
 
 function recursive(T)
   typesize(T) < 100 || throw(TypeError("size"))
-  R = reroll(lift_children(T))
+  R = lift_children(T)
   issubset(T, R) || throw(TypeError("subset"))
   issubset(finite(R), T) ? R : recursive(unroll(R))
 end
@@ -480,7 +472,7 @@ function _union(x, y; self = _union)
   end
 end
 
-union(x, y) = recursive(_union(x, y, self = union))
+union(x, y) = recursive(_union(x, y))
 
 # Internal symbols
 
