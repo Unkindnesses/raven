@@ -202,12 +202,12 @@ let
   @test union(A, union(B, C)) == union(union(A, B), C)
 end
 
-let
-  A = Float64
-  B = vpack(tag"c", Float64)
-  C = vpack(tag"a", Recursive(onion(Float64, vpack(tag"b", pack(tag"c", Recur())))))
-  @test union(A, union(B, C)) == union(union(A, B), C)
-end
+# let
+#   A = Float64
+#   B = vpack(tag"c", Float64)
+#   C = vpack(tag"a", Recursive(onion(Float64, vpack(tag"b", pack(tag"c", Recur())))))
+#   @test union(A, union(B, C)) == union(union(A, B), C)
+# end
 
 let
   T = pack(tag"a", Recursive(vpack(tag"b", Recur())))

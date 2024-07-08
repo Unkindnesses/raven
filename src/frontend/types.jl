@@ -403,17 +403,19 @@ lift_children_inner(x::Recursive) = x
 
 lift_children(x) = lift_children_inner(x)
 
+runion(x, y) = reroll(_union(x, y; self = runion))
+
 function lift_children(x::Union{Onion,VPack})
   isrecursive(x) && return x
   x = lift_children_inner(x)
-  return reroll(_union(x, lift(x)))
+  return runion(x, lift(x))
 end
 
 function recursive(T)
   typesize(T) < 100 || throw(TypeError("size"))
   R = lift_children(T)
   issubset(T, R) || throw(TypeError("subset"))
-  issubset(finite(R), T) ? R : recursive(unroll(R))
+  issubset(R, T) ? R : recursive(unroll(R))
 end
 
 # Union
