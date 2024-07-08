@@ -361,7 +361,7 @@ end
 function lift_inner(T, x; seen)
   xs, _ = reconstruct(x)
   ys = lift.((T,), xs; seen)
-  reduce(_union, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
+  reduce(runion, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
 end
 
 function lift(T, x; seen)
@@ -381,13 +381,13 @@ function lift(T, x::Recursive; seen)
     x, true, false
   else
     inner, s, r = lift_inner(T, unroll(x); seen = Set([seen..., x]))
-    s && r ? (_union(x, inner), true, false) :
+    s && r ? (runion(x, inner), true, false) :
       (inner, s, false)
   end
 end
 
 function lift(T)
-  reduce(_union, first.(lift_inner.((T,), disjuncts(T); seen = Set())))
+  reduce(runion, first.(lift_inner.((T,), disjuncts(T); seen = Set())))
 end
 
 function lift_children_inner(x)
@@ -412,7 +412,6 @@ function lift_children(x::Union{Onion,VPack})
 end
 
 function recursive(T)
-  typesize(T) < 100 || throw(TypeError("size"))
   R = lift_children(T)
   issubset(T, R) || throw(TypeError("subset"))
   issubset(R, T) ? R : recursive(unroll(R))
@@ -432,8 +431,7 @@ function finite(T::Recursive)
 end
 
 function _union(x, y; self = _union)
-  typesize(x) < 100 || throw(TypeError("size"))
-  typesize(y) < 100 || throw(TypeError("size"))
+  max(typesize(x), typesize(y)) < 100 || throw(TypeError("size"))
   x, y = finite.((x, y))
   if x == ⊥
     return y
