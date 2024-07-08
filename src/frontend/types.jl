@@ -303,7 +303,7 @@ splitby(f, xs::Tuple) = splitby(f, collect(xs))
 occursin(x, y) = x == y || any(y -> occursin(x, y), reconstruct(y)[1])
 occursin(x, y::Union{Recur,Recursive}) = x == y
 
-isrecur(x, T) = !isdisjoint(x, T) && issubset(finite(x), T)
+isrecur(x, T) = !isdisjoint(x, T) && issubset(x, T)
 
 function reroll_inner(T, x; self = reroll, seen)
   xs, re = reconstruct(x)
