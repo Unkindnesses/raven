@@ -231,7 +231,7 @@ issubset(x, y) = subsetter()(x, y)
 
 # Disjoint
 
-function _isdisjoint(self, x, y; distinct = false)
+function _isdisjoint(self, x, y)
   if ⊥ in (x, y)
     true
   elseif x isa Recursive || y isa Recursive
@@ -247,30 +247,34 @@ function _isdisjoint(self, x, y; distinct = false)
   elseif x isa Type && y isa Type
     x != y
   elseif x isa Pack && y isa Pack
-    (distinct && nparts(x) < 1) ||
     nparts(x) != nparts(y) || any(self.(x.parts, y.parts))
   elseif x isa Pack && y isa VPack
-    (distinct && nparts(x) < 1) ||
     self(tag(x), tag(y)) || any(self.(parts(x), (y.parts,)))
   elseif x isa VPack && y isa Pack
     self(y, x)
   elseif x isa VPack && y isa VPack
-    self(tag(x), tag(y)) || (distinct && self(x.parts, y.parts))
+    self(tag(x), tag(y))
   else
     true
   end
 end
 
-function disjointer(; distinct = false)
+function disjointer()
   fp = Fixpoint(_ -> false) do self, (x, y)
-    _isdisjoint((x, y) -> self[(x, y)], x, y; distinct)
+    _isdisjoint((x, y) -> self[(x, y)], x, y)
   end
   (x, y) -> fp[(x, y)]
 end
 
-isdisjoint(x, y; distinct = false) = disjointer(; distinct)(x, y)
+isdisjoint(x, y) = disjointer()(x, y)
 
-isdistinct(x, y) = isdisjoint(x, y)
+function rdisjoint(T, x)
+  fp = Fixpoint(_ -> false) do self, (x, y)
+    y isa Union{VPack,Onion} && !isdisjoint(T, y) && (y = _union(T, y))
+    return _isdisjoint((x, y) -> self[(x, y)], x, y)
+  end
+  return fp[(T, x)]
+end
 
 # Type keys
 
@@ -307,7 +311,7 @@ splitby(f, xs::Tuple) = splitby(f, collect(xs))
 occursin(x, y) = x == y || any(y -> occursin(x, y), reconstruct(y)[1])
 occursin(x, y::Union{Recur,Recursive}) = x == y
 
-isrecur(x, T) = !isdistinct(x, T) && issubset(x, T)
+isrecur(x, T) = !isdisjoint(x, T) && issubset(finite(x), T)
 
 function reroll_inner(T, x; self = reroll, seen)
   xs, re = reconstruct(x)
@@ -362,8 +366,6 @@ end
 # Lift
 # (type to merge, subset present, recursion present)
 
-runion(x, y) = reroll(_union(x, y, self = runion))
-
 function lift_inner(T, x; seen)
   xs, _ = reconstruct(x)
   ys = lift.((T,), xs; seen)
@@ -372,18 +374,18 @@ end
 
 function lift(T, x; seen)
   inner, s, r = lift_inner(T, x; seen)
-  (s || r) && !isdistinct(x, T) ? (x, true, false) :
+  (s || r) && !rdisjoint(T, x) ? (x, true, false) :
     (inner, s, r)
 end
 
 lift(T, x::Union{Onion,VPack}; seen) =
-  !isdistinct(x, T) ? (x, true, false) :
+  !rdisjoint(T, x) ? (x, true, false) :
   lift_inner(T, x; seen)
 
 function lift(T, x::Recursive; seen)
   if x in seen
     ⊥, false, true
-  elseif !isdistinct(x, T)
+  elseif !rdisjoint(T, x)
     x, true, false
   else
     inner, s, r = lift_inner(T, unroll(x); seen = Set([seen..., x]))
@@ -396,31 +398,30 @@ function lift(T)
   reduce(_union, first.(lift_inner.((T,), disjuncts(T); seen = Set())))
 end
 
-function recurse_children_inner(x)
+function lift_children_inner(x)
   xs, re = reconstruct(x)
-  xs = recurse_children.(xs)
+  xs = lift_children.(xs)
   return re(xs)
 end
 
-recurse_children_inner(x::Onion) =
-  onion(recurse_children_inner.(disjuncts(x))...)
+lift_children_inner(x::Onion) =
+  onion(lift_children_inner.(disjuncts(x))...)
 
-recurse_children_inner(x::Recursive) = x
+lift_children_inner(x::Recursive) = x
 
-recurse_children(x) = recurse_children_inner(x)
+lift_children(x) = lift_children_inner(x)
 
-function recurse_children(x::Union{Onion,VPack})
+function lift_children(x::Union{Onion,VPack})
   isrecursive(x) && return x
-  x = recurse_children_inner(x)
-  # return reroll(_union(x, lift(x)))
-  return runion(x, lift(x))
+  x = lift_children_inner(x)
+  return _union(x, lift(x))
 end
 
 function recursive(T)
   typesize(T) < 100 || throw(TypeError("size"))
-  R = recurse_children(T)
+  R = reroll(lift_children(T))
   issubset(T, R) || throw(TypeError("subset"))
-  issubset(R, T) ? R : recursive(unroll(R))
+  issubset(finite(R), T) ? R : recursive(unroll(R))
 end
 
 # Union
@@ -430,7 +431,7 @@ finite(T::Onion) = onion(finite.(disjuncts(T))...)
 
 function finite(T::Recursive)
   term = unroll(⊥, T.type)
-  if !(term isa Union{Onion,VPack}) || isdistinct(term, unroll(T))
+  if !(term isa Union{Onion,VPack}) || isdisjoint(term, unroll(T))
     term = unroll(term, T.type)
   end
   return unroll(term, T.type)
@@ -479,7 +480,7 @@ function _union(x, y; self = _union)
   end
 end
 
-union(x, y) = recursive(_union(x, y))
+union(x, y) = recursive(_union(x, y, self = union))
 
 # Internal symbols
 
