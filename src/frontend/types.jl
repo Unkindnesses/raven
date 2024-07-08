@@ -362,16 +362,12 @@ end
 # Lift
 # (type to merge, subset present, recursion present)
 
-function runion(x, y)
-  typesize(x) < 100 || throw(TypeError("size"))
-  typesize(y) < 100 || throw(TypeError("size"))
-  reroll(_union(x, y; self = runion))
-end
+runion(x, y) = reroll(_union(x, y, self = runion))
 
 function lift_inner(T, x; seen)
   xs, _ = reconstruct(x)
   ys = lift.((T,), xs; seen)
-  reduce(runion, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
+  reduce(_union, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
 end
 
 function lift(T, x; seen)
@@ -391,13 +387,13 @@ function lift(T, x::Recursive; seen)
     x, true, false
   else
     inner, s, r = lift_inner(T, unroll(x); seen = Set([seen..., x]))
-    s && r ? (runion(x, inner), true, false) :
+    s && r ? (_union(x, inner), true, false) :
       (inner, s, false)
   end
 end
 
 function lift(T)
-  reduce(runion, first.(lift_inner.((T,), disjuncts(T); seen = Set())))
+  reduce(_union, first.(lift_inner.((T,), disjuncts(T); seen = Set())))
 end
 
 function recurse_children_inner(x)
@@ -416,6 +412,7 @@ recurse_children(x) = recurse_children_inner(x)
 function recurse_children(x::Union{Onion,VPack})
   isrecursive(x) && return x
   x = recurse_children_inner(x)
+  # return reroll(_union(x, lift(x)))
   return runion(x, lift(x))
 end
 
@@ -440,6 +437,8 @@ function finite(T::Recursive)
 end
 
 function _union(x, y; self = _union)
+  typesize(x) < 100 || throw(TypeError("size"))
+  typesize(y) < 100 || throw(TypeError("size"))
   x, y = finite.((x, y))
   if x == ⊥
     return y
