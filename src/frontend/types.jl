@@ -377,11 +377,14 @@ end
 # Lift
 # (type to merge, subset present, recursion present)
 
-function lift_inner(T, x; seen)
+function lift_inner(T, x; seen, self = lift)
   xs, _ = reconstruct(x)
-  ys = lift.((T,), xs; seen)
+  ys = self.((T,), xs; seen)
   reduce(_union, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
 end
+
+lift_inner(T, x::Onion; seen) =
+  invoke(lift_inner, Tuple{Any,Any}, T, x; seen, self = lift_inner)
 
 function lift(T, x; seen)
   inner, s, r = lift_inner(T, x; seen)
@@ -391,7 +394,7 @@ end
 
 lift(T, x::Union{Onion,VPack}; seen) =
   !isdisjoint(T, x) ? (x, true, false) :
-  lift_inner(T, x; seen)
+  lift_inner(_union(T, x), x; seen)
 
 function lift(T, x::Recursive; seen)
   if x in seen
@@ -409,8 +412,13 @@ function lift(T)
   reduce(_union, first.(lift_inner.((T,), disjuncts(T); seen = Set())))
 end
 
+function lifted(T)
+  L = _union(T, lift(unroll(T)))
+  issubset(L, T) ? L : lifted(L)
+end
+
 function recursive(T, orig = T)
-  R = reroll(_union(T, lift(unroll(T))))
+  R = reroll(lifted(T))
   issubset(R, T) ? R : recursive(R, orig)
 end
 
