@@ -400,6 +400,7 @@ lift(T, x::Recursive; seen) =
 
 lift(T, x::Union{Onion,VPack}; seen) =
   !isdisjoint(T, x) ? (x, true, false) :
+  isrecursive(x) ? lift_outer(T, x; seen) :
   lift_outer(_union(T, x), x; seen)
 
 function lift(T, x; seen)

@@ -258,6 +258,12 @@ let
   @test recursive(T) == Recursive(onion(Float64, Int64, vpack(tag"c", Recur()), vpack(tag"d", Recur())))
 end
 
+let
+  A = pack(tag"b", vpack(tag"a", Recursive(onion(Int64, vpack(tag"d", Recur())))))
+  U = Recursive(onion(Int64, pack(tag"b", vpack(tag"a", Recur())), vpack(tag"d", Recur())))
+  @test union(A, U) == U
+end
+
 struct Generator
   func
   depth::Int
