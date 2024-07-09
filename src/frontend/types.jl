@@ -396,6 +396,15 @@ lift(T, x::Union{Onion,VPack}; seen) =
   !isdisjoint(T, x) ? (x, true, false) :
   lift_inner(_union(T, x), x; seen)
 
+function lift_inner(T, x::Recursive; seen)
+  x in seen && ⊥, false, true
+  inner, s, r = lift_inner(T, unroll(x); seen = Set([seen..., x]))
+  s && r ? (_union(x, inner), true, false) :
+    (inner, s, false)
+end
+
+lift(T, x::Recursive; seen) = !isdisjoint(T, x) ? (x, true, false) : lift_inner(T, x; seen)
+
 function lift(T, x::Recursive; seen)
   if x in seen
     ⊥, false, true
