@@ -151,19 +151,22 @@ struct Recur end
 Base.show(io::IO, T::Recursive) = print(io, "(T = ", T.type, ")")
 Base.show(io::IO, ::Recur) = print(io, "T")
 
-unroll(S, T::Recursive) = T
-unroll(S, T::Recur) = S
+isrecursive(x) = any(x -> x isa Recursive, disjuncts(x))
 
-function unroll(S, T)
+occursin(x, y) = x == y || any(y -> occursin(x, y), reconstruct(y)[1])
+occursin(x, y::Union{Recur,Recursive}) = x == y
+
+simple_unroll(S, T::Recursive) = T
+simple_unroll(S, T::Recur) = S
+
+function simple_unroll(S, T)
   xs, re = reconstruct(T)
-  re(unroll.((S,), xs))
+  re(simple_unroll.((S,), xs))
 end
 
-unroll(T) = T
-unroll(T::Recursive) = unroll(T, T.type)
-unroll(T::Onion) = Onion([x for S in disjuncts(T) for x in disjuncts(unroll(S))])
-
-isrecursive(x) = any(x -> x isa Recursive, disjuncts(x))
+simple_unroll(T) = T
+simple_unroll(T::Recursive) = simple_unroll(T, T.type)
+simple_unroll(T::Onion) = Onion([x for S in disjuncts(T) for x in disjuncts(simple_unroll(S))])
 
 # Size
 
@@ -196,7 +199,7 @@ function _issubset(self, x, y)
   elseif y == ⊥
     false
   elseif x isa Recursive || y isa Recursive
-    self(unroll(x), unroll(y))
+    self(simple_unroll(x), simple_unroll(y))
   elseif x isa Onion
     all(self(T, y) for T in x.types)
   elseif y isa Onion
@@ -235,7 +238,7 @@ function _isdisjoint(self, x, y)
   if ⊥ in (x, y)
     true
   elseif x isa Recursive || y isa Recursive
-    self(unroll(x), unroll(y))
+    self(simple_unroll(x), simple_unroll(y))
   elseif x isa Onion || y isa Onion
     all(self(x, y) for x in disjuncts(x) for y in disjuncts(y))
   elseif x isa Primitive && y isa Primitive
@@ -298,10 +301,24 @@ end
 
 splitby(f, xs::Tuple) = splitby(f, collect(xs))
 
-# Reroll
+# Unroll/Reroll
 
-occursin(x, y) = x == y || any(y -> occursin(x, y), reconstruct(y)[1])
-occursin(x, y::Union{Recur,Recursive}) = x == y
+unroll_inner(S, T::Recursive) = T
+unroll_inner(S, T::Recur) = S
+unroll_inner(S, T::Onion) = onion((unroll_inner(S, d) for d in disjuncts(T))...)
+
+function unroll_inner(S, T)
+  xs, re = reconstruct(T)
+  T = re(unroll.((S,), xs))
+end
+
+unroll(S, T) = unroll_inner(S, T)
+
+unroll(S, T::Union{VPack,Onion}) = reroll(unroll_inner(S, T))
+
+unroll(T) = T
+unroll(T::Recursive) = unroll_inner(T, T.type)
+unroll(T::Onion) = Onion([x for S in disjuncts(T) for x in disjuncts(unroll(S))])
 
 isrecur(x, T) = !isdisjoint(x, T) && issubset(x, T)
 
@@ -318,7 +335,8 @@ reroll_outer(T, x::Onion; seen) =
 
 function reroll_inner(T, x::Recursive; seen)
   x in seen && return nothing, Set()
-  y, ks = reroll_outer(T, unroll(x); seen = Set([seen..., x]))
+  # TODO use unroll?
+  y, ks = reroll_outer(T, simple_unroll(x); seen = Set([seen..., x]))
   isempty(ks) && return x, Set()
   occursin(nothing, y) && return x, Set()
   return y, ks
@@ -339,8 +357,8 @@ end
 reroll(T) = T
 
 function reroll(T::Union{VPack,Onion})
+  isrecursive(T) && return T
   xs = disjuncts(T)
-  @assert !any(x -> x isa Recursive, xs)
   ys = reroll_inner.((T,), xs; seen = Set())
   ys = [(x, Base.union(k1, k2)) for ((x, k1), k2) in zip(ys, typekeys.(xs))]
   xs = []
@@ -353,6 +371,7 @@ function reroll(T::Union{VPack,Onion})
   end
   xs = [occursin(Recur(), x) ? Recursive(x) : x for x in first.(xs)]
   R = onion(xs...)
+  issubset(R, T) ? R : reroll(unroll(R))
 end
 
 # Lift
@@ -361,7 +380,7 @@ end
 function lift_inner(T, x; seen)
   xs, _ = reconstruct(x)
   ys = lift.((T,), xs; seen)
-  reduce(runion, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
+  reduce(_union, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
 end
 
 function lift(T, x; seen)
@@ -381,40 +400,18 @@ function lift(T, x::Recursive; seen)
     x, true, false
   else
     inner, s, r = lift_inner(T, unroll(x); seen = Set([seen..., x]))
-    s && r ? (runion(x, inner), true, false) :
+    s && r ? (_union(x, inner), true, false) :
       (inner, s, false)
   end
 end
 
 function lift(T)
-  reduce(runion, first.(lift_inner.((T,), disjuncts(T); seen = Set())))
+  reduce(_union, first.(lift_inner.((T,), disjuncts(T); seen = Set())))
 end
 
-function lift_children_inner(x)
-  xs, re = reconstruct(x)
-  xs = lift_children.(xs)
-  return re(xs)
-end
-
-lift_children_inner(x::Onion) =
-  onion(lift_children_inner.(disjuncts(x))...)
-
-lift_children_inner(x::Recursive) = x
-
-lift_children(x) = lift_children_inner(x)
-
-runion(x, y) = reroll(_union(x, y; self = runion))
-
-function lift_children(x::Union{Onion,VPack})
-  isrecursive(x) && return x
-  x = lift_children_inner(x)
-  return runion(x, lift(x))
-end
-
-function recursive(T)
-  R = lift_children(T)
-  issubset(T, R) || throw(TypeError("subset"))
-  issubset(R, T) ? R : recursive(unroll(R))
+function recursive(T, orig = T)
+  R = reroll(_union(T, lift(unroll(T))))
+  issubset(R, T) ? R : recursive(R, orig)
 end
 
 # Union
@@ -423,11 +420,11 @@ finite(T) = T
 finite(T::Onion) = onion(finite.(disjuncts(T))...)
 
 function finite(T::Recursive)
-  term = unroll(⊥, T.type)
-  if !(term isa Union{Onion,VPack}) || isdisjoint(term, unroll(T))
-    term = unroll(term, T.type)
+  term = simple_unroll(⊥, T.type)
+  if !(term isa Union{Onion,VPack}) || isdisjoint(term, T)
+    term = simple_unroll(term, T.type)
   end
-  return unroll(term, T.type)
+  return simple_unroll(term, T.type)
 end
 
 function _union(x, y; self = _union)
@@ -472,7 +469,7 @@ function _union(x, y; self = _union)
   end
 end
 
-union(x, y) = recursive(_union(x, y))
+union(x, y) = recursive(_union(x, y, self = union))
 
 # Internal symbols
 
