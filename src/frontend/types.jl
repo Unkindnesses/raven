@@ -303,22 +303,25 @@ splitby(f, xs::Tuple) = splitby(f, collect(xs))
 
 # Unroll/Reroll
 
-unroll_inner(S, T::Recursive) = T
-unroll_inner(S, T::Recur) = S
-unroll_inner(S, T::Onion) = onion((unroll_inner(S, d) for d in disjuncts(T))...)
+# unroll_inner(S, T::Recursive) = T
+# unroll_inner(S, T::Recur) = S
+# unroll_inner(S, T::Onion) = onion((unroll_inner(S, d) for d in disjuncts(T))...)
 
-function unroll_inner(S, T)
-  xs, re = reconstruct(T)
-  T = re(unroll.((S,), xs))
-end
+# function unroll_inner(S, T)
+#   xs, re = reconstruct(T)
+#   T = re(unroll.((S,), xs))
+# end
 
-unroll(S, T) = unroll_inner(S, T)
+# unroll(S, T) = unroll_inner(S, T)
 
-unroll(S, T::Union{VPack,Onion}) = reroll(unroll_inner(S, T))
+# unroll(S, T::Union{VPack,Onion}) = unroll_inner(S, T)
+# # unroll(S, T::Union{VPack,Onion}) = reroll(unroll_inner(S, T))
 
-unroll(T) = T
-unroll(T::Recursive) = unroll_inner(T, T.type)
-unroll(T::Onion) = Onion([x for S in disjuncts(T) for x in disjuncts(unroll(S))])
+# unroll(T) = T
+# unroll(T::Recursive) = unroll_inner(T, T.type)
+# unroll(T::Onion) = Onion([x for S in disjuncts(T) for x in disjuncts(unroll(S))])
+
+unroll(x) = simple_unroll(x)
 
 isrecur(x, T) = !isdisjoint(x, T) && issubset(x, T)
 
@@ -398,10 +401,12 @@ end
 lift(T, x::Recursive; seen) =
   !isdisjoint(T, x) ? (x, true, false) : lift_inner(T, x; seen)
 
-lift(T, x::Union{Onion,VPack}; seen) =
-  !isdisjoint(T, x) ? (x, true, false) :
-  isrecursive(x) ? lift_outer(T, x; seen) :
-  lift_outer(_union(T, x), x; seen)
+function lift(T, x::Union{Onion,VPack}; seen)
+  !isdisjoint(T, x) && return x, true, false
+  inner, s, r = lift_outer(T, x; seen)
+  (s || r) ? (x, true, false) :
+    (inner, s, r)
+end
 
 function lift(T, x; seen)
   inner, s, r = lift_inner(T, x; seen)
@@ -413,7 +418,7 @@ lift(T) = lift_outer(T, T, seen = Set())[1]
 
 function lifted(T)
   L = _union(T, lift(T))
-  issubset(L, T) ? L : lifted(L)
+  # issubset(L, T) ? L : lifted(L)
 end
 
 recursive(T) = T
