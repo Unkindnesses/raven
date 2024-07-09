@@ -377,14 +377,30 @@ end
 # Lift
 # (type to merge, subset present, recursion present)
 
-function lift_inner(T, x; seen, self = lift)
+function lift_inner(T, x; self = lift, seen)
   xs, _ = reconstruct(x)
   ys = self.((T,), xs; seen)
   reduce(_union, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
 end
 
-lift_inner(T, x::Onion; seen) =
-  invoke(lift_inner, Tuple{Any,Any}, T, x; seen, self = lift_inner)
+lift_outer(T, x; seen) = lift_inner(T, x; seen)
+
+lift_outer(T, x::Onion; seen) =
+  lift_inner(T, x; self = lift_inner, seen)
+
+function lift_inner(T, x::Recursive; seen)
+  x in seen && return ⊥, false, true
+  inner, s, r = lift_outer(T, unroll(x); seen = Set([seen..., x]))
+  s && r ? (_union(x, inner), true, false) :
+    (inner, s, false)
+end
+
+lift(T, x::Recursive; seen) =
+  !isdisjoint(T, x) ? (x, true, false) : lift_inner(T, x; seen)
+
+lift(T, x::Union{Onion,VPack}; seen) =
+  !isdisjoint(T, x) ? (x, true, false) :
+  lift_outer(_union(T, x), x; seen)
 
 function lift(T, x; seen)
   inner, s, r = lift_inner(T, x; seen)
@@ -392,41 +408,16 @@ function lift(T, x; seen)
     (inner, s, r)
 end
 
-lift(T, x::Union{Onion,VPack}; seen) =
-  !isdisjoint(T, x) ? (x, true, false) :
-  lift_inner(_union(T, x), x; seen)
-
-function lift_inner(T, x::Recursive; seen)
-  x in seen && ⊥, false, true
-  inner, s, r = lift_inner(T, unroll(x); seen = Set([seen..., x]))
-  s && r ? (_union(x, inner), true, false) :
-    (inner, s, false)
-end
-
-lift(T, x::Recursive; seen) = !isdisjoint(T, x) ? (x, true, false) : lift_inner(T, x; seen)
-
-function lift(T, x::Recursive; seen)
-  if x in seen
-    ⊥, false, true
-  elseif !isdisjoint(T, x)
-    x, true, false
-  else
-    inner, s, r = lift_inner(T, unroll(x); seen = Set([seen..., x]))
-    s && r ? (_union(x, inner), true, false) :
-      (inner, s, false)
-  end
-end
-
-function lift(T)
-  reduce(_union, first.(lift_inner.((T,), disjuncts(T); seen = Set())))
-end
+lift(T) = lift_outer(T, T, seen = Set())[1]
 
 function lifted(T)
-  L = _union(T, lift(unroll(T)))
+  L = _union(T, lift(T))
   issubset(L, T) ? L : lifted(L)
 end
 
-function recursive(T, orig = T)
+recursive(T) = T
+
+function recursive(T::Union{VPack,Onion,Recursive}, orig = T)
   R = reroll(lifted(T))
   issubset(R, T) ? R : recursive(R, orig)
 end
