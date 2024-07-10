@@ -439,24 +439,24 @@ lift_outer(T, x::Onion; seen, rec) =
 function lift_inner(T, x::Recursive; seen, rec)
   x in seen && return ⊥, false, true
   inner, s, r = lift_outer(T, unroll(x); seen = Set([seen..., x]), rec)
-  s && r ? (runion(rec)(x, inner), true, false) :
-    (inner, s, false)
+  s && r ? (x, true, false) : (inner, s, false)
 end
 
 lift(T, x::Recursive; seen, rec) =
-  !isdisjoint(T, x) ? (x, true, false) : lift_inner(T, x; seen, rec)
+  issubset(x, T) ? (⊥, true, false) :
+  !isdisjoint(T, x) ? (x, true, false) :
+  lift_inner(T, x; seen, rec)
 
 function lift(T, x::Union{Onion,VPack}; seen, rec)
+  issubset(x, T) && return ⊥, true, false
   !isdisjoint(T, x) && return x, true, false
   inner, s, r = lift_outer(T, x; seen, rec)
-  (s || r) ? (x, true, false) :
-    (inner, s, r)
+  (s || r) ? (x, true, false) : (inner, s, r)
 end
 
 function lift(T, x; seen, rec)
   inner, s, r = lift_inner(T, x; seen, rec)
-  (s || r) && !isdisjoint(T, x) ? (x, true, false) :
-    (inner, s, r)
+  (s || r) && !isdisjoint(T, x) ? (x, true, false) : (inner, s, r)
 end
 
 lift(T; rec = identity) = lift_outer(T, T; seen = Set(), rec)[1]

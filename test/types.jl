@@ -279,6 +279,12 @@ let
   @test recursive(T) == Recursive(onion(vpack(tag"b", Recur()), vpack(tag"d", Recursive(onion(Float64, Int32, pack(tag"a", Recur()))))))
 end
 
+let
+  I = Recursive(onion(vpack(tag"a", Recur()), vpack(tag"b", Recur())))
+  T = pack(tag"b", I, vpack(tag"b", Int32))
+  @test recursive(T) == Recursive(onion(Int32, vpack(tag"a", Recur()), vpack(tag"b", Recur())))
+end
+
 struct Generator
   func
   depth::Int
