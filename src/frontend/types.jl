@@ -422,7 +422,6 @@ function runion(rec, T = ⊥)
     z = _union(x, y, self = u)
     isdisjoint(T, z) ? rec(z) : z
   end
-  (x, y) -> _union(x, y, self = u)
 end
 
 function lift_inner(T, x; self = lift, seen, rec)
@@ -443,12 +442,10 @@ function lift_inner(T, x::Recursive; seen, rec)
 end
 
 lift(T, x::Recursive; seen, rec) =
-  issubset(x, T) ? (⊥, true, false) :
   !isdisjoint(T, x) ? (x, true, false) :
   lift_inner(T, x; seen, rec)
 
 function lift(T, x::Union{Onion,VPack}; seen, rec)
-  issubset(x, T) && return ⊥, true, false
   !isdisjoint(T, x) && return x, true, false
   inner, s, r = lift_outer(T, x; seen, rec)
   (s || r) ? (x, true, false) : (inner, s, r)
@@ -476,7 +473,7 @@ rcheck(T) = T
 rcheck(T::Union{VPack,Onion,Recursive}) = (rcheck_inner(T, finite(T, 0)); T)
 
 function _recursive(T; self = identity)
-  R = reroll(runion(self, T)(T, lift(T, rec = self)))
+  R = reroll(_union(T, lift(T, rec = self), self = runion(self, T)))
   issubset(R, T) ? R : _recursive(R; self)
 end
 
