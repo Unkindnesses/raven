@@ -432,7 +432,8 @@ function _recursive(T::Union{VPack,Onion,Recursive}; self = identity)
 end
 
 function recurser()
-  fp = Fixpoint(_ -> ⊥) do self, T
+  check(old, new) = issubset(old, new) || throw(TypeError("subset"))
+  fp = Fixpoint(_ -> ⊥; check) do self, T
     _recursive(T, self = T -> self[T])
   end
   return T -> fp[T]
