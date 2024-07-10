@@ -273,15 +273,18 @@ isdisjoint(x, y) = disjointer()(x, y)
 
 # Union
 
-finite(T) = T
-finite(T::Onion) = onion(finite.(disjuncts(T))...)
+finite(T, depth = 1) = T
+finite(T::Onion, depth = 1) = onion(finite.(disjuncts(T), depth)...)
 
-function finite(T::Recursive)
+function finite(T::Recursive, depth = 1)
   term = unroll(⊥, T.type)
   if !(term isa Union{Onion,VPack}) || isdisjoint(term, T)
     term = unroll(term, T.type)
   end
-  return unroll(term, T.type)
+  for i = 1:depth
+    term = unroll(term, T.type)
+  end
+  return term
 end
 
 function _union(x, y; self = _union)
@@ -460,6 +463,18 @@ lift(T; rec = identity) = lift_outer(T, T; seen = Set(), rec)[1]
 
 # Recursive
 
+rcheck_inner(T, x) = foreach(x -> rcheck(T, x), reconstruct(x)[1])
+
+rcheck_inner(T, x::Onion) = foreach(x -> rcheck_inner(T, x), disjuncts(x))
+
+rcheck(T, x) = rcheck_inner(T, x)
+rcheck(T, x::Union{VPack,Onion}) = (@assert isdisjoint(T, x); rcheck_inner(T, x))
+rcheck(T, x::Recursive) = rcheck(T, finite(x, 0))
+
+rcheck(T) = T
+
+rcheck(T::Union{VPack,Onion,Recursive}) = (rcheck_inner(T, finite(T, 0)); T)
+
 _recursive(T; self = identity) = T
 
 function _recursive(T::Union{VPack,Onion,Recursive}; self = identity)
@@ -468,7 +483,7 @@ function _recursive(T::Union{VPack,Onion,Recursive}; self = identity)
 end
 
 function recurser()
-  check(old, new) = issubset(old, new) || throw(TypeError("subset"))
+  check(old, new) = issubset(old, rcheck(new)) || throw(TypeError("subset"))
   fp = Fixpoint(_ -> ⊥; check) do self, T
     _recursive(T, self = T -> self[T])
   end
