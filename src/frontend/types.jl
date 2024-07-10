@@ -416,17 +416,28 @@ end
 
 lift(T) = lift_outer(T, T, seen = Set())[1]
 
-function lifted(T)
-  L = _union(T, lift(T))
-  # issubset(L, T) ? L : lifted(L)
+# Recursive
+
+function runion(x, y, rec)
+  u(x, y) = rec(_union(x, y, self = u))
+  _union(x, y, self = u)
 end
 
-recursive(T) = T
+_recursive(T; self = identity) = T
 
-function recursive(T::Union{VPack,Onion,Recursive}, orig = T)
-  R = reroll(lifted(T))
-  issubset(R, T) ? R : recursive(R, orig)
+function _recursive(T::Union{VPack,Onion,Recursive}; self = identity)
+  R = reroll(runion(T, lift(T), self))
+  issubset(R, T) ? R : _recursive(R; self)
 end
+
+function recurser()
+  fp = Fixpoint(_ -> ⊥) do self, T
+    _recursive(T, self = T -> self[T])
+  end
+  return T -> fp[T]
+end
+
+recursive(T) = recurser()(T)
 
 # Union
 

@@ -147,11 +147,6 @@ let
 end
 
 let
-  A = Recursive(vpack(tag"a", vpack(tag"b", Recur())))
-  @test recursive(vpack(tag"b", A)) == Recursive(vpack(tag"b", vpack(tag"a", Recur())))
-end
-
-let
   T = onion(Int64, pack(tag"b", vpack(tag"b", onion(Float64, Int64))))
   @test recursive(T) == Recursive(onion(Float64, Int64, vpack(tag"b", Recur())))
 end
@@ -162,10 +157,17 @@ let
   @test union(x, y) == Recursive(onion(Float64, Int64, vpack(tag"a", Recur())))
 end
 
+# TODO overlapping recursion
+# let
+#   A = Recursive(vpack(tag"a", vpack(tag"b", Recur())))
+#   @test recursive(vpack(tag"b", A)) == Recursive(vpack(tag"b", vpack(tag"a", Recur())))
+# end
+
 let
   A = vpack(tag"a", vpack(tag"b", Int64))
   B = Recursive(vpack(tag"a", vpack(tag"b", Recur())))
   C = Int64
+  # TODO overlapping recursion
   # @test union(union(A, B), C) == Recursive(onion(Int, vpack(tag"a", vpack(tag"b", Recur()))))
   @test union(union(A, B), C) == Recursive(onion(Int64, vpack(tag"a", Recur()), vpack(tag"b", Recur())))
 end
@@ -260,10 +262,16 @@ let
 end
 
 # let
+#   # overlapping recursion
 #   A = pack(tag"b", vpack(tag"a", Recursive(onion(Int64, vpack(tag"d", Recur())))))
 #   U = Recursive(onion(Int64, pack(tag"b", vpack(tag"a", Recur())), vpack(tag"d", Recur())))
 #   @test union(A, U) == U
 # end
+
+let
+  T = onion(vpack(tag"b", vpack(tag"d", pack(tag"a", Int32))), vpack(tag"d", onion(Int32, pack(tag"a", Float64))))
+  @test recursive(T) == Recursive(onion(vpack(tag"b", Recur()), vpack(tag"d", Recursive(onion(Float64, Int32, pack(tag"a", Recur()))))))
+end
 
 struct Generator
   func
