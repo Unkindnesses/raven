@@ -380,16 +380,18 @@ end
 # Lift
 # (type to merge, subset present, recursion present)
 
-function runion(x, y, rec)
-  u(x, y) = rec(_union(x, y, self = u))
-  _union(x, y, self = u)
+function runion(T, rec)
+  function u(x, y)
+    z = _union(x, y, self = u)
+    isdisjoint(T, z) ? rec(z) : z
+  end
+  (x, y) -> _union(x, y, self = u)
 end
 
 function lift_inner(T, x; self = lift, seen, rec)
   xs, _ = reconstruct(x)
   ys = self.((T,), xs; seen, rec)
-  u = (x, y) -> runion(x, y, rec)
-  reduce(u, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
+  reduce(runion(T, rec), first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
 end
 
 lift_outer(T, x; seen, rec) = lift_inner(T, x; seen, rec)
@@ -400,7 +402,7 @@ lift_outer(T, x::Onion; seen, rec) =
 function lift_inner(T, x::Recursive; seen, rec)
   x in seen && return ⊥, false, true
   inner, s, r = lift_outer(T, unroll(x); seen = Set([seen..., x]), rec)
-  s && r ? (runion(x, inner, rec), true, false) :
+  s && r ? (runion(T, rec)(x, inner), true, false) :
     (inner, s, false)
 end
 
@@ -427,7 +429,7 @@ lift(T; rec = identity) = lift_outer(T, T; seen = Set(), rec)[1]
 _recursive(T; self = identity) = T
 
 function _recursive(T::Union{VPack,Onion,Recursive}; self = identity)
-  R = reroll(runion(T, lift(T, rec = self), self))
+  R = reroll(runion(T, self)(T, lift(T, rec = self)))
   issubset(R, T) ? R : _recursive(R; self)
 end
 
