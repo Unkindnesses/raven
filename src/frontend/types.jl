@@ -285,6 +285,7 @@ function finite(T::Recursive)
 end
 
 function _union(x, y; self = _union)
+  max(typesize(x), typesize(y)) > 500 && throw(TypeError("size"))
   x, y = finite.((x, y))
   if x == ⊥
     return y
