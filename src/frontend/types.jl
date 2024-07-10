@@ -156,17 +156,17 @@ isrecursive(x) = any(x -> x isa Recursive, disjuncts(x))
 occursin(x, y) = x == y || any(y -> occursin(x, y), reconstruct(y)[1])
 occursin(x, y::Union{Recur,Recursive}) = x == y
 
-simple_unroll(S, T::Recursive) = T
-simple_unroll(S, T::Recur) = S
+unroll(S, T::Recursive) = T
+unroll(S, T::Recur) = S
 
-function simple_unroll(S, T)
+function unroll(S, T)
   xs, re = reconstruct(T)
-  re(simple_unroll.((S,), xs))
+  re(unroll.((S,), xs))
 end
 
-simple_unroll(T) = T
-simple_unroll(T::Recursive) = simple_unroll(T, T.type)
-simple_unroll(T::Onion) = Onion([x for S in disjuncts(T) for x in disjuncts(simple_unroll(S))])
+unroll(T) = T
+unroll(T::Recursive) = unroll(T, T.type)
+unroll(T::Onion) = Onion([x for S in disjuncts(T) for x in disjuncts(unroll(S))])
 
 # Size
 
@@ -199,7 +199,7 @@ function _issubset(self, x, y)
   elseif y == ⊥
     false
   elseif x isa Recursive || y isa Recursive
-    self(simple_unroll(x), simple_unroll(y))
+    self(unroll(x), unroll(y))
   elseif x isa Onion
     all(self(T, y) for T in x.types)
   elseif y isa Onion
@@ -238,7 +238,7 @@ function _isdisjoint(self, x, y)
   if ⊥ in (x, y)
     true
   elseif x isa Recursive || y isa Recursive
-    self(simple_unroll(x), simple_unroll(y))
+    self(unroll(x), unroll(y))
   elseif x isa Onion || y isa Onion
     all(self(x, y) for x in disjuncts(x) for y in disjuncts(y))
   elseif x isa Primitive && y isa Primitive
@@ -271,6 +271,60 @@ end
 
 isdisjoint(x, y) = disjointer()(x, y)
 
+# Union
+
+finite(T) = T
+finite(T::Onion) = onion(finite.(disjuncts(T))...)
+
+function finite(T::Recursive)
+  term = unroll(⊥, T.type)
+  if !(term isa Union{Onion,VPack}) || isdisjoint(term, T)
+    term = unroll(term, T.type)
+  end
+  return unroll(term, T.type)
+end
+
+function _union(x, y; self = _union)
+  x, y = finite.((x, y))
+  if x == ⊥
+    return y
+  elseif y == ⊥
+    return x
+  elseif x isa Onion || y isa Onion
+    ys = []
+    for x in (disjuncts(y)..., disjuncts(x)...)
+      while true
+        xs, ys = splitby(y -> overlapping(x, y), ys)
+        isempty(xs) && break
+        x = reduce((x, y) -> _union(x, y; self), xs, init = x)
+      end
+      append!(ys, disjuncts(x))
+    end
+    z = onion(ys...)
+    return z
+  elseif typekey(x) === typekey(y)
+    if x isa Primitive && y isa Primitive
+      return x == y ? x : x isa String ? RString() : typeof(x)
+    elseif x isa Type
+      return x
+    elseif y isa Type
+      return y
+    elseif x isa VPack || y isa VPack || nparts(x) != nparts(y)
+      t = self(tag(x), tag(y))
+      t == ⊥ && return ⊥
+      parts = self(partial_eltype(x; union = self),
+                   partial_eltype(y; union = self))
+      parts == ⊥ && return pack(t)
+      z = VPack(t, parts)
+      return z
+    else
+      return pack([self(part(x, i), part(y, i)) for i = 0:nparts(x)]...)
+    end
+  else
+    return onion(x, y)
+  end
+end
+
 # Type keys
 
 tokey(x::Tag) = x
@@ -301,27 +355,7 @@ end
 
 splitby(f, xs::Tuple) = splitby(f, collect(xs))
 
-# Unroll/Reroll
-
-# unroll_inner(S, T::Recursive) = T
-# unroll_inner(S, T::Recur) = S
-# unroll_inner(S, T::Onion) = onion((unroll_inner(S, d) for d in disjuncts(T))...)
-
-# function unroll_inner(S, T)
-#   xs, re = reconstruct(T)
-#   T = re(unroll.((S,), xs))
-# end
-
-# unroll(S, T) = unroll_inner(S, T)
-
-# unroll(S, T::Union{VPack,Onion}) = unroll_inner(S, T)
-# # unroll(S, T::Union{VPack,Onion}) = reroll(unroll_inner(S, T))
-
-# unroll(T) = T
-# unroll(T::Recursive) = unroll_inner(T, T.type)
-# unroll(T::Onion) = Onion([x for S in disjuncts(T) for x in disjuncts(unroll(S))])
-
-unroll(x) = simple_unroll(x)
+# Reroll
 
 isrecur(x, T) = !isdisjoint(x, T) && issubset(x, T)
 
@@ -338,8 +372,7 @@ reroll_outer(T, x::Onion; seen) =
 
 function reroll_inner(T, x::Recursive; seen)
   x in seen && return nothing, Set()
-  # TODO use unroll?
-  y, ks = reroll_outer(T, simple_unroll(x); seen = Set([seen..., x]))
+  y, ks = reroll_outer(T, unroll(x); seen = Set([seen..., x]))
   isempty(ks) && return x, Set()
   occursin(nothing, y) && return x, Set()
   return y, ks
@@ -443,62 +476,11 @@ end
 
 recursive(T) = recurser()(T)
 
-# Union
-
-finite(T) = T
-finite(T::Onion) = onion(finite.(disjuncts(T))...)
-
-function finite(T::Recursive)
-  term = simple_unroll(⊥, T.type)
-  if !(term isa Union{Onion,VPack}) || isdisjoint(term, T)
-    term = simple_unroll(term, T.type)
-  end
-  return simple_unroll(term, T.type)
+function union(x, y)
+  rec = recurser()
+  u(x, y) = rec(_union(x, y, self = u))
+  return u(x, y)
 end
-
-function _union(x, y; self = _union)
-  max(typesize(x), typesize(y)) < 100 || throw(TypeError("size"))
-  x, y = finite.((x, y))
-  if x == ⊥
-    return y
-  elseif y == ⊥
-    return x
-  elseif x isa Onion || y isa Onion
-    ys = []
-    for x in (disjuncts(y)..., disjuncts(x)...)
-      while true
-        xs, ys = splitby(y -> overlapping(x, y), ys)
-        isempty(xs) && break
-        x = reduce((x, y) -> _union(x, y; self), xs, init = x)
-      end
-      append!(ys, disjuncts(x))
-    end
-    z = onion(ys...)
-    return z
-  elseif typekey(x) === typekey(y)
-    if x isa Primitive && y isa Primitive
-      return x == y ? x : x isa String ? RString() : typeof(x)
-    elseif x isa Type
-      return x
-    elseif y isa Type
-      return y
-    elseif x isa VPack || y isa VPack || nparts(x) != nparts(y)
-      t = self(tag(x), tag(y))
-      t == ⊥ && return ⊥
-      parts = self(partial_eltype(x; union = self),
-                   partial_eltype(y; union = self))
-      parts == ⊥ && return pack(t)
-      z = VPack(t, parts)
-      return z
-    else
-      return pack([self(part(x, i), part(y, i)) for i = 0:nparts(x)]...)
-    end
-  else
-    return onion(x, y)
-  end
-end
-
-union(x, y) = recursive(_union(x, y, self = union))
 
 # Internal symbols
 
