@@ -467,7 +467,11 @@ rcheck_inner(T, x::Onion) = foreach(x -> rcheck_inner(T, x), disjuncts(x))
 rcheck_inner(T, x::Recursive) = rcheck(T, finite(x, 0))
 
 rcheck(T, x) = rcheck_inner(T, x)
-rcheck(T, x::Union{VPack,Onion,Recursive}) = (@assert isdisjoint(T, x); rcheck_inner(T, x))
+
+function rcheck(T, x::Union{VPack,Onion,Recursive})
+  isdisjoint(T, x) || throw(TypeError("recur"))
+  rcheck_inner(T, x)
+end
 
 rcheck(T) = (rcheck_inner(T, finite(T, 0)); T)
 
