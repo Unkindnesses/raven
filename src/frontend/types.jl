@@ -468,9 +468,7 @@ rcheck_inner(T, x::Recursive) = rcheck(T, finite(x, 0))
 rcheck(T, x) = rcheck_inner(T, x)
 rcheck(T, x::Union{VPack,Onion,Recursive}) = (@assert isdisjoint(T, x); rcheck_inner(T, x))
 
-rcheck(T) = T
-
-rcheck(T::Union{VPack,Onion,Recursive}) = (rcheck_inner(T, finite(T, 0)); T)
+rcheck(T) = (rcheck_inner(T, finite(T, 0)); T)
 
 function _recursive(T; self = identity)
   R = reroll(_union(T, lift(T, rec = self), self = runion(self, T)))
@@ -479,7 +477,7 @@ end
 
 function recurser()
   check(old, new) = issubset(old, rcheck(new)) || throw(TypeError("subset"))
-  fp = Fixpoint(_ -> ⊥; check) do self, T
+  fp = Fixpoint(reroll; check) do self, T
     R = _recursive(T, self = T -> self[T])
     return R
   end
