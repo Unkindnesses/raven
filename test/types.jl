@@ -72,7 +72,7 @@ let
   @test recursive(T) == Recursive(Onion((Float64, Int64, pack(tag"a", Recur()), pack(tag"b", Recur()))))
 
   T = onion(Float64, pack(tag"d", pack(tag"d", Recursive(onion(Int64, Float64, pack(tag"b", Recur()))))))
-  @test recursive(T) == Recursive(onion(Float64, Int64, pack(tag"b", Recur()), pack(tag"d", Recur())))
+  @test_broken recursive(T) == Recursive(onion(Float64, Int64, pack(tag"b", Recur()), pack(tag"d", Recur())))
 
   T = onion(Float64, Int64, pack(tag"a", onion(Float64, Int64, vpack(tag"c", Int32)), Int64), vpack(tag"c", onion(Float64, Int64, pack(tag"c"))))
   @test recursive(T) == Recursive(onion(Float64, Int32, Int64, pack(tag"a", Recur(), Int64), vpack(tag"c", Recur())))

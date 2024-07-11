@@ -427,7 +427,8 @@ end
 function lift_inner(T, x; self = lift, seen, rec)
   xs, _ = reconstruct(x)
   ys = self.((T,), xs; seen, rec)
-  reduce(runion(rec), first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
+  u(x, y) = _union(x, y, self = runion(rec))
+  reduce(u, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
 end
 
 lift_outer(T, x; seen, rec) = lift_inner(T, x; seen, rec)
@@ -471,13 +472,14 @@ rcheck(T, x::Union{VPack,Onion,Recursive}) = (@assert isdisjoint(T, x); rcheck_i
 rcheck(T) = (rcheck_inner(T, finite(T, 0)); T)
 
 function _recursive(T; self = identity)
-  R = reroll(_union(T, lift(T, rec = self), self = runion(self, T)))
+  R = reroll(_union(T, lift(T, rec = self), self = runion(self)))
   issubset(R, T) ? R : _recursive(R; self)
 end
 
 function recurser()
   check(old, new) = issubset(old, rcheck(new)) || throw(TypeError("subset"))
   fp = Fixpoint(reroll; check) do self, T
+  fp = Fixpoint(_ -> ⊥; check) do self, T
     R = _recursive(T, self = T -> self[T])
     return R
   end
