@@ -476,7 +476,7 @@ end
 rcheck(T) = (rcheck_inner(T, finite(T, 0)); T)
 
 function _recursive(T; self = identity)
-  R = reroll(_union(T, lift(T, rec = self), self = runion(self)))
+  R = reroll(_union(unroll(T), lift(T, rec = self), self = runion(self)))
   issubset(R, T) ? R : _recursive(R; self)
 end
 
