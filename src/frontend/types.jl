@@ -417,40 +417,47 @@ end
 # Lift
 # (type to merge, subset present, recursion present)
 
-function lift_inner(T, x; self = lift, seen, union)
-  xs, _ = reconstruct(x)
-  ys = self.((T,), xs; seen, union)
-  reduce(union, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
+function runion(rec, T = ⊥)
+  function u(x, y)
+    z = _union(x, y, self = u)
+    isdisjoint(T, z) ? rec(z) : z
+  end
 end
 
-lift_outer(T, x; seen, union) = lift_inner(T, x; seen, union)
+function lift_inner(T, x; self = lift, seen, rec)
+  xs, _ = reconstruct(x)
+  ys = self.((T,), xs; seen, rec)
+  u(x, y) = _union(x, y, self = runion(rec))
+  reduce(u, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
+end
 
-lift_outer(T, x::Onion; seen, union) =
-  lift_inner(T, x; self = lift_inner, seen, union)
+lift_outer(T, x; seen, rec) = lift_inner(T, x; seen, rec)
 
-function lift_inner(T, x::Recursive; seen, union)
+lift_outer(T, x::Onion; seen, rec) =
+  lift_inner(T, x; self = lift_inner, seen, rec)
+
+function lift_inner(T, x::Recursive; seen, rec)
   x in seen && return ⊥, false, true
-  inner, s, r = lift_outer(T, unroll(x); seen = Set([seen..., x]), union)
+  inner, s, r = lift_outer(T, unroll(x); seen = Set([seen..., x]), rec)
   s && r ? (x, true, false) : (inner, s, false)
 end
 
-lift(T, x::Recursive; seen, union) =
-  issubset(x, T) ? (⊥, true, false) :
+lift(T, x::Recursive; seen, rec) =
   !isdisjoint(T, x) ? (x, true, false) :
-  lift_inner(T, x; seen, union)
+  lift_inner(T, x; seen, rec)
 
-function lift(T, x::Union{Onion,VPack}; seen, union)
+function lift(T, x::Union{Onion,VPack}; seen, rec)
   !isdisjoint(T, x) && return x, true, false
-  inner, s, r = lift_outer(T, x; seen, union)
+  inner, s, r = lift_outer(T, x; seen, rec)
   (s || r) ? (x, true, false) : (inner, s, r)
 end
 
-function lift(T, x; seen, union)
-  inner, s, r = lift_inner(T, x; seen, union)
+function lift(T, x; seen, rec)
+  inner, s, r = lift_inner(T, x; seen, rec)
   (s || r) && !isdisjoint(T, x) ? (x, true, false) : (inner, s, r)
 end
 
-lift(T; union) = lift_outer(T, T; seen = Set(), union)[1]
+lift(T; rec = identity) = lift_outer(T, T; seen = Set(), rec)[1]
 
 # Recursive
 
@@ -468,44 +475,28 @@ end
 
 rcheck(T) = (rcheck_inner(T, finite(T, 0)); T)
 
-function _recursive(T; self)
-  R = reroll(self.union(T, lift(T, union = self.union)))
-  issubset(R, T) ? R : self.recursive(unroll(R))
-  # issubset(R, T) ? R : _recursive(R; self)
+function _recursive(T; self = identity)
+  R = reroll(_union(unroll(T), lift(T, rec = self), self = runion(self)))
+  issubset(R, T) ? R : _recursive(R; self)
 end
 
-# function merger()
-
-function wrap_merger(self)
-  (; union = (x, y) -> self[(:union, x, y)],
-     recursive = T -> self[(:recursive, T)])
-end
-
-function merger()
-  function check(old, new)
-    # issubset(old, new) || (@show old new; println())
-    issubset(old, new) || throw(TypeError("subset"))
+function recurser()
+  check(old, new) = issubset(old, rcheck(new)) || throw(TypeError("subset"))
+  fp = Fixpoint(reroll; check) do self, T
+  fp = Fixpoint(_ -> ⊥; check) do self, T
+    R = _recursive(T, self = T -> self[T])
+    return R
   end
-  fp = Fixpoint(_ -> ⊥; check) do self, (f, args...)
-    self = wrap_merger(self)
-    if f == :union
-      x, y = unroll.(args)
-      z = _union(x, y, self = (x, y) -> self.recursive(self.union(x, y)))
-      # @show x y z; println()
-      return z
-    elseif f == :recursive
-      T, = args
-      R = rcheck(_recursive(T; self))
-      # @show T R; println()
-      return R
-    end
-  end
-  return wrap_merger(fp)
+  return T -> fp[T]
 end
 
-recursive(T) = isrecursive(T) ? T : merger().recursive(T)
+recursive(T) = recurser()(T)
 
-union(x, y; self = merger()) = self.recursive(self.union(x, y))
+function union(x, y)
+  rec = recurser()
+  u(x, y) = rec(_union(x, y, self = u))
+  return u(x, y)
+end
 
 # Internal symbols
 
