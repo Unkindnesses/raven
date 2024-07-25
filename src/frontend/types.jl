@@ -278,7 +278,7 @@ finite(T::Onion, depth = 1) = onion(finite.(disjuncts(T), depth)...)
 
 function finite(T::Recursive, depth = 1)
   term = unroll(⊥, T.type)
-  if !(term isa Union{Onion,VPack}) || isdisjoint(term, T)
+  if isdisjoint(term, T)
     term = unroll(term, T.type)
   end
   for i = 1:depth
@@ -385,18 +385,11 @@ end
 reroll(T, x::Recursive; seen) =
   isrecur(x, T) ? (Recur(), typekeys(x)) : reroll_inner(T, x; seen)
 
-reroll(T, x::Union{VPack,Onion}; seen) =
+reroll(T, x; seen) =
   isrecur(x, T) ? (Recur(), typekeys(x)) :
   reroll_outer(T, x; seen)
 
-function reroll(T, x; seen)
-  y, ks = reroll_inner(T, x; seen)
-  (!isempty(ks) || occursin(nothing, y)) && isrecur(x, T) ? (Recur(), typekeys(x)) : (y, ks)
-end
-
-reroll(T) = T
-
-function reroll(T::Union{VPack,Onion})
+function reroll(T)
   isrecursive(T) && return T
   xs = disjuncts(T)
   ys = reroll_inner.((T,), xs; seen = Set())
@@ -446,15 +439,10 @@ lift(T, x::Recursive; seen, rec) =
   !isdisjoint(T, x) ? (x, true, false) :
   lift_inner(T, x; seen, rec)
 
-function lift(T, x::Union{Onion,VPack}; seen, rec)
+function lift(T, x; seen, rec)
   !isdisjoint(T, x) && return x, true, false
   inner, s, r = lift_outer(T, x; seen, rec)
-  (s || r) ? (x, true, false) : (inner, s, r)
-end
-
-function lift(T, x; seen, rec)
-  inner, s, r = lift_inner(T, x; seen, rec)
-  (s || r) ? (x, true, false) : (inner, s, r)
+  s || r ? (x, true, false) : (inner, s, r)
 end
 
 lift(T; rec = identity) = lift_outer(T, T; seen = Set(), rec)[1]
@@ -485,6 +473,7 @@ function recurser()
   check(old, new) = issubset(old, rcheck(new)) || throw(TypeError("subset"))
   fp = Fixpoint(_ -> ⊥; check) do self, T
     R = _recursive(T, self = T -> self[T])
+    # @show T R; println()
     return R
   end
   return T -> fp[T]
