@@ -383,7 +383,7 @@ function reroll_inner(T, x::Recursive; seen)
 end
 
 reroll(T, x::Recursive; seen) =
-  isrecur(x, T) ? (Recur(), typekeys(x)) : reroll_inner(T, x; seen)
+  isrecur(finite(x), T) ? (Recur(), typekeys(x)) : reroll_inner(T, x; seen)
 
 reroll(T, x; seen) =
   isrecur(x, T) ? (Recur(), typekeys(x)) :

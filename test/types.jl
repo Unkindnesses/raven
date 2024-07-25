@@ -71,8 +71,8 @@ let
   T = Onion((pack(tag"b", Recursive(Onion((Float64, Int64, pack(tag"a", Recur()))))), Int64, Float64))
   @test recursive(T) == Recursive(Onion((Float64, Int64, pack(tag"a", Recur()), pack(tag"b", Recur()))))
 
-  # T = onion(Float64, pack(tag"d", pack(tag"d", Recursive(onion(Int64, Float64, pack(tag"b", Recur()))))))
-  # @test recursive(T) == Recursive(onion(Float64, Int64, pack(tag"b", Recur()), pack(tag"d", Recur())))
+  T = onion(Float64, pack(tag"d", pack(tag"d", Recursive(onion(Int64, Float64, pack(tag"b", Recur()))))))
+  @test recursive(T) == Recursive(onion(Float64, Int64, pack(tag"b", Recur()), pack(tag"d", Recur())))
 
   # T = onion(Float64, Int64, pack(tag"a", onion(Float64, Int64, vpack(tag"c", Int32)), Int64), vpack(tag"c", onion(Float64, Int64, pack(tag"c"))))
   # @test recursive(T) == Recursive(onion(Float64, Int32, Int64, pack(tag"a", Recur(), Int64), vpack(tag"c", Recur())))
@@ -211,12 +211,12 @@ let
   @test union(A, union(B, C)) == union(union(A, B), C)
 end
 
-# let
-#   A = Float64
-#   B = vpack(tag"c", Float64)
-#   C = vpack(tag"a", Recursive(onion(Float64, vpack(tag"b", pack(tag"c", Recur())))))
-#   @test union(A, union(B, C)) == union(union(A, B), C)
-# end
+let
+  A = Float64
+  B = vpack(tag"c", Float64)
+  C = vpack(tag"a", Recursive(onion(Float64, vpack(tag"b", pack(tag"c", Recur())))))
+  @test union(A, union(B, C)) == union(union(A, B), C)
+end
 
 # let
 #   T = pack(tag"a", Recursive(vpack(tag"b", Recur())))
@@ -241,7 +241,7 @@ let
   C = onion(pack(tag"a", pack(tag"a")), vpack(tag"c", Float64))
   @test union(union(A, B), C) == union(A, union(B, C))
 
-  # global T = onion(vpack(tag"a", onion(Int64, pack(tag"a"), pack(tag"c"))), vpack(tag"c", Float64))
+  # T = onion(vpack(tag"a", onion(Int64, pack(tag"a"), pack(tag"c"))), vpack(tag"c", Float64))
   # @test recursive(T) == T
 end
 
