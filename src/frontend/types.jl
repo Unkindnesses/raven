@@ -454,7 +454,7 @@ end
 
 function lift(T, x; seen, rec)
   inner, s, r = lift_inner(T, x; seen, rec)
-  (s || r) && !isdisjoint(T, x) ? (x, true, false) : (inner, s, r)
+  (s || r) ? (x, true, false) : (inner, s, r)
 end
 
 lift(T; rec = identity) = lift_outer(T, T; seen = Set(), rec)[1]
@@ -476,13 +476,13 @@ end
 rcheck(T) = (rcheck_inner(T, finite(T, 0)); T)
 
 function _recursive(T; self = identity)
-  R = reroll(_union(unroll(T), lift(T, rec = self), self = runion(self)))
+  # R = reroll(_union(unroll(T), lift(T, rec = self), self = runion(self)))
+  R = reroll(_union(T, lift(T, rec = self), self = runion(self)))
   issubset(R, T) ? R : _recursive(R; self)
 end
 
 function recurser()
   check(old, new) = issubset(old, rcheck(new)) || throw(TypeError("subset"))
-  fp = Fixpoint(reroll; check) do self, T
   fp = Fixpoint(_ -> ⊥; check) do self, T
     R = _recursive(T, self = T -> self[T])
     return R

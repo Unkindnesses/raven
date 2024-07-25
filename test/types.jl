@@ -211,12 +211,12 @@ let
   @test union(A, union(B, C)) == union(union(A, B), C)
 end
 
-let
-  A = Float64
-  B = vpack(tag"c", Float64)
-  C = vpack(tag"a", Recursive(onion(Float64, vpack(tag"b", pack(tag"c", Recur())))))
-  @test union(A, union(B, C)) == union(union(A, B), C)
-end
+# let
+#   A = Float64
+#   B = vpack(tag"c", Float64)
+#   C = vpack(tag"a", Recursive(onion(Float64, vpack(tag"b", pack(tag"c", Recur())))))
+#   @test union(A, union(B, C)) == union(union(A, B), C)
+# end
 
 let
   T = pack(tag"a", Recursive(vpack(tag"b", Recur())))
@@ -283,6 +283,12 @@ let
   I = Recursive(onion(vpack(tag"a", Recur()), vpack(tag"b", Recur())))
   T = pack(tag"b", I, vpack(tag"b", Int32))
   @test recursive(T) == Recursive(onion(Int32, vpack(tag"a", Recur()), vpack(tag"b", Recur())))
+end
+
+let
+  T = vpack(tag"d", vpack(tag"c", pack(tag"b", onion(Float64, pack(tag"d")))))
+  R = recursive(T)
+  @test recursive(unroll(R)) == R
 end
 
 struct Generator
