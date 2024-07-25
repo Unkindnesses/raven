@@ -299,8 +299,6 @@ end
 
 isdistinct(x, y) = distincter()(x, y)
 
-# isdistinct(x, y) = isdisjoint(x, y)
-
 # Union
 
 finite(T, depth = 1) = T
@@ -440,12 +438,7 @@ end
 # Lift
 # (type to merge, subset present, recursion present)
 
-function runion(rec, T = ⊥)
-  function u(x, y)
-    z = _union(x, y, self = u)
-    isdistinct(T, z) ? rec(z) : z
-  end
-end
+runion(rec) = (x, y) -> rec(_union(x, y, self = runion(rec)))
 
 function lift_inner(T, x; self = lift, seen, rec)
   xs, _ = reconstruct(x)
@@ -494,7 +487,6 @@ end
 rcheck(T) = (rcheck_inner(T, finite(T, 0)); T)
 
 function _recursive(T; self = identity)
-  # R = reroll(_union(unroll(T), lift(T, rec = self), self = runion(self)))
   R = reroll(_union(T, lift(T, rec = self), self = runion(self)))
   issubset(R, T) ? R : _recursive(R; self)
 end
@@ -502,20 +494,14 @@ end
 function recurser()
   check(old, new) = issubset(old, rcheck(new)) || throw(TypeError("subset"))
   fp = Fixpoint(_ -> ⊥; check) do self, T
-    R = _recursive(T, self = T -> self[T])
-    # @show T R; println()
-    return R
+    _recursive(T, self = T -> self[T])
   end
   return T -> fp[T]
 end
 
 recursive(T) = recurser()(T)
 
-function union(x, y)
-  rec = recurser()
-  u(x, y) = rec(_union(x, y, self = u))
-  return u(x, y)
-end
+union(x, y) = runion(recurser())(x, y)
 
 # Internal symbols
 

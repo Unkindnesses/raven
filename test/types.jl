@@ -294,21 +294,20 @@ macro iff(a, b)
   :($(esc(a))::Bool == $(esc(b))::Bool)
 end
 
-# using Random
-# Random.seed!(42)
+using Random
+Random.seed!(42)
 
-# for i = 1:10
-#   g = Generator()
-#   A, B, C = g(), g(), g()
-#   @test recursive(A) == A
-#   @test recursive(unroll(A)) == A
-#   @test union(A, A) === A
-#   @test @iff issubset(A, B) && issubset(B, A) A === B
-#   @test union(A, B) === union(B, A)
-#   @test union(union(A, B), C) === union(A, union(B, C))
-#   U = union(A, B)
-#   @test union(A, U) === U
-#   @test issubset(A, U)
-#   @test @implies issubset(A, B) U === B
-#   @test @iff issubset(A, B) issubset(U, B)
-# end
+for i = 1:10
+  g = Generator()
+  A, B, C = g(), g(), g()
+  @assert @iff issubset(A, B) && issubset(B, A) A === B
+  @assert recursive(unroll(A)) == A
+  @assert union(A, A) === A
+  @assert union(A, B) === union(B, A)
+  @assert union(union(A, B), C) === union(A, union(B, C))
+  U = union(A, B)
+  @assert union(A, U) === U
+  @assert issubset(A, U)
+  @assert @implies issubset(A, B) U === B
+  @assert @iff issubset(A, B) issubset(U, B)
+end
