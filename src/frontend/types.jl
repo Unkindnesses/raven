@@ -271,6 +271,36 @@ end
 
 isdisjoint(x, y) = disjointer()(x, y)
 
+function _isdistinct(self, x, y)
+  if x isa Recursive || y isa Recursive
+    self(unroll(x), unroll(y))
+  elseif x isa Onion || y isa Onion
+    all(self(x, y) for x in disjuncts(x) for y in disjuncts(y)) &&
+    count(!isdisjoint(x, y) for x in disjuncts(x) for y in disjuncts(y)) < 2
+  elseif x isa Pack && y isa Pack
+    nparts(x) < 1 || nparts(x) != nparts(y) || all(self(x, y) for (x, y) in zip(x.parts, y.parts))
+  elseif x isa Pack && y isa VPack
+    nparts(x) < 1 || isdisjoint(x, y)
+  elseif x isa VPack && y isa Pack
+    self(y, x)
+  elseif x isa VPack && y isa VPack
+    isdisjoint(x.tag, y.tag) || isdisjoint(x.parts, y.parts)
+  else
+    true
+  end
+end
+
+function distincter()
+  fp = Fixpoint(_ -> false) do self, (x, y)
+    _isdistinct((x, y) -> self[(x, y)], x, y)
+  end
+  (x, y) -> fp[(x, y)]
+end
+
+isdistinct(x, y) = distincter()(x, y)
+
+# isdistinct(x, y) = isdisjoint(x, y)
+
 # Union
 
 finite(T, depth = 1) = T
@@ -278,7 +308,7 @@ finite(T::Onion, depth = 1) = onion(finite.(disjuncts(T), depth)...)
 
 function finite(T::Recursive, depth = 1)
   term = unroll(⊥, T.type)
-  if isdisjoint(term, T)
+  if isdistinct(term, T)
     term = unroll(term, T.type)
   end
   for i = 1:depth
@@ -361,7 +391,7 @@ splitby(f, xs::Tuple) = splitby(f, collect(xs))
 
 # Reroll
 
-isrecur(x, T) = !isdisjoint(x, T) && issubset(x, T)
+isrecur(x, T) = !isdistinct(x, T) && issubset(x, T)
 
 function reroll_inner(T, x; self = reroll, seen)
   xs, re = reconstruct(x)
@@ -413,7 +443,7 @@ end
 function runion(rec, T = ⊥)
   function u(x, y)
     z = _union(x, y, self = u)
-    isdisjoint(T, z) ? rec(z) : z
+    isdistinct(T, z) ? rec(z) : z
   end
 end
 
@@ -436,11 +466,11 @@ function lift_inner(T, x::Recursive; seen, rec)
 end
 
 lift(T, x::Recursive; seen, rec) =
-  !isdisjoint(T, x) ? (x, true, false) :
+  !isdistinct(T, x) ? (x, true, false) :
   lift_inner(T, x; seen, rec)
 
 function lift(T, x; seen, rec)
-  !isdisjoint(T, x) && return x, true, false
+  !isdistinct(T, x) && return x, true, false
   inner, s, r = lift_outer(T, x; seen, rec)
   s || r ? (x, true, false) : (inner, s, r)
 end
@@ -457,7 +487,7 @@ rcheck_inner(T, x::Recursive) = rcheck(T, finite(x, 0))
 rcheck(T, x) = rcheck_inner(T, x)
 
 function rcheck(T, x::Union{VPack,Onion,Recursive})
-  isdisjoint(T, x) || throw(TypeError("recur"))
+  isdistinct(T, x) || throw(TypeError("recur"))
   rcheck_inner(T, x)
 end
 
