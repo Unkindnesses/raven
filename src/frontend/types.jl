@@ -278,7 +278,7 @@ function _isdistinct(self, x, y)
     all(self(x, y) for x in disjuncts(x) for y in disjuncts(y)) &&
     count(!isdisjoint(x, y) for x in disjuncts(x) for y in disjuncts(y)) < 2
   elseif x isa Pack && y isa Pack
-    nparts(x) < 1 || nparts(x) != nparts(y) || all(self(x, y) for (x, y) in zip(x.parts, y.parts))
+    nparts(x) < 1 || nparts(x) != nparts(y) || any(self(x, y) for (x, y) in zip(x.parts, y.parts))
   elseif x isa Pack && y isa VPack
     nparts(x) < 1 || isdisjoint(x, y)
   elseif x isa VPack && y isa Pack
@@ -501,7 +501,19 @@ end
 
 recursive(T) = recurser()(T)
 
-union(x, y) = runion(recurser())(x, y)
+function union(x, y)
+  # z = runion(recurser())(x, y)
+  # @show x y z; println()
+  # return z
+  x == ⊥ && return y
+  y == ⊥ && return x
+  z = runion(recurser())(x, y)
+  println(Main.io, x)
+  println(Main.io, y)
+  println(Main.io, z)
+  println(Main.io)
+  return z
+end
 
 # Internal symbols
 
