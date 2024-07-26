@@ -2,6 +2,7 @@
 .envrc
 /dev
 *.wasm
+*.log
 /test.*
 /*.jl
 /*.md
