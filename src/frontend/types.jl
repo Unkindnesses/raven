@@ -501,19 +501,7 @@ end
 
 recursive(T) = recurser()(T)
 
-function union(x, y)
-  # z = runion(recurser())(x, y)
-  # @show x y z; println()
-  # return z
-  x == ⊥ && return y
-  y == ⊥ && return x
-  z = runion(recurser())(x, y)
-  println(Main.io, x)
-  println(Main.io, y)
-  println(Main.io, z)
-  println(Main.io)
-  return z
-end
+union(x, y) = runion(recurser())(x, y)
 
 # Internal symbols
 
