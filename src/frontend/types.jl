@@ -278,7 +278,8 @@ function _isdistinct(self, x, y)
     all(self(x, y) for x in disjuncts(x) for y in disjuncts(y)) &&
     count(!isdisjoint(x, y) for x in disjuncts(x) for y in disjuncts(y)) < 2
   elseif x isa Pack && y isa Pack
-    nparts(x) < 1 || nparts(x) != nparts(y) || any(self(x, y) for (x, y) in zip(x.parts, y.parts))
+    nparts(x) < 1 || isdisjoint(x, y) ||
+      all(self(x, y) for (x, y) in zip(x.parts, y.parts))
   elseif x isa Pack && y isa VPack
     nparts(x) < 1 || isdisjoint(x, y)
   elseif x isa VPack && y isa Pack
@@ -494,7 +495,8 @@ end
 function recurser()
   check(old, new) = issubset(old, rcheck(new)) || throw(TypeError("subset"))
   fp = Fixpoint(_ -> ⊥; check) do self, T
-    _recursive(T, self = T -> self[T])
+    R = _recursive(T, self = T -> self[T])
+    return R
   end
   return T -> fp[T]
 end
