@@ -271,7 +271,7 @@ end
 
 isdisjoint(x, y) = disjointer()(x, y)
 
-function _isdistinct(self, x, y)
+function _isdistinct(self, x, y; isdisjoint)
   if x isa Recursive || y isa Recursive
     self(unroll(x), unroll(y))
   elseif x isa Onion || y isa Onion
@@ -292,8 +292,9 @@ function _isdistinct(self, x, y)
 end
 
 function distincter()
+  isdisjoint = disjointer()
   fp = Fixpoint(_ -> false) do self, (x, y)
-    _isdistinct((x, y) -> self[(x, y)], x, y)
+    _isdistinct((x, y) -> self[(x, y)], x, y; isdisjoint)
   end
   (x, y) -> fp[(x, y)]
 end
