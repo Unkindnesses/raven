@@ -156,16 +156,31 @@ isrecursive(x) = any(x -> x isa Recursive, disjuncts(x))
 occursin(x, y) = x == y || any(y -> occursin(x, y), reconstruct(y)[1])
 occursin(x, y::Union{Recur,Recursive}) = x == y
 
-unroll(S, T::Recursive) = T
-unroll(S, T::Recur) = S
+_unroll(S, T::Recursive) = T
+_unroll(S, T::Recur) = S
 
-function unroll(S, T)
+function _unroll(S, T)
   xs, re = reconstruct(T)
-  re(unroll.((S,), xs))
+  re(_unroll.((S,), xs))
 end
 
+_unroll(T) = T
+_unroll(T::Recursive) = _unroll(T, T.type)
+_unroll(T::Onion) = Onion([x for S in disjuncts(T) for x in disjuncts(_unroll(S))])
+
+unroll_inner(S, T::Recursive) = T
+unroll_inner(S, T::Recur) = S
+unroll_inner(S, T::Onion) = onion((unroll_inner(S, d) for d in disjuncts(T))...)
+
+function unroll_inner(S, T)
+  xs, re = reconstruct(T)
+  T = re(unroll.((S,), xs))
+end
+
+unroll(S, T) = reroll(unroll_inner(S, T))
+
 unroll(T) = T
-unroll(T::Recursive) = unroll(T, T.type)
+unroll(T::Recursive) = unroll_inner(T, T.type)
 unroll(T::Onion) = Onion([x for S in disjuncts(T) for x in disjuncts(unroll(S))])
 
 # Size
@@ -199,7 +214,7 @@ function _issubset(self, x, y)
   elseif y == ⊥
     false
   elseif x isa Recursive || y isa Recursive
-    self(unroll(x), unroll(y))
+    self(_unroll(x), _unroll(y))
   elseif x isa Onion
     all(self(T, y) for T in x.types)
   elseif y isa Onion
@@ -238,7 +253,7 @@ function _isdisjoint(self, x, y)
   if ⊥ in (x, y)
     true
   elseif x isa Recursive || y isa Recursive
-    self(unroll(x), unroll(y))
+    self(_unroll(x), _unroll(y))
   elseif x isa Onion || y isa Onion
     all(self(x, y) for x in disjuncts(x) for y in disjuncts(y))
   elseif x isa Primitive && y isa Primitive
@@ -273,7 +288,7 @@ isdisjoint(x, y) = disjointer()(x, y)
 
 function _isdistinct(self, x, y; isdisjoint)
   if x isa Recursive || y isa Recursive
-    self(unroll(x), unroll(y))
+    self(_unroll(x), _unroll(y))
   elseif x isa Onion || y isa Onion
     all(self(x, y) for x in disjuncts(x) for y in disjuncts(y)) &&
     count(!isdisjoint(x, y) for x in disjuncts(x) for y in disjuncts(y)) < 2
@@ -307,12 +322,12 @@ finite(T, depth = 1) = T
 finite(T::Onion, depth = 1) = onion(finite.(disjuncts(T), depth)...)
 
 function finite(T::Recursive, depth = 1)
-  term = unroll(⊥, T.type)
+  term = _unroll(⊥, T.type)
   if isdistinct(term, T)
-    term = unroll(term, T.type)
+    term = _unroll(term, T.type)
   end
   for i = 1:depth
-    term = unroll(term, T.type)
+    term = _unroll(term, T.type)
   end
   return term
 end
@@ -413,7 +428,7 @@ reroll_outer(T, x::Onion; seen) =
 
 function reroll_inner(T, x::Recursive; seen)
   x in seen && return nothing, Set()
-  y, ks = reroll_outer(T, unroll(x); seen = Set([seen..., x]))
+  y, ks = reroll_outer(T, _unroll(x); seen = Set([seen..., x]))
   isempty(ks) && return x, Set()
   occursin(nothing, y) && return x, Set()
   return y, ks
@@ -459,7 +474,7 @@ lift_outer(T, x::Onion; seen) =
 
 function lift_inner(T, x::Recursive; seen)
   x in seen && return ⊥, false, true
-  inner, s, r = lift_outer(T, unroll(x); seen = Set([seen..., x]))
+  inner, s, r = lift_outer(T, _unroll(x); seen = Set([seen..., x]))
   s && r ? (x, true, false) : (inner, s, false)
 end
 
