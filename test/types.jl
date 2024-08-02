@@ -157,19 +157,16 @@ let
   @test union(A, B) == vpack(tag"b", Recursive(onion(Int64, pack(tag"a", Recur()))))
 end
 
-# TODO overlapping recursion
-# let
-#   A = Recursive(vpack(tag"a", vpack(tag"b", Recur())))
-#   @test recursive(vpack(tag"b", A)) == Recursive(vpack(tag"b", vpack(tag"a", Recur())))
-# end
+let
+  A = Recursive(vpack(tag"a", vpack(tag"b", Recur())))
+  @test recursive(vpack(tag"b", A)) == Recursive(vpack(tag"b", vpack(tag"a", Recur())))
+end
 
 let
   A = vpack(tag"a", vpack(tag"b", Int64))
   B = Recursive(vpack(tag"a", vpack(tag"b", Recur())))
   C = Int64
-  # TODO overlapping recursion
-  # @test union(union(A, B), C) == Recursive(onion(Int, vpack(tag"a", vpack(tag"b", Recur()))))
-  @test union(union(A, B), C) == Recursive(onion(Int64, vpack(tag"a", Recur()), vpack(tag"b", Recur())))
+  @test union(union(A, B), C) == Recursive(onion(Int, vpack(tag"a", vpack(tag"b", Recur()))))
 end
 
 let
@@ -220,11 +217,6 @@ let
 end
 
 let
-  T = Recursive(vpack(tag"a", vpack(tag"c", onion(Int64, vpack(tag"c", Recur())))))
-  @test union(T, Int64) == Recursive(onion(Int64, vpack(tag"a", Recur()), vpack(tag"c", Recur())))
-end
-
-let
   A = pack(tag"a", Int64)
   B = vpack(tag"a", pack(tag"c"))
   C = onion(pack(tag"a", pack(tag"a")), vpack(tag"c", Float64))
@@ -242,13 +234,6 @@ let
   C = tag"c"
   @test union(union(A, B), C) == union(A, union(B, C))
 end
-
-# let
-#   # overlapping recursion
-#   A = pack(tag"b", vpack(tag"a", Recursive(onion(Int64, vpack(tag"d", Recur())))))
-#   U = Recursive(onion(Int64, pack(tag"b", vpack(tag"a", Recur())), vpack(tag"d", Recur())))
-#   @test union(A, U) == U
-# end
 
 let
   I = Recursive(onion(vpack(tag"a", Recur()), vpack(tag"b", Recur())))

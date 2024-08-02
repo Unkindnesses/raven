@@ -458,13 +458,10 @@ end
 # Lift
 # (type to merge, subset present, recursion present)
 
-runion(rec) = (x, y) -> rec(_union(x, y, self = runion(rec)))
-
 function lift_inner(T, x; self = lift, seen)
   xs, _ = reconstruct(x)
   ys = self.((T,), xs; seen)
-  u(x, y) = _union(x, y, self = runion(_recursive))
-  reduce(u, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
+  reduce(_union, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
 end
 
 lift_outer(T, x; seen) = lift_inner(T, x; seen)
@@ -478,43 +475,38 @@ function lift_inner(T, x::Recursive; seen)
   s && r ? (x, true, false) : (inner, s, false)
 end
 
-lift(T, x::Recursive; seen) =
-  !isdistinct(T, x) ? (x, true, false) :
-  lift_inner(T, x; seen)
-
-function lift(T, x; seen)
-  !isdistinct(T, x) && return x, true, false
-  inner, s, r = lift_outer(T, x; seen)
-  s || r ? (x, true, false) : (inner, s, r)
-end
+lift(T, x; seen) =
+  !isdistinct(x, T) ? (issubset(x, T) ? ⊥ : x, true, false) :
+  lift_outer(T, x; seen)
 
 lift(T) = lift_outer(T, T; seen = Set())[1]
 
 # Recursive
 
-rcheck_inner(T, x) = foreach(x -> rcheck(T, x), reconstruct(x)[1])
-
-rcheck_inner(T, x::Onion) = foreach(x -> rcheck_inner(T, x), disjuncts(x))
-rcheck_inner(T, x::Recursive) = rcheck(T, finite(x, 0))
-
-rcheck(T, x) = rcheck_inner(T, x)
-
-function rcheck(T, x::Union{VPack,Onion,Recursive})
-  isdistinct(T, x) || throw(TypeError("recur"))
-  rcheck_inner(T, x)
+function recurse_inner(T; self)
+  xs, re = reconstruct(T)
+  return re(self.(xs))
 end
 
-rcheck(T) = (rcheck_inner(T, finite(T, 0)); T)
+recurse_inner(T::Onion; self) =
+  onion([recurse_inner(x; self) for x in disjuncts(T)]...)
 
-_recursive(T) = reroll(_union(T, lift(T), self = runion(_recursive)))
-
-function recursive(T)
-  R = _recursive(T)
-  R = issubset(R, T) ? R : recursive(R)
-  return rcheck(R)
+function _recursive(T; self = identity)
+  R = reroll(recurse_inner(_union(_unroll(T), lift(T)); self))
+  issubset(R, T) ? R : self(R)
 end
 
-union(x, y) = runion(recursive)(x, y)
+function recurser()
+  check(old, new) = issubset(old, new) || throw(TypeError("subset"))
+  fp = Fixpoint(identity; check) do self, T
+    _recursive(T, self = T -> self[T])
+  end
+  return T -> fp[T]
+end
+
+recursive(T) = recurser()(T)
+
+union(x, y) = recursive(_union(x, y))
 
 # Internal symbols
 
