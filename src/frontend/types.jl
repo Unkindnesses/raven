@@ -391,7 +391,14 @@ splitby(f, xs::Tuple) = splitby(f, collect(xs))
 
 # Reroll
 
-isrecur(x, T) = !isdistinct(x, T) && issubset(x, T)
+rfinite(T::Recursive) = finite(T)
+
+function rfinite(T)
+  xs, re = reconstruct(T)
+  re(rfinite.(xs))
+end
+
+isrecur(x, T) = !isdistinct(x, T) && issubset(rfinite(x), T)
 
 function reroll_inner(T, x; self = reroll, seen)
   xs, re = reconstruct(x)
@@ -412,9 +419,6 @@ function reroll_inner(T, x::Recursive; seen)
   return y, ks
 end
 
-reroll(T, x::Recursive; seen) =
-  isrecur(finite(x), T) ? (Recur(), typekeys(x)) : reroll_inner(T, x; seen)
-
 reroll(T, x; seen) =
   isrecur(x, T) ? (Recur(), typekeys(x)) :
   reroll_outer(T, x; seen)
@@ -433,8 +437,7 @@ function reroll(T)
     xs = [bs..., (x, ks)]
   end
   xs = [occursin(Recur(), x) ? Recursive(x) : x for x in first.(xs)]
-  R = onion(xs...)
-  issubset(R, T) ? R : reroll(unroll(R))
+  return onion(xs...)
 end
 
 # Lift

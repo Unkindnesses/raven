@@ -1,5 +1,5 @@
 using Raven, Test
-using Raven: @tag_str, Onion, onion, Primitive, Recursive, Recur, pack, vpack, union, issubset, recursive, unroll
+using Raven: @tag_str, Onion, onion, Primitive, Recursive, Recur, pack, vpack, union, issubset, recursive, unroll, finite
 
 let
   T1 = Onion([pack(tag"Empty"), pack(tag"Prepend", pack(tag"Empty"), Int64)])
@@ -27,6 +27,11 @@ let
   @test issubset(unroll(T), T)
   @test issubset(T, unroll(T))
   @test recursive(unroll(T)) == T
+end
+
+let
+  List(T) = Recursive(onion(pack(tag"Empty"), pack(tag"Prepend", Recur(), T)))
+  @test recursive(finite(List(List(Int)))) == List(List(Int))
 end
 
 let
@@ -255,6 +260,11 @@ let
   T = vpack(tag"d", vpack(tag"c", pack(tag"b", onion(Float64, pack(tag"d")))))
   R = recursive(T)
   @test recursive(unroll(R)) == R
+end
+
+let
+  T = onion(pack(tag"a", pack(tag"b")), vpack(tag"b", Int), vpack(tag"d", vpack(tag"a", pack(tag"b", Int))))
+  @test recursive(T) == Recursive(onion(vpack(tag"a", Recur()), vpack(tag"b", Int64), vpack(tag"d", Recur())))
 end
 
 struct Generator
