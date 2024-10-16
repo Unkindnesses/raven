@@ -44,23 +44,7 @@ function looped(ir::IR, cs::Component = components(CFG(ir)))
       push!(bl, Expr(:loop, looped(ir, ch), args...))
     end
   end
-  return LoopIR(out, blocks, IR[copy(out)])
-end
-
-function unrollall!(ir::IR, n)
-  for b in blocks(ir)
-    l = loop(b)
-    l == nothing && continue
-    unrollall!(l, n)
-    for _ = 1:n
-      push!(l.body, copy(l.ir))
-    end
-  end
-end
-
-function unrollall!(l::LoopIR, n = 1)
-  unrollall!(l.ir, n)
-  return l
+  return LoopIR(out, blocks, [copy(out)])
 end
 
 nblocks(b::Block) = (l = loop(b)) == nothing ? 1 : nblocks(l)
