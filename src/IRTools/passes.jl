@@ -211,8 +211,8 @@ end
 blocks(c::Integer) = [c]
 blocks(c::Component) = reduce(vcat, blocks.(c.children))
 
-entries(c::Integer) = [c]
-entries(c::Component) = entries(first(c.children))
+entry(c::Integer) = c
+entry(c::Component) = first(c.children)::Int
 
 function components(cfg::CFG; blocks = 1:length(cfg))
   # Assume the first block is the entry.

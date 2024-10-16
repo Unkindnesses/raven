@@ -1,7 +1,7 @@
 using ..IRTools
 using ..IRTools: IR, CFG, Variable, isexpr, stmt, argument!, return!, xcall, block!,
   branch!, blocks, arguments, argtypes, isreturn, isconditional
-using ..IRTools: Component, components, entries, successors
+using ..IRTools: Component, components, entry, successors
 
 struct WTuple
   parts::Vector{WType}
@@ -236,12 +236,12 @@ end
 function reloop!(rl::Relooping, cs::IRTools.Component)
   # Insert blocks for forward jumps
   for i in length(cs.children):-1:2
-    pushscope!(rl, Block([]), entries(cs.children[i])[1])
+    pushscope!(rl, Block([]), entry(cs.children[i]))
   end
   for i in 1:length(cs.children)
     # Pop forward jumps to this block
     i == 1 || popscope!(rl)
-    cs.children[i] isa Component && pushscope!(rl, Loop([]), entries(cs.children[i])[1])
+    cs.children[i] isa Component && pushscope!(rl, Loop([]), entry(cs.children[i]))
     # Block body
     reloop!(rl, cs.children[i])
     cs.children[i] isa Component && popscope!(rl)

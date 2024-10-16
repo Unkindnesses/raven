@@ -1,4 +1,4 @@
-using .IRTools: CFG, Block, Component, components, entries
+using .IRTools: CFG, Block, Component, components, entry
 
 rename(env, ex) =
   IRTools.prewalk(x -> x isa Variable ? env[x] : x, ex)
@@ -39,10 +39,8 @@ function looped(ir::IR, cs::Component = components(CFG(ir)))
       push!(blocks, ch)
       copyblock!(bl, block(ir, ch))
     else
-      es = entries(ch)
-      @assert length(es) == 1
-      push!(blocks, es[1])
-      args = [argument!(bl, type = T, insert = false) for T in argtypes(block(ir, es[1]))]
+      push!(blocks, entry(ch))
+      args = [argument!(bl, type = T, insert = false) for T in argtypes(block(ir, entry(ch)))]
       push!(bl, Expr(:loop, looped(ir, ch), args...))
     end
   end
@@ -181,6 +179,7 @@ function checkExit(q, l::LoopIR, path)
       break
     end
     push!(p′, (itr, bl))
+    itr > length(l.body) && break
     l = loop(block(l.body[itr], bl))
   end
 end
