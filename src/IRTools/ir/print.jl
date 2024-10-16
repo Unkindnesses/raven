@@ -44,13 +44,15 @@ end
 
 function show(io::IO, b::Block)
   indent = get(io, :indent, 0)
+  bm = get(io, :blockmap, identity)
   bb = BasicBlock(b)
   print(io, tab^indent)
-  print(io, b.id, ":")
+  print(io, bm(b.id), ":")
   if !isempty(bb.args)
     print(io, " ")
     printargs(io, bb.args, bb.argtypes)
   end
+  io = IOContext(io, :indent => indent+1, :blockmap => identity)
   for (x, st) in b
     println(io)
     print(io, tab^indent, "  ")

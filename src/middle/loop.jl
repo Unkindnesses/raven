@@ -22,6 +22,20 @@ end
 
 IRTools.argtypes(ir::LoopIR) = argtypes(ir.body[1])
 
+function Base.show(io::IO, ir::LoopIR)
+  indent = get(io, :indent, 0)
+  io = IOContext(io, :indent => indent+1, :blockmap => i -> ir.bls[i])
+  println(io, "loop:")
+  for (i, b) in enumerate(ir.body)
+    println(io, IRTools.tab^indent, "#$i:")
+    print(IOContext(io, :indent=>indent+1), b)
+  end
+end
+
+function IRTools.print_stmt(io::IO, ::Val{:loop}, l)
+  print(io, l.args[1])
+end
+
 function loop(bl::Block)
   if !isempty(bl) && isexpr(first(bl)[2].expr, :loop)
     return first(bl)[2].expr.args[1]
