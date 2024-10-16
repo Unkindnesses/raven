@@ -44,10 +44,10 @@ function loop(bl::Block)
   end
 end
 
-function looped(ir::IR, cs::Component = components(CFG(ir)))
+function looped(ir::IR, cs = components(CFG(ir)))
   out = IR(meta = ir.meta)
   blocks = Int[]
-  for (i, ch) in enumerate(cs.children)
+  for (i, ch) in enumerate(cs)
     bl = i == 1 ? block(out, 1) : block!(out)
     if ch isa Integer
       push!(blocks, ch)

@@ -1,6 +1,6 @@
 using ..IRTools
 using ..IRTools: IR, CFG, Variable, isexpr, stmt, argument!, return!, xcall, block!,
-  branch!, blocks, arguments, argtypes, isreturn, isconditional
+  branch!, block, blocks, arguments, argtypes, isreturn, isconditional
 using ..IRTools: Component, components, entry, successors
 
 struct WTuple
@@ -222,7 +222,7 @@ end
 lineinfo(st) = st.src == nothing ? nothing : LineInfo(st.src, st.bp)
 
 function reloop!(rl::Relooping, i::Integer)
-  b = blocks(rl.ir)[i]
+  b = block(rl.ir, i)
   for (v, st) in b
     if st.expr isa Branch
       target = findfirst(b -> b == st.expr.level, reverse(rl.targets))-1

@@ -214,11 +214,19 @@ blocks(c::Component) = reduce(vcat, blocks.(c.children))
 entry(c::Integer) = c
 entry(c::Component) = first(c.children)::Int
 
+Base.iterate(c::Component, st...) = iterate(c.children, st...)
+
 function components(cfg::CFG; blocks = 1:length(cfg))
-  # Assume the first block is the entry.
-  cs = strongconnected(cfg, blocks = blocks[2:end])
-  Component([blocks[1],
-             [length(c) == 1 ? c[1] : components(cfg, blocks = sort(c)) for c in cs]...])
+  if length(blocks) == 1
+    bl = only(blocks)
+    # Singleton components represent one-block loops
+    bl in cfg[bl] ? Component([bl]) : bl
+  else
+    # Assume the first block is the entry.
+    cs = strongconnected(cfg, blocks = blocks[2:end])
+    Component([blocks[1],
+              [components(cfg, blocks = sort(c)) for c in cs]...])
+  end
 end
 
 # Inlining
