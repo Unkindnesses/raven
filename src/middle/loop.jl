@@ -18,16 +18,19 @@ mutable struct LoopIR
   ir::IR
   bls::Vector{Int}
   body::Vector{IR}
+  max::Int
 end
+
+LoopIR(ir::IR, bls::Vector{Int}) = LoopIR(ir, bls, [copy(ir)], 8)
 
 IRTools.argtypes(ir::LoopIR) = argtypes(ir.body[1])
 
 function Base.show(io::IO, ir::LoopIR)
   indent = get(io, :indent, 0)
   io = IOContext(io, :indent => indent+1, :blockmap => i -> ir.bls[i])
-  println(io, "loop:")
+  print(io, "loop:")
   for (i, b) in enumerate(ir.body)
-    println(io, IRTools.tab^indent, "#$i:")
+    println(io, "\n", IRTools.tab^indent, "#$i:")
     print(IOContext(io, :indent=>indent+1), b)
   end
 end
@@ -58,7 +61,7 @@ function looped(ir::IR, cs = components(CFG(ir)))
       push!(bl, Expr(:loop, looped(ir, ch), args...))
     end
   end
-  return LoopIR(out, blocks, [copy(out)])
+  return LoopIR(out, blocks)
 end
 
 nblocks(b::Block) = (l = loop(b)) == nothing ? 1 : nblocks(l)
@@ -106,91 +109,16 @@ function unloop(l::LoopIR)
   return ir
 end
 
-# Unrolling eligibility
-
-function merge_branchtypes!(a, b)
-  for (k, v) in b
-    a[k] = union.(get(a, k, [⊥ for _ in v]), v)
+function reroll!(ir::LoopIR)
+  ir.max = 1
+  length(ir.body) == 1 && return false
+  changed = false
+  first = ir.body[1]
+  for ir in ir.body[2:end]
+    changed |= blockargs!(first, IRTools.argtypes(ir))
   end
-  return a
-end
-
-function openbranches(bl)
-  brs = []
-  for br in IRTools.branches(bl)
-    br.args[2] == nothing && (push!(brs, br); break)
-    cond = exprtype(bl.ir, br.args[2])
-    cond == false && continue
-    cond == true && (push!(brs, br); break)
-    push!(brs, br)
-  end
-  return brs
-end
-
-function exitBranches(l::LoopIR, b::Block)
-  l′ = loop(b)
-  l′ == nothing || error("unimplemented")
-  brs = Dict()
-  internal = l.bls[2:end]
-  any(((v, st),) -> !isexpr(st, :branch) && st.type == ⊥, b) && return brs
-  for br in openbranches(b)
-    if !(br.args[1] in internal)
-      merge_branchtypes!(brs, Dict(br.args[1] => exprtype(b.ir, arguments(br))))
-    end
-    br.args[1] in internal && br.args[1] > l.bls[b.id] &&
-      merge_branchtypes!(brs, exitBranches(l, block(b.ir, findfirst(==(br.args[1]), l.bls))))
-  end
-  return brs
-end
-
-function exitBranches(l::LoopIR, itr::Int)
-  ir = l.body[itr]
-  exitBranches(l, block(ir, 1))
-end
-
-function reroll!(l::LoopIR)
-  length(l.body) == 1 && return false
-  first = l.body[1]
-  for ir in l.body[2:end]
-    blockargs!(first, IRTools.argtypes(ir))
-  end
-  resize!(l.body, 1)
-  return true
-end
-
-function checkUnroll(l::LoopIR, itr)
-  itr >= 8 && return false
-  ir = l.body[itr]
-  inputs = argtypes(ir)
-  brs = exitBranches(l, itr)
-  !haskey(brs, l.bls[1]) ||
-    (length(brs) == 1 && !all(issubset.(inputs, brs[l.bls[1]])))
-end
-
-function checkExit(q, l::LoopIR, path)
-  p′ = Tuple{Int,Int}[]
-  for (itr, bl) in path.parts
-    if length(l.body) > 1 && !checkUnroll(l, itr)
-      reroll!(l)
-      push!(p′, (1, 1))
-      push!(q, Path(p′))
-      break
-    end
-    push!(p′, (itr, bl))
-    itr > length(l.body) && break
-    l = loop(block(l.body[itr], bl))
-  end
-end
-
-function nextItr!(l::LoopIR, itr)
-  if checkUnroll(l, itr)
-    itr += 1
-    length(l.body) < itr && push!(l.body, copy(l.ir))
-  else
-    itr = 1
-    reroll!(l)
-  end
-  return itr
+  resize!(ir.body, 1)
+  return changed
 end
 
 # Navigation during inference
@@ -201,38 +129,72 @@ end
 
 Path() = Path([(1,1)])
 
+tail(p::Path) = Path(p.parts[2:end])
+
 (a::Path == b::Path) = (a.parts == b.parts)
 hash(x::Path, h::UInt64) = hash(x.parts, h ⊻ 0x7fcfb6faea593cfb)
+Base.isless(a::Path, b::Path) = isless(a.parts, b.parts)
 
-function IRTools.block(l::LoopIR, path::Path)
-  for (itr, bl) in path.parts[1:end-1]
-    itr > length(l.body) && return
-    l = loop(block(l.body[itr], bl))
+@forward Path.parts Base.length, Base.lastindex, Base.getindex, Base.iterate
+
+function IRTools.block(ir::LoopIR, path::Path)
+  for (itr, b) in path[1:end-1]
+    ir = loop(block(ir.body[itr], b))
   end
-  itr, bl = path.parts[end]
-  itr > length(l.body) && return
-  return block(l.body[itr], bl)
+  itr, b = path[end]
+  return block(ir.body[itr], b)
 end
 
-function nextpath(l::LoopIR, p::Path, target::Int)
-  p′ = Tuple{Int,Int}[]
-  for (i, (itr, bl)) in enumerate(p.parts)
-    bl′ = findfirst(==(target), l.bls)
-    if bl′ == bl # back edge
-      push!(p′, (itr, bl))
-      l = loop(block(l.body[itr], bl))
-      (itr, _) = p.parts[i+1]
-      itr′ = nextItr!(l, itr)
-      reroll = itr > itr′ == 1
-      push!(p′, (itr′, 1))
-      return Path(p′), reroll
-    elseif bl′ != nothing
-      push!(p′, (itr, bl′))
-      return Path(p′), false
+function nextpath(ir::LoopIR, p::Path)
+  itr, bl = p[1]
+  next = length(p) == 1 ? nothing :
+    nextpath(loop(block(ir.body[itr], bl)), tail(p))
+  next == nothing || return Path([p[1], next...])
+  return (
+    bl < length(ir.bls) ? Path([(itr, bl+1)]) :
+    itr < length(ir.body) ? Path([(itr+1, 1)]) :
+    nothing
+  )
+end
+
+function nextpath(ir::LoopIR, p::Path, target::Int)
+  q = Tuple{Int,Int}[]
+  for (itr, b) in p
+    c = findfirst(==(target), ir.bls)
+    if isnothing(c) || c == b # back edge
+      ir = loop(block(ir.body[itr], b))
+      push!(q, (itr, b))
+      continue
+    end
+    if c == 1
+      if itr >= ir.max
+        push!(q, (1, 1))
+        return Path(q), reroll!(ir)
+      else
+        itr == length(ir.body) && push!(ir.body, copy(ir.ir))
+        push!(q, (itr+1, 1))
+        return Path(q), false
+      end
     else
-      l = loop(block(l.body[itr], bl))
-      push!(p′, (itr, bl))
+      push!(q, (itr, c))
+      return Path(q), false
     end
   end
   error("Invalid block target $target")
+end
+
+# If a loop iteration breaks out, don't unroll it further.
+function pin!(ir::LoopIR, p::Path, depth::Int)
+  rr = false
+  for (i, (itr, b)) in enumerate(p)
+    if i > depth
+      ir.max = itr
+      if length(ir.body) > ir.max
+        rr |= reroll!(ir)
+        itr == 1 || return rr
+      end
+    end
+    ir = loop(block(ir.body[itr], b))
+  end
+  return rr
 end

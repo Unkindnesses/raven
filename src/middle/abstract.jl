@@ -203,20 +203,15 @@ function cleardeps!(inf::Inference, sig)
   return
 end
 
-# TODO: rm work queue
 function update!(inf::Inference, sig)
   cleardeps!(inf, sig)
   fr = inf.frames[sig]
   ret = ⊥
   path = Path()
-  seen = Set{Path}()
-  queue = WorkQueue{Path}()
-  push!(queue, Path())
-  while !isempty(queue)
-    path = pop!(queue)
-    push!(seen, path)
+  reachable = Set([path])
+  while path != nothing
+    @label loop
     bl = block(fr.ir, path)
-    reroll = false
     for (v, st) in bl
       if isexpr(st, :call) && st.expr.args[1] isa WIntrinsic
         op = st.expr.args[1].op
@@ -247,9 +242,9 @@ function update!(inf::Inference, sig)
         bl.ir[v] = stmt(st, type = T)
       elseif isexpr(st, :loop)
         l = loop(bl)
-        if blockargs!(l.body[1], argtypes(bl))
-          push!(queue, Path([path.parts..., (1,1)]))
-        end
+        blockargs!(l.body[1], argtypes(bl))
+        path = Path([path.parts..., (1,1)])
+        @goto loop
       elseif isexpr(st, :branch)
         br = st.expr
         if isreturn(br)
@@ -259,24 +254,27 @@ function update!(inf::Inference, sig)
         else
           cond = exprtype(bl.ir, something(br.args[2], Int32(1)))
           cond == false && continue
+          p, rr = nextpath(fr.ir, path, br.args[1])
+          rr = rr || pin!(fr.ir, path, length(p))
+          @assert !rr || p < path "unimplemented"
           args = exprtype(bl.ir, arguments(br))
-          p′, reroll = nextpath(fr.ir, path, br.args[1])
-          backedge = br.args[1] < bl.id
-          if reroll || blockargs!(block(fr.ir, p′), args) || !(p′ in seen)
-            # Unroll loops late; try to widen types in the body first, so as not
-            # to unroll too eagerly.
-            p! = (backedge && p′.parts[end][1] != 1) ? pushfirst! : push!
-            p!(queue, p′)
+          push!(reachable, p)
+          if (blockargs!(block(fr.ir, p), args) || rr) && p < path
+            path = p
+            @goto loop
           end
           cond == true && break
         end
       else
         error("Unknown expr type $(st.expr.head)")
       end
-      reroll || checkExit(queue, fr.ir, path)
+    end
+    while true
+      path = nextpath(fr.ir, path)
+      (isnothing(path) || path in reachable) && break
     end
   end
-  if !(issubset(ret, fr.rettype))
+  if !issubset(ret, fr.rettype)
     fr.rettype = ret
     foreach(s -> push!(inf.queue, s), fr.edges)
   end
