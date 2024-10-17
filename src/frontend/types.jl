@@ -534,15 +534,15 @@ end
 
 vprint(io::IO, x) = show(io, x)
 
-const printers = Dict{Symbol,Any}()
+const printers = Dict{Tag,Any}()
 
-printers[:List] = function (io::IO, s::Pack)
+printers[tag"common.List"] = function (io::IO, s::Pack)
   print(io, "[")
   join(io, [sprint(vprint, x) for x in parts(s)], ", ")
   print(io, "]")
 end
 
-printers[:Pair] = function (io, s)
+printers[tag"common.Pair"] = function (io, s)
   vprint(io, part(s, 1))
   print(io, " => ")
   vprint(io, part(s, 2))
