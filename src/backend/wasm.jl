@@ -108,7 +108,7 @@ function lowerwasm(ir::IR, names, globals, tables)
     if !isexpr(st)
       pr[v] = stmt(st.expr, type = wlayout(st.type))
     elseif isexpr(st, :ref) && st.expr.args[1] isa String
-      pr[v] = stringid!(tables, st.expr.args[1])
+      pr[v] = stmt(Expr(:call, WebAssembly.Call(:string), stringid!(tables, st.expr.args[1])), type = i32)
     elseif isexpr(st, :func)
       f, I, O = st.expr.args
       pr[v] = funcid!(tables, names[(f, I)])
@@ -247,6 +247,7 @@ default_imports = [
   WebAssembly.Import(:support, :property, :jsproperty, [i32, i32] => [i32]),
   WebAssembly.Import(:support, :call, :jscall0, [i32, i32] => [i32]),
   WebAssembly.Import(:support, :call, :jscall1, [i32, i32, i32] => [i32]),
+  WebAssembly.Import(:support, :string, :string, [i32] => [i32]),
   WebAssembly.Import(:support, :abort, :abort, [i32] => []),
   WebAssembly.Import(:support, :createRef, :jsbox, [f64] => [i32]),
   WebAssembly.Import(:support, :fromRef, :jsunbox, [i32] => [f64]),
@@ -305,7 +306,7 @@ function emitjs(path, wasm, strings)
     write(io, Base.read(support))
     println(io)
     println(io, "const wasmFile = '$wasm';")
-    println(io, "[$(join(jsstring.(strings), ", "))].forEach(registerString)")
+    println(io, "support.strings = [$(join(jsstring.(strings), ", "))]")
     if options().jsalloc
       println(io, "main();")
     else
@@ -319,7 +320,7 @@ end
 mutable struct StreamEmitter
   seen::Set{Symbol}
   queue::Vector{WebAssembly.Module}
-  tables
+  tables::Tables
   globals::Int
 end
 

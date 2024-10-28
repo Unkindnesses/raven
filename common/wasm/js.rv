@@ -1,4 +1,4 @@
-export { global, call, await, tojs, sleep, readline }
+export { abort, global, call, await, tojs, sleep, readline }
 
 fn jsfree(ptr: Ptr) {
   id = i32load(ptr)
@@ -32,6 +32,10 @@ fn jsref(x) { jsref(tojs(x)) }
 fn jsref(JSObject(ref: Ref)) { i32load(pointer(ref)) }
 
 fn jsref(JSObject(ref: Int32)) { ref }
+
+fn retain!(JSObject(ref: Ref)) { retain!(ref) }
+
+fn retain!(JSObject(_: Int32)) {}
 
 fn global() {
   ref = wasm { call("jsglobal"): i32 }
@@ -96,11 +100,13 @@ extend fn Float64(obj: JSObject) {
   return x
 }
 
-fn abort(s: String) {
+fn abort(s: JSObject) {
+  retain!(s)
   ref = jsref(s)
-  # TODO preserve s
   wasm { call("abort", ref: i32): unreachable }
 }
+
+fn abort(s: String) { abort(tojs(s)) }
 
 fn string(x: (Int32 | Int64 | Float32 | Float64)) {
   String(call(x, "toString"))

@@ -31,9 +31,9 @@ async function main() {
   let socket = net.connect(process.argv[2]);
   socket.on('data', bufferLines(async (data) => {
     let command = JSON.parse(data);
-    if (command.type === 'string') {
-      let id = registerString(command.value);
-      socket.write(JSON.stringify({id}));
+    if (command.type == 'strings') {
+      support.strings = command.strings;
+      socket.write(JSON.stringify({}));
     } else if (command.type === 'wasm') {
       let module = Buffer.from(command.module, 'base64');
       await runWasm(module);

@@ -132,7 +132,7 @@ function partir(s::String, i)
   argument!(ir, type = s)
   argument!(ir, type = i)
   # Punt to the backend to decide how strings get IDd
-  id = push!(ir, stmt(Expr(:ref, s), type = rlist(Int32, Int32(0))))
+  id = push!(ir, stmt(Expr(:ref, s), type = rlist(Int32)))
   o = push!(ir, stmt(xcall(tag"common.JSObject", id), type = JSObject()))
   return!(ir, o)
   return ir

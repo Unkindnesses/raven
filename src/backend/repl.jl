@@ -23,25 +23,12 @@ registerString(r::REPLConn, s) = command!(r, Dict(:type => "string", :value => s
 runWasm(r::REPLConn, m::WebAssembly.Module) =
   command!(r, Dict(:type => "wasm", :module => base64(m; path = "repl")))
 
-struct REPLTables
-  conn::REPLConn
-  strings::Dict{String,Int32}
-  funcs::Vector{Symbol}
-end
-
-REPLTables(conn::REPLConn) = REPLTables(conn, Dict(), [])
-
-stringid!(tables::REPLTables, s) =
-  get!(() -> registerString(tables.conn, s), tables.strings, s)
-
-funcid!(tables::REPLTables, f) = tableid!(tables.funcs, f)
-
 struct REPLEmitter
   conn::REPLConn
   emitter::StreamEmitter
 end
 
-REPLEmitter(conn::REPLConn) = REPLEmitter(conn, StreamEmitter(REPLTables(conn)))
+REPLEmitter(conn::REPLConn) = REPLEmitter(conn, StreamEmitter(Tables()))
 
 Base.copy(em::REPLEmitter) = REPLEmitter(em.conn, copy(em.emitter))
 
@@ -69,6 +56,8 @@ end
 Base.close(r::REPL) = close(r.conn)
 
 function flush!(r::REPL)
+  command!(r.conn, Dict(:type => "strings",
+                        :strings => r.emitter.emitter.tables.strings))
   while !isempty(r.emitter.emitter.queue)
     runWasm(r.conn, popfirst!(r.emitter.emitter.queue))
   end

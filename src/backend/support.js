@@ -16,11 +16,8 @@ function fromRef(ref) {
 
 let await = new WebAssembly.Suspending(async ref => createRef(await fromRef(ref)));
 
-let nStrings = 0;
-
-function registerString(s) {
-  nStrings += 1;
-  return createRef(s);
+function string(i) {
+  return createRef(support.strings[i]);
 }
 
 function release(ref) {
@@ -81,6 +78,7 @@ globalThis.dummyPromise = function (n) {
 }
 
 const support = {global, property, call,
+                 string, strings: [],
                  createRef, fromRef, abort,
                  equal, release, await};
 
@@ -91,7 +89,7 @@ async function loadWasm(buf, imports = {support}) {
   return res.instance.exports;
 }
 
-module.exports = {loadWasm, registerString, support};
+module.exports = {loadWasm, support};
 
 async function main({memcheck = true} = {}) {
   let {_start} = await loadWasm(__dirname + '/' + wasmFile);
@@ -102,6 +100,6 @@ async function main({memcheck = true} = {}) {
     console.error(e);
     process.exit(1);
   }
-  if (memcheck && Object.keys(table).length !== nStrings)
+  if (memcheck && Object.keys(table).length !== 0)
     throw new Error("Memory management fault: JSObject");
 }
