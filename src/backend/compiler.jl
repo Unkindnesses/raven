@@ -1,4 +1,4 @@
-compile_pipeline(tables) =
+compile_pipeline() =
   @Pipeline(
     sources = Modules(),
     defs = Definitions(sources),
@@ -7,24 +7,24 @@ compile_pipeline(tables) =
     expanded = Expanded(inferred),
     inlined = Inlined(expanded),
     counted = refcounts(inlined),
-    wasm = Wasm(defs, counted, tables))
+    wasm = Wasm(defs, counted))
 
 struct Compiler
   pipe::Pipeline
-  emitter
+  emitter::BatchEmitter
 end
 
-function Compiler(; emitter = BatchEmitter())
-  return Compiler(compile_pipeline(tables(emitter)), emitter) |> loadcommon!
+function Compiler()
+  return Compiler(compile_pipeline(), BatchEmitter()) |> loadcommon!
 end
 
-function Compiler(src; emitter = BatchEmitter())
-  c = Compiler(; emitter)
+function Compiler(src)
+  c = Compiler()
   reload!(c, src)
   return c
 end
 
-Base.show(io::IO, c::Compiler) = print(io, "Compiler(...)")
+Base.show(io::IO, ::Compiler) = print(io, "Compiler(...)")
 
 Base.getindex(c::Compiler, sig) = c.compiled[sig]
 
@@ -41,7 +41,7 @@ function emit!(c::Pipeline, em, m::RMethod)
     c.sources[b] = T
   end
   opcount(ir) > 0 || return
-  ir = lowerwasm(ir, c.wasm, tables(em))
+  ir = lowerwasm(ir, c.wasm)
   isempty(gs) || reset!(c)
   ir = lowerwasm_globals(ir, c.wasm.globals)
   name = c.wasm.names[(m,)]

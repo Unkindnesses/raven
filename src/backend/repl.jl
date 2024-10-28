@@ -23,29 +23,16 @@ registerString(r::REPLConn, s) = command!(r, Dict(:type => "string", :value => s
 runWasm(r::REPLConn, m::WebAssembly.Module) =
   command!(r, Dict(:type => "wasm", :module => base64(m; path = "repl")))
 
-struct REPLEmitter
-  conn::REPLConn
-  emitter::StreamEmitter
-end
-
-REPLEmitter(conn::REPLConn) = REPLEmitter(conn, StreamEmitter(Tables()))
-
-Base.copy(em::REPLEmitter) = REPLEmitter(em.conn, copy(em.emitter))
-
-tables(em::REPLEmitter) = tables(em.emitter)
-
-emit!(em::REPLEmitter, args...) = emit!(em.emitter, args...)
-
 struct REPL
   conn::REPLConn
   compiler::Pipeline
-  emitter::REPLEmitter
+  emitter::StreamEmitter
 end
 
 function REPL(; stdin = stdin, stdout = stdout, stderr = stderr)
   conn = REPLConn(; stdin, stdout, stderr)
-  emitter = REPLEmitter(conn)
-  compiler = compile_pipeline(tables(emitter))
+  emitter = StreamEmitter()
+  compiler = compile_pipeline()
   repl = REPL(conn, compiler, emitter)
   loadcommon!(repl.compiler, repl.emitter)
   reload!(compiler.sources, src"") # init imports
@@ -57,9 +44,9 @@ Base.close(r::REPL) = close(r.conn)
 
 function flush!(r::REPL)
   command!(r.conn, Dict(:type => "strings",
-                        :strings => r.emitter.emitter.tables.strings))
-  while !isempty(r.emitter.emitter.queue)
-    runWasm(r.conn, popfirst!(r.emitter.emitter.queue))
+                        :strings => r.compiler.wasm.tables.strings))
+  while !isempty(r.emitter.queue)
+    runWasm(r.conn, popfirst!(r.emitter.queue))
   end
 end
 

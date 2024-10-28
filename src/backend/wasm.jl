@@ -172,12 +172,14 @@ end
 
 struct Wasm
   globals::WGlobals
+  tables::Tables
   names::DualCache{Any,Symbol}
   funcs::Cache{Any,WebAssembly.Func}
 end
 
-function Wasm(defs::Definitions, code, tables)
+function Wasm(defs::Definitions, code)
   globals = WGlobals(defs)
+  tables = Tables()
   count = Dict{Symbol,Int}()
   # TODO should be `funcs`, not `code`, to make global redefs of the same type
   # more efficient. But that creates an awkward cycle between names and funcs.
@@ -195,7 +197,7 @@ function Wasm(defs::Definitions, code, tables)
     ir = lowerwasm(frame(code, sig), names, globals, tables)
     return WebAssembly.irfunc(names[sig], ir)
   end
-  return Wasm(globals, names, funcs)
+  return Wasm(globals, tables, names, funcs)
 end
 
 Base.getindex(w::Wasm, sig::Tuple) = w.funcs[sig]
@@ -206,23 +208,20 @@ Caches.subcaches(w::Wasm) = (w.globals, w.names, w.funcs)
 Caches.reset!(w::Wasm; deps = []) =
   reset!(Pipeline([w.globals, w.names, w.funcs]); deps)
 
-lowerwasm(ir, w::Wasm, t) = lowerwasm(ir, w.names, w.globals, t)
+lowerwasm(ir, w::Wasm) = lowerwasm(ir, w.names, w.globals, w.tables)
 
 # Batch emitter, for AOT compilation
 
 struct BatchEmitter
   main::Vector{Symbol}
   seen::Set{Symbol}
-  tables::Tables
   funcs::Vector{WebAssembly.Func}
 end
 
-BatchEmitter() = BatchEmitter([], Set(), Tables(), [])
+BatchEmitter() = BatchEmitter([], Set(), [])
 
 Base.copy(em::BatchEmitter) =
-  BatchEmitter(copy(em.main), copy(em.seen), em.tables, copy(em.funcs))
-
-tables(em::BatchEmitter) = em.tables
+  BatchEmitter(copy(em.main), copy(em.seen), copy(em.funcs))
 
 function _emit!(e::BatchEmitter, mod::Wasm, func::WebAssembly.Func)
   func.name in e.seen && return
@@ -238,7 +237,7 @@ _emit!(e::BatchEmitter, mod::Wasm, f::Symbol) = _emit!(e, mod, mod[f])
 
 function emit!(e::BatchEmitter, mod::Wasm, func::WebAssembly.Func)
   _emit!(e, mod, func)
-  foreach(f -> _emit!(e, mod, f), e.tables.funcs)
+  foreach(f -> _emit!(e, mod, f), mod.tables.funcs)
   push!(e.main, func.name)
 end
 
@@ -260,15 +259,15 @@ startfunc(main) =
     WebAssembly.Block([WebAssembly.Call(m) for m in main]),
     FuncInfo(tag"common.core.main", trampoline = true))
 
-function wasmmodule(em::BatchEmitter, globals::WGlobals)
+function wasmmodule(em::BatchEmitter, globals::WGlobals, tables::Tables)
   pushfirst!(em.funcs, startfunc(em.main))
   wmod = WebAssembly.Module(
     funcs = em.funcs,
     imports = default_imports,
     exports = [WebAssembly.Export(:_start, :_start)],
     globals = [WebAssembly.Global(t) for t in globals.types],
-    tables = [WebAssembly.Table(length(em.tables.funcs))],
-    elems = [WebAssembly.Elem(0, em.tables.funcs)],
+    tables = [WebAssembly.Table(length(tables.funcs))],
+    elems = [WebAssembly.Elem(0, tables.funcs)],
     mems = [WebAssembly.Mem(0)])
   return wmod
 end
@@ -290,8 +289,8 @@ end
 base64(m::WebAssembly.Module; path) = base64encode(io -> WebAssembly.binary(io, m; path))
 
 function emitwasm(em::BatchEmitter, mod::Wasm, out; path)
-  binary(wasmmodule(em, mod.globals), out; path)
-  return em.tables.strings
+  binary(wasmmodule(em, mod.globals, mod.tables), out; path)
+  return mod.tables.strings
 end
 
 # JS support
@@ -320,15 +319,12 @@ end
 mutable struct StreamEmitter
   seen::Set{Symbol}
   queue::Vector{WebAssembly.Module}
-  tables::Tables
   globals::Int
 end
 
-StreamEmitter(tables = Tables()) = StreamEmitter(Set(), [], tables, -1)
+StreamEmitter() = StreamEmitter(Set(), [], -1)
 
 Base.copy(em::StreamEmitter) = StreamEmitter(copy(em.seen), copy(em.queue), em.tables, em.globals)
-
-tables(em::StreamEmitter) = em.tables
 
 function _emit!(e::StreamEmitter, mod::Wasm, func::WebAssembly.Func, fs, imports)
   push!(imports, func.name)
@@ -348,11 +344,10 @@ function emit!(e::StreamEmitter, mod::Wasm, func::WebAssembly.Func)
   first = e.globals == -1
   first && (e.globals = 0)
   fs, imports = _emit!(e, mod, func, WebAssembly.Func[], Symbol[])
-  foreach(f -> _emit!(e, mod, f, fs, imports), tables(e).funcs)
+  foreach(f -> _emit!(e, mod, f, fs, imports), mod.tables.funcs)
   pushfirst!(fs, startfunc([func.name]))
   imports = filter(x -> !any(f -> f.name == x, fs), unique(imports))
   imports = [WebAssembly.Import(:wasm, f, f, mod[f].sig) for f in imports]
-  exports = [WebAssembly.Export(f.name, f.name) for f in fs]
   gimports = [WebAssembly.Import(:wasm, Symbol(:global, i-1), WebAssembly.Global(mod.globals.types[i])) for i = 1:e.globals]
   globals = [WebAssembly.Global(mod.globals.types[i], name = Symbol(:global, i-1)) for i in e.globals+1:length(mod.globals.types)]
   first || push!(imports, WebAssembly.Import(:wasm, :memory, WebAssembly.Mem(0)))
@@ -362,8 +357,8 @@ function emit!(e::StreamEmitter, mod::Wasm, func::WebAssembly.Func)
     imports = vcat(default_imports, imports, gimports),
     exports = [WebAssembly.Export(f.name, f.name) for f in fs],
     globals = globals,
-    tables = [WebAssembly.Table(length(e.tables.funcs))],
-    elems = [WebAssembly.Elem(0, copy(e.tables.funcs))],
+    tables = [WebAssembly.Table(length(mod.tables.funcs))],
+    elems = [WebAssembly.Elem(0, copy(mod.tables.funcs))],
     mems = first ? [WebAssembly.Mem(0, name = :memory)] : [])
   push!(e.queue, wmod)
   e.globals = length(mod.globals.types)

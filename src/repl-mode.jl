@@ -75,8 +75,8 @@ repl = nothing
 
 function repl_eval(_, input)
   global repl
-  repl == nothing && (repl = Raven.REPL())
   try
+    repl == nothing && (repl = Raven.REPL())
     Raven.eval!(repl, input)
   catch
     Base.display_error(stdout, Base.catch_stack())
