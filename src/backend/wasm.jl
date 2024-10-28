@@ -1,4 +1,4 @@
-using .WebAssembly: WType, WTuple, i32, i64, f32, f64, externref
+using .WebAssembly: WType, WTuple, i32, i64, f32, f64
 
 # WASM partial primitives
 # These are supposed to be defined in Raven, but we don't yet have a mechanism
@@ -69,7 +69,7 @@ struct WGlobals
 end
 
 function WGlobals(types)
-  gtypes = WType[externref]
+  gtypes = WType[]
   globals = Cache{Binding,Vector{Int}}() do self, b
     T = types[b]
     T isa Binding && return self[T]
@@ -250,17 +250,13 @@ default_imports = [
   WebAssembly.Import(:support, :abort, :abort, [i32] => []),
   WebAssembly.Import(:support, :createRef, :jsbox, [f64] => [i32]),
   WebAssembly.Import(:support, :fromRef, :jsunbox, [i32] => [f64]),
-  WebAssembly.Import(:support, :await, :jsawait, [externref, i32] => [i32]),
+  WebAssembly.Import(:support, :await, :jsawait, [i32] => [i32]),
   WebAssembly.Import(:support, :equal, :jseq, [i32, i32] => [i32]),
   WebAssembly.Import(:support, :release, :jsfree, [i32] => [])]
 
 startfunc(main) =
-  WebAssembly.Func(:_start, [externref]=>[], [],
-    WebAssembly.Block([
-      WebAssembly.Local(0),
-      WebAssembly.SetGlobal(0),
-      [WebAssembly.Call(m) for m in main]...
-      ]),
+  WebAssembly.Func(:_start, []=>[], [],
+    WebAssembly.Block([WebAssembly.Call(m) for m in main]),
     FuncInfo(tag"common.core.main", trampoline = true))
 
 function wasmmodule(em::BatchEmitter, globals::WGlobals)
@@ -327,7 +323,7 @@ mutable struct StreamEmitter
   globals::Int
 end
 
-StreamEmitter(tables = Tables()) = StreamEmitter(Set(), [], tables, 0)
+StreamEmitter(tables = Tables()) = StreamEmitter(Set(), [], tables, -1)
 
 Base.copy(em::StreamEmitter) = StreamEmitter(copy(em.seen), copy(em.queue), em.tables, em.globals)
 
@@ -348,7 +344,8 @@ end
 _emit!(e::StreamEmitter, mod::Wasm, f::Symbol, fs, imports) = _emit!(e, mod, mod[f], fs, imports)
 
 function emit!(e::StreamEmitter, mod::Wasm, func::WebAssembly.Func)
-  first = e.globals == 0
+  first = e.globals == -1
+  first && (e.globals = 0)
   fs, imports = _emit!(e, mod, func, WebAssembly.Func[], Symbol[])
   foreach(f -> _emit!(e, mod, f, fs, imports), tables(e).funcs)
   pushfirst!(fs, startfunc([func.name]))

@@ -8,11 +8,7 @@ async function runWasm(file) {
   try {
     let exports = await loadWasm(file, imports);
     Object.assign(imports.wasm, exports);
-    _start = new WebAssembly.Function(
-      {parameters: [], results: ['externref']},
-      exports._start,
-      {promising: 'first'}
-    );
+    _start = WebAssembly.promising(exports._start);
     await _start();
   } catch (e) {
     console.error(e);

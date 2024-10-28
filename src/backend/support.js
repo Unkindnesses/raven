@@ -14,11 +14,7 @@ function fromRef(ref) {
   return table[ref];
 }
 
-let await = new WebAssembly.Function(
-    {parameters: ['externref', 'i32'], results: ['i32']},
-    async ref => createRef(await fromRef(ref)),
-    {suspending: "first"}
-);
+let await = new WebAssembly.Suspending(async ref => createRef(await fromRef(ref)));
 
 let nStrings = 0;
 
@@ -99,11 +95,7 @@ module.exports = {loadWasm, registerString, support};
 
 async function main({memcheck = true} = {}) {
   let {_start} = await loadWasm(__dirname + '/' + wasmFile);
-  _start = new WebAssembly.Function(
-    {parameters: [], results: ['externref']},
-    _start,
-    {promising: 'first'}
-  );
+  _start = WebAssembly.promising(_start);
   try {
     await _start();
   } catch (e) {
