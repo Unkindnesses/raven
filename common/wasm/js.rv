@@ -12,18 +12,16 @@ bundle JSObject(ref: Ref)
 # compiling malloc. (And of course JS objects won't be freed.)
 fn matchTrait(x: pack(tag".JSObject", _: Int32), tag".JSObject") { Some(x) }
 
-fn JSObject(id: Int32, free: Int32) {
+fn JSObject(id: Int32) {
   if jsalloc() {
     r = Ref(8)
     i32store!(pointer(r), id)
-    free && cleanup!(r, jsfree)
+    cleanup!(r, jsfree)
     return JSObject(r)
   } else {
     return pack(tag".JSObject", id)
   }
 }
-
-fn JSObject(id: Int32) { JSObject(id, true) }
 
 fn tojs(x: JSObject) { x }
 
