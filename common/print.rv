@@ -48,8 +48,7 @@ fn show(x: Nil) {
 }
 
 fn replshow(x) {
-  show(x)
-  println()
+  println(x)
 }
 
 fn replshow(_: Nil) {}

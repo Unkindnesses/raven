@@ -117,7 +117,7 @@ fn print(x: String) {
   return
 }
 
-fn replshow(x: JSObject) {
+fn println(x: JSObject) {
   console = property(global(), "console")
   call(console, "log", x)
   return

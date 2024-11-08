@@ -3,6 +3,8 @@ using Raven: @test_rv, @test_rv_str
 
 @test_rv("show 2+2", output = "(2 + 2) = 4")
 
+@test_rv("println(tojs(1))", output = "1")
+
 @test_rv("println(x)", error = true, output = "x is not defined")
 
 @test_rv("foo()", error = true, output = "foo is not defined")
@@ -18,7 +20,7 @@ using Raven: @test_rv, @test_rv_str
     return a+b
   }
 
-  println(foo(1, 2, 3))
+  foo(1, 2, 3)
   """,
   error = true,
   output = "No matching method")
