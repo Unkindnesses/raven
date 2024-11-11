@@ -122,7 +122,7 @@ end
 function union_cases!(f, ir, T::Onion, x)
   j = push!(ir, Expr(:ref, x, 1))
   for case in 1:length(T.types)
-    cond = push!(ir, xcall(WIntrinsic(i32.eq, i32), j, Int32(case)))
+    cond = push!(ir, stmt(xcall(i32.eq, j, Int32(case)), type = Int32))
     branch!(ir, length(blocks(ir))+1, when = cond)
     branch!(ir, length(blocks(ir))+2)
     block!(ir)
@@ -131,7 +131,7 @@ function union_cases!(f, ir, T::Onion, x)
     return!(ir, ret)
     block!(ir)
   end
-  push!(ir, xcall(WIntrinsic(WebAssembly.unreachable, ⊥)))
+  push!(ir, stmt(xcall(WebAssembly.unreachable), type = ⊥))
   return ir
 end
 

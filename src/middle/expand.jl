@@ -28,7 +28,7 @@ frame(inf::Union{Inferred,Cache}, T) = inf[sig(inf, T)]
 
 function abort!(ir, s)
   s = push!(ir, stmt(Expr(:ref, s), type = Int32))
-  push!(ir, stmt(xcall(WIntrinsic(WebAssembly.Call(:abort), ⊥), s), type = ⊥))
+  push!(ir, stmt(xcall(WebAssembly.Call(:abort), s), type = ⊥))
 end
 
 # Pack primitives
@@ -88,7 +88,7 @@ function partir(x, i)
   xlayout = layout(x)
   part(i) = xlayout isa Tuple ? push!(ir, stmt(Expr(:ref, vx, i), type = xlayout[i])) : vx
   for i = 1:nparts(x)
-    cond = push!(ir, stmt(xcall(WIntrinsic(i64.eq, i32), i, vi), type = Int32))
+    cond = push!(ir, stmt(xcall(i64.eq, i, vi), type = Int32))
     branch!(ir, length(ir.blocks) + 1, when = cond)
     branch!(ir, length(ir.blocks) + 2)
     block!(ir)
@@ -170,14 +170,14 @@ function indexer!(ir, T::VPack, I::Union{Int64,Type{Int64}}, x, i)
   if I isa Int
     i = Int32((I-1)*8)
   else
-    i = push!(ir, xcall(WIntrinsic(i32.wrap_i64, i32), i))
-    i = push!(ir, xcall(WIntrinsic(i32.sub, i32), i, Int32(1)))
-    i = push!(ir, xcall(WIntrinsic(i32.mul, i32), i, Int32(8)))
+    i = push!(ir, stmt(xcall(i32.wrap_i64, i), type = Int32))
+    i = push!(ir, stmt(xcall(i32.sub, i, Int32(1)), type = Int32))
+    i = push!(ir, stmt(xcall(i32.mul, i, Int32(8)), type = Int32))
   end
   # TODO bounds check
   p = push!(ir, stmt(Expr(:ref, x, 2), type = Int32))
-  p = push!(ir, xcall(WIntrinsic(i32.add, i32), p, i))
-  v = push!(ir, stmt(xcall(WIntrinsic(i64.load, i64), p), type = Int64))
+  p = push!(ir, stmt(xcall(i32.add, p, i), type = Int32))
+  v = push!(ir, stmt(xcall(i64.load, p), type = Int64))
   return v
 end
 
@@ -221,10 +221,10 @@ outlinePrimitive[packcat_method] = function (T::Pack)
   ls = [isvalue(exprtype(ir, l)) ? exprtype(ir, l) : l for l in ls]
   size = popfirst!(ls)
   for l in ls
-    size = push!(ir, xcall(WIntrinsic(i64.add, i64), size, l))
+    size = push!(ir, stmt(xcall(i64.add, size, l), type = Int64))
   end
-  size = push!(ir, stmt(xcall(WIntrinsic(i32.wrap_i64, i32), size), type = Int32))
-  bytes = push!(ir, stmt(xcall(WIntrinsic(i32.mul, i32), size, Int32(8)), type = Int32))
+  size = push!(ir, stmt(xcall(i32.wrap_i64, size), type = Int32))
+  bytes = push!(ir, stmt(xcall(i32.mul, size, Int32(8)), type = Int32))
   margs = push!(ir, stmt(Expr(:tuple, bytes), type = rlist(Int32)))
   ptr = push!(ir, stmt(xcall(tag"common.malloc!", margs), type = Int32))
   pos = ptr
@@ -234,8 +234,8 @@ outlinePrimitive[packcat_method] = function (T::Pack)
       for j in 1:nparts(P)
         @assert part(P, j) == Int64
         x = indexer!(ir, P, j, ps[i], j)
-        push!(ir, xcall(WIntrinsic(i64.store, WTuple()), pos, x))
-        pos = push!(ir, xcall(WIntrinsic(i32.add, i32), pos, Int32(8)))
+        push!(ir, stmt(xcall(i64.store, pos, x), type = nil))
+        pos = push!(ir, stmt(xcall(i32.add, pos, Int32(8)), type = Int32))
       end
     elseif P isa VPack
       if P.parts != Int64
@@ -243,10 +243,10 @@ outlinePrimitive[packcat_method] = function (T::Pack)
       end
       sz = push!(ir, stmt(Expr(:ref, ps[i], 1), type = Int32))
       src = push!(ir, stmt(Expr(:ref, ps[i], 2), type = Int32))
-      ln = push!(ir, xcall(WIntrinsic(i32.mul, i32), sz, Int32(8)))
-      push!(ir, xcall(WIntrinsic(WebAssembly.Op(Symbol("memory.copy")), WTuple()), pos, src, ln))
+      ln = push!(ir, stmt(xcall(i32.mul, sz, Int32(8)), type = Int32))
+      push!(ir, stmt(xcall(WebAssembly.Op(Symbol("memory.copy")), pos, src, ln), type = nil))
       push!(ir, Expr(:release, ps[i]))
-      pos = push!(ir, xcall(WIntrinsic(i32.add, i32), pos, ln))
+      pos = push!(ir, stmt(xcall(i32.add, pos, ln), type = Int32))
     else
       error("unsupported")
     end
@@ -289,7 +289,7 @@ end
 
 function nparts!(ir, T::VPack, x)
   sz = push!(ir, stmt(Expr(:ref, x, 1), type = Int32))
-  push!(ir, stmt(xcall(WIntrinsic(i64.extend_i32_s, i64), sz), type = Int64))
+  push!(ir, stmt(xcall(i64.extend_i32_s, sz), type = Int64))
 end
 
 inlinePrimitive[nparts_method] = function (pr, ir, v)
@@ -319,8 +319,8 @@ function lowerdata(ir)
       args = filter(x -> x isa Variable, st.expr.args)
       pr[v] = Expr(:tuple, args...)
     elseif isexpr(st, :call)
-      if st.expr.args[1] isa WIntrinsic
-        haskey(wasmPartials, st.expr.args[1].op) && isvalue(st.type) && (pr[v] = Expr(:tuple))
+      if st.expr.args[1] isa WebAssembly.Instruction
+        haskey(wasmPartials, st.expr.args[1]) && isvalue(st.type) && (pr[v] = Expr(:tuple))
       else
         F = exprtype(ir, st.expr.args[1])
         if haskey(inlinePrimitive, F)
@@ -346,9 +346,9 @@ function box!(ir, T, x)
   ptr = push!(ir, stmt(xcall(tag"common.malloc!", margs), type = Int32))
   pos = ptr
   for (i, T) in enumerate(cat_layout(l))
-    push!(ir, xcall(WIntrinsic(WType(T).store, WTuple()), pos, Expr(:ref, x, i)))
+    push!(ir, stmt(xcall(WType(T).store, pos, Expr(:ref, x, i)), type = nil))
     # TODO could use constant offset here
-    i == length(l) || (pos = push!(ir, xcall(WIntrinsic(i32.add, i32), pos, Int32(sizeof(T)))))
+    i == length(l) || (pos = push!(ir, stmt(xcall(i32.add, pos, Int32(sizeof(T))), type = Int32)))
   end
   return ptr
 end
@@ -359,10 +359,10 @@ function unbox!(ir, T, x; count = true)
   parts = []
   pos = push!(ir, stmt(Expr(:ref, x, 1), type = Int32))
   for (i, T) in enumerate(cat_layout(l))
-    part = push!(ir, stmt(xcall(WIntrinsic(WType(T).load, WType(T)), pos), type = T))
+    part = push!(ir, stmt(xcall(WType(T).load, pos), type = T))
     push!(parts, part)
     # TODO same as above
-    i == length(l) || (pos = push!(ir, xcall(WIntrinsic(i32.add, i32), pos, Int32(sizeof(T)))))
+    i == length(l) || (pos = push!(ir, stmt(xcall(i32.add, pos, Int32(sizeof(T))), type = Int32)))
   end
   result = push!(ir, stmt(Expr(:tuple, parts...), type = T))
   if count
@@ -412,7 +412,7 @@ function casts!(inf::Inferred, ir, ret)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
     # Cast arguments to wasm primitives
-    if isexpr(st, :call) && st.expr.args[1] isa WIntrinsic
+    if isexpr(st, :call) && st.expr.args[1] isa WebAssembly.Instruction
       args = st.expr.args[2:end]
       Ts = exprtype(ir, args)
       pr[v] = xcall(st.expr.args[1], [T isa Integer ? T : x for (x, T) in zip(args, Ts)]...)

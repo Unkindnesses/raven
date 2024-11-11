@@ -117,7 +117,7 @@ inlinePrimitive[shortcutEquals_method] = function (pr, ir, v)
     ov = symoverlap(Ta, Tb)
     length(ov) == 1 || error("not implemented")
     i = insert!(pr, v, Expr(:ref, a, 1))
-    pr[v] = xcall(WIntrinsic(i32.eq, i32), i, Int32(ov[1]))
+    pr[v] = xcall(i32.eq, i, Int32(ov[1]))
   end
 end
 
@@ -129,7 +129,7 @@ inlinePrimitive[isnil_method] = function (pr, ir, v)
   else
     i = findfirst(==(nil), T.types)
     j = insert!(pr, v, Expr(:ref, x, 1))
-    pr[v] = xcall(WIntrinsic(i32.eq, i32), j, Int32(i))
+    pr[v] = xcall(i32.eq, j, Int32(i))
   end
   isreftype(T) && push!(pr, Expr(:release, x))
 end

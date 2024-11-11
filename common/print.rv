@@ -43,7 +43,7 @@ fn show(x: (Int32 | Int64 | Float32 | Float64)) {
   print(string(x))
 }
 
-fn show(x: Nil) {
+fn show(_: Nil) {
   print("nil")
 }
 

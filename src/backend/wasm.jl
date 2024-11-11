@@ -20,30 +20,25 @@ rvtype(x::WType) = WebAssembly.jltype(x)
 rvtype(x::WTuple) = pack(tag"common.List", map(rvtype, x.parts)...)
 rvtype(::typeof(⊥)) = ⊥
 
-struct WIntrinsic
-  op
-  ret
-end
-
-_typeof(x::WIntrinsic) = x
+_typeof(x::WebAssembly.Instruction) = x
 
 function intrinsic(ex)
   if ex isa AST.Operator && ex[1] == :(:)
     typ = ex[3]
-    typ = typ == :unreachable ? ⊥ : WType(typ)
+    typ = typ == :unreachable ? ⊥ : rvtype(WType(typ))
     ex = ex[2]
   else
-    typ = WTuple()
+    typ = nil
   end
   op = AST.ungroup(ex[1])
   if op == :call
-    WIntrinsic(WebAssembly.Call(Symbol(ex[2])), typ)
+    WebAssembly.Call(Symbol(ex[2])), typ
   elseif op == rvx"global.get"
-    WIntrinsic(WebAssembly.GetGlobal(ex[2]::Integer), typ)
+    WebAssembly.GetGlobal(ex[2]::Integer), typ
   else
     namify(x::Symbol) = x
     namify(x::AST.Field) = Symbol(join(namify.(x[:]), "."))
-    WIntrinsic(WebAssembly.Op(namify(op)), typ)
+    WebAssembly.Op(namify(op)), typ
   end
 end
 
@@ -121,11 +116,10 @@ function lowerwasm(ir::IR, names, globals, tables)
       ps = [insert!(pr, v, stmt(Expr(:call, WebAssembly.GetGlobal(id)), type = T))
             for (id, T) in zip(l, wparts(st.type))]
       pr[v] = length(ps) == 1 ? only(ps) : Expr(:tuple, ps...)
-    elseif isexpr(st, :call) && st.expr.args[1] isa WIntrinsic
-      int = st.expr.args[1]
-      ex = xcall(int.op, st.expr.args[2:end]...)
-      pr[v] = stmt(st, expr = ex, type = int.ret == ⊥ ? WTuple() : int.ret)
-      if int.ret == ⊥
+    elseif isexpr(st, :call) && st.expr.args[1] isa WebAssembly.Instruction
+      T = st.type
+      pr[v] = stmt(st, type = T == ⊥ ? WTuple() : wlayout(T))
+      if T == ⊥
         IRTools.push!(pr, stmt(xcall(WebAssembly.unreachable), type = WTuple()))
       end
     elseif isexpr(st, :call)

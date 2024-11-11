@@ -10,10 +10,10 @@ function interpret(int, ir::IR, args...)
       args = resolve.(st.expr.args)
       any(==(⊥), args) && return
       if isexpr(st, :call)
-        if (w = args[1]) isa WIntrinsic
-          haskey(wasmPartials, w.op) || return
+        if (op = args[1]) isa WebAssembly.Instruction
+          haskey(wasmPartials, op) || return
           args = args[2:end]
-          env[v] = all(isvalue, args) ? wasmPartials[w.op](args...) : rvtype(w.ret)
+          env[v] = all(isvalue, args) ? wasmPartials[op](args...) : st.type
         else
           result = int[(args...,)]
           isnothing(result) && return

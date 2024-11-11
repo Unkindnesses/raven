@@ -286,7 +286,7 @@ swaps(sc::Scope) = sc.swap == nothing ? swaps(sc.parent) : sc.swap
 # e.g. `f(return 1)`
 _push!(ir::IR, x::Statement) = IRTools.canbranch(blocks(ir)[end]) && push!(ir, x)
 
-_push!(ir::IR, x::Expr; src = nothing, bp = false) = _push!(ir, stmt(x; src, bp))
+_push!(ir::IR, x::Expr; src = nothing, bp = false, type = ⊥) = _push!(ir, stmt(x; src, bp, type))
 
 # lower while ignoring return value (if applicable)
 _lower!(sc, ir, x) = lower!(sc, ir, x)
@@ -528,9 +528,9 @@ function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
   elseif ex[1] == :wasm
     src = AST.meta(ex)
     ex = ex[2][1]
-    op = intrinsic(ex)
+    op, ret = intrinsic(ex)
     args = lower!.((sc,), (ir,), intrinsic_args(ex))
-    _push!(ir, xcall(op, args...); src, bp = true)
+    _push!(ir, xcall(op, args...); src, type = ret, bp = true)
   elseif ex[1] == :let
     lowerlet!(sc, ir, ex, value)
   elseif haskey(macros, ex[1])

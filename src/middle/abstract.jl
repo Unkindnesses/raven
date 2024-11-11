@@ -12,7 +12,9 @@ function prepare_ir!(ir)
   for b in ir.blocks
     b.argtypes .= (⊥,)
     for i in 1:length(b.stmts)
-      b.stmts[i] = (b.stmts[i][1], stmt(b.stmts[i][2], type = ⊥))
+      T = b.stmts[i][2].type
+      T == Any && (T = ⊥)
+      b.stmts[i] = (b.stmts[i][1], stmt(b.stmts[i][2], type = T))
     end
   end
   ir = looped(ir)
@@ -213,14 +215,13 @@ function update!(inf::Inference, sig)
     @label loop
     bl = block(fr.ir, path)
     for (v, st) in bl
-      if isexpr(st, :call) && st.expr.args[1] isa WIntrinsic
-        op = st.expr.args[1].op
-        T = rvtype(st.expr.args[1].ret)
+      if isexpr(st, :call) && st.expr.args[1] isa WebAssembly.Instruction
+        op = st.expr.args[1]
         Ts = exprtype(bl.ir, st.expr.args[2:end])
         if all(isvalue, Ts) && haskey(wasmPartials, op)
           T = wasmPartials[op](Ts...)
+          bl.ir[v] = stmt(bl[v], type = T)
         end
-        bl.ir[v] = stmt(bl[v], type = T)
       elseif isexpr(st, :call)
         T = infercall!(inf, sig, bl, st.expr)
         T == nothing && return ⊥

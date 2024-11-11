@@ -27,7 +27,7 @@ end
 function inline(ir::IR, inlined)
   pr = IRTools.Pipe(ir)
   for (v, st) in pr
-    isexpr(st, :call) && !(st.expr.args[1] isa WIntrinsic) || continue
+    isexpr(st, :call) && !(st.expr.args[1] isa WebAssembly.Instruction) || continue
     T = (exprtype(ir, st.expr.args)...,)
     inlineable(inlined, T) || continue
     delete!(pr, v)
