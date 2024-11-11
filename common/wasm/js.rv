@@ -2,7 +2,7 @@ export { abort, global, call, await, tojs, sleep, readline }
 
 fn jsfree(ptr: Ptr) {
   id = i32load(ptr)
-  wasm { call("jsfree", id: i32) }
+  wasm { call(support.release, id: i32) }
   return
 }
 
@@ -36,14 +36,14 @@ fn retain!(JSObject(ref: Ref)) { retain!(ref) }
 fn retain!(JSObject(_: Int32)) {}
 
 fn global() {
-  ref = wasm { call("jsglobal"): i32 }
+  ref = wasm { call(support.global): i32 }
   return JSObject(ref)
 }
 
 fn property(obj, prop) { property(tojs(obj), tojs(prop)) }
 
 fn property(obj: JSObject, prop: JSObject) {
-  ref = wasm { call("jsproperty", jsref(obj): i32, jsref(prop): i32): i32 }
+  ref = wasm { call(support.property, jsref(obj): i32, jsref(prop): i32): i32 }
   hold(obj, prop)
   return JSObject(ref)
 }
@@ -51,7 +51,7 @@ fn property(obj: JSObject, prop: JSObject) {
 fn call(obj, meth) { call(tojs(obj), tojs(meth)) }
 
 fn call(obj: JSObject, meth: JSObject) {
-  ref = wasm { call("jscall0", jsref(obj): i32, jsref(meth): i32): i32 }
+  ref = wasm { call(support.call, jsref(obj): i32, jsref(meth): i32): i32 }
   hold(obj, meth)
   return JSObject(ref)
 }
@@ -60,19 +60,19 @@ fn call(obj, meth, x) { call(tojs(obj), tojs(meth), tojs(x)) }
 
 fn call(obj: JSObject, meth: JSObject, x: JSObject) {
   x = tojs(x)
-  ref = wasm { call("jscall1", jsref(obj): i32, jsref(meth): i32, jsref(x): i32): i32 }
+  ref = wasm { call(support.call, jsref(obj): i32, jsref(meth): i32, jsref(x): i32): i32 }
   hold(obj, meth, x)
   return JSObject(ref)
 }
 
 fn await(obj: JSObject) {
-  ref = wasm { call("jsawait", jsref(obj): i32): i32 }
+  ref = wasm { call(support.await, jsref(obj): i32): i32 }
   hold(obj)
   return JSObject(ref)
 }
 
 fn equal(a: JSObject, b: JSObject) {
-  result = wasm { call("jseq", jsref(a): i32, jsref(b): i32): i32 }
+  result = wasm { call(support.equal, jsref(a): i32, jsref(b): i32): i32 }
   hold(a, b)
   return result
 }
@@ -85,7 +85,7 @@ fn new(T: JSObject) {
 }
 
 fn tojs(x: Float64) {
-  ref = wasm { call("jsbox", x: f64): i32 }
+  ref = wasm { call(support.createRef, x: f64): i32 }
   return JSObject(ref)
 }
 
@@ -93,7 +93,7 @@ fn tojs(x: Int64) { tojs(Float64(x)) }
 fn tojs(x: Int32) { tojs(Float64(x)) }
 
 extend fn Float64(obj: JSObject) {
-  x = wasm { call("jsunbox", jsref(obj): i32): f64 }
+  x = wasm { call(support.fromRef, jsref(obj): i32): f64 }
   hold(obj)
   return x
 }
@@ -101,7 +101,7 @@ extend fn Float64(obj: JSObject) {
 fn abort(s: JSObject) {
   retain!(s)
   ref = jsref(s)
-  wasm { call("abort", ref: i32): unreachable }
+  wasm { call(support.abort, ref: i32): unreachable }
 }
 
 fn abort(s: String) { abort(tojs(s)) }

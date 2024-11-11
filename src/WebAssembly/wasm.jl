@@ -22,6 +22,8 @@ struct Signature
   result::Vector{WType}
 end
 
+Signature(x::Tuple, y::Tuple) = Signature(collect(x), collect(y))
+
 abstract type Instruction end
 
 struct Const <: Instruction

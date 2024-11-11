@@ -28,7 +28,7 @@ frame(inf::Union{Inferred,Cache}, T) = inf[sig(inf, T)]
 
 function abort!(ir, s)
   s = push!(ir, stmt(Expr(:ref, s), type = Int32))
-  push!(ir, stmt(xcall(WebAssembly.Call(:abort), s), type = ⊥))
+  push!(ir, stmt(xcall(WImport(:support, :abort), s), type = ⊥))
 end
 
 # Pack primitives
