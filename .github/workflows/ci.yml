@@ -24,39 +24,22 @@ jobs:
           - windows-latest
         arch:
           - x64
-        # include:
-        #   - os: windows-latest
-        #     version: '1'
-        #     arch: x64
-        #   - os: macOS-latest
-        #     version: '1'
-        #     arch: x64
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v4
         with:
           node-version: 23.1
       - name: Install Julia
-        uses: julia-actions/setup-julia@v1
+        uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - name: Cache Julia artifacts
-        uses: actions/cache@v1
-        env:
-          cache-name: cache-artifacts
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-test-${{ env.cache-name }}-
-            ${{ runner.os }}-test-
-            ${{ runner.os }}-
       - name: Install LLVM
         uses: KyleMayes/install-llvm-action@v1
         with:
           version: "17"
-      - name: Install WABT
-        run: npm install --global wabt@1.0.32
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: 'npm install --global wabt'
+      - run: 'cargo install --locked wasm-tools'
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1

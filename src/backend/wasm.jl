@@ -278,13 +278,6 @@ function wasmmodule(em::BatchEmitter, globals::WGlobals, tables::Tables)
   return wmod
 end
 
-pscmd(cmd) = Sys.iswindows() ? `powershell -command $cmd` : cmd
-
-function tmp()
-  # For some reason wat2wasm can't read the temp file on Windows.
-  Sys.iswindows() ? tempname(".") : tempname()
-end
-
 function binary(m::WebAssembly.Module, file; path)
   open(file, "w") do io
     WebAssembly.binary(io, m; path)
