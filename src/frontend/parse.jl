@@ -271,7 +271,7 @@ function call(io; quasi = true)
       ex = meta(Call(ex, args...), path(), cur)
     elseif parse(exact("."), io) != nothing
       peek(io) == '.' && (seek(io, cur); break)
-      field = symbol(io)
+      field = item(io)
       field == nothing && error("expected a field at $(curstring(io))")
       ex = meta(Field(ex, field), path(), cur)
     else

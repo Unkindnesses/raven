@@ -26,6 +26,8 @@ jobs:
           - x64
     steps:
       - uses: actions/checkout@v3
+        with:
+          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: 23.1
@@ -38,8 +40,8 @@ jobs:
         uses: KyleMayes/install-llvm-action@v1
         with:
           version: "17"
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: bytecodealliance/actions/wasm-tools/setup@v1
+      - uses: bytecodealliance/actions/wasmtime/setup@v1
       - run: 'npm install --global wabt'
-      - run: 'cargo install --locked wasm-tools'
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1

@@ -522,3 +522,10 @@ test_rv"""
   test pow(2, 3) == 8
   """,
   options = Raven.Options(jsalloc=false))
+
+@testset "WASI" begin
+  Raven.compile(joinpath(@__DIR__, "wasi.rv"), Raven.Options(memcheck=false))
+  run(`wasm-tools component embed $(@__DIR__)/../../wasi-cli/wit --world command $(@__DIR__)/wasi.wasm -o $(@__DIR__)/wasi.cli.wasm`)
+  run(`wasm-tools component new $(@__DIR__)/wasi.cli.wasm -o $(@__DIR__)/wasi.cli.wasm`)
+  @test String(read(`wasmtime $(@__DIR__)/wasi.cli.wasm`)) == "hello!\n"
+end

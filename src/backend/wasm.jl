@@ -38,7 +38,7 @@ function intrinsic(ex)
   op = AST.ungroup(ex[1])
   if op == :call
     @assert ex[2] isa AST.Field
-    return WImport(ex[2][:]...), typ
+    return WImport(Symbol.(ex[2][:])...), typ
   elseif op == rvx"global.get"
     WebAssembly.GetGlobal(ex[2]::Integer), typ
   else
@@ -261,8 +261,8 @@ function emit!(e::BatchEmitter, mod::Wasm, func::WebAssembly.Func)
 end
 
 startfunc(main) =
-  WebAssembly.Func(:_start, []=>[], [],
-    WebAssembly.Block([WebAssembly.Call(m) for m in main]),
+  WebAssembly.Func(:_start, []=>[i32], [],
+    WebAssembly.Block([[WebAssembly.Call(m) for m in main]..., WebAssembly.Const(Int32(0))]),
     FuncInfo(tag"common.core.main", trampoline = true))
 
 function wasmmodule(em::BatchEmitter, globals::WGlobals, tables::Tables)
@@ -270,11 +270,12 @@ function wasmmodule(em::BatchEmitter, globals::WGlobals, tables::Tables)
   wmod = WebAssembly.Module(
     funcs = em.funcs,
     imports = em.imports,
-    exports = [WebAssembly.Export(:_start, :_start)],
+    exports = [WebAssembly.Export(:_start, :_start),
+               WebAssembly.Export(Symbol("cm32p2|wasi:cli/run@0.2|run"), :_start)],
     globals = [WebAssembly.Global(t) for t in globals.types],
     tables = [WebAssembly.Table(length(tables.funcs))],
     elems = [WebAssembly.Elem(0, tables.funcs)],
-    mems = [WebAssembly.Mem(0)])
+    mems = [WebAssembly.Mem(0, name = :cm32p2_memory)])
   return wmod
 end
 

@@ -1,0 +1,14 @@
+{
+  chars = [104, 101, 108, 108, 111, 33, 10]
+  len = Int32(widen(length(chars)))
+  str = malloc!(len)
+  ptr = str
+  for char in chars {
+    wasm { i32.store8(addr(ptr): i32, Int32(char): i32) }
+    ptr = ptr + 1
+  }
+  stdout = wasm { call("cm32p2|wasi:cli/stdout@0.2"."get-stdout"): i32 }
+  wasm { call("cm32p2|wasi:io/streams@0.2"."[method]output-stream.write",
+              stdout: i32, addr(str): i32, len: i32, addr(str): i32) }
+  free!(str)
+}
