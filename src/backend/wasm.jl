@@ -10,6 +10,10 @@ wasmPartials[i64.add] = +
 wasmPartials[i64.sub] = -
 wasmPartials[i64.mul] = *
 
+wasmPartials[i32.add] = +
+wasmPartials[i32.sub] = -
+wasmPartials[i32.mul] = *
+
 wasmPartials[i64.eq] = (a, b) -> Int32(a==b)
 wasmPartials[i64.gt_s] = (a, b) -> Int32(a>b)
 wasmPartials[i64.lt_s] = (a, b) -> Int32(a<b)
