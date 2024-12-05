@@ -9,7 +9,8 @@ reconstruct(::Unreachable) = (), _ -> ⊥
 
 # Primitives
 
-Primitive = Union{Int64,Int32,Float64,Float32,Tag,String}
+const PrimitiveNumber = Union{Int64,Int32,Float64,Float32}
+const Primitive = Union{PrimitiveNumber,Tag,String}
 
 JSObject() =
   options().jsalloc ?

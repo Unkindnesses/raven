@@ -27,7 +27,8 @@ partial_nparts(x::Onion) =
 
 partial_nparts(x::Recursive) = partial_nparts(unroll(x))
 
-partial_widen(x::Primitive) = typeof(x)
+partial_widen(x::String) = RString()
+partial_widen(x::PrimitiveNumber) = typeof(x)
 partial_widen(x) = x
 
 # Fast, approximate equality check; basically a stand-in for pointer equality.
@@ -99,9 +100,16 @@ const inlinePrimitive = IdDict{RMethod,Any}()
 const outlinePrimitive = IdDict{RMethod,Any}()
 
 inlinePrimitive[widen_method] = function (pr, ir, v)
-  T = exprtype(ir, ir[v].expr.args[2])
-  val = T isa Integer ? T : ir[v].expr.args[2]
-  pr[v] = val
+  x = ir[v].expr.args[2]
+  T = exprtype(ir, x)
+  if T isa String
+    id = insert!(pr, v, stmt(Expr(:ref, T), type = rlist(Int32)))
+    pr[v] = stmt(xcall(tag"common.JSObject", id), type = RString())
+  elseif T isa Number
+    pr[v] = T
+  else
+    pr[v] = x
+  end
 end
 
 symoverlap(x::Tag, ys::Onion) = [i for (i, y) in enumerate(ys.types) if x == y]
