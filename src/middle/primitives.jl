@@ -44,12 +44,19 @@ partial_isnil(x::Union{Primitive,Type{<:Primitive},VPack}) = Int32(0)
 partial_isnil(x::Pack) = Int32(x == nil)
 partial_isnil(x::Onion) = any(==(nil), x.types) ? Int32 : Int32(0)
 
-# Duct tape until the thatcher algorithm works.
 partial_notnil(x::Pack) = tag(x) == tag"common.Nil" ? ⊥ : x
 
 function partial_notnil(x::Onion)
   ps = filter(x -> tag(x) != tag"common.Nil", x.types)
   return length(ps) == 1 ? ps[1] : Onion(ps)
+end
+
+partial_tagcast(x::Union{Pack,VPack,Primitive,Type{<:PrimitiveNumber}}, t::Tag) =
+  tag(x) == t ? x : ⊥
+
+function partial_tagcast(x::Onion, t::Tag)
+  ps = filter(x -> tag(x) == t, x.types)
+  return isempty(ps) ? ⊥ : only(ps)
 end
 
 partial_tagstring(x::Tag) = string(x)
@@ -69,6 +76,7 @@ shortcutEquals_method = RMethod(tag"common.core.shortcutEquals", lowerpattern(rv
 
 isnil_method = RMethod(tag"common.core.isnil", lowerpattern(rvx"[x]"), partial_isnil, true)
 notnil_method = RMethod(tag"common.core.notnil", lowerpattern(rvx"[x]"), partial_notnil, true)
+tagcast_method = RMethod(tag"common.core.tagcast", lowerpattern(rvx"[x, t]"), partial_tagcast, true)
 tagstring_method = RMethod(tag"common.core.tagstring", lowerpattern(rvx"[x]"), partial_tagstring, true)
 
 function_method = RMethod(tag"common.core.function", lowerpattern(rvx"[f, I, O]"), partial_function, true)
@@ -85,6 +93,7 @@ primitives() = [
   shortcutEquals_method,
   isnil_method,
   notnil_method,
+  tagcast_method,
   tagstring_method,
   function_method,
   invoke_method,
@@ -153,7 +162,25 @@ inlinePrimitive[notnil_method] = function (pr, ir, v)
     replace!(pr, v, abort!(pr, "notnil(nil)"))
   else
     @assert T isa Onion && !(ir[v].type isa Onion)
-    pr[v] = Expr(:tuple, [insert!(pr, v, Expr(:ref, x, i)) for i = 2:length(layout(T))]...)
+    i = findfirst(x -> x != nil, T.types)
+    delete!(pr, v)
+    replace!(pr, v, union_downcast!(pr, T, i, x))
+  end
+end
+
+inlinePrimitive[tagcast_method] = function (pr, ir, v)
+  x, tag = ir[v].expr.args[2:3]
+  T = exprtype(ir, x)
+  tag = exprtype(ir, tag)
+  if T == ir[v].type
+    pr[v] = x
+  elseif ir[v].type == ⊥
+    delete!(pr, v)
+    replace!(pr, v, abort!(pr, "tagcast"))
+  else
+    i = findfirst(x -> Raven.tag(x) == tag, (T::Onion).types)
+    delete!(pr, v)
+    replace!(pr, v, union_downcast!(pr, T, i, x))
   end
 end
 

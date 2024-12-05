@@ -112,8 +112,8 @@ options() = dynamic_value(:options, Options())::Options
 # Union splitting
 
 function union_downcast!(ir, T::Onion, i::Integer, x)
-  offset = sum(length, layout.(T.types[1:i-1]), init = 0)+1
-  parts = [push!(ir, Expr(:ref, x, j+offset)) for j = 1:length(layout(T.types[i]))]
+  offset = sum(nregisters, layout.(T.types[1:i-1]), init = 0)+1
+  parts = [push!(ir, Expr(:ref, x, j+offset)) for j = 1:nregisters(layout(T.types[i]))]
   return layout(T.types[i]) isa Tuple ? push!(ir, stmt(Expr(:tuple, parts...), type = T.types[i])) : parts[1]
 end
 
