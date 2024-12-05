@@ -8,10 +8,6 @@ fn jsfree(ptr: Ptr) {
 
 bundle JSObject(ref: Ref)
 
-# We have a compiler option which skips the `Ref` wrapper, which lets us avoid
-# compiling malloc. (And of course JS objects won't be freed.)
-fn matchTrait(x: pack(tag".JSObject", _: Int32), tag".JSObject") { Some(x) }
-
 fn JSObject(id: Int32) {
   if jsalloc() {
     r = Ref(8)
@@ -29,6 +25,8 @@ fn jsref(x) { jsref(tojs(x)) }
 
 fn jsref(JSObject(ref: Ref)) { i32load(pointer(ref)) }
 
+# We have a compiler option which skips the `Ref` wrapper, which lets us avoid
+# compiling malloc. (And of course JS objects won't be freed.)
 fn jsref(JSObject(ref: Int32)) { ref }
 
 fn retain!(JSObject(ref: Ref)) { retain!(ref) }
