@@ -21,6 +21,8 @@ partial_part(data::Recursive, i) =
 
 partial_nparts(x::Pack) = nparts(x)
 partial_nparts(::VPack) = Int64
+partial_nparts(::String) = nparts(RString())
+partial_nparts(x::Union{Primitive,Type{<:PrimitiveNumber}}) = nparts(x)
 
 partial_nparts(x::Onion) =
   reduce(union, partial_nparts.(x.types))

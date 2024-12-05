@@ -120,7 +120,7 @@ function lowerwasm(ir::IR, names, globals, tables)
       pr[v] = funcid!(tables, names[(f, I)])
     elseif isexpr(st, :tuple, :ref)
     elseif isexpr(st, :cast)
-      @assert layout(st.type) == layout(exprtype(ir, st.expr.args[1]))
+      @assert tlayout(st.type) == tlayout(exprtype(ir, st.expr.args[1]))
       pr[v] = st.expr.args[1]
     elseif isexpr(st, :global)
       l = globals[st.expr.args[1]::Binding]

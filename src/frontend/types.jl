@@ -70,6 +70,9 @@ Base.iterate(x::Pack, st...) = iterate(x.parts, st...)
 
 tag(x) = partial_part(x, 0)
 
+pack(t::Tag, x::Union{PrimitiveNumber,Type{<:PrimitiveNumber}}) =
+  t == tag(x) ? x : Pack(t, x)
+
 reconstruct(x::Pack) = x.parts, ps -> pack(ps...)
 
 struct VPack # variable width

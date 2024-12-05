@@ -33,14 +33,6 @@ end
 
 # Pack primitives
 
-function cat_layout(xs...)
-  result = ()
-  for x in xs
-    x isa WTuple ? append!(result, x.parts) : push!(result, x)
-  end
-  return WTuple(result)
-end
-
 cat_layout() = ()
 cat_layout(x) = (x,)
 cat_layout(x::Tuple) = x
@@ -53,6 +45,11 @@ layout(x::VPack) = (Int32, Int32) # size, pointer
 layout(x::Recursive) = (Int32,)
 layout(x::Recur) = Int32
 layout(xs::Onion) = (Int32, cat_layout(layout.(xs.types)...)...)
+
+function tlayout(x)
+  rs = layout(x)
+  rs isa Tuple ? rs : (rs,)
+end
 
 nregisters(l::Type) = 1
 nregisters(l::Tuple) = length(l)
@@ -67,7 +64,7 @@ end
 inlinePrimitive[pack_method] = function (pr, ir, v)
   # Arguments are turned into a tuple when calling any function, so this
   # is just a cast.
-  @assert layout(ir[v].type) == layout(exprtype(ir, ir[v].expr.args[2]))
+  @assert tlayout(ir[v].type) == tlayout(exprtype(ir, ir[v].expr.args[2]))
   pr[v] = ir[v].expr.args[2]
 end
 
@@ -260,8 +257,8 @@ inlinePrimitive[packcat_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
   S = exprtype(ir, x)
   T = ir[v].type
-  if S isa Pack && T isa Pack
-    @assert layout(S) == layout(T)
+  if S isa Pack && T isa Union{Pack,PrimitiveNumber,Type{<:PrimitiveNumber}}
+    @assert tlayout(S) == tlayout(T)
     pr[v] = Expr(:cast, x)
   end
 end
