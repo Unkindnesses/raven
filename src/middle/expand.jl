@@ -280,7 +280,7 @@ outlinePrimitive[nparts_method] = function (x::Onion)
   return ir
 end
 
-function nparts!(ir, T::Pack, x)
+function nparts!(ir, T::Union{Pack,Primitive,Type{<:Primitive}}, x)
   return push!(ir, stmt(Expr(:tuple), type = nparts(T)))
 end
 

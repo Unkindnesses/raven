@@ -523,6 +523,23 @@ test_rv"""
   """,
   options = Raven.Options(jsalloc=false))
 
+@test_rv("""
+  fn either(x) {
+    if x {
+      return widen(5)
+    } else {
+      return widen("foo")
+    }
+  }
+
+  # TODO can't yet compile dynamic `show` fallback
+  fn prn(x: Int64) { println(x) }
+  fn prn(x: String) { println(x) }
+
+  prn(either(widen(true)))
+  prn(either(widen(false)))
+  """, output = "5\nfoo")
+
 @testset "WASI" begin
   Raven.compile(joinpath(@__DIR__, "wasi.rv"), Raven.Options(memcheck=false))
   run(`wasm-tools component embed $(@__DIR__)/../../wasi-cli/wit --world command $(@__DIR__)/wasi.wasm -o $(@__DIR__)/wasi.cli.wasm`)

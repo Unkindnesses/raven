@@ -10,6 +10,8 @@ partial_part(data::Union{Pack,Primitive,Type{<:Primitive}}, i::Integer) =
 partial_part(data::Pack, i::Type{<:Integer}) =
   reduce(union, parts(data))
 
+partial_part(data::Union{Primitive,Type{<:PrimitiveNumber}}, t::Type{<:Integer}) = data
+
 partial_part(data::VPack, i::Union{Int,Type{<:Integer}}) =
   i == 0 ? data.tag : data.parts
 
@@ -47,6 +49,7 @@ partial_isnil(x::Pack) = Int32(x == nil)
 partial_isnil(x::Onion) = any(==(nil), x.types) ? Int32 : Int32(0)
 
 partial_notnil(x::Pack) = tag(x) == tag"common.Nil" ? ⊥ : x
+partial_notnil(x::Union{Primitive,Type{<:Primitive}}) = x
 
 function partial_notnil(x::Onion)
   ps = filter(x -> tag(x) != tag"common.Nil", x.types)

@@ -399,7 +399,6 @@ function lower!(sc, ir::IR, ex::AST.Template)
   return modtag(mod(sc), ex[2])
 end
 
-# TODO should `partial_match` where possible
 function lowermatch!(sc, ir::IR, val, pat)
   sig = lowerpattern(pat, mod = mod(sc), resolve = resolve_static)
   pat = rvpattern(sig.pattern)
