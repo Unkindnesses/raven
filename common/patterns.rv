@@ -11,68 +11,71 @@ bundle Pattern {
   And(p, q)
 }
 
-fn match(val, pack(tag".Hole")) {
-  return simpledict()
+fn _match(val, pack(tag"common.Hole")) {
+  return [val, simpledict()]
 }
 
-fn match(val, pack(tag".Literal", pat)) {
-  if pat == val {
-    return simpledict()
-  } else {
-    return
-  }
+fn _match(val, pack(tag"common.Literal", pat)) {
+  (val == pat) || return
+  return [pat, simpledict()]
 }
 
-fn match(val, pack(tag".Trait", pat)) {
-  if isa(val, pat) {
-    return simpledict()
-  } else {
-    return
-  }
+fn _match(val, pack(tag"common.Trait", T)) {
+  m = matchTrait(val, T)
+  isnil(m) && return
+  return [part(notnil(m), 1), simpledict()]
 }
 
-fn match(val, pack(tag".Bind", name, p)) {
-  bs = match(val, p)
-  isnil(bs) && return
-  bs = notnil(bs)
+fn _match(val, pack(tag"common.Bind", name, p)) {
+  m = _match(val, p)
+  isnil(m) && return
+  m = notnil(m)
+  val = part(m, 1)
+  bs = part(m, 2)
   setkey(&bs, name, val)
-  return bs
+  return [val, bs]
 }
 
-fn match(xs, p: Pack) {
-  if not(eq(nparts(xs), sub(nparts(p), 1))) { return nil }
-  bs = simpledict()
-  i = 0
+fn _match(xs, p: Pack) {
+  eq(nparts(xs), sub(nparts(p), 1)) || return
+  m = _match(tag(xs), part(p, 1))
+  isnil(m) && return
+  m = notnil(m)
+  tag = part(m, 1)
+  xs = tagcast(xs, tag)
+  bs = part(m, 2)
+  result = pack(tag)
+  i = 1
   while lt(i, nparts(p)) {
     if not(isnil(bs)) {
-      m = match(part(xs, i), part(p, add(i, 1)))
+      m = _match(part(xs, i), part(p, add(i, 1)))
       if isnil(m) {
         bs = nil
+        result = nil
       } else {
-        bs = merge(notnil(bs), notnil(m))
+        m = notnil(m)
+        result = packcat(notnil(result), [part(m, 1)])
+        bs = merge(notnil(bs), notnil(part(m, 2)))
       }
     } else {
-      bs = nil # type inference hack
+      # if the above is certain to fail, make sure the whole match is
+      bs = nil
+      result = nil
     }
     i = add(i, 1)
   }
-  return bs
-}
-
-fn match(val, pack(tag".Constructor", name, args...)) {
-  match(val, constructorPattern(name, args...))
-}
-
-fn match(val, pack(tag".And", p, q)) {
-  bs = match(val, p)
   isnil(bs) && return
-  cs = match(val, q)
-  isnil(cs) && return
-  merge(notnil(bs), notnil(cs))
+  return [notnil(result), notnil(bs)]
 }
 
-fn ismatch(val, pat) {
-  not(isnil(match(val, pat)))
+fn _match(val, pack(tag".Constructor", name, args...)) {
+  _match(val, constructorPattern(name, args...))
+}
+
+fn match(val, pat) {
+  result = _match(val, pat)
+  isnil(result) && return
+  return part(notnil(result), 2)
 }
 
 fn isa(val, T) {

@@ -53,6 +53,8 @@ function partial_notnil(x::Onion)
   return length(ps) == 1 ? ps[1] : Onion(ps)
 end
 
+partial_notnil(x::Recursive) = recursive(partial_notnil(unroll(x)))
+
 partial_tagcast(x::Union{Pack,VPack,Primitive,Type{<:PrimitiveNumber}}, t::Tag) =
   tag(x) == t ? x : ⊥
 
@@ -60,6 +62,8 @@ function partial_tagcast(x::Onion, t::Tag)
   ps = filter(x -> tag(x) == t, x.types)
   return isempty(ps) ? ⊥ : only(ps)
 end
+
+partial_tagcast(x::Recursive, t::Tag) = partial_tagcast(unroll(x), t)
 
 partial_tagstring(x::Tag) = string(x)
 partial_tagstring(x::Onion) = RString()
@@ -180,8 +184,12 @@ inlinePrimitive[tagcast_method] = function (pr, ir, v)
     delete!(pr, v)
     replace!(pr, v, abort!(pr, "tagcast"))
   else
-    i = findfirst(x -> Raven.tag(x) == tag, (T::Onion).types)
     delete!(pr, v)
+    if T isa Recursive
+      T = unroll(T)
+      x = unbox!(pr, T, x)
+    end
+    i = findfirst(x -> Raven.tag(x) == tag, (T::Onion).types)
     replace!(pr, v, union_downcast!(pr, T, i, x))
   end
 end

@@ -352,7 +352,6 @@ end
 
 function unbox!(ir, T, x; count = true)
   l = layout(T)
-  bytes = sum(sizeof.(l))
   parts = []
   pos = push!(ir, stmt(Expr(:ref, x, 1), type = Int32))
   for (i, T) in enumerate(cat_layout(l))
