@@ -34,7 +34,10 @@ end
 function intrinsic(ex)
   if ex isa AST.Operator && ex[1] == :(:)
     typ = ex[3]
-    typ = typ == :unreachable ? ⊥ : rvtype(WType(typ))
+    typ =
+      typ == :unreachable ? ⊥ :
+      typ isa AST.Group ? rlist(rvtype.(WType.(typ[:]))...) :
+      rvtype(WType(typ))
     ex = ex[2]
   else
     typ = nil

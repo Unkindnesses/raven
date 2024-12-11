@@ -546,3 +546,10 @@ test_rv"""
   run(`wasm-tools component new $(@__DIR__)/wasi.cli.wasm -o $(@__DIR__)/wasi.cli.wasm`)
   @test String(read(`wasmtime $(@__DIR__)/wasi.cli.wasm`)) == "hello!\n"
 end
+
+test_rv"""
+  {
+    Ok(x) = errcall(global(), "dummyPromise", 5)
+    test Float64(x) == Float64(5)
+  }
+  """

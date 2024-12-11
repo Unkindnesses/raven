@@ -14,7 +14,9 @@ function fromRef(ref) {
   return table[ref];
 }
 
-let await = new WebAssembly.Suspending(async ref => createRef(await fromRef(ref)));
+async function await(ref) {
+  return createRef(await fromRef(ref));
+}
 
 function string(i) {
   return createRef(support.strings[i]);
@@ -47,6 +49,22 @@ function call(obj, meth, ...args) {
   return createRef(obj[meth].call(obj, ...args));
 }
 
+async function errcall(obj, meth, ...args) {
+  obj = fromRef(obj);
+  meth = fromRef(meth);
+  args = args.map(fromRef);
+  const func = obj[meth];
+  if (func === undefined) {
+    throw new Error(`No such method ${meth}`);
+  }
+  try {
+    result = await obj[meth].call(obj, ...args);
+    return [0, createRef(result)];
+  } catch (e) {
+    return [1, createRef(e)];
+  }
+}
+
 function equal(a, b) {
   return fromRef(a) === fromRef(b);
 }
@@ -77,10 +95,16 @@ globalThis.dummyPromise = function (n) {
   return new Promise(resolve => resolve(n));
 }
 
-const support = {global, property, call,
+globalThis.dummyErr = function () {
+  throw new Error('dummy error');
+}
+
+const support = {global, property, call, errcall,
                  string, strings: [],
                  createRef, fromRef, abort,
-                 equal, release, await};
+                 equal, release,
+                 await: new WebAssembly.Suspending(await),
+                 errcall: new WebAssembly.Suspending(errcall)};
 
 async function loadWasm(buf, imports = {support}) {
   if (typeof buf === 'string')

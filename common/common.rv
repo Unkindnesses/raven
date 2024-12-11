@@ -15,6 +15,7 @@ export {
     true, false
     pack, part, nparts, widen
     Tag, Some, Nil, nil, isnil
+    Ok, Err
     tag, identity, ==
 }
 
@@ -34,6 +35,8 @@ fn condition(x) { abort("Non-boolean used as a condition") }
 fn condition(x: Int32) { x }
 
 bundle Optional { Some(x), Nil() }
+
+bundle Result { Ok(x), Err(e) }
 
 nil = Nil()
 

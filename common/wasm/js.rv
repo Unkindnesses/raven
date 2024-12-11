@@ -1,4 +1,4 @@
-export { abort, global, call, await, tojs, sleep, readline }
+export { JSObject, abort, global, call, errcall, await, tojs, sleep, readline }
 
 fn jsfree(ptr: Ptr) {
   id = i32load(ptr)
@@ -57,10 +57,35 @@ fn call(obj: JSObject, meth: JSObject) {
 fn call(obj, meth, x) { call(tojs(obj), tojs(meth), tojs(x)) }
 
 fn call(obj: JSObject, meth: JSObject, x: JSObject) {
-  x = tojs(x)
   ref = wasm { call(support.call, jsref(obj): i32, jsref(meth): i32, jsref(x): i32): i32 }
   hold(obj, meth, x)
   return JSObject(ref)
+}
+
+fn errcall(obj, meth) { errcall(tojs(obj), tojs(meth)) }
+
+fn errcall(obj: JSObject, meth: JSObject) {
+  [err, ref] = wasm { call(support.errcall, jsref(obj): i32, jsref(meth): i32): (i32, i32) }
+  hold(obj, meth)
+  result = JSObject(ref)
+  if err {
+    return Err(result)
+  } else {
+    return Ok(result)
+  }
+}
+
+fn errcall(obj, meth, x) { errcall(tojs(obj), tojs(meth), tojs(x)) }
+
+fn errcall(obj: JSObject, meth: JSObject, x: JSObject) {
+  [err, ref] = wasm { call(support.errcall, jsref(obj): i32, jsref(meth): i32, jsref(x): i32): (i32, i32) }
+  hold(obj, meth, x)
+  result = JSObject(ref)
+  if err {
+    return Err(result)
+  } else {
+    return Ok(result)
+  }
 }
 
 fn await(obj: JSObject) {
@@ -104,6 +129,10 @@ fn abort(s: JSObject) {
 
 fn abort(s: String) { abort(tojs(s)) }
 
+fn string(x: JSObject) {
+  String(call(x, "toString"))
+}
+
 fn string(x: (Int32 | Int64 | Float32 | Float64)) {
   String(call(x, "toString"))
 }
@@ -113,6 +142,10 @@ fn print(x: String) {
   stdout = property(process, "stdout")
   call(stdout, "write", tojs(x))
   return
+}
+
+fn show(x: JSObject) {
+  print(string(x))
 }
 
 fn println(x: JSObject) {
