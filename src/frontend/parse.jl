@@ -143,14 +143,19 @@ end
 function integer(io::IO)
   num = IOBuffer()
   isnumeric(peek(io)) || return
+  decimal = false
   while !eof(io)
     p = position(io)
     c = read(io)
-    c in '0':'9' || (seek(io, p); break)
+    c in '0':'9' || c == '.' || (seek(io, p); break)
+    if c == '.'
+      decimal && error("invalid number")
+      decimal = true
+    end
     write(num, c)
   end
   seek(num, 0)
-  return Base.parse(Int, String(Base.read(num)))
+  return Base.parse(decimal ? Float64 : Int64, String(Base.read(num)))
 end
 
 function negnum(io::IO)

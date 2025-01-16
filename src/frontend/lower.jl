@@ -291,7 +291,7 @@ _push!(ir::IR, x::Expr; src = nothing, bp = false, type = ⊥) = _push!(ir, stmt
 _lower!(sc, ir, x) = lower!(sc, ir, x)
 _lower!(sc, ir, x::Vector) = foreach(x -> _lower!(sc, ir, x), x)
 
-lower!(sc, ir::IR, x::Union{Integer,String,Pack}) = x
+lower!(sc, ir::IR, x::Union{Number,String,Pack}) = x
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? Binding(tag"common", :nil) :
   (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
