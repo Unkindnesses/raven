@@ -5,6 +5,8 @@ using Raven: @test_rv, @test_rv_str
 
 @test_rv("println(tojs(1))", output = "1")
 
+@test_rv("println(2.0)", output = "2")
+
 @test_rv("println(x)", error = true, output = "x is not defined")
 
 @test_rv("foo()", error = true, output = "foo is not defined")

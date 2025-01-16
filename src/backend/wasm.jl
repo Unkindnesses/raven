@@ -132,10 +132,11 @@ function lowerwasm(ir::IR, names, globals, tables)
       pr[v] = length(ps) == 1 ? only(ps) : Expr(:tuple, ps...)
     elseif isexpr(st, :call) && st.expr.args[1] isa WebAssembly.Instruction
       if st.expr.args[1] isa WImport
+        args = st.expr.args[2:end]
         name = names[(st.expr.args[1],
-                      Tuple(wparts(rlist(exprtype(ir, st.expr.args[2:end])...))),
+                      Tuple(WType.(partial_widen.(exprtype(ir, args)))),
                       Tuple(wparts(st.type)))]
-        st = stmt(st, expr = xcall(WebAssembly.Call(name), st.expr.args[2:end]...))
+        st = stmt(st, expr = xcall(WebAssembly.Call(name), args...))
       end
       T = st.type
       pr[v] = stmt(st, type = T == ⊥ ? WTuple() : wlayout(T))
