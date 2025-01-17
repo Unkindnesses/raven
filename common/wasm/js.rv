@@ -1,4 +1,4 @@
-export { JSObject, abort, global, call, errcall, await, tojs, sleep, readline }
+export { JSObject, abort, global, property, call, errcall, await, tojs, sleep, readline }
 
 fn jsfree(ptr: Ptr) {
   id = i32load(ptr)
@@ -45,6 +45,8 @@ fn property(obj: JSObject, prop: JSObject) {
   hold(obj, prop)
   return JSObject(ref)
 }
+
+fn property(obj, x, y) { property(property(obj, x), y) }
 
 fn call(obj, meth) { call(tojs(obj), tojs(meth)) }
 
@@ -121,6 +123,12 @@ extend fn Float64(obj: JSObject) {
   return x
 }
 
+extend fn Int32(obj: JSObject) {
+  x = wasm { call(support.fromRef, jsref(obj): i32): i32 }
+  hold(obj)
+  return x
+}
+
 fn abort(s: JSObject) {
   retain!(s)
   wasm { call(support.abort, jsref(s): i32): unreachable }
@@ -158,6 +166,19 @@ fn println(x: JSObject) {
   console = property(global(), "console")
   call(console, "log", x)
   return
+}
+
+fn iterator(x: JSObject) {
+  call(x, property(global(), "Symbol", "iterator"))
+}
+
+fn iterate(&x: JSObject) {
+  val = call(x, "next")
+  if Int32(property(val, "done")) {
+    return nil
+  } else {
+    return Some(property(val, "value"))
+  }
 }
 
 fn sleep(n) {

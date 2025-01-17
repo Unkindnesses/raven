@@ -564,9 +564,13 @@ test_rv"""
   """
 
 @test_rv("""
-  {
-    x = unwrap(errcall(global(), "dummyErr"))
-  }
+  unwrap(errcall(global(), "dummyErr"))
   """,
   error = true,
   output = ["unwrap Err", "dummy error"])
+
+@test_rv("""
+  for arg in args() {
+    println(arg)
+  }
+  """, output = "node")

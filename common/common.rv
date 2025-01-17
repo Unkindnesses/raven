@@ -14,7 +14,7 @@ import {
 export {
     true, false
     pack, part, nparts, widen
-    Tag, Some, Nil, nil, isnil
+    Tag, Some, Nil, nil, isnil, notnil
     Ok, Err, unwrap
     tag, identity, ==
 }
@@ -61,3 +61,5 @@ include "structures/simpledict.rv"
 include "strings.rv"
 
 include "wasm/malloc.rv"
+
+include "io.rv"

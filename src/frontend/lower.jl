@@ -189,7 +189,7 @@ function formacro(ex)
     AST.Syntax(:while, Symbol("true"), AST.Block(
       AST.Operator(:(=), val, AST.Call(:iterate, AST.Swap(itr))),
       AST.Syntax(:if, AST.Call(:isnil, val), AST.Block(:break)),
-      AST.Operator(:(=), x, AST.Call(:part, val, 1)),
+      AST.Operator(:(=), x, AST.Call(:part, AST.Call(:notnil, val), 1)),
       body
     ))
   )
