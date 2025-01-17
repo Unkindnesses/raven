@@ -552,6 +552,21 @@ end
 test_rv"""
   {
     Ok(x) = errcall(global(), "dummyPromise", 5)
-    test Float64(x) == Float64(5)
+    test Float64(x) == 5.0
   }
   """
+
+test_rv"""
+  {
+    x = unwrap(errcall(global(), "dummyPromise", 5))
+    test Float64(x) == 5.0
+  }
+  """
+
+@test_rv("""
+  {
+    x = unwrap(errcall(global(), "dummyErr"))
+  }
+  """,
+  error = true,
+  output = ["unwrap Err", "dummy error"])

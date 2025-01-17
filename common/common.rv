@@ -15,7 +15,7 @@ export {
     true, false
     pack, part, nparts, widen
     Tag, Some, Nil, nil, isnil
-    Ok, Err
+    Ok, Err, unwrap
     tag, identity, ==
 }
 
@@ -36,11 +36,14 @@ fn condition(x: Int32) { x }
 
 bundle Optional { Some(x), Nil() }
 
-bundle Result { Ok(x), Err(e) }
-
 nil = Nil()
 
 fn (_: Nil) == (_: Nil) { true }
+
+bundle Result { Ok(x), Err(e) }
+
+fn unwrap(Ok(x)) { x }
+fn unwrap(Err(x)) { abort("Tried to unwrap Err", x) }
 
 include "patterns.rv"
 include "iterate.rv"

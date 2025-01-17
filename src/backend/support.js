@@ -69,9 +69,8 @@ function equal(a, b) {
   return fromRef(a) === fromRef(b);
 }
 
-function abort(obj) {
-  obj = fromRef(obj);
-  throw new Error(obj);
+function abort(obj, cause) {
+  throw new Error(fromRef(obj), {cause: fromRef(cause)});
 }
 
 globalThis.sleep = function (n) {

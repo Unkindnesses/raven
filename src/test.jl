@@ -35,8 +35,11 @@ function test_rv(code; error = false, source = nothing,
     Base.error(out)
   end
   @assert (exit != 0) == error
-  if output != nothing
+  if output isa AbstractString
     result = Base.occursin(output, out)
+    Test.do_test(Test.Returned(result, nothing, source), :(Base.occursin($output, $out)))
+  elseif output != nothing
+    result = all(x -> Base.occursin(x, out), output)
     Test.do_test(Test.Returned(result, nothing, source), :(Base.occursin($output, $out)))
   elseif !error
     results = split(out, "\n", keepempty = false)

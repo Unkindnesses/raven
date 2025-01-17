@@ -123,11 +123,17 @@ extend fn Float64(obj: JSObject) {
 
 fn abort(s: JSObject) {
   retain!(s)
-  ref = jsref(s)
-  wasm { call(support.abort, ref: i32): unreachable }
+  wasm { call(support.abort, jsref(s): i32): unreachable }
+}
+
+fn abort(s: JSObject, cause: JSObject) {
+  retain!(s)
+  retain!(cause)
+  wasm { call(support.abort, jsref(s): i32, jsref(cause): i32): unreachable }
 }
 
 fn abort(s: String) { abort(tojs(s)) }
+fn abort(s: String, cause) { abort(tojs(s), tojs(cause)) }
 
 fn string(x: JSObject) {
   String(call(x, "toString"))
