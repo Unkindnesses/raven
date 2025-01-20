@@ -3,8 +3,8 @@ const recursionLimit = 10
 _typeof(x) = error("invalid constant $x::$(typeof(x))")
 _typeof(x::Union{Number,String,Tag,RMethod,Pack}) = x
 
-exprtype(ir, x) = IRTools.exprtype(ir, x, typeof = _typeof)
-exprtype(ir, xs::AbstractVector) = map(x -> exprtype(ir, x), xs)
+exprtype(ir, x) = IRTools.exprtype(ir isa Block ? ir.ir : ir, x, typeof = _typeof)
+exprtype(ir, xs::Union{AbstractVector,Tuple}) = map(x -> exprtype(ir, x), xs)
 
 function prepare_ir!(ir)
   ir = ir |> globals |> IRTools.expand!

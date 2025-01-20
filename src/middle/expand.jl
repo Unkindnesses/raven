@@ -41,7 +41,7 @@ cat_layout(x, xs...) = (cat_layout(x)..., cat_layout(xs...)...)
 layout(T::Type{<:Primitive}) = T
 layout(x::Union{Primitive,Unreachable}) = ()
 layout(x::Pack) = cat_layout(layout.(x.parts)...)
-layout(x::VPack) = (Int32, Int32) # size, pointer
+layout(x::VPack) = cat_layout(layout(x.tag), Int32, layout(x.parts) == () ? () : Int32) # size, pointer
 layout(x::Recursive) = (Int32,)
 layout(x::Recur) = Int32
 layout(xs::Onion) = (Int32, cat_layout(layout.(xs.types)...)...)
@@ -60,6 +60,9 @@ function sublayout(T, i)
   length = nregisters(layout(T.parts[i+1]))
   offset .+ (1:length)
 end
+
+sizeof(T::Type) = Base.sizeof(T)
+sizeof(T) = sum(sizeof, tlayout(T), init = 0)
 
 inlinePrimitive[pack_method] = function (pr, ir, v)
   # Arguments are turned into a tuple when calling any function, so this
@@ -161,21 +164,20 @@ function indexer!(ir, T::Pack, i::Int, x, _)
   end
 end
 
-function indexer!(ir, T::VPack, I::Union{Int64,Type{Int64}}, x, i)
-  (I == 0 || layout(T.parts) == ()) && return push!(ir, Expr(:tuple))
-  @assert T.parts == Int64
+function indexer!(ir, Ts::VPack, I::Union{Int64,Type{Int64}}, x, i)
+  T = Ts.parts
+  (I == 0 || layout(T) == ()) && return push!(ir, Expr(:tuple))
   if I isa Int
-    i = Int32((I-1)*8)
+    i = Int32((I-1)*sizeof(T))
   else
     i = push!(ir, stmt(xcall(i32.wrap_i64, i), type = Int32))
     i = push!(ir, stmt(xcall(i32.sub, i, Int32(1)), type = Int32))
-    i = push!(ir, stmt(xcall(i32.mul, i, Int32(8)), type = Int32))
+    i = push!(ir, stmt(xcall(i32.mul, i, Int32(sizeof(T))), type = Int32))
   end
   # TODO bounds check
   p = push!(ir, stmt(Expr(:ref, x, 2), type = Int32))
   p = push!(ir, stmt(xcall(i32.add, p, i), type = Int32))
-  v = push!(ir, stmt(xcall(i64.load, p), type = Int64))
-  return v
+  return load(ir, T, p, count = false)
 end
 
 inlinePrimitive[part_method] = function (pr, ir, v)
@@ -336,35 +338,40 @@ end
 
 blockargtype(bl, i) = exprtype(bl.ir, arguments(bl)[i])
 
-function box!(ir, T, x)
-  l = layout(T)
-  bytes = sum(sizeof.(l))
-  margs = push!(ir, stmt(Expr(:tuple, Int32(bytes)), type = rlist(Int32)))
-  ptr = push!(ir, stmt(xcall(tag"common.malloc!", margs), type = Int32))
-  pos = ptr
-  for (i, T) in enumerate(cat_layout(l))
-    push!(ir, stmt(xcall(WType(T).store, pos, Expr(:ref, x, i)), type = nil))
+function store!(ir, T, ptr, x)
+  l = tlayout(T)
+  for (i, T) in enumerate(l)
+    push!(ir, stmt(xcall(WType(T).store, ptr, Expr(:ref, x, i)), type = T))
     # TODO could use constant offset here
-    i == length(l) || (pos = push!(ir, stmt(xcall(i32.add, pos, Int32(sizeof(T))), type = Int32)))
+    i == length(l) || (ptr = push!(ir, stmt(xcall(i32.add, ptr, Int32(sizeof(T))), type = Int32)))
   end
+end
+
+function load(ir, T, ptr; count = true)
+  l = tlayout(T)
+  parts = []
+  for (i, T) in enumerate(l)
+    part = push!(ir, stmt(xcall(WType(T).load, ptr), type = T))
+    push!(parts, part)
+    # TODO same as above
+    i == length(l) || (ptr = push!(ir, stmt(xcall(i32.add, ptr, Int32(sizeof(T))), type = Int32)))
+  end
+  x = push!(ir, stmt(Expr(:tuple, parts...), type = T))
+  count && isreftype(T) && push!(ir, Expr(:retain, x))
+  return x
+end
+
+function box!(ir, T, x)
+  margs = push!(ir, stmt(Expr(:tuple, Int32(sizeof(T))), type = rlist(Int32)))
+  ptr = push!(ir, stmt(xcall(tag"common.malloc!", margs), type = Int32))
+  store!(ir, T, ptr, x)
   return ptr
 end
 
 function unbox!(ir, T, x; count = true)
-  l = layout(T)
-  parts = []
-  pos = push!(ir, stmt(Expr(:ref, x, 1), type = Int32))
-  for (i, T) in enumerate(cat_layout(l))
-    part = push!(ir, stmt(xcall(WType(T).load, pos), type = T))
-    push!(parts, part)
-    # TODO same as above
-    i == length(l) || (pos = push!(ir, stmt(xcall(i32.add, pos, Int32(sizeof(T))), type = Int32)))
-  end
-  result = push!(ir, stmt(Expr(:tuple, parts...), type = T))
-  if count
-    isreftype(T) && push!(ir, Expr(:retain, result))
-    push!(ir, Expr(:release, x))
-  end
+  ptr = push!(ir, stmt(Expr(:ref, x, 1), type = Int32))
+  result = load(ir, T, ptr; count)
+  count && push!(ir, Expr(:release, x))
   return result
 end
 
@@ -382,10 +389,24 @@ function cast!(ir, from, to, x)
     parts = [indexer!(ir, from, i, x, nothing) for i = 0:nparts(from)]
     parts = [cast!(ir, part(from, i), part(to, i), parts[i+1]) for i = 0:nparts(from)]
     push!(ir, stmt(Expr(:tuple, parts...), type = to))
-  elseif from == rlist() && to isa VPack
-    margs = push!(ir, stmt(Expr(:tuple, Int32(0)), type = rlist(Int32)))
-    ptr = push!(ir, stmt(xcall(tag"common.malloc!", margs), type = Int32))
-    push!(ir, stmt(Expr(:tuple, Int32(0), ptr), type = to))
+  elseif from isa Pack && to isa VPack
+    @assert tag(from) isa Tag && tag(from) == tag(to)
+    T = to.parts
+    n = nparts(from)
+    if sizeof(T) == 0
+      push!(ir, stmt(xtuple(Int32(n)), type = to))
+    else
+      margs = push!(ir, stmt(Expr(:tuple, Int32(sizeof(T)*n)), type = rlist(Int32)))
+      ptr = push!(ir, stmt(xcall(tag"common.malloc!", margs), type = Int32))
+      pos = ptr
+      for i = 1:n
+        el = indexer!(ir, from, i, x, nothing)
+        el = cast!(ir, part(from, i), T, el)
+        store!(ir, T, pos, el)
+        i == n || (pos = push!(ir, stmt(xcall(i32.add, pos, Int32(sizeof(T))), type = Int32)))
+      end
+      push!(ir, stmt(Expr(:tuple, Int32(n), ptr), type = to))
+    end
   elseif from isa String && to == RString()
     string!(ir, from)
   elseif to isa Onion

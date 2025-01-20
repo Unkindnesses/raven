@@ -51,9 +51,16 @@ count!(ir, T, x, mode) =
 retain!(ir, T, x) = count!(ir, T, x, retain)
 release!(ir, T, x) = count!(ir, T, x, release)
 
+function rcall!(ir, f, args...; type)
+  args = [arg isa Number ? push!(ir, stmt(arg, type = typeof(arg))) : arg for arg in args]
+  args = push!(ir, stmt(xtuple(args...), type = rlist(exprtype(ir, args)...)))
+  push!(ir, stmt(xcall(f, args); type))
+end
+
 function countptr!(ir, ptr, mode)
   f = mode == retain ? tag"common.retain!" : tag"common.release!"
-  push!(ir, stmt(xcall(f, ptr), type = nil))
+  @assert tag(exprtype(ir, ptr)) == tag"common.Ptr"
+  rcall!(ir, f, ptr, type = nil)
 end
 
 function count_inline!(ir, T::Pack, x, mode)
@@ -78,8 +85,32 @@ function count_inline!(ir, T::Pack, x, mode)
 end
 
 function count_inline!(ir, T::VPack, x, mode)
-  # TODO release children
-  ptr = push!(ir, stmt(Expr(:ref, x, 2), type = rlist(pack(tag"common.Ptr", Int32))))
+  isreftype(T) || return
+  len = push!(ir, stmt(Expr(:ref, x, 1), type = Int32))
+  ptr = push!(ir, stmt(Expr(:ref, x, 2), type = pack(tag"common.Ptr", Int32)))
+  pos = ptr
+  if mode == release && isreftype(T.parts)
+    test = blocks(ir)[end]
+    header = block!(ir)
+    body = block!(ir)
+    after = block!(ir)
+
+    unique = rcall!(test, tag"common.blockUnique", ptr, type = Int32)
+    branch!(test, header, len, ptr, when = unique)
+    branch!(test, after)
+
+    len = argument!(header, type = Int32, insert = false)
+    pos = argument!(header, type = pack(tag"common.Ptr", Int32), insert = false)
+    done = rcall!(header, tag"common.==", len, Int32(0), type = Int32)
+    branch!(header, after, when = done)
+    branch!(header, body)
+
+    el = load(body, T.parts, pos, count = false)
+    release!(body, T.parts, el)
+    len = rcall!(body, tag"common.-", len, Int32(1), type = Int32)
+    pos = rcall!(body, tag"common.+", pos, Int32(sizeof(T.parts)), type = pack(tag"common.Ptr", Int32))
+    branch!(body, header, len, pos)
+  end
   countptr!(ir, ptr, mode)
 end
 
@@ -93,10 +124,9 @@ function count_inline!(ir, T::Onion, x, mode)
 end
 
 function count_inline!(ir, T::Recursive, x, mode)
-  ptr = push!(ir, stmt(Expr(:ref, x, 1), type = rlist(pack(tag"common.Ptr", Int32))))
+  ptr = push!(ir, stmt(Expr(:ref, x, 1), type = pack(tag"common.Ptr", Int32)))
   if mode == release
-    unique = push!(ir, stmt(xcall(tag"common.blockUnique", ptr), type = rlist(Int32)))
-    unique = push!(ir, Expr(:ref, unique, 1))
+    unique = rcall!(ir, tag"common.blockUnique", ptr, type = Int32)
     branch!(ir, length(blocks(ir))+1, when = unique)
     branch!(ir, length(blocks(ir))+2)
     block!(ir)

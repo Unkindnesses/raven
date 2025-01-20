@@ -574,3 +574,14 @@ test_rv"""
     println(arg)
   }
   """, output = "node")
+
+test_rv"""
+  {
+    xs = []
+    if widen(true) {
+      append(&xs, "foo")
+      append(&xs, "bar")
+    }
+    test part(xs, 2) == "bar"
+  }
+  """
