@@ -57,6 +57,11 @@ function exprtype(ir::IR, x::Variable; typeof = Typeof)
   end
 end
 
+exprtype(ir::Pipe, x::Variable; typeof = Typeof) =
+  exprtype(ir.to, substitute(ir, x); typeof)
+
+exprtype(ir::Pipe, x; typeof = Typeof) = typeof(x)
+
 # Unique Work Queue
 
 struct WorkQueue{T}

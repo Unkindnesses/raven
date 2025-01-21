@@ -12,9 +12,11 @@ reconstruct(::Unreachable) = (), _ -> ⊥
 const PrimitiveNumber = Union{Int64,Int32,Float64,Float32}
 const Primitive = Union{PrimitiveNumber,Tag,String}
 
+RPtr() = pack(tag"common.Ptr", Int32)
+
 JSObject() =
   options().jsalloc ?
-    pack(tag"common.JSObject", pack(tag"common.Ref", pack(tag"common.Ptr", Int32))) :
+    pack(tag"common.JSObject", pack(tag"common.Ref", RPtr())) :
     pack(tag"common.JSObject", Int32)
 
 RString() = pack(tag"common.String", JSObject())

@@ -31,6 +31,14 @@ function abort!(ir, s)
   push!(ir, stmt(xcall(WImport(:support, :abort), s), type = ⊥))
 end
 
+# We're a bit fast and loose with types here, because `T` and `[T]` have the
+# same representation (for now).
+function call!(ir, f, args...; type)
+  Ts = [T isa Number ? typeof(T) : T for T in exprtype(ir, args)]
+  args = push!(ir, stmt(xtuple(args...), type = rlist(Ts...)))
+  push!(ir, stmt(xcall(f, args); type))
+end
+
 # Pack primitives
 
 cat_layout() = ()
@@ -76,9 +84,6 @@ end
 
 # Create a `part` method to dynamically index tuples allocated as registers.
 # TODO: should make sure this comes out as a switch / branch table.
-# TODO: we call WASM functions here, which is not backend-agnostic, but
-# the functions we need might not have been inferred. Once the compiler is
-# incremental, later stages can request work from earlier ones.
 function partir(x, i)
   i <: Int64 || error("Only Int64 indexes are supported.")
   T = partial_part(x, i)
@@ -88,7 +93,7 @@ function partir(x, i)
   xlayout = layout(x)
   part(i) = xlayout isa Tuple ? push!(ir, stmt(Expr(:ref, vx, i), type = xlayout[i])) : vx
   for i = 1:nparts(x)
-    cond = push!(ir, stmt(xcall(i64.eq, i, vi), type = Int32))
+    cond = call!(ir, tag"common.==", i, vi, type = Int32)
     branch!(ir, length(ir.blocks) + 1, when = cond)
     branch!(ir, length(ir.blocks) + 2)
     block!(ir)
@@ -132,8 +137,8 @@ function partir(s::String, i)
   argument!(ir, type = s)
   argument!(ir, type = i)
   # Punt to the backend to decide how strings get IDd
-  id = push!(ir, stmt(Expr(:ref, s), type = rlist(Int32)))
-  o = push!(ir, stmt(xcall(tag"common.JSObject", id), type = JSObject()))
+  id = push!(ir, stmt(Expr(:ref, s), type = Int32))
+  o = call!(ir, tag"common.JSObject", id, type = JSObject())
   return!(ir, o)
   return ir
 end
@@ -170,13 +175,13 @@ function indexer!(ir, Ts::VPack, I::Union{Int64,Type{Int64}}, x, i)
   if I isa Int
     i = Int32((I-1)*sizeof(T))
   else
-    i = push!(ir, stmt(xcall(i32.wrap_i64, i), type = Int32))
-    i = push!(ir, stmt(xcall(i32.sub, i, Int32(1)), type = Int32))
-    i = push!(ir, stmt(xcall(i32.mul, i, Int32(sizeof(T))), type = Int32))
+    i = call!(ir, tag"common.core.Int32", i, type = Int32)
+    i = call!(ir, tag"common.-", i, Int32(1), type = Int32)
+    i = call!(ir, tag"common.*", i, Int32(sizeof(T)), type = Int32)
   end
   # TODO bounds check
   p = push!(ir, stmt(Expr(:ref, x, 2), type = Int32))
-  p = push!(ir, stmt(xcall(i32.add, p, i), type = Int32))
+  p = call!(ir, tag"common.+", p, i, type = Int32)
   return load(ir, T, p, count = false)
 end
 
@@ -220,12 +225,11 @@ outlinePrimitive[packcat_method] = function (T::Pack)
   ls = [isvalue(exprtype(ir, l)) ? exprtype(ir, l) : l for l in ls]
   size = popfirst!(ls)
   for l in ls
-    size = push!(ir, stmt(xcall(i64.add, size, l), type = Int64))
+    size = call!(ir, tag"common.+", size, l, type = Int64)
   end
-  size = push!(ir, stmt(xcall(i32.wrap_i64, size), type = Int32))
-  bytes = push!(ir, stmt(xcall(i32.mul, size, Int32(8)), type = Int32))
-  margs = push!(ir, stmt(Expr(:tuple, bytes), type = rlist(Int32)))
-  ptr = push!(ir, stmt(xcall(tag"common.malloc!", margs), type = Int32))
+  size = call!(ir, tag"common.core.Int32", size, type = Int32)
+  bytes = call!(ir, tag"common.*", size, Int32(8), type = Int32)
+  ptr = call!(ir, tag"common.malloc!", bytes, type = Int32)
   pos = ptr
   for i in 1:nparts(T)
     P = part(T, i)
@@ -233,8 +237,8 @@ outlinePrimitive[packcat_method] = function (T::Pack)
       for j in 1:nparts(P)
         @assert part(P, j) == Int64
         x = indexer!(ir, P, j, ps[i], j)
-        push!(ir, stmt(xcall(i64.store, pos, x), type = nil))
-        pos = push!(ir, stmt(xcall(i32.add, pos, Int32(8)), type = Int32))
+        store!(ir, P, pos, x)
+        pos = call!(ir, tag"common.+", pos, Int32(8), type = Int32)
       end
     elseif P isa VPack
       if P.parts != Int64
@@ -242,10 +246,10 @@ outlinePrimitive[packcat_method] = function (T::Pack)
       end
       sz = push!(ir, stmt(Expr(:ref, ps[i], 1), type = Int32))
       src = push!(ir, stmt(Expr(:ref, ps[i], 2), type = Int32))
-      ln = push!(ir, stmt(xcall(i32.mul, sz, Int32(8)), type = Int32))
+      ln = call!(ir, tag"common.*", sz, Int32(8), type = Int32)
       push!(ir, stmt(xcall(WebAssembly.Op(Symbol("memory.copy")), pos, src, ln), type = nil))
       push!(ir, Expr(:release, ps[i]))
-      pos = push!(ir, stmt(xcall(i32.add, pos, ln), type = Int32))
+      pos = call!(ir, tag"common.+", pos, ln, type = Int32)
     else
       error("unsupported")
     end
@@ -288,7 +292,7 @@ end
 
 function nparts!(ir, T::VPack, x)
   sz = push!(ir, stmt(Expr(:ref, x, 1), type = Int32))
-  push!(ir, stmt(xcall(i64.extend_i32_s, sz), type = Int64))
+  call!(ir, tag"common.core.Int64", sz, type = Int64)
 end
 
 inlinePrimitive[nparts_method] = function (pr, ir, v)
@@ -343,7 +347,7 @@ function store!(ir, T, ptr, x)
   for (i, T) in enumerate(l)
     push!(ir, stmt(xcall(WType(T).store, ptr, Expr(:ref, x, i)), type = T))
     # TODO could use constant offset here
-    i == length(l) || (ptr = push!(ir, stmt(xcall(i32.add, ptr, Int32(sizeof(T))), type = Int32)))
+    i == length(l) || (ptr = call!(ir, tag"common.+", ptr, Int32(sizeof(T)), type = Int32))
   end
 end
 
@@ -354,7 +358,7 @@ function load(ir, T, ptr; count = true)
     part = push!(ir, stmt(xcall(WType(T).load, ptr), type = T))
     push!(parts, part)
     # TODO same as above
-    i == length(l) || (ptr = push!(ir, stmt(xcall(i32.add, ptr, Int32(sizeof(T))), type = Int32)))
+    i == length(l) || (ptr = call!(ir, tag"common.+", ptr, Int32(sizeof(T)), type = Int32))
   end
   x = push!(ir, stmt(Expr(:tuple, parts...), type = T))
   count && isreftype(T) && push!(ir, Expr(:retain, x))
@@ -362,8 +366,7 @@ function load(ir, T, ptr; count = true)
 end
 
 function box!(ir, T, x)
-  margs = push!(ir, stmt(Expr(:tuple, Int32(sizeof(T))), type = rlist(Int32)))
-  ptr = push!(ir, stmt(xcall(tag"common.malloc!", margs), type = Int32))
+  ptr = call!(ir, tag"common.malloc!", Int32(sizeof(T)), type = Int32)
   store!(ir, T, ptr, x)
   return ptr
 end
@@ -396,14 +399,13 @@ function cast!(ir, from, to, x)
     if sizeof(T) == 0
       push!(ir, stmt(xtuple(Int32(n)), type = to))
     else
-      margs = push!(ir, stmt(Expr(:tuple, Int32(sizeof(T)*n)), type = rlist(Int32)))
-      ptr = push!(ir, stmt(xcall(tag"common.malloc!", margs), type = Int32))
+      ptr = call!(ir, tag"common.malloc!", Int32(sizeof(T)*n), type = Int32)
       pos = ptr
       for i = 1:n
         el = indexer!(ir, from, i, x, nothing)
         el = cast!(ir, part(from, i), T, el)
         store!(ir, T, pos, el)
-        i == n || (pos = push!(ir, stmt(xcall(i32.add, pos, Int32(sizeof(T))), type = Int32)))
+        i == n || (pos = call!(ir, tag"common.+", pos, Int32(sizeof(T)), type = Int32))
       end
       push!(ir, stmt(Expr(:tuple, Int32(n), ptr), type = to))
     end
