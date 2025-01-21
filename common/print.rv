@@ -28,15 +28,15 @@ fn show(x) {
 }
 
 fn show(x: String) {
-  print("'")
+  print("\"")
   print(x)
-  print("'")
+  print("\"")
 }
 
 fn show(x: Tag) {
-  print("tag'") # TODO: escaping
+  print("tag\"")
   print(string(x))
-  print("'")
+  print("\"")
 }
 
 fn show(x: (Int32 | Int64 | Float32 | Float64)) {

@@ -212,7 +212,12 @@ function string(io::IO)
   read(io) == '"' || return
   s = IOBuffer()
   while (c = read(io)) != '"'
-    write(s, c)
+    if c == '\\' && peek(io) == '\"'
+      read(io)
+      write(s, '\"')
+    else
+      write(s, c)
+    end
   end
   return unescape_string(String(take!(s)))
 end
