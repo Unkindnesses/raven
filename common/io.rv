@@ -1,6 +1,9 @@
 export { args }
 
-# TODO conversion
 fn args() {
-  property(global(), "process", "argv")
+  result = []
+  for arg in property(global(), "process", "argv") {
+    append(&result, String(arg))
+  }
+  return result
 }

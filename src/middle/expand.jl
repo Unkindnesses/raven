@@ -211,50 +211,68 @@ end
 # packcat
 # =======
 
-outlinePrimitive[packcat_method] = function (T::Pack)
-  T′ = packcat(parts(T)...)
-  @assert layout(T′.parts) == () || T′.parts == Int64
+outlinePrimitive[packcat_method] = function (Ts::Pack)
+  T = packcat(parts(Ts)...)::VPack
+  @assert tag(T) isa Tag
   ir = IR(meta = FuncInfo(tag"common.core.packcat"))
-  xs = argument!(ir, type = T)
-  if layout(T′.parts) == ()
-    abort!(ir, "unsupported")
-    return ir
-  end
-  ps = [indexer!(ir, T, i, xs, i) for i in 1:nparts(T)]
-  ls = [nparts!(ir, part(T, i), ps[i]) for i in 1:nparts(T)]
+  xs = argument!(ir, type = Ts)
+  ps = [indexer!(ir, Ts, i, xs, i) for i in 1:nparts(Ts)]
+  ls = [nparts!(ir, part(Ts, i), ps[i]) for i in 1:nparts(Ts)]
   ls = [isvalue(exprtype(ir, l)) ? exprtype(ir, l) : l for l in ls]
   size = popfirst!(ls)
   for l in ls
     size = call!(ir, tag"common.+", size, l, type = Int64)
   end
   size = call!(ir, tag"common.core.Int32", size, type = Int32)
-  bytes = call!(ir, tag"common.*", size, Int32(8), type = Int32)
+  if sizeof(T.parts) == 0
+    return!(ir, push!(ir, stmt(Expr(:tuple, size), type = T)))
+    return ir
+  end
+  bytes = call!(ir, tag"common.*", size, Int32(sizeof(T.parts)), type = Int32)
   ptr = call!(ir, tag"common.malloc!", bytes, type = Int32)
   pos = ptr
-  for i in 1:nparts(T)
-    P = part(T, i)
+  for i in 1:nparts(Ts)
+    P = part(Ts, i)
     if P isa Pack
       for j in 1:nparts(P)
-        @assert part(P, j) == Int64
         x = indexer!(ir, P, j, ps[i], j)
-        store!(ir, P, pos, x)
-        pos = call!(ir, tag"common.+", pos, Int32(8), type = Int32)
+        x = cast!(ir, part(P, j), T.parts, x)
+        store!(ir, T.parts, pos, x)
+        pos = call!(ir, tag"common.+", pos, Int32(sizeof(T.parts)), type = Int32)
       end
     elseif P isa VPack
-      if P.parts != Int64
-        abort!(ir, "unsupported")
-      end
-      sz = push!(ir, stmt(Expr(:ref, ps[i], 1), type = Int32))
+      # TODO memcpy when possible
+      @assert sizeof(P.parts) > 0
+      len = push!(ir, stmt(Expr(:ref, ps[i], 1), type = Int32))
       src = push!(ir, stmt(Expr(:ref, ps[i], 2), type = Int32))
-      ln = call!(ir, tag"common.*", sz, Int32(8), type = Int32)
-      push!(ir, stmt(xcall(WebAssembly.Op(Symbol("memory.copy")), pos, src, ln), type = nil))
+
+      before = blocks(ir)[end]
+      header = block!(ir)
+      body = block!(ir)
+      after = block!(ir)
+
+      branch!(before, header, pos, src, len)
+      pos = argument!(header, type = Int32, insert = false)
+      src = argument!(header, type = Int32, insert = false)
+      len = argument!(header, type = Int32, insert = false)
+      done = call!(header, tag"common.==", len, Int32(0), type = Int32)
+      branch!(header, after, when = done)
+      branch!(header, body)
+
+      x = load(body, P.parts, src)
+      x = cast!(body, P.parts, T.parts, x)
+      store!(body, T.parts, pos, x)
+      pos2 = call!(body, tag"common.+", pos, Int32(sizeof(T.parts)), type = Int32)
+      src2 = call!(body, tag"common.+", src, Int32(sizeof(T.parts)), type = Int32)
+      len2 = call!(body, tag"common.-", len, Int32(1), type = Int32)
+      branch!(body, header, pos2, src2, len2)
+
       push!(ir, Expr(:release, ps[i]))
-      pos = call!(ir, tag"common.+", pos, ln, type = Int32)
     else
       error("unsupported")
     end
   end
-  result = push!(ir, stmt(Expr(:tuple, size, ptr), type = packcat(parts(T)...)))
+  result = push!(ir, stmt(Expr(:tuple, size, ptr), type = T))
   return!(ir, result)
   return ir
 end
@@ -393,7 +411,7 @@ function cast!(ir, from, to, x)
     parts = [cast!(ir, part(from, i), part(to, i), parts[i+1]) for i = 0:nparts(from)]
     push!(ir, stmt(Expr(:tuple, parts...), type = to))
   elseif from isa Pack && to isa VPack
-    @assert tag(from) isa Tag && tag(from) == tag(to)
+    @assert tag(to) isa Tag
     T = to.parts
     n = nparts(from)
     if sizeof(T) == 0
