@@ -205,6 +205,8 @@ function aliases(ir)
   return aliases
 end
 
+ismethod(m, name) = m isa RMethod && m.name == name
+
 # ...and take them away again
 function elide_counts!(ir)
   vs = aliases(ir)

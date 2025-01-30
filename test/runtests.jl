@@ -40,8 +40,4 @@ if !Sys.iswindows()
   end
 end
 
-@testset "Reflection" begin
-  include("reflection.jl")
-end
-
 end

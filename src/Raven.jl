@@ -42,7 +42,6 @@ include("backend/wasm.jl")
 include("backend/compiler.jl")
 include("backend/repl.jl")
 
-include("reflection.jl")
 include("test.jl")
 
 include("repl-mode.jl")
