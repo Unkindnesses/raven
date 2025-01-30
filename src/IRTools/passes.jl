@@ -62,7 +62,7 @@ function expand!(ir::IR)
     uses = usages(b)
     for v in setdiff(uses, defs)
       haskey(spats[b], v) && continue
-      spats[b][v] = argument!(b, v)
+      spats[b][v] = argument!(b, v, type = exprtype(ir, v))
       for c in predecessors(b)
         c in worklist || push!(worklist, c)
       end

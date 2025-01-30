@@ -199,44 +199,59 @@ end
 
 # Generate dispatchers
 
-function indexer!(ir::IR, arg, path)
+function indexer!(ir::IR, T, arg, path)
   isempty(path) && return arg
   (p, rest...) = path
   if p isa AbstractVector
-    arg = push!(ir, xlist([xpart(arg, i) for i in p]...))
+    ps = [push!(ir, stmt(xpart(arg, i), type = part(T, i))) for i in p]
+    arg = push!(ir, stmt(xlist(ps...), type = rlist(exprtype(ir, ps)...)))
   else
-    arg = push!(ir, xpart(arg, p))
+    T = part(T, p)
+    arg = push!(ir, stmt(xpart(arg, p), type = T))
   end
-  arg = indexer!(ir, arg, rest)
+  arg = indexer!(ir, T, arg, rest)
 end
 
-function dispatcher(int, func::Tag, Ts)
+function icall!(inf, ir, sig, f, args...)
+  if !(f isa RMethod)
+    args = [push!(ir, stmt(xlist(args...), type = rlist(exprtype(ir, args)...)))]
+  end
+  ex = xcall(f, args...)
+  T = infercall!(inf, sig, ir, ex)
+  push!(ir, stmt(ex, type = T))
+end
+
+function dispatcher(inf, func::Tag, Ts)
   ir = IR(meta = FuncInfo(func, trampoline = true))
-  args = argument!(ir)
-  for meth in reverse(int.defs[func])
-    m = partial_match(int, meth.sig.pattern, Ts)
+  args = argument!(ir, type = Ts)
+  ret = ⊥
+  call!(f, args...) = icall!(inf, ir, (func, Ts), f, args...)
+  for meth in reverse(inf.defs[func])
+    m = partial_match(inf.int, meth.sig.pattern, Ts)
     if m === nothing
       continue
     elseif m isa AbstractDict
-      result = push!(ir, xcall(meth, [indexer!(ir, args, m[x][2]) for x in meth.sig.args]...))
-      isempty(meth.sig.swap) && (result = push!(ir, xlist(result)))
+      result = call!(meth, [indexer!(ir, Ts, args, m[x][2]) for x in meth.sig.args]...)
+      isempty(meth.sig.swap) && (result = push!(ir, stmt(xlist(result), type = rlist(exprtype(ir, result)))))
       return!(ir, result)
-      return ir
+      ret = union(ret, exprtype(ir, result))
+      return ir, ret
     else
-      m = push!(ir, rcall(tag"common.match", args, rvpattern(meth.sig.pattern)))
-      cond = push!(ir, xcall(isnil_method, m))
-      cond = push!(ir, rcall(tag"common.not", cond))
-      branch!(ir, length(blocks(ir))+1, when = cond)
-      branch!(ir, length(blocks(ir))+2)
+      m = call!(tag"common.match", args, rvpattern(meth.sig.pattern))
+      m = call!(part_method, m, 1)
+      cond = push!(ir, stmt(xcall(isnil_method, m), type = Int32))
+      branch!(ir, length(blocks(ir))+2, when = cond)
+      branch!(ir, length(blocks(ir))+1)
       block!(ir)
-      m = push!(ir, xcall(notnil_method, m))
+      m = call!(notnil_method, m)
       as = []
       for arg in meth.sig.args
-        push!(as, push!(ir, rcall(tag"common.getkey", m, Tag(arg))))
+        push!(as, call!(part_method, call!(tag"common.getkey", m, Tag(arg)), 1))
       end
-      result = push!(ir, xcall(meth, as...))
-      isempty(meth.sig.swap) && (result = push!(ir, xlist(result)))
+      result = call!(meth, as...)
+      isempty(meth.sig.swap) && (result = push!(ir, stmt(xlist(result), type = rlist(exprtype(ir, result)))))
       return!(ir, result)
+      ret = union(ret, exprtype(ir, result))
       block!(ir)
     end
   end
@@ -244,14 +259,8 @@ function dispatcher(int, func::Tag, Ts)
     error("Compiler fault: couldn't guarantee abort method matches")
   end
   if options().jspanic
-    push!(ir, xcall(tag"common.abort", xlist("No matching method: $func: $Ts")))
+    call!(tag"common.abort", "No matching method: $func: $Ts")
   end
   unreachable!(ir)
-  return ir
-end
-
-const Dispatchers = Cache{Tuple{Tag,Any},IR}
-
-dispatchers(int) = Cache{Tuple{Tag,Any},IR}() do self, (tag, Ts)
-  dispatcher(int, tag, Ts)
+  return ir, ret
 end

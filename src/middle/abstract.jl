@@ -3,6 +3,8 @@ const recursionLimit = 10
 _typeof(x) = error("invalid constant $x::$(typeof(x))")
 _typeof(x::Union{Number,String,Tag,RMethod,Pack}) = x
 
+# TODO constants should be converted early to empty tuples of constant type.
+# If literals appear in the IR they are runtime values (eg args to foreign calls)
 exprtype(ir, x) = IRTools.exprtype(ir isa Block ? ir.ir : ir, x, typeof = _typeof)
 exprtype(ir, xs::Union{AbstractVector,Tuple}) = map(x -> exprtype(ir, x), xs)
 
@@ -82,14 +84,13 @@ end
 struct Inference
   defs::Definitions
   int::Interpreter
-  dispatchers::Dispatchers
-  deps::IdDict{Any,Caches.NFT}
+  deps::IdDict{Any,Set{Caches.NFT}}
   frames::IdDict{Sig,Union{Frame,GlobalFrame,Redirect}}
   queue::WorkQueue{Tuple}
 end
 
-function Inference(defs::Definitions, int::Interpreter, ds::Dispatchers)
-  Inference(defs, int, ds, IdDict(), Dict(), WorkQueue{Tuple}())
+function Inference(defs::Definitions, int::Interpreter)
+  Inference(defs, int, IdDict(), Dict(), WorkQueue{Tuple}())
 end
 
 function sig(inf::Inference, T)
@@ -113,8 +114,8 @@ end
 
 function frame!(inf::Inference, name::Binding)
   get!(inf.frames, name) do
-    T = inf.defs[name]
-    inf.deps[name] = Caches.id(inf.defs.globals, name)[2]
+    T, deps = Caches.trackdeps(() -> inf.defs[name])
+    inf.deps[name] = Set(second.(deps))
     if T isa Binding
       parent = frame!(inf, T)
       push!(parent.edges, name)
@@ -131,10 +132,10 @@ function irframe!(inf::Inference, P, ir, F, Ts...)
 end
 
 function interpframe!(inf::Inference, P, sig...)
-  T = inf.int[sig]
+  T, deps = Caches.trackdeps(() -> inf.int[sig])
   (isnothing(T) || !isvalue(T)) && return
   fr = inf.frames[sig] = const_frame(P, T, sig...)
-  inf.deps[sig] = Caches.id(inf.int.results, sig)[2]
+  inf.deps[sig] = Set(second.(deps))
   return fr
 end
 
@@ -156,9 +157,9 @@ end
 function frame!(inf::Inference, P, F, Ts)
   haskey(inf.frames, (F, Ts)) && return frame(inf, (F, Ts))
   (fr = interpframe!(inf, P, F, Ts)) == nothing || return fr
-  ir = inf.dispatchers[(F, Ts)]
-  inf.deps[(F, Ts)] = Caches.id(inf.dispatchers, (F, Ts))[2]
-  irframe!(inf, P, ir, F, Ts)
+  inf.frames[(F, Ts)] = Frame(P, looped(IR()))
+  update!(inf, (F, Ts))
+  return frame(inf, (F, Ts))
 end
 
 # TODO some methods become unreachable, remove them somewhere?
@@ -183,8 +184,8 @@ function mergeFrames(inf::Inference, T, F)
   return fr
 end
 
-function infercall!(inf::Inference, sig, block, ex)
-  Ts = exprtype(block.ir, ex.args)
+function infercall!(inf::Inference, sig, ir, ex)
+  Ts = exprtype(ir, ex.args)
   any(==(⊥), Ts) && return ⊥
   P = Parent(sig, recursionDepth(inf, sig, Ts[1]))
   fr = frame!(inf, P, Ts...)
@@ -205,8 +206,20 @@ function cleardeps!(inf::Inference, sig)
   return
 end
 
+function update_dispatcher!(inf::Inference, sig)
+  (ir, ret), deps = Caches.trackdeps(() -> dispatcher(inf, sig...))
+  inf.deps[sig] = Set(second.(deps))
+  fr = inf.frames[sig]
+  fr.ir = looped(IRTools.expand!(ir))
+  if !issubset(ret, fr.rettype)
+    fr.rettype = ret
+    foreach(s -> push!(inf.queue, s), fr.edges)
+  end
+end
+
 function update!(inf::Inference, sig)
   cleardeps!(inf, sig)
+  sig[1] isa RMethod || return update_dispatcher!(inf, sig)
   fr = inf.frames[sig]
   ret = ⊥
   path = Path()
@@ -347,15 +360,13 @@ end
 # Results and caching
 
 struct Inferred
-  dispatchers::Dispatchers
   inf::Inference
   results::Caches.Dict{Any,Any}
 end
 
 function Inferred(defs::Definitions, int::Interpreter)
-  ds = dispatchers(int)
-  inf = Inference(defs, int, ds)
-  return Inferred(ds, inf, Caches.Dict())
+  inf = Inference(defs, int)
+  return Inferred(inf, Caches.Dict())
 end
 
 Caches.iscached(i::Inferred, k) = iscached(i.results, k)
@@ -363,10 +374,11 @@ Caches.iscached(i::Inferred, k) = iscached(i.results, k)
 function Base.getindex(i::Inferred, sig)
   iscached(i, sig) && return i.results[sig]
   # Don't let inference dependencies leak
-  Caches.trackdeps() do
+  _, deps = Caches.trackdeps() do
     frame!(i.inf, Parent((), 1), sig...)
     infer!(i.inf)
   end
+  @assert isempty(deps)
   for (k, fr) in i.inf.frames
     (k isa Binding || iscached(i, k)) && continue
     i.results[k] = fr isa Redirect ? fr : (prune!(unloop(fr.ir)) => fr.rettype)
@@ -378,10 +390,8 @@ Caches.fingerprint(i::Inferred) = fingerprint(i.results)
 
 function Caches.reset!(i::Inferred; deps = [])
   print = fingerprint(deps)
-  reset!(i.dispatchers, deps = print)
-  print = Base.union(print, fingerprint(i.dispatchers))
-  for (x, dep) in i.inf.deps
-    dep in print || delete!(i.inf, x)
+  for (x, deps) in i.inf.deps
+    Base.issubset(deps, print) || delete!(i.inf, x)
   end
   for k in keys(i.results)
     haskey(i.inf.frames, k) || delete!(i.results, k)

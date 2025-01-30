@@ -24,17 +24,13 @@ end
   cx = Raven.load(src"fn foo(x) { x+1 }")
   defs = Definitions(cx)
   int = Interpreter(defs)
-  disps = Raven.dispatchers(int)
-  pipe = Pipeline((cx, defs, int, disps))
+  pipe = Pipeline((cx, defs, int))
 
   @test length(defs[tag"foo"]) == 1
   @test !isempty(defs[tag"common.core.main"])
 
   foo_id = id(defs.methods, tag"foo")
   main_id = id(defs.methods, tag"common.core.main")
-
-  @test disps[(tag"foo", rlist(Int))] isa Raven.IR
-  @test disps[(tag"common.add", rlist(Int, Int))] isa Raven.IR
 
   Raven.reload!(cx, src"fn foo(x) { x+2 }")
   reset!(pipe)
@@ -43,9 +39,6 @@ end
 
   @test foo_id != id(defs.methods, tag"foo")
   @test main_id == id(defs.methods, tag"common.core.main")
-
-  @test !Caches.iscached(disps, (tag"foo", rlist(Int)))
-  @test Caches.iscached(disps, (tag"common.add", rlist(Int, Int)))
 end
 
 @testset "Inference" begin
