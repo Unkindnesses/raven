@@ -333,7 +333,8 @@ function elems(io::BinaryContext, es)
       expr(io, Const(UInt32(0)))
       u32(io, length(e.data))
       for f in e.data
-        u32(io, io.funcs[f])
+        # TODO hacky, but handles invalidated code appearing within tables.
+        u32(io, get(io.funcs, f, 0))
       end
     end
   end

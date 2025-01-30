@@ -76,9 +76,12 @@ function vload(cx::LoadState, x::AST.Syntax; src)
   extend = x[1] == :extend
   sig, body = extend ? x[3:end] : x[2:end]
   sig = AST.ungroup(sig)
-  var = sig[1]::Symbol
-  tag = extend ? resolve_static(cx, var)::Tag : Tag(cx.mod.name, var)
-  cx.mod[var::Symbol] = tag
+  var = sig[1]::Union{Tag,Symbol}
+  tag =
+    var isa Tag ? var :
+    extend ? resolve_static(cx, var)::Tag :
+    Tag(cx.mod.name, var)
+  (!extend && var isa Symbol) && (cx.mod[var] = tag)
   resolve = x -> resolve_static(cx, x)
   sig = lowerpattern(AST.List(sig[2:end]...); mod = cx.mod.name, resolve)
   method!(cx.mod, RMethod(tag, sig,

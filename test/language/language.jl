@@ -585,3 +585,13 @@ test_rv"""
     test part(xs, 2) == "bar"
   }
   """
+
+test_rv"""
+  bundle Expr { Add(left, right), Lit(value) }
+
+  fn eval(Add(left, right)) { eval(left) + eval(right) }
+
+  fn eval(Lit(value)) { value }
+
+  test eval(Add(Lit(1), Lit(2))) == 3
+  """

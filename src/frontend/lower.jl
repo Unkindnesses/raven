@@ -166,15 +166,15 @@ function bundlemacro(ex::AST.Syntax)
     push!(body, AST.Syntax(:fn, spec,
                                 AST.Block(
                                  AST.Call(:pack, tag, namify.(args)...))))
-    push!(body, AST.Syntax(:fn, AST.Call(:matchTrait, AST.Operator(:(:), :val, AST.Call(:pack, tag, namify.(args)...)), tag),
+    push!(body, AST.Syntax(:fn, AST.Call(tag"common.matchTrait", AST.Operator(:(:), :val, AST.Call(:pack, tag, namify.(args)...)), tag),
                                 AST.Block(AST.Call(:Some, :val))))
-    push!(body, AST.Syntax(:fn, AST.Call(:constructorPattern, tag, namify.(args)...),
+    push!(body, AST.Syntax(:fn, AST.Call(tag"common.constructorPattern", tag, namify.(args)...),
                                 AST.Block(
                                   AST.Call(:Pack, AST.Call(:Literal, tag), namify.(args)...))))
   end
   if super != nothing
     push!(body, AST.Operator(:(=), super, AST.Template(:tag, string(super))))
-    push!(body, AST.Syntax(:fn, AST.Call(:matchTrait, AST.Operator(:(:), :val, AST.Operator(:|, names...)),
+    push!(body, AST.Syntax(:fn, AST.Call(tag"common.matchTrait", AST.Operator(:(:), :val, AST.Operator(:|, names...)),
                                                       AST.Template(:tag, string(super))),
                                 AST.Block(AST.Call(:Some, :val))))
   end
