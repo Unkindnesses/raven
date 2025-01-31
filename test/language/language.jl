@@ -604,3 +604,10 @@ test_rv"""
 
   test eval(Add(Lit(1), Lit(2))) == 3
   """
+
+test_rv"""
+  test round(1.3) == 1
+  test round(1.7) == 2
+  test round(-1.3) == -1
+  test round(-1.7) == -2
+  """

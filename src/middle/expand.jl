@@ -471,7 +471,8 @@ function casts!(inf::Inferred, ir, ret)
           arguments(br)[1] = cast!(pr, S, ret, arguments(br)[1])
           pr[v] = br
         elseif !(arguments(br)[1] isa Variable)
-          arguments(br)[1] = push!(pr, Expr(:tuple))
+          arguments(br)[1] = push!(pr, stmt(Expr(:tuple), type = S))
+          pr[v] = br
         end
       else
         for i = 1:length(arguments(br))

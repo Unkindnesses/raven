@@ -1,7 +1,7 @@
 export {
-  Int32, Int64, Float32, Float64, Complex
+  Int32, Int64, Float32, Float64, Complex, Integer
   ==, !=, +, -, *, /, ^, >, <, >=, <=, &, abs2, div, rem, not
-  zero, one
+  zero, one, round
 }
 
 fn matchTrait(x: pack(tag"common.core.Int32", _), tag"common.core.Int32") { Some(x) }

@@ -116,6 +116,14 @@ fn (a: Int32) & (b: Int32) {
 
 # Float operators
 
+fn (a: Float64) + (b: Float64) {
+  wasm { f64.add(a: f64, b: f64): f64 }
+}
+
+fn (a: Float64) - (b: Float64) {
+  wasm { f64.sub(a: f64, b: f64): f64 }
+}
+
 fn (a: Float64) / (b: Float64) {
   wasm { f64.div(a: f64, b: f64): f64 }
 }
@@ -124,8 +132,25 @@ fn (a: Float64) == (b: Float64) {
   wasm { f64.eq(a: f64, b: f64): i32 }
 }
 
+fn (a: Float64) > (b: Float64) {
+  wasm { f64.gt(a: f64, b: f64): i32 }
+}
+
 fn (a: Float32) == (b: Float32) {
   wasm { f32.eq(a: f32, b: f32): i32 }
+}
+
+fn i64trunc(x: Float64) {
+  wasm { i64.trunc_f64_s(x: f64): i64 }
+}
+
+fn round(x: Float64) {
+  if x > 0.0 {
+    x = x + 0.5
+  } else {
+    x = x - 0.5
+  }
+  return i64trunc(x)
 }
 
 # Conversions
