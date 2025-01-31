@@ -197,6 +197,24 @@ function trivial_isa(int, val, T::Tag)
   missing
 end
 
+# Filtered methods
+
+function MatchMethods(defs, interp)
+  EagerCache() do _, (f, Ts)
+    result = []
+    for meth in reverse(defs[f])
+      m = partial_match(interp, meth.sig.pattern, Ts)
+      if isnothing(m)
+        continue
+      else
+        push!(result, (meth, m))
+        ismissing(m) || break
+      end
+    end
+    return result
+  end
+end
+
 # Generate dispatchers
 
 function indexer!(ir::IR, T, arg, path)
@@ -226,17 +244,8 @@ function dispatcher(inf, func::Tag, Ts)
   args = argument!(ir, type = Ts)
   ret = ⊥
   call!(f, args...) = icall!(inf, ir, (func, Ts), f, args...)
-  for meth in reverse(inf.defs[func])
-    m = partial_match(inf.int, meth.sig.pattern, Ts)
-    if m === nothing
-      continue
-    elseif m isa AbstractDict
-      result = call!(meth, [indexer!(ir, Ts, args, m[x][2]) for x in meth.sig.args]...)
-      isempty(meth.sig.swap) && (result = push!(ir, stmt(xlist(result), type = rlist(exprtype(ir, result)))))
-      return!(ir, result)
-      ret = union(ret, exprtype(ir, result))
-      return ir, ret
-    else
+  for (meth, m) in inf.meths[(func, Ts)]
+    if ismissing(m)
       m = call!(tag"common.match", args, rvpattern(meth.sig.pattern))
       m = call!(part_method, m, 1)
       cond = push!(ir, stmt(xcall(isnil_method, m), type = Int32))
@@ -253,6 +262,12 @@ function dispatcher(inf, func::Tag, Ts)
       return!(ir, result)
       ret = union(ret, exprtype(ir, result))
       block!(ir)
+    else # certain to match
+      result = call!(meth, [indexer!(ir, Ts, args, m[x][2]) for x in meth.sig.args]...)
+      isempty(meth.sig.swap) && (result = push!(ir, stmt(xlist(result), type = rlist(exprtype(ir, result)))))
+      return!(ir, result)
+      ret = union(ret, exprtype(ir, result))
+      return ir, ret
     end
   end
   if func == tag"common.abort" && issubset(Ts, rlist(String))

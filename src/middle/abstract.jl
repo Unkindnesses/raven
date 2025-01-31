@@ -83,14 +83,14 @@ end
 
 struct Inference
   defs::Definitions
-  int::Interpreter
+  meths::EagerCache
   deps::IdDict{Any,Set{Caches.NFT}}
   frames::IdDict{Sig,Union{Frame,GlobalFrame,Redirect}}
   queue::WorkQueue{Tuple}
 end
 
-function Inference(defs::Definitions, int::Interpreter)
-  Inference(defs, int, IdDict(), Dict(), WorkQueue{Tuple}())
+function Inference(defs::Definitions, meths::EagerCache)
+  Inference(defs, meths, IdDict(), Dict(), WorkQueue{Tuple}())
 end
 
 function sig(inf::Inference, T)
@@ -131,21 +131,11 @@ function irframe!(inf::Inference, P, ir, F, Ts...)
   return frame(inf, (F, Ts...))
 end
 
-function interpframe!(inf::Inference, P, sig...)
-  T, deps = Caches.trackdeps(() -> inf.int[sig])
-  (isnothing(T) || !isvalue(T)) && return
-  fr = inf.frames[sig] = const_frame(P, T, sig...)
-  inf.deps[sig] = Set(second.(deps))
-  return fr
-end
-
 function frame!(inf::Inference, P, meth::RMethod, Ts...)
   if meth.partial
     meth.func(Ts...)
   elseif haskey(inf.frames, (meth, Ts...))
     frame(inf, (meth, Ts...))
-  elseif (fr = interpframe!(inf, P, meth, Ts...)) != nothing
-    fr
   elseif P.depth > recursionLimit
     mergeFrames(inf, P.sig, (meth, Ts...))
   else
@@ -156,7 +146,6 @@ end
 
 function frame!(inf::Inference, P, F, Ts)
   haskey(inf.frames, (F, Ts)) && return frame(inf, (F, Ts))
-  (fr = interpframe!(inf, P, F, Ts)) == nothing || return fr
   inf.frames[(F, Ts)] = Frame(P, looped(IR()))
   update!(inf, (F, Ts))
   return frame(inf, (F, Ts))
@@ -364,8 +353,8 @@ struct Inferred
   results::Caches.Dict{Any,Any}
 end
 
-function Inferred(defs::Definitions, int::Interpreter)
-  inf = Inference(defs, int)
+function Inferred(defs::Definitions, meths::EagerCache)
+  inf = Inference(defs, meths)
   return Inferred(inf, Caches.Dict())
 end
 

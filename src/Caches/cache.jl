@@ -121,7 +121,7 @@ fingerprint(c::EagerCache) = fingerprint(c.cache)
 function reset!(c::EagerCache{K,V}; deps = []) where {K,V}
   for k in invalid(c.cache; deps)
     v, deps = value(c.cache, k)
-    if v == cached(c.cache, k)
+    if isequal(v, cached(c.cache, k))
       set!(c.cache, k, CacheValue{V}(v, id(c, k), deps))
     else
       set!(c.cache, k, v; deps)

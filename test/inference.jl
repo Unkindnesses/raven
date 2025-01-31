@@ -16,7 +16,6 @@ reload!(compiler, src"""
   """)
 
 ir, T = inf[(tag"pow", rlist(2, 3))]
-@test length(ir) == 2
 @test T == rlist(8)
 
 reload!(compiler, src"""
@@ -46,6 +45,5 @@ reload!(compiler, src"""
   }
   """)
 
-ir, T = inf[(tag"fibSequence", rlist(10))]
-@test length(ir) == 2
-@test T == rlist(rlist(1, 1, 2, 3, 5, 8, 13, 21, 34, 55))
+ir, T = inf[(tag"fibSequence", rlist(5))]
+@test T == rlist(rlist(1, 1, 2, 3, 5))

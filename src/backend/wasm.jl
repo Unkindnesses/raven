@@ -196,7 +196,7 @@ wname(x::Tag) = Symbol(x)
 wname(x::RMethod) = Symbol(Symbol(x.name), ":method")
 wname(x::WImport) = Symbol(x.mod, ":", x.name)
 
-function Wasm(defs::Definitions, code)
+function Wasm(defs, code)
   globals = WGlobals(defs)
   tables = Tables()
   count = Dict{Symbol,Int}()
@@ -208,8 +208,6 @@ function Wasm(defs::Definitions, code)
     c = count[id] = get(count, id, 0)+1
     return Symbol(id, ":", c)
   end
-  strings = String[]
-  table = Symbol[]
   funcs = Cache{Any,WebAssembly.Func}() do self, sig
     # TODO: we use `frame` to avoid redirects, but this can duplicate function
     # bodies. Should instead avoid calling redirected sigs, eg via casting.

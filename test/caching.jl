@@ -66,3 +66,14 @@ end
   reset!(compiler.pipe)
   @test fingerprint(compiler.pipe) == print
 end
+
+@testset "Match methods" begin
+  cx = Raven.Compiler(src"");
+  sig = (tag"common.matchTrait", rlist(Int64, tag"common.core.Int64"))
+  @test !Caches.iscached(cx.pipe.inferred.results, sig)
+  @test cx.pipe.inferred[sig] isa Pair
+  Raven.reload!(cx, src"""
+    extend fn matchTrait(x: pack(tag"Lit", val), tag"Lit") { Some(x) }
+    """)
+  @test Caches.iscached(cx.pipe.inferred.results, sig)
+end
