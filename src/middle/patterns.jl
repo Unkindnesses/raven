@@ -217,6 +217,18 @@ end
 
 # Generate dispatchers
 
+dispatch_arms(T) = [T]
+dispatch_arms(T::Onion) = T.types
+dispatch_arms(T::Recursive) = dispatch_arms(unroll(T))
+
+function dispatch_arms(T::Pack)
+  result = [[]]
+  for part in dispatch_arms.(T.parts)
+    result = [[prefix..., x] for prefix in result for x in part]
+  end
+  return [pack(x...) for x in result]
+end
+
 function indexer!(ir::IR, T, arg, path)
   isempty(path) && return arg
   (p, rest...) = path
@@ -243,10 +255,13 @@ function dispatcher(inf, func::Tag, Ts)
   ir = IR(meta = FuncInfo(func, trampoline = true))
   args = argument!(ir, type = Ts)
   ret = ⊥
+  arms = dispatch_arms(Ts)
   call!(f, args...) = icall!(inf, ir, (func, Ts), f, args...)
   for (meth, m) in inf.meths[(func, Ts)]
     if ismissing(m)
-      m = call!(tag"common.match", args, rvpattern(meth.sig.pattern))
+      pat = rvpattern(meth.sig.pattern)
+      arms = filter(T -> issubset(rlist(nil), infercall!(inf, (func, Ts), tag"common.match", rlist(T, pat))), arms)
+      m = call!(tag"common.match", args, pat)
       m = call!(part_method, m, 1)
       cond = push!(ir, stmt(xcall(isnil_method, m), type = Int32))
       branch!(ir, length(blocks(ir))+2, when = cond)
@@ -267,6 +282,10 @@ function dispatcher(inf, func::Tag, Ts)
       isempty(meth.sig.swap) && (result = push!(ir, stmt(xlist(result), type = rlist(exprtype(ir, result)))))
       return!(ir, result)
       ret = union(ret, exprtype(ir, result))
+      return ir, ret
+    end
+    if isempty(arms)
+      unreachable!(ir)
       return ir, ret
     end
   end

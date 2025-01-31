@@ -173,17 +173,20 @@ function mergeFrames(inf::Inference, T, F)
   return fr
 end
 
-function infercall!(inf::Inference, sig, ir, ex)
-  Ts = exprtype(ir, ex.args)
-  any(==(⊥), Ts) && return ⊥
-  P = Parent(sig, recursionDepth(inf, sig, Ts[1]))
-  fr = frame!(inf, P, Ts...)
+function infercall!(inf::Inference, P, sig...)
+  any(==(⊥), sig) && return ⊥
+  P = Parent(P, recursionDepth(inf, P, sig[1]))
+  fr = frame!(inf, P, sig...)
   fr isa Frame || return fr
-  pf = inf.frames[sig]
+  pf = inf.frames[P.sig]
   pf isa Redirect && return
-  push!(pf.deps, (Ts...,))
-  push!(fr.edges, sig)
+  push!(pf.deps, sig)
+  push!(fr.edges, P.sig)
   return fr.rettype
+end
+
+function infercall!(inf::Inference, P, ir, ex::Expr)
+  infercall!(inf, P, exprtype(ir, ex.args)...)
 end
 
 function cleardeps!(inf::Inference, sig)

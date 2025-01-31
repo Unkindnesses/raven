@@ -16,6 +16,8 @@ Cache{K,V}(f) where {K,V} =
 
 Cache(f) = Cache{Any,Any}(f)
 
+Base.show(io::IO, x::Cache) = print(io, typeof(x), "(...)")
+
 keys(c::Cache) = keys(c.data)
 keytype(c::Cache{K,V}) where {K,V} = K
 valtype(c::Cache{K,V}) where {K,V} = V

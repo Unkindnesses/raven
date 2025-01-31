@@ -556,6 +556,15 @@ test_rv"""
   }
   """
 
+# Currently only works because of dispatcher trimming; we can't compile the
+# generic fallback `show` method.
+@test_rv("""
+  {
+    x = errcall(global(), "dummyPromise", 7)
+    show x
+  }
+  """, output = "x = Ok(7)")
+
 test_rv"""
   {
     x = unwrap(errcall(global(), "dummyPromise", 5))

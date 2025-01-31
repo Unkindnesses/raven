@@ -52,3 +52,16 @@ fn replshow(x) {
 }
 
 fn replshow(_: Nil) {}
+
+# TODO bundle printing
+fn show(Ok(x)) {
+  print("Ok(")
+  show(x)
+  print(")")
+}
+
+fn show(Err(x)) {
+  print("Err(")
+  show(x)
+  print(")")
+}
