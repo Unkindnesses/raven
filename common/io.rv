@@ -1,9 +1,6 @@
 export { args }
 
 fn args() {
-  result = []
-  for arg in property(global(), "process", "argv") {
-    append(&result, String(arg))
-  }
-  return result
+  args = property(global(), "process", "argv")
+  return map(String, args)
 }

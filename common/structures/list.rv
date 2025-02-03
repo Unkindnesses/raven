@@ -1,4 +1,4 @@
-export { List, length, append, isempty, collect }
+export { List, length, append, isempty, map, collect }
 
 bundle List(xs...)
 
@@ -44,10 +44,12 @@ fn show(x: List) {
   print("]")
 }
 
-fn collect(xs) {
-  result = []
+fn map(f, xs) {
+  ys = []
   for x in xs {
-    append(&result, x)
+    append(&ys, f(x))
   }
-  return result
+  return ys
 }
+
+fn collect(xs) { map(identity, xs) }
