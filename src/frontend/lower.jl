@@ -149,9 +149,9 @@ end
 
 # Built-in macros
 
-namify(x::Symbol) = x
-namify(ex::AST.Operator) = namify(ex[2])
-namify(ex::AST.Splat) = AST.Splat(namify(ex[1]))
+namify(x::Symbol, suffix = "") = Symbol(x, suffix)
+namify(ex::AST.Operator, suffix = "") = namify(ex[2], suffix)
+namify(ex::AST.Splat, suffix = "") = AST.Splat(namify(ex[1], suffix))
 
 function bundlemacro(ex::AST.Syntax)
   super, specs = length(ex) == 2 ? (nothing, ex[2]) : (ex[2], ex[3])
@@ -163,6 +163,7 @@ function bundlemacro(ex::AST.Syntax)
     push!(names, name)
     tag = AST.Template(:tag, string(".", name))
     args = spec[2:end]
+    issplat = any(x -> x isa AST.Splat, args)
     push!(body, AST.Syntax(:fn, spec,
                                 AST.Block(
                                  AST.Call(:pack, tag, namify.(args)...))))
@@ -171,11 +172,24 @@ function bundlemacro(ex::AST.Syntax)
     push!(body, AST.Syntax(:fn, AST.Call(tag"common.constructorPattern", tag, namify.(args)...),
                                 AST.Block(
                                   AST.Call(:Pack, AST.Call(:Literal, tag), namify.(args)...))))
+    issplat || push!(body, AST.Syntax(:fn, AST.Call(tag"common.show", AST.Call(name, namify.(args)...)),
+                                AST.Block(
+                                  AST.Call(:print, string(name, "(")),
+                                  [i == length(args) ? AST.Call(:show, x) : AST.Group(AST.Call(:show, x), AST.Call(:print, ", "))
+                                   for (i, x) in enumerate(namify.(args))]...,
+                                  AST.Call(:print, ")")
+                                )))
+    issplat || push!(body, AST.Syntax(:fn, AST.Call(tag"common.==", AST.Call(name, namify.(args, :_1)...), AST.Call(name, namify.(args, :_2)...)),
+                                AST.Block(
+                                  isempty(args) ? Symbol("true") :
+                                  foldl((a, b) -> AST.Operator(:&&, a, b),
+                                        [AST.Operator(:(==), Symbol(x, :_1), Symbol(x, :_2)) for x in namify.(args)])
+                                )))
   end
   if super != nothing
-    push!(body, AST.Operator(:(=), super, AST.Template(:tag, string(super))))
+    push!(body, AST.Operator(:(=), super, AST.Template(:tag, string(".", super))))
     push!(body, AST.Syntax(:fn, AST.Call(tag"common.matchTrait", AST.Operator(:(:), :val, AST.Operator(:|, names...)),
-                                                      AST.Template(:tag, string(super))),
+                                                      AST.Template(:tag, string(".", super))),
                                 AST.Block(AST.Call(:Some, :val))))
   end
   return AST.Group(body...)
@@ -199,8 +213,8 @@ function showmacro(ex)
   ex = ex[2]
   name = gensym()
   AST.Block(
-    AST.Call(:print, string(ex, " = ")),
     AST.Operator(:(=), name, ex),
+    AST.Call(:print, string(ex, " = ")),
     AST.Call(:println, name),
     name
   )

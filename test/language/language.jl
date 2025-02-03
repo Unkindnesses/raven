@@ -602,8 +602,16 @@ test_rv"""
 
   fn eval(Lit(value)) { value }
 
+  test Lit(1) == Lit(1)
   test eval(Add(Lit(1), Lit(2))) == 3
   """
+
+@test_rv("""
+  bundle Expr { Add(left, right), Lit(value) }
+
+  show Add(Lit(1), Lit(2))
+  """,
+  output = "Add(Lit(1), Lit(2))")
 
 test_rv"""
   test round(1.3) == 1
