@@ -27,12 +27,6 @@ fn show(x) {
   print(")")
 }
 
-fn show(x: String) {
-  print("\"")
-  print(x)
-  print("\"")
-}
-
 fn show(x: Tag) {
   print("tag\"")
   print(string(x))
