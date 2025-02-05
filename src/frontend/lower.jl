@@ -398,7 +398,7 @@ end
 
 lower!(sc, ir::IR, ex::AST.Index) =
   lower!(sc, ir,
-         AST.meta(AST.Call(tag"common.index", ex[:]...),
+         AST.meta(AST.Call(tag"common.get", ex[:]...),
                   AST.meta(ex)))
 
 lower!(sc, ir::IR, ex::AST.Field) =

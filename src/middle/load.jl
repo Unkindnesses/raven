@@ -76,7 +76,7 @@ function vload(cx::LoadState, x::AST.Syntax; src)
   extend = x[1] == :extend
   sig, body = extend ? x[3:end] : x[2:end]
   sig = AST.ungroup(sig)
-  sig isa AST.Index && (sig = AST.Call(tag"common.index", sig[:]...))
+  sig isa AST.Index && (sig = AST.Call(tag"common.get", sig[:]...))
   var = sig[1]::Union{Tag,Symbol}
   tag =
     var isa Tag ? var :
