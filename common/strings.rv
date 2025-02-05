@@ -11,7 +11,7 @@ fn show(x: String) {
 }
 
 fn concat(a: String, b: String) {
-  String(call(a, "concat", b))
+  String(tojs(a).concat(b))
 }
 
 fn (a: String) == (b: String) {

@@ -1,4 +1,7 @@
-export { JSObject, abort, global, property, call, errcall, await, tojs, sleep, readline }
+export {
+  JSObject, abort, global, property, call, errcall, await, tojs, sleep
+  readline, require
+}
 
 fn jsfree(ptr: Ptr) {
   id = i32load(ptr)
@@ -38,15 +41,14 @@ fn global() {
   return JSObject(ref)
 }
 
-fn property(obj, prop) { property(tojs(obj), tojs(prop)) }
-
-fn property(obj: JSObject, prop: JSObject) {
+fn (obj: JSObject)[prop] {
+  prop = tojs(prop)
   ref = wasm { call(support.property, jsref(obj): i32, jsref(prop): i32): i32 }
   hold(obj, prop)
   return JSObject(ref)
 }
 
-fn property(obj, x, y) { property(property(obj, x), y) }
+fn field(obj: JSObject, f: Tag) { obj[string(f)] }
 
 fn call(obj, meth) { call(tojs(obj), tojs(meth)) }
 
@@ -62,6 +64,10 @@ fn call(obj: JSObject, meth: JSObject, x: JSObject) {
   ref = wasm { call(support.call, jsref(obj): i32, jsref(meth): i32, jsref(x): i32): i32 }
   hold(obj, meth, x)
   return JSObject(ref)
+}
+
+fn method(obj: JSObject, meth: Tag, args...) {
+  call(obj, string(meth), args...)
 }
 
 fn errcall(obj, meth) { errcall(tojs(obj), tojs(meth)) }
@@ -103,9 +109,8 @@ fn equal(a: JSObject, b: JSObject) {
 }
 
 fn new(T: JSObject) {
-  Object = property(global(), "Object")
-  this = call(Object, "create", property(T, "prototype"))
-  call(T, "call", this)
+  this = global().Object.create(T.prototype)
+  T.call(this)
   return this
 }
 
@@ -144,17 +149,15 @@ fn abort(s: String) { abort(tojs(s)) }
 fn abort(s: String, cause) { abort(tojs(s), tojs(cause)) }
 
 fn string(x: JSObject) {
-  String(call(x, "toString"))
+  String(x.toString())
 }
 
 fn string(x: (Int32 | Int64 | Float32 | Float64)) {
-  String(call(x, "toString"))
+  string(tojs(x))
 }
 
 fn print(x: String) {
-  process = property(global(), "process")
-  stdout = property(process, "stdout")
-  call(stdout, "write", tojs(x))
+  global().process.stdout.write(x)
   return
 }
 
@@ -163,29 +166,32 @@ fn show(x: JSObject) {
 }
 
 fn println(x: JSObject) {
-  console = property(global(), "console")
-  call(console, "log", x)
+  global().console.log(x)
   return
 }
 
 fn iterator(x: JSObject) {
-  call(x, property(global(), "Symbol", "iterator"))
+  x[global().Symbol.iterator].call(x)
 }
 
 fn iterate(&x: JSObject) {
-  val = call(x, "next")
-  if Int32(property(val, "done")) {
+  val = x.next()
+  if Int32(val.done) {
     return nil
   } else {
-    return Some(property(val, "value"))
+    return Some(val.value)
   }
 }
 
+fn require(s) {
+  return global().require(s)
+}
+
 fn sleep(n) {
-  await(call(global(), "sleep", n))
+  await(global().sleep(n))
   return
 }
 
 fn readline() {
-  return String(await(call(global(), "readline")))
+  return String(await(global().readline()))
 }

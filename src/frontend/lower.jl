@@ -382,6 +382,10 @@ function argtuple!(sc, ir::IR, args, src)
 end
 
 function lower!(sc, ir::IR, ex::AST.Call)
+  if ex[1] isa AST.Field
+    ex = AST.meta(AST.Call(tag"common.method", ex[1][1], Tag(ex[1][2]), ex[2:end]...),
+                  AST.meta(ex))
+  end
   args, swaps = argtuple!(sc, ir, ex[2:end], AST.meta(ex))
   result = _push!(ir, xcall(lower!(sc, ir, ex[1]), args),
                   src = AST.meta(ex), bp = true)
@@ -395,6 +399,11 @@ end
 lower!(sc, ir::IR, ex::AST.Index) =
   lower!(sc, ir,
          AST.meta(AST.Call(tag"common.index", ex[:]...),
+                  AST.meta(ex)))
+
+lower!(sc, ir::IR, ex::AST.Field) =
+  lower!(sc, ir,
+         AST.meta(AST.Call(tag"common.field", ex[1], Tag(ex[2])),
                   AST.meta(ex)))
 
 function lower!(sc, ir::IR, ex::AST.List)

@@ -46,7 +46,7 @@ function call(obj, meth, ...args) {
   if (func === undefined) {
     throw new Error(`No such method ${meth}`);
   }
-  return createRef(obj[meth].call(obj, ...args));
+  return createRef(func.call(obj, ...args));
 }
 
 async function errcall(obj, meth, ...args) {
@@ -58,7 +58,7 @@ async function errcall(obj, meth, ...args) {
     throw new Error(`No such method ${meth}`);
   }
   try {
-    result = await obj[meth].call(obj, ...args);
+    result = await func.call(obj, ...args);
     return [0, createRef(result)];
   } catch (e) {
     return [1, createRef(e)];
@@ -72,6 +72,8 @@ function equal(a, b) {
 function abort(obj, cause) {
   throw new Error(fromRef(obj), {cause: fromRef(cause)});
 }
+
+globalThis.require = require;
 
 globalThis.sleep = function (n) {
   return new Promise(resolve => {

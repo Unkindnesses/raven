@@ -1,6 +1,5 @@
 export { args }
 
 fn args() {
-  args = property(global(), "process", "argv")
-  return map(String, args)
+  return map(String, global().process.argv)
 }
