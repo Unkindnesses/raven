@@ -215,7 +215,8 @@ function showmacro(ex)
   AST.Block(
     AST.Operator(:(=), name, ex),
     AST.Call(:print, string(ex, " = ")),
-    AST.Call(:println, name),
+    AST.Call(:show, name),
+    AST.Call(:println),
     name
   )
 end
@@ -305,7 +306,7 @@ _push!(ir::IR, x::Expr; src = nothing, bp = false, type = ⊥) = _push!(ir, stmt
 _lower!(sc, ir, x) = lower!(sc, ir, x)
 _lower!(sc, ir, x::Vector) = foreach(x -> _lower!(sc, ir, x), x)
 
-lower!(sc, ir::IR, x::Union{Number,String,Pack}) = x
+lower!(sc, ir::IR, x::Union{Number,String,Pack,Tag}) = x
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? Binding(tag"common", :nil) :
   (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
@@ -390,6 +391,11 @@ function lower!(sc, ir::IR, ex::AST.Call)
   end
   return val
 end
+
+lower!(sc, ir::IR, ex::AST.Index) =
+  lower!(sc, ir,
+         AST.meta(AST.Call(tag"common.index", ex[:]...),
+                  AST.meta(ex)))
 
 function lower!(sc, ir::IR, ex::AST.List)
   # TODO: should use the `tuple` function.

@@ -45,7 +45,7 @@ meta(x::Atom, m::Meta) = Token(x, m)
 
 meta(x, args...) = meta(x, Meta(args...))
 
-for T in :[Group, List, Splat, Call, Field, Operator,
+for T in :[Group, List, Splat, Call, Index, Field, Operator,
            Swap, Block, Syntax, Quote, Template].args
   @eval begin
     const $T = Expr{$(QuoteNode(T))}
@@ -95,6 +95,13 @@ function _show(io::Ctx, x::Call)
   print(io, "(")
   join(io, repr.((io,), x[2:end]), ", ")
   print(io, ")")
+end
+
+function _show(io::Ctx, x::Index)
+  _show(io, x[1])
+  print(io, "[")
+  join(io, repr.((io,), x[2:end]), ", ")
+  print(io, "]")
 end
 
 function _show(io::Ctx, x::Field)

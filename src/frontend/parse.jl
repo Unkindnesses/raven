@@ -5,7 +5,7 @@ function path end
 module Parse
 
 using LNR
-using ..AST: Expr, Group, List, Splat, Call, Field,
+using ..AST: Expr, Group, List, Splat, Call, Index, Field,
   Operator, Block, Syntax, Quote, Template, Swap, Meta, meta,
   unwrapToken
 using ..Raven: withpath, path
@@ -279,6 +279,8 @@ function call(io; quasi = true)
     cur = cursor(io)
     if (args = parse(brackets, io)) != nothing
       ex = meta(Call(ex, args...), path(), cur)
+    elseif (args = parse(io -> brackets(io, '[', ']'), io)) != nothing
+      ex = meta(Index(ex, args...), path(), cur)
     elseif parse(exact("."), io) != nothing
       peek(io) == '.' && (seek(io, cur); break)
       field = item(io)
