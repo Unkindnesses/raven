@@ -363,7 +363,7 @@ blockargtype(bl, i) = exprtype(bl.ir, arguments(bl)[i])
 function store!(ir, T, ptr, x)
   l = tlayout(T)
   for (i, T) in enumerate(l)
-    push!(ir, stmt(xcall(WType(T).store, ptr, Expr(:ref, x, i)), type = T))
+    push!(ir, stmt(xcall(WType(T).store, ptr, Expr(:ref, x, i)), type = nil))
     # TODO could use constant offset here
     i == length(l) || (ptr = call!(ir, tag"common.+", ptr, Int32(sizeof(T)), type = Int32))
   end
