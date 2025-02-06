@@ -1,5 +1,5 @@
 export { args }
 
 fn args() {
-  return map(String, global().process.argv)
+  return map(String, js().process.argv)
 }

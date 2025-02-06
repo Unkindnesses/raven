@@ -1,5 +1,5 @@
 export {
-  JSObject, abort, global, property, call, errcall, await, tojs, sleep
+  JSObject, abort, js, property, call, errcall, await, sleep
   readline, require
 }
 
@@ -22,9 +22,9 @@ fn JSObject(id: Int32) {
   }
 }
 
-fn tojs(x: JSObject) { x }
+fn js(x: JSObject) { x }
 
-fn jsref(x) { jsref(tojs(x)) }
+fn jsref(x) { jsref(js(x)) }
 
 fn jsref(JSObject(ref: Ref)) { i32load(pointer(ref)) }
 
@@ -36,13 +36,13 @@ fn retain!(JSObject(ref: Ref)) { retain!(ref) }
 
 fn retain!(JSObject(_: Int32)) {}
 
-fn global() {
+fn js() {
   ref = wasm { call(support.global): i32 }
   return JSObject(ref)
 }
 
 fn (obj: JSObject)[prop] {
-  prop = tojs(prop)
+  prop = js(prop)
   ref = wasm { call(support.property, jsref(obj): i32, jsref(prop): i32): i32 }
   hold(obj, prop)
   return JSObject(ref)
@@ -50,7 +50,7 @@ fn (obj: JSObject)[prop] {
 
 fn field(obj: JSObject, f: Tag) { obj[string(f)] }
 
-fn call(obj, meth) { call(tojs(obj), tojs(meth)) }
+fn call(obj, meth) { call(js(obj), js(meth)) }
 
 fn call(obj: JSObject, meth: JSObject) {
   ref = wasm { call(support.call, jsref(obj): i32, jsref(meth): i32): i32 }
@@ -58,7 +58,7 @@ fn call(obj: JSObject, meth: JSObject) {
   return JSObject(ref)
 }
 
-fn call(obj, meth, x) { call(tojs(obj), tojs(meth), tojs(x)) }
+fn call(obj, meth, x) { call(js(obj), js(meth), js(x)) }
 
 fn call(obj: JSObject, meth: JSObject, x: JSObject) {
   ref = wasm { call(support.call, jsref(obj): i32, jsref(meth): i32, jsref(x): i32): i32 }
@@ -70,7 +70,7 @@ fn method(obj: JSObject, meth: Tag, args...) {
   call(obj, string(meth), args...)
 }
 
-fn errcall(obj, meth) { errcall(tojs(obj), tojs(meth)) }
+fn errcall(obj, meth) { errcall(js(obj), js(meth)) }
 
 fn errcall(obj: JSObject, meth: JSObject) {
   [err, ref] = wasm { call(support.errcall, jsref(obj): i32, jsref(meth): i32): (i32, i32) }
@@ -83,7 +83,7 @@ fn errcall(obj: JSObject, meth: JSObject) {
   }
 }
 
-fn errcall(obj, meth, x) { errcall(tojs(obj), tojs(meth), tojs(x)) }
+fn errcall(obj, meth, x) { errcall(js(obj), js(meth), js(x)) }
 
 fn errcall(obj: JSObject, meth: JSObject, x: JSObject) {
   [err, ref] = wasm { call(support.errcall, jsref(obj): i32, jsref(meth): i32, jsref(x): i32): (i32, i32) }
@@ -109,18 +109,18 @@ fn equal(a: JSObject, b: JSObject) {
 }
 
 fn new(T: JSObject) {
-  this = global().Object.create(T.prototype)
+  this = js().Object.create(T.prototype)
   T.call(this)
   return this
 }
 
-fn tojs(x: Float64) {
+fn js(x: Float64) {
   ref = wasm { call(support.createRef, x: f64): i32 }
   return JSObject(ref)
 }
 
-fn tojs(x: Int64) { tojs(Float64(x)) }
-fn tojs(x: Int32) { tojs(Float64(x)) }
+fn js(x: Int64) { js(Float64(x)) }
+fn js(x: Int32) { js(Float64(x)) }
 
 extend fn Float64(obj: JSObject) {
   x = wasm { call(support.fromRef, jsref(obj): i32): f64 }
@@ -145,19 +145,19 @@ fn abort(s: JSObject, cause: JSObject) {
   wasm { call(support.abort, jsref(s): i32, jsref(cause): i32): unreachable }
 }
 
-fn abort(s: String) { abort(tojs(s)) }
-fn abort(s: String, cause) { abort(tojs(s), tojs(cause)) }
+fn abort(s: String) { abort(js(s)) }
+fn abort(s: String, cause) { abort(js(s), js(cause)) }
 
 fn string(x: JSObject) {
   String(x.toString())
 }
 
 fn string(x: (Int32 | Int64 | Float32 | Float64)) {
-  string(tojs(x))
+  string(js(x))
 }
 
 fn print(x: String) {
-  global().process.stdout.write(x)
+  js().process.stdout.write(x)
   return
 }
 
@@ -166,7 +166,7 @@ fn show(x: JSObject) {
 }
 
 fn println(x: JSObject) {
-  global().console.log(x)
+  js().console.log(x)
   return
 }
 
@@ -175,7 +175,7 @@ fn replshow(x: JSObject) {
 }
 
 fn iterator(x: JSObject) {
-  x[global().Symbol.iterator].call(x)
+  x[js().Symbol.iterator].call(x)
 }
 
 fn iterate(&x: JSObject) {
@@ -188,14 +188,14 @@ fn iterate(&x: JSObject) {
 }
 
 fn require(s) {
-  return global().require(s)
+  return js().require(s)
 }
 
 fn sleep(n) {
-  await(global().sleep(n))
+  await(js().sleep(n))
   return
 }
 
 fn readline() {
-  return String(await(global().readline()))
+  return String(await(js().readline()))
 }

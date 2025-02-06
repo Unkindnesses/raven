@@ -3,7 +3,7 @@ using Raven: @test_rv, @test_rv_str
 
 @test_rv("show 2+2", output = "(2 + 2) = 4")
 
-@test_rv("println(tojs(1))", output = "1")
+@test_rv("println(js(1))", output = "1")
 
 @test_rv("println(2.0)", output = "2")
 
@@ -491,7 +491,7 @@ test_rv"""
 
 test_rv"""
   {
-    obj = await(call(global(), "dummyPromise", 5))
+    obj = await(call(js(), "dummyPromise", 5))
     test Float64(obj) == Float64(5)
   }
   """
@@ -551,7 +551,7 @@ end
 
 test_rv"""
   {
-    Ok(x) = errcall(global(), "dummyPromise", 5)
+    Ok(x) = errcall(js(), "dummyPromise", 5)
     test Float64(x) == 5.0
   }
   """
@@ -560,20 +560,20 @@ test_rv"""
 # generic fallback `show` method.
 @test_rv("""
   {
-    x = errcall(global(), "dummyPromise", 7)
+    x = errcall(js(), "dummyPromise", 7)
     show x
   }
   """, output = "x = Ok(7)")
 
 test_rv"""
   {
-    x = unwrap(errcall(global(), "dummyPromise", 5))
+    x = unwrap(errcall(js(), "dummyPromise", 5))
     test Float64(x) == 5.0
   }
   """
 
 @test_rv("""
-  unwrap(errcall(global(), "dummyErr"))
+  unwrap(errcall(js(), "dummyErr"))
   """,
   error = true,
   output = ["unwrap Err", "dummy error"])

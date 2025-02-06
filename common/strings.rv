@@ -2,18 +2,18 @@ export { String, string, concat }
 
 bundle String(obj: JSObject)
 
-fn tojs(s: String) { part(s, 1) }
+fn js(s: String) { part(s, 1) }
 
 fn show(x: String) {
-  print(global().JSON.stringify(x))
+  print(js().JSON.stringify(x))
 }
 
 fn concat(a: String, b: String) {
-  String(tojs(a).concat(b))
+  String(js(a).concat(b))
 }
 
 fn (a: String) == (b: String) {
-  shortcutEquals(a, b) || equal(tojs(a), tojs(b))
+  shortcutEquals(a, b) || equal(js(a), js(b))
 }
 
 fn string(x: Tag) {
