@@ -109,10 +109,12 @@ function _lowerpattern(ex, as, resolve)
     end
   elseif ex isa AST.Splat
     Repeat(_lowerpattern(ex[1], as, resolve))
-  elseif ex isa AST.Call && ex[1] == :pack
-    pack(map(x -> _lowerpattern(x, as, resolve), ex[2:end])...)
   elseif ex isa AST.Call
-    Constructor(resolve(ex[1]::Symbol)::Tag, _lowerpattern.(ex[2:end], (as,), (resolve,)))
+    name = ex[1]::Union{Symbol,Tag}
+    name isa Symbol && (name = resolve(name)::Tag)
+    name == tag"common.core.pack" ?
+      pack(map(x -> _lowerpattern(x, as, resolve), ex[2:end])...) :
+      Constructor(name, _lowerpattern.(ex[2:end], (as,), (resolve,)))
   elseif ex isa AST.Group && length(ex) == 1
     _lowerpattern(ex[1], as, resolve)
   else
@@ -166,18 +168,18 @@ function bundlemacro(ex::AST.Syntax)
     issplat = any(x -> x isa AST.Splat, args)
     push!(body, AST.Syntax(:fn, spec,
                                 AST.Block(
-                                 AST.Call(:pack, tag, namify.(args)...))))
-    push!(body, AST.Syntax(:fn, AST.Call(tag"common.matchTrait", AST.Operator(:(:), :val, AST.Call(:pack, tag, namify.(args)...)), tag),
-                                AST.Block(AST.Call(:Some, :val))))
+                                 AST.Call(tag"common.core.pack", tag, namify.(args)...))))
+    push!(body, AST.Syntax(:fn, AST.Call(tag"common.matchTrait", AST.Operator(:(:), :val, AST.Call(tag"common.core.pack", tag, namify.(args)...)), tag),
+                                AST.Block(AST.Call(tag"common.Some", :val))))
     push!(body, AST.Syntax(:fn, AST.Call(tag"common.constructorPattern", tag, namify.(args)...),
                                 AST.Block(
-                                  AST.Call(:Pack, AST.Call(:Literal, tag), namify.(args)...))))
+                                  AST.Call(tag"common.Pack", AST.Call(tag"common.Literal", tag), namify.(args)...))))
     issplat || push!(body, AST.Syntax(:fn, AST.Call(tag"common.show", AST.Call(name, namify.(args)...)),
                                 AST.Block(
-                                  AST.Call(:print, string(name, "(")),
-                                  [i == length(args) ? AST.Call(:show, x) : AST.Group(AST.Call(:show, x), AST.Call(:print, ", "))
+                                  AST.Call(tag"common.print", string(name, "(")),
+                                  [i == length(args) ? AST.Call(tag"common.show", x) : AST.Group(AST.Call(tag"common.show", x), AST.Call(tag"common.print", ", "))
                                    for (i, x) in enumerate(namify.(args))]...,
-                                  AST.Call(:print, ")")
+                                  AST.Call(tag"common.print", ")")
                                 )))
     issplat || push!(body, AST.Syntax(:fn, AST.Call(tag"common.==", AST.Call(name, namify.(args, :_1)...), AST.Call(name, namify.(args, :_2)...)),
                                 AST.Block(

@@ -596,22 +596,22 @@ test_rv"""
   """
 
 test_rv"""
-  bundle Expr { Add(left, right), Lit(value) }
+  bundle Expr { Add(left, right), Literal(value) }
 
   fn eval(Add(left, right)) { eval(left) + eval(right) }
 
-  fn eval(Lit(value)) { value }
+  fn eval(Literal(value)) { value }
 
-  test Lit(1) == Lit(1)
-  test eval(Add(Lit(1), Lit(2))) == 3
+  test Literal(1) == Literal(1)
+  test eval(Add(Literal(1), Literal(2))) == 3
   """
 
 @test_rv("""
-  bundle Expr { Add(left, right), Lit(value) }
+  bundle Expr { Add(left, right), Literal(value) }
 
-  show Add(Lit(1), Lit(2))
+  show Add(Literal(1), Literal(2))
   """,
-  output = "Add(Lit(1), Lit(2))")
+  output = "Add(Literal(1), Literal(2))")
 
 test_rv"""
   test round(1.3) == 1
