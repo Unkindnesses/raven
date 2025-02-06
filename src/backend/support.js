@@ -32,21 +32,23 @@ function global() {
 
 function property(obj, prop) {
   const r = fromRef(obj)[fromRef(prop)];
-  if (r === undefined) {
-    throw new Error(`No such property ${fromRef(prop)}`);
-  }
   return createRef(r);
 }
 
-function call(obj, meth, ...args) {
-  obj = fromRef(obj);
-  meth = fromRef(meth);
-  args = args.map(fromRef);
+function _call(obj, meth, ...args) {
   const func = obj[meth];
   if (func === undefined) {
     throw new Error(`No such method ${meth}`);
   }
   return createRef(func.call(obj, ...args));
+}
+
+function call(obj, meth, ...args) {
+  return _call(fromRef(obj), fromRef(meth), ...args.map(fromRef));
+}
+
+function apply(obj, meth, args) {
+  return _call(fromRef(obj), fromRef(meth), ...fromRef(args));
 }
 
 async function errcall(obj, meth, ...args) {
@@ -100,7 +102,7 @@ globalThis.dummyErr = function () {
   throw new Error('dummy error');
 }
 
-const support = {global, property, call, errcall,
+const support = {global, property, call, apply, errcall,
                  string, strings: [],
                  createRef, fromRef, abort,
                  equal, release,

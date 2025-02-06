@@ -13,7 +13,7 @@ fn concat(a: String, b: String) {
 }
 
 fn (a: String) == (b: String) {
-  shortcutEquals(a, b) || equal(js(a), js(b))
+  shortcutEquals(a, b) || (js(a) == js(b))
 }
 
 fn string(x: Tag) {

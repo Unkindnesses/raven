@@ -1,5 +1,10 @@
-export { args }
+export { args, readFile }
 
 fn args() {
   return map(String, js().process.argv)
+}
+
+fn readFile(f: String) {
+  fs = require("fs/promises")
+  return String(await(fs.readFile(f, "utf8")))
 }

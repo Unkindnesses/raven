@@ -53,3 +53,9 @@ fn map(f, xs) {
 }
 
 fn collect(xs) { map(identity, xs) }
+
+fn js(xs: List) {
+  ys = js().Array.of()
+  for x in xs { ys.push(x) }
+  return ys
+}
