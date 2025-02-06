@@ -33,8 +33,24 @@ fn show(x: Tag) {
   print("\"")
 }
 
-fn show(x: (Int32 | Int64 | Float32 | Float64)) {
+fn print(x: (Int64 | Int32 | Float64 | Float32)) {
   print(string(x))
+}
+
+fn show(x: (Int64 | Float64)) {
+  print(x)
+}
+
+fn show(x: Int32) {
+  print("Int32(")
+  print(x)
+  print(")")
+}
+
+fn show(x: Float32) {
+  print("Float32(")
+  print(x)
+  print(")")
 }
 
 fn show(_: Nil) {

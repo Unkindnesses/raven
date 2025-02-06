@@ -70,7 +70,7 @@ function equal(a, b) {
 }
 
 function abort(obj, cause) {
-  throw new Error(fromRef(obj), {cause: fromRef(cause)});
+  throw new Error(fromRef(obj), cause ? {cause: fromRef(cause)} : {});
 }
 
 globalThis.require = require;

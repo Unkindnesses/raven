@@ -5,9 +5,7 @@ bundle String(obj: JSObject)
 fn tojs(s: String) { part(s, 1) }
 
 fn show(x: String) {
-  print("\"")
-  print(x)
-  print("\"")
+  print(global().JSON.stringify(x))
 }
 
 fn concat(a: String, b: String) {

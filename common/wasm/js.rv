@@ -170,6 +170,10 @@ fn println(x: JSObject) {
   return
 }
 
+fn replshow(x: JSObject) {
+  println(x)
+}
+
 fn iterator(x: JSObject) {
   x[global().Symbol.iterator].call(x)
 }

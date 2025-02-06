@@ -333,6 +333,9 @@ end
 function lower!(sc, ir::IR, ex::AST.Operator, value = true)
   if ex[1] == :(=) && ex[2] isa Symbol
     y = lower!(sc, ir, ex[3])
+    # Globals are side effects (if they error) so don't let the SSA transform
+    # move them around.
+    y isa Binding && (y = _push!(ir, Expr(:global, y)))
     x = variable!(sc, ex[2])
     _push!(ir, :($x = $y))
     return x
@@ -649,6 +652,7 @@ function globals(ir::IR)
   end
   for (v, st) in pr
     ex = st.expr
+    isexpr(ex, :global) && continue
     delete!(pr, v)
     ex = isexpr(ex, :(=)) ?
       Expr(ex.head, ex.args[1], transform.(ex.args[2:end])...) :
