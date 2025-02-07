@@ -9,7 +9,14 @@ reconstruct(::Unreachable) = (), _ -> ⊥
 
 # Primitives
 
-const PrimitiveNumber = Union{Int64,Int32,Float64,Float32}
+struct Bits{N}
+  value::Int64
+end
+
+nbits(::Bits{N}) where N = N
+nbits(::Type{Bits{N}}) where N = N
+
+const PrimitiveNumber = Union{Bits,Int64,Int32,Float64,Float32}
 const Primitive = Union{PrimitiveNumber,Tag,String}
 
 RPtr() = pack(tag"common.Ptr", Int32)
@@ -23,15 +30,15 @@ RString() = pack(tag"common.String", JSObject())
 
 const fromSymbol = Dict{Tag,Type}()
 
-for T in :[Int64, Int32, Float64, Float32, Tag].args
+for T in :[Bits, Int64, Int32, Float64, Float32, Tag].args
   local tag = Tag(tag"common.core", T)
   @eval fromSymbol[$tag] = $T
-  @eval part(x::Union{$T,Type{$T}}, i::Integer) =
+  @eval part(x::Union{$T,Type{<:$T}}, i::Integer) =
           i == 0 ? $tag :
           i == 1 ? x :
           error("Tried to access part $i of 1")
-  @eval nparts(x::Union{$T,Type{$T}}) = 1
-  @eval allparts(x::Union{$T,Type{$T}}) = ($tag, x)
+  @eval nparts(x::Union{$T,Type{<:$T}}) = 1
+  @eval allparts(x::Union{$T,Type{<:$T}}) = ($tag, x)
 end
 
 part(s::String, i::Integer) =
@@ -387,6 +394,7 @@ tokey(x) = nothing
 
 typekey(x) = tokey(tag(x))
 typekey(x::Tag) = (tag(x), x)
+typekey(x::Union{Bits,Type{<:Bits}}) = (tag(x), nbits(x))
 typekey(x::Unreachable) = nothing
 
 typekeys(x) = Set([typekey(x)])
