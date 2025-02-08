@@ -271,6 +271,8 @@ function update!(inf::Inference, sig)
           end
           cond == true && break
         end
+      elseif isexpr(st, :tuple)
+        @assert st.type != ⊥
       else
         error("Unknown expr type $(st.expr.head)")
       end

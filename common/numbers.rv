@@ -4,6 +4,7 @@ export {
   zero, one, round
 }
 
+fn matchTrait(x: pack(tag"common.core.Bits", _), tag"common.core.Bits") { Some(x) }
 fn matchTrait(x: pack(tag"common.core.Int32", _), tag"common.core.Int32") { Some(x) }
 fn matchTrait(x: pack(tag"common.core.Int64", _), tag"common.core.Int64") { Some(x) }
 fn matchTrait(x: pack(tag"common.core.Float32", _), tag"common.core.Float32") { Some(x) }

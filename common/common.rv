@@ -6,7 +6,7 @@
 
 import {
     true, false
-    Tag, Int32, Int64, Float32, Float64
+    Tag, Bits, Int32, Int64, Float32, Float64
     pack, part, nparts, packcat, widen, shortcutEquals
     isnil, notnil, tagcast, tagstring, function, invoke, jsalloc
 } from "core.rv"

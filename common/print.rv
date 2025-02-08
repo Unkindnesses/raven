@@ -41,6 +41,10 @@ fn show(x: (Int64 | Float64)) {
   print(x)
 }
 
+fn show(x: Bits) {
+  print("bits N")
+}
+
 fn show(x: Int32) {
   print("Int32(")
   print(x)

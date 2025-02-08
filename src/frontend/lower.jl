@@ -550,7 +550,11 @@ function lowerlet!(sc, ir::IR, ex, value = true)
 end
 
 function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
-  if ex[1] == :return
+  src = AST.meta(ex)
+  if ex[1] == :bits
+    size::Integer = ex[2]
+    _push!(ir, Expr(:tuple); type = Bits{size}(0), src, bp = true)
+  elseif ex[1] == :return
     result = lower!(sc, ir, ex[2])
     swapreturn!(ir, result, swaps(sc), AST.meta(ex), bp = true)
   elseif ex[1] == :while
@@ -558,7 +562,6 @@ function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
   elseif ex[1] == :if
     lowerif!(sc, ir, If(ex), value)
   elseif ex[1] == :wasm
-    src = AST.meta(ex)
     ex = ex[2][1]
     op, ret = intrinsic(ex)
     args = lower!.((sc,), (ir,), intrinsic_args(ex))

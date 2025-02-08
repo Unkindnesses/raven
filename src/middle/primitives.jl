@@ -1,5 +1,5 @@
 # Core primitives – pack, packcat, part and nparts – are dealt with in
-# middle-end lowering, but we define type inference here, and implement some
+# IR expansion, but we define type inference here, and implement some
 # simple built-in functions.
 
 partial_part(data::Union{Pack,Primitive,Type{<:Primitive}}, i::Integer) =
@@ -125,6 +125,8 @@ inlinePrimitive[widen_method] = function (pr, ir, v)
     pr[v] = stmt(xcall(tag"common.JSObject", id), type = RString())
   elseif T isa Number
     pr[v] = T
+  elseif T isa Bits
+    pr[v] = data(T)
   else
     pr[v] = x
   end

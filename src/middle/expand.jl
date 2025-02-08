@@ -46,13 +46,25 @@ cat_layout(x) = (x,)
 cat_layout(x::Tuple) = x
 cat_layout(x, xs...) = (cat_layout(x)..., cat_layout(xs...)...)
 
-layout(T::Type{<:Primitive}) = T
+layout(T::Type{<:Union{Float64,Float32,Int64,Int32}}) = T
 layout(x::Union{Primitive,Unreachable}) = ()
 layout(x::Pack) = cat_layout(layout.(x.parts)...)
 layout(x::VPack) = cat_layout(layout(x.tag), Int32, layout(x.parts) == () ? () : Int32) # size, pointer
 layout(x::Recursive) = (Int32,)
 layout(x::Recur) = Int32
 layout(xs::Onion) = (Int32, cat_layout(layout.(xs.types)...)...)
+
+function layout(T::Type{<:Bits})
+  if nbits(T) <= 32
+    return Int32
+  elseif nbits(T) <= 64
+    return Int64
+  else
+    error("Unsupported bit size $(nbits(T))")
+  end
+end
+
+data(x::Bits) = layout(typeof(x))(x.value)
 
 function tlayout(x)
   rs = layout(x)
