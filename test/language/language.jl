@@ -619,3 +619,8 @@ test_rv"""
   test round(-1.3) == -1
   test round(-1.7) == -2
   """
+
+# TODO list equality
+@test_rv("""
+  show collect("foo")
+  """, output = """["f", "o", "o"]""")

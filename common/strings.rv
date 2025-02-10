@@ -8,6 +8,10 @@ fn show(x: String) {
   print(js().JSON.stringify(x))
 }
 
+fn iterator(x: String) {
+  mapping(String, js(x))
+}
+
 fn concat(a: String, b: String) {
   String(js(a).concat(b))
 }
