@@ -8,6 +8,7 @@ import {
     true, false
     Tag, Bits, Int32, Int64, Float32, Float64
     pack, part, nparts, packcat, widen, shortcutEquals
+    bitsize, bitcast, bitcast_s, bitshl, bitshr, bitand
     isnil, notnil, tagcast, tagstring, function, invoke, jsalloc
 } from "core.rv"
 

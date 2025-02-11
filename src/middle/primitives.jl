@@ -42,6 +42,17 @@ partial_shortcutEquals(a, b) =
   !isempty(intersect(symbolValues(a), symbolValues(b))) ? Int32 :
   Int32(false)
 
+partial_bitsize(::Union{Bits{N},Type{Bits{N}}}) where N = N
+
+partial_bitcast(::Union{Bits{N},Type{Bits{N}}}, x::Int64) where N = Bits{N}(x)
+partial_bitcast(::Union{Bits{N},Type{Bits{N}}}, x::Bits) where N = Bits{N}(x.value)
+partial_bitcast(::Union{Bits{N},Type{Bits{N}}}, x::Type{<:Union{Bits,Int64}}) where N = Bits{N}
+
+partial_bitcast(::Union{Int64,Type{Int64}}, x::Bits) = Int64(x.value)
+partial_bitcast(::Union{Int64,Type{Int64}}, x::Type{<:Bits}) = Int64
+
+partial_bitand(::Union{Bits{N},Type{Bits{N}}}, x::Union{Bits{N},Type{Bits{N}}}) where N = Bits{N}
+
 # Needed by dispatchers, since a user-defined method would need runtime matching
 # to deal with unions.
 partial_isnil(x::Union{Primitive,Type{<:Primitive},VPack}) = Int32(0)
@@ -83,6 +94,14 @@ packcat_method = RMethod(tag"common.core.packcat", lowerpattern(rvx"args"), args
 widen_method = RMethod(tag"common.core.widen", lowerpattern(rvx"[x]"), partial_widen, true)
 shortcutEquals_method = RMethod(tag"common.core.shortcutEquals", lowerpattern(rvx"[a, b]"), partial_shortcutEquals, true)
 
+bitsize_method = RMethod(tag"common.core.bitsize", lowerpattern(rvx"[x]"), partial_bitsize, true)
+bitcast_method = RMethod(tag"common.core.bitcast", lowerpattern(rvx"[x, y]"), partial_bitcast, true)
+bitcast_s_method = RMethod(tag"common.core.bitcast_s", lowerpattern(rvx"[x, y]"), partial_bitcast, true)
+
+bitshl_method = RMethod(tag"common.core.bitshl", lowerpattern(rvx"[x, y]"), partial_bitand, true)
+bitshr_method = RMethod(tag"common.core.bitshr", lowerpattern(rvx"[x, y]"), partial_bitand, true)
+bitand_method = RMethod(tag"common.core.bitand", lowerpattern(rvx"[x, y]"), partial_bitand, true)
+
 isnil_method = RMethod(tag"common.core.isnil", lowerpattern(rvx"[x]"), partial_isnil, true)
 notnil_method = RMethod(tag"common.core.notnil", lowerpattern(rvx"[x]"), partial_notnil, true)
 tagcast_method = RMethod(tag"common.core.tagcast", lowerpattern(rvx"[x, t]"), partial_tagcast, true)
@@ -100,6 +119,12 @@ primitives() = [
   packcat_method,
   widen_method,
   shortcutEquals_method,
+  bitsize_method,
+  bitcast_method,
+  bitcast_s_method,
+  bitshl_method,
+  bitshr_method,
+  bitand_method,
   isnil_method,
   notnil_method,
   tagcast_method,
@@ -129,6 +154,78 @@ inlinePrimitive[widen_method] = function (pr, ir, v)
     pr[v] = data(T)
   else
     pr[v] = x
+  end
+end
+
+inlinePrimitive[bitsize_method] = function (pr, ir, v)
+  pr[v] = xtuple()
+end
+
+inlinePrimitive[bitcast_method] = function (pr, ir, v)
+  x = ir[v].expr.args[3]
+  to = nbits(ir[v].type)
+  from = nbits(exprtype(ir, x))
+  if isvalue(ir[v].type)
+    pr[v] = xtuple()
+  elseif to == from
+    pr[v] = x
+  elseif (to, from) == (32, 64)
+    pr[v] = xcall(i32.wrap_i64, x)
+  elseif (to, from) == (64, 32)
+    pr[v] = xcall(i64.extend_i32_u, x)
+  else
+    error("unimplemented")
+  end
+end
+
+inlinePrimitive[bitcast_s_method] = function (pr, ir, v)
+  x = ir[v].expr.args[3]
+  to = nbits(ir[v].type)
+  from = nbits(exprtype(ir, x))
+  if isvalue(ir[v].type)
+    pr[v] = xtuple()
+  elseif to <= from
+    inlinePrimitive[bitcast_method](pr, ir, v)
+  elseif (to, from) == (64, 32)
+    pr[v] = xcall(i64.extend_i32_s, x)
+  else
+    error("unimplemented")
+  end
+end
+
+inlinePrimitive[bitshl_method] = function (pr, ir, v)
+  x, n = ir[v].expr.args[2:end]
+  sz = nbits(exprtype(ir, v))
+  if sz == 64
+    pr[v] = xcall(i64.shl, x, n)
+  elseif sz == 32
+    pr[v] = xcall(i32.shl, x, n)
+  else
+    error("unimplemented")
+  end
+end
+
+inlinePrimitive[bitshr_method] = function (pr, ir, v)
+  x, n = ir[v].expr.args[2:end]
+  sz = nbits(exprtype(ir, v))
+  if sz == 64
+    pr[v] = xcall(i64.shr_u, x, n)
+  elseif sz == 32
+    pr[v] = xcall(i32.shr_u, x, n)
+  else
+    error("unimplemented")
+  end
+end
+
+inlinePrimitive[bitand_method] = function (pr, ir, v)
+  x, y = ir[v].expr.args[2:end]
+  sz = nbits(exprtype(ir, v))
+  if sz == 64
+    pr[v] = xcall(i64.and, x, y)
+  elseif sz == 32
+    pr[v] = xcall(i32.and, x, y)
+  else
+    error("unimplemented")
   end
 end
 

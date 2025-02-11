@@ -624,3 +624,9 @@ test_rv"""
 @test_rv("""
   show collect("foo")
   """, output = """["f", "o", "o"]""")
+
+@test_rv("""
+  bitcast = tag"common.core.bitcast"
+  show bitcast(bits 32, 10)
+  """,
+  output = "bits\"00000000000000000000000000001010\"")

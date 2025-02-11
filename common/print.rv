@@ -42,7 +42,12 @@ fn show(x: (Int64 | Float64)) {
 }
 
 fn show(x: Bits) {
-  print("bits N")
+  print("bits\"")
+  N = bitsize(x)
+  for i in range(1, N) {
+    print(Int64(bitand(bitshr(x, bitcast(x, N-i)), bitcast(x, 1))))
+  }
+  print("\"")
 }
 
 fn show(x: Int32) {

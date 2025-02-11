@@ -65,6 +65,7 @@ function layout(T::Type{<:Bits})
 end
 
 data(x::Bits) = layout(typeof(x))(x.value)
+data(x::Number) = x
 
 function tlayout(x)
   rs = layout(x)
@@ -464,7 +465,7 @@ function casts!(inf::Inferred, ir, ret)
     if isexpr(st, :call) && st.expr.args[1] isa WebAssembly.Instruction
       args = st.expr.args[2:end]
       Ts = exprtype(ir, args)
-      pr[v] = xcall(st.expr.args[1], [T isa Number ? T : x for (x, T) in zip(args, Ts)]...)
+      pr[v] = xcall(st.expr.args[1], [T isa Union{Number,Bits} ? data(T) : x for (x, T) in zip(args, Ts)]...)
     elseif isexpr(st, :call)
       S = (exprtype(ir, st.expr.args)...,)
       partial = S[1] isa RMethod && S[1].partial

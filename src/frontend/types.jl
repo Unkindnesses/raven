@@ -15,6 +15,10 @@ end
 
 nbits(::Bits{N}) where N = N
 nbits(::Type{Bits{N}}) where N = N
+nbits(::Union{Int64,Type{Int64}}) = 64
+
+WebAssembly.WType(::Type{Bits{64}}) = i64
+WebAssembly.WType(::Type{Bits{32}}) = i32
 
 const PrimitiveNumber = Union{Bits,Int64,Int32,Float64,Float32}
 const Primitive = Union{PrimitiveNumber,Tag,String}

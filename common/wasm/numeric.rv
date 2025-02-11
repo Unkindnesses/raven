@@ -18,6 +18,10 @@ extend fn Float64(x: Int32) {
   wasm { f64.convert_i32_s(x: i32): f64 }
 }
 
+extend fn Int64(x: Bits) {
+  bitcast(0, x)
+}
+
 # Simple versions that doesn't get overloaded; to bootstrap matching
 
 fn add(a: Int64, b: Int64) {
@@ -145,11 +149,7 @@ fn i64trunc(x: Float64) {
 }
 
 fn round(x: Float64) {
-  if x > 0.0 {
-    x = x + 0.5
-  } else {
-    x = x - 0.5
-  }
+  x = wasm { f64.nearest(x: f64): f64 }
   return i64trunc(x)
 }
 

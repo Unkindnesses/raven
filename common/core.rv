@@ -18,8 +18,11 @@ Float64 = tag".Float64"
 # These functions have built-in methods attached.
 # TODO: could add a `fn { foo }` syntax to declare a function with no methods.
 
-export { pack, part, nparts, packcat, widen, shortcutEquals, isnil, notnil
-         tagcast, tagstring, function, invoke, jsalloc }
+export {
+  pack, part, nparts, packcat, widen, shortcutEquals
+  bitsize, bitcast, bitcast_s, bitshl, bitshr, bitand
+  isnil, notnil, tagcast, tagstring, function, invoke, jsalloc
+}
 
 pack   = tag".pack"
 part   = tag".part"
@@ -27,6 +30,13 @@ nparts = tag".nparts"
 packcat = tag".packcat"
 widen   = tag".widen"
 shortcutEquals = tag".shortcutEquals"
+
+bitsize   = tag".bitsize"
+bitcast   = tag".bitcast"
+bitcast_s = tag".bitcast_s"
+bitshl    = tag".bitshl"
+bitshr    = tag".bitshr"
+bitand    = tag".bitand"
 
 isnil  = tag".isnil"
 notnil = tag".notnil"
