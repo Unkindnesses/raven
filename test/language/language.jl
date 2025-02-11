@@ -631,6 +631,17 @@ test_rv"""
   """,
   output = "bits\"00000000000000000000000000001010\"")
 
+@test_rv("""
+  show part(widen(Float32(0.1)), 1)
+  """, output = "bits\"00111101110011001100110011001101\"")
+
+test_rv"""
+  {
+    x = widen(Float32(0.1))
+    test pack(Float32, part(x, 1)) == x
+  }
+  """
+
 let
   Raven.compile(joinpath(@__DIR__, "brainfuck.rv"))
   cmd = `node --experimental-wasm-stack-switching $(joinpath(@__DIR__, "brainfuck.js")) $(joinpath(@__DIR__, "test.bf"))`

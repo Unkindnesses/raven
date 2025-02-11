@@ -9,13 +9,15 @@ reconstruct(::Unreachable) = (), _ -> ⊥
 
 # Primitives
 
+ValOrType{T} = Union{T,Type{<:T}}
+
 struct Bits{N}
-  value::Int64
+  value::UInt64
 end
 
 nbits(::Bits{N}) where N = N
 nbits(::Type{Bits{N}}) where N = N
-nbits(::Union{Int64,Type{Int64}}) = 64
+nbits(::ValOrType{Int64}) = 64
 
 WebAssembly.WType(::Type{Bits{64}}) = i64
 WebAssembly.WType(::Type{Bits{32}}) = i32
@@ -34,16 +36,32 @@ RString() = pack(tag"common.String", JSObject())
 
 const fromSymbol = Dict{Tag,Type}()
 
-for T in :[Bits, Int64, Int32, Float64, Float32, Tag].args
+for T in :[Bits, Int64, Int32, Tag].args
   local tag = Tag(tag"common.core", T)
   @eval fromSymbol[$tag] = $T
   @eval part(x::Union{$T,Type{<:$T}}, i::Integer) =
           i == 0 ? $tag :
           i == 1 ? x :
           error("Tried to access part $i of 1")
-  @eval nparts(x::Union{$T,Type{<:$T}}) = 1
-  @eval allparts(x::Union{$T,Type{<:$T}}) = ($tag, x)
 end
+
+fromSymbol[tag"common.core.Float32"] = Float32
+fromSymbol[tag"common.core.Float64"] = Float64
+
+bits(x::Float32) = Bits{32}(reinterpret(UInt32, x))
+bits(x::Float64) = Bits{64}(reinterpret(UInt64, x))
+bits(::Type{Float32}) = Bits{32}
+bits(::Type{Float64}) = Bits{64}
+
+part(x::ValOrType{Float32}, i::Integer) =
+  i == 0 ? tag"common.core.Float32" :
+  i == 1 ? bits(x) :
+  error("Tried to access part $i of 1")
+
+part(x::ValOrType{Float64}, i::Integer) =
+  i == 0 ? tag"common.core.Float64" :
+  i == 1 ? bits(x) :
+  error("Tried to access part $i of 1")
 
 part(s::String, i::Integer) =
   i == 0 ? tag"common.String" :
@@ -57,7 +75,11 @@ nparts(s::String) = 1
 isvalue(x) = false
 isvalue(x::Primitive) = true
 
-reconstruct(x::Union{Primitive,Type{<:Primitive}}) = (), _ -> x
+nparts(x::ValOrType{Primitive}) = 1
+
+allparts(x::ValOrType{Primitive}) = (part(x, 0), part(x, 1))
+
+reconstruct(x::ValOrType{Primitive}) = (), _ -> x
 
 # Packs
 
@@ -83,8 +105,18 @@ Base.iterate(x::Pack, st...) = iterate(x.parts, st...)
 
 tag(x) = partial_part(x, 0)
 
-pack(t::Tag, x::Union{PrimitiveNumber,Type{<:PrimitiveNumber}}) =
+pack(t::Tag, x::ValOrType{Union{Tag,Bits,Int32,Int64}}) =
   t == tag(x) ? x : Pack(t, x)
+
+pack(t::Tag, x::Bits) =
+  t == tag(Float32) && nbits(x) == 32 ? reinterpret(Float32, x.value % UInt32) :
+  t == tag(Float64) && nbits(x) == 64 ? reinterpret(Float64, x.value) :
+  Pack(t, x)
+
+pack(t::Tag, x::Type{<:Bits}) =
+  t == tag(Float32) && nbits(x) == 32 ? Float32 :
+  t == tag(Float64) && nbits(x) == 64 ? Float64 :
+  Pack(t, x)
 
 reconstruct(x::Pack) = x.parts, ps -> pack(ps...)
 

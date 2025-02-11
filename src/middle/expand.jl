@@ -86,10 +86,17 @@ sizeof(T::Type) = Base.sizeof(T)
 sizeof(T) = sum(sizeof, tlayout(T), init = 0)
 
 inlinePrimitive[pack_method] = function (pr, ir, v)
-  # Arguments are turned into a tuple when calling any function, so this
-  # is just a cast.
-  @assert tlayout(ir[v].type) == tlayout(exprtype(ir, ir[v].expr.args[2]))
-  pr[v] = ir[v].expr.args[2]
+  T = exprtype(ir, v)
+  if T == Float64
+    pr[v] = xcall(f64.reinterpret_i64, ir[v].expr.args[2])
+  elseif T == Float32
+    pr[v] = xcall(f32.reinterpret_i32, ir[v].expr.args[2])
+  else
+    # Arguments are turned into a tuple when calling any function, so this
+    # is just a cast.
+    @assert tlayout(T) == tlayout(exprtype(ir, ir[v].expr.args[2]))
+    pr[v] = ir[v].expr.args[2]
+  end
 end
 
 # part
@@ -159,12 +166,16 @@ end
 outlinePrimitive[part_method] = partir
 
 function indexer!(ir, T::Union{Primitive,Type{<:Primitive}}, i::Int, x, _)
-  if i == 0
+  if isvalue(part(T, i))
     push!(ir, xtuple())
-  elseif i == 1
-    push!(ir, x)
-  else
+  elseif i > 1
     abort!(ir, "Invalid index $i for $T")
+  elseif T == Float64
+    push!(ir, stmt(xcall(i64.reinterpret_f64, x), type = Int64))
+  elseif T == Float32
+    push!(ir, stmt(xcall(i32.reinterpret_f32, x), type = Int32))
+  else
+    push!(ir, x)
   end
 end
 

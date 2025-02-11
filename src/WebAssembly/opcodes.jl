@@ -163,7 +163,7 @@ const numeric = [
   f64.convert_i32_u,
   f64.convert_i64_s,
   f64.convert_i64_u,
-  f64.promote_f64,
+  f64.promote_f32,
   i32.reinterpret_f32,
   i64.reinterpret_f64,
   f32.reinterpret_i32,
