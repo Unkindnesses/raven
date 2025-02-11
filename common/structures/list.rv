@@ -1,4 +1,4 @@
-export { List, length, append, isempty, map, collect }
+export { List, length, set, append, isempty, map, collect }
 
 bundle List(xs...)
 
@@ -10,6 +10,15 @@ fn length(xs: List) {
 
 fn (xs: List)[i] {
   part(xs, i)
+}
+
+# TODO: sane implementation
+fn set(&xs: List, x, i: Integer) {
+  ys = []
+  for j in range(1, length(xs)) {
+    append(&ys, if i == j { x } else { xs[j] })
+  }
+  xs = ys
 }
 
 fn isempty(xs: List) {

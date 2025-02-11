@@ -630,3 +630,9 @@ test_rv"""
   show bitcast(bits 32, 10)
   """,
   output = "bits\"00000000000000000000000000001010\"")
+
+let
+  Raven.compile(joinpath(@__DIR__, "brainfuck.rv"))
+  cmd = `node --experimental-wasm-stack-switching $(joinpath(@__DIR__, "brainfuck.js")) $(joinpath(@__DIR__, "test.bf"))`
+  @test String(read(cmd)) == "H\n"
+end

@@ -1,0 +1,47 @@
+bundle Tape(xs: List, i: Int64)
+
+fn Tape() { Tape([0], 1) }
+
+fn Tape(xs, i)[] { xs[i] }
+
+fn left(&tape: Tape(xs, i)) {
+  i = i - 1
+  if i < 1 { abort("Tape error") }
+  tape = Tape(xs, i)
+}
+
+fn right(&tape: Tape(xs, i)) {
+  i = i + 1
+  if i > length(xs) { append(&xs, 0) }
+  tape = Tape(xs, i)
+}
+
+fn inc(&tape: Tape(xs, i)) {
+  set(&xs, xs[i]+1, i)
+  tape = Tape(xs, i)
+}
+
+fn dec(&tape: Tape(xs, i)) {
+  set(&xs, xs[i]-1, i)
+  tape = Tape(xs, i)
+}
+
+fn interpret(file) {
+  tape = Tape()
+  for char in readFile(file) {
+    if char == "+" {
+      inc(&tape)
+    } else if char == "-" {
+      dec(&tape)
+    } else if char == ">" {
+      right(&tape)
+    } else if char == "<" {
+      left(&tape)
+    } else if char == "." {
+      print(js().String.fromCharCode(tape[]))
+    }
+  }
+  println()
+}
+
+interpret(args()[3])

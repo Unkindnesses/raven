@@ -111,8 +111,8 @@ function compile(file, opts = Options();
   return joinpath(dir, "$name.js")
 end
 
-function exec(file, opts = Options(); kw...)
+function exec(file, args...; opts = Options(), kw...)
   js = compile(file, opts; kw...)
-  run(`node --experimental-wasm-stack-switching $js`)
+  run(`node --experimental-wasm-stack-switching $js $args`)
   return
 end
