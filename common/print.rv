@@ -1,4 +1,4 @@
-export { show, print, println }
+export { show, showPack, print, println }
 
 String = tag".String"
 
@@ -15,7 +15,7 @@ fn println(x) {
   println()
 }
 
-fn show(x) {
+fn showPack(x) {
   print("pack(")
   show(tag(x))
   i = 1
@@ -26,6 +26,8 @@ fn show(x) {
   }
   print(")")
 }
+
+fn show(x) { showPack(x) }
 
 fn show(x: Tag) {
   print("tag\"")

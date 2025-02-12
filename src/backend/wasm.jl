@@ -17,6 +17,7 @@ wasmPartials[i32.mul] = *
 wasmPartials[i64.eq] = (a, b) -> Int32(a==b)
 wasmPartials[i64.gt_s] = (a, b) -> Int32(a>b)
 wasmPartials[i64.lt_s] = (a, b) -> Int32(a<b)
+wasmPartials[i64.le_s] = (a, b) -> Int32(a<=b)
 wasmPartials[i32.eqz] = x -> Int32(x==0)
 wasmPartials[i32.wrap_i64] = Int32
 

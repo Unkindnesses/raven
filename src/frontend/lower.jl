@@ -211,13 +211,13 @@ function formacro(ex)
   )
 end
 
-function showmacro(ex)
+function showmacro(ex; pack = false)
   ex = ex[2]
   name = gensym()
   AST.Block(
     AST.Operator(:(=), name, ex),
     AST.Call(:print, string(ex, " = ")),
-    AST.Call(:show, name),
+    AST.Call(pack ? :showPack : :show, name),
     AST.Call(:println),
     name
   )
@@ -236,6 +236,7 @@ macros = Dict(
   :bundle => bundlemacro,
   :for => formacro,
   :show => showmacro,
+  :showPack => x -> showmacro(x, pack = true),
   :test => testmacro,
 )
 

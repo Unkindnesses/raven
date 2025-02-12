@@ -15,6 +15,8 @@ struct Bits{N}
   value::UInt64
 end
 
+Bits{N}(x::Int64) where N = Bits{N}(reinterpret(UInt64, x))
+
 nbits(::Bits{N}) where N = N
 nbits(::Type{Bits{N}}) where N = N
 nbits(::ValOrType{Int64}) = 64

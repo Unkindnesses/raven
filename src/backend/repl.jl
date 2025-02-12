@@ -63,7 +63,7 @@ function toplevels(src; path)
 end
 
 function wrap_print(ex)
-  ex isa AST.Syntax && ex[1] in (:fn, :bundle) && return ex
+  ex isa AST.Syntax && ex[1] in (:fn, :bundle, :show, :showPack) && return ex
   return AST.Call(AST.Template(:tag, "common.replshow"), ex)
 end
 

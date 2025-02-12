@@ -632,8 +632,8 @@ test_rv"""
   output = "bits\"00000000000000000000000000001010\"")
 
 @test_rv("""
-  show part(widen(Float32(0.1)), 1)
-  """, output = "bits\"00111101110011001100110011001101\"")
+  showPack widen(Float32(0.1))
+  """, output = "widen(Float32(0.1)) = pack(tag\"common.core.Float32\", bits\"00111101110011001100110011001101\")")
 
 test_rv"""
   {

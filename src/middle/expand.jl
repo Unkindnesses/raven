@@ -56,9 +56,9 @@ layout(xs::Onion) = (Int32, cat_layout(layout.(xs.types)...)...)
 
 function layout(T::Type{<:Bits})
   if nbits(T) <= 32
-    return Int32
+    return UInt32
   elseif nbits(T) <= 64
-    return Int64
+    return UInt64
   else
     error("Unsupported bit size $(nbits(T))")
   end
