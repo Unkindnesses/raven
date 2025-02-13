@@ -36,3 +36,32 @@ fn x ^ (n: Integer) {
   }
   return r
 }
+
+fn show(x: Bits) {
+  print("bits\"")
+  N = bitsize(x)
+  for i in range(1, N) {
+    print(Int64(bitand(bitshr(x, bitcast(x, N-i)), bitcast(x, 1))))
+  }
+  print("\"")
+}
+
+fn print(x: (Int64 | Int32 | Float64 | Float32)) {
+  print(string(x))
+}
+
+fn show(x: (Int64 | Float64)) {
+  print(x)
+}
+
+fn show(x: Int32) {
+  print("Int32(")
+  print(x)
+  print(")")
+}
+
+fn show(x: Float32) {
+  print("Float32(")
+  print(x)
+  print(")")
+}

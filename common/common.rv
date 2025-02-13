@@ -26,9 +26,11 @@ fn identity(x) { x }
 
 fn _ == _ { false }
 
-fn matchTrait(_, _) { nil }
+fn matchTrait(_, _) {}
 
 fn matchTrait(t: pack(tag"common.core.Tag", _), tag"common.core.Tag") { Some(t) }
+
+fn show(x) { showPack(x) }
 
 fn (x |> f) { f(x) }
 
@@ -37,9 +39,9 @@ fn condition(x: Int32) { x }
 
 bundle Optional { Some(x), Nil() }
 
-nil = Nil()
+fn show(_: Nil) { print("nil") }
 
-fn (_: Nil) == (_: Nil) { true }
+nil = Nil()
 
 bundle Result { Ok(x), Err(e) }
 
