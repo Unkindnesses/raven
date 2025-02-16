@@ -430,8 +430,12 @@ function swapreturn!(ir::IR, val, swaps, src; bp = false)
 end
 
 function lower!(sc, ir::IR, ex::AST.Template)
-  @assert ex[1] == :tag
-  return modtag(mod(sc), ex[2])
+  if ex[1] == :tag
+    modtag(mod(sc), ex[2])
+  elseif ex[1] == :bits
+    s = ex[2]
+    Bits{length(s)}(Base.parse(UInt64, s, base = 2))
+  end
 end
 
 function lowermatch!(sc, ir::IR, val, pat)
@@ -554,7 +558,7 @@ function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
   src = AST.meta(ex)
   if ex[1] == :bits
     size::Integer = ex[2]
-    _push!(ir, Expr(:tuple); type = Bits{size}(0), src, bp = true)
+    return Bits{size}(0)
   elseif ex[1] == :return
     result = lower!(sc, ir, ex[2])
     swapreturn!(ir, result, swaps(sc), AST.meta(ex), bp = true)

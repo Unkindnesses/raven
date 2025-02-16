@@ -636,6 +636,11 @@ test_rv"""
   """, output = "widen(Float32(0.1)) = pack(tag\"common.core.Float32\", bits\"00111101110011001100110011001101\")")
 
 test_rv"""
+  test (1/3) ==
+    pack(Float64, bits"0011111111010101010101010101010101010101010101010101010101010101")
+  """
+
+test_rv"""
   {
     x = widen(Float32(0.1))
     test pack(Float32, part(x, 1)) == x

@@ -1,7 +1,7 @@
 const recursionLimit = 10
 
 _typeof(x) = error("invalid constant $x::$(typeof(x))")
-_typeof(x::Union{Number,String,Tag,RMethod,Pack}) = x
+_typeof(x::Union{Bits,Number,String,Tag,RMethod,Pack}) = x
 
 # TODO constants should be converted early to empty tuples of constant type.
 # If literals appear in the IR they are runtime values (eg args to foreign calls)
@@ -271,8 +271,6 @@ function update!(inf::Inference, sig)
           end
           cond == true && break
         end
-      elseif isexpr(st, :tuple)
-        @assert st.type != ⊥
       else
         error("Unknown expr type $(st.expr.head)")
       end
