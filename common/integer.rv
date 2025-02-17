@@ -1,0 +1,66 @@
+export { Bits, Int, UInt, bits }
+
+fn matchTrait(tag"common.core.Bits", x: pack(tag"common.core.Bits", _)) { Some(x) }
+
+# TODO lower symbols to literals
+fn tag"common.core.Bits"[N] { Params(Bits, N) }
+
+# TODO cast
+fn matchTrait(Params(tag"common.core.Bits", N), x: Bits) {
+  if bitsize(x) == N { Some(x) }
+}
+
+fn larger(a: Bits, b: Bits) {
+  if bitsize(b) > bitsize(a) { b } else { a }
+}
+
+# TODO `bundle Int[N](x: Bits[N])`
+bundle Int(x: Bits)
+
+fn tag"common.Int"[N] { Params(Int, N) }
+
+fn matchTrait(Params(tag"common.Int", N), Int(b)) {
+  matchTrait(Bits[N], b)
+}
+
+fn bits(Int(x)) { x }
+
+fn Int(x: Int64) { Int(bits(x)) }
+
+fn promote(Int(a), Int(b)) {
+  T = larger(a, b)
+  return [Int(bitcast_s(T, a)), Int(bitcast_s(T, b))]
+}
+
+fn intop(f, a: Int, b: Int) {
+  [a, b] = promote(a, b)
+  Int(f(bits(a), bits(b)))
+}
+
+fn (a: Int) + (b: Int) { intop(bitadd, a, b) }
+fn (a: Int) - (b: Int) { intop(bitsub, a, b) }
+fn (a: Int) * (b: Int) { intop(bitmul, a, b) }
+
+fn div(a: Int, b: Int) { intop(bitdiv_s, a, b) }
+fn rem(a: Int, b: Int) { intop(bitrem_s, a, b) }
+
+fn (a: Int) == (b: Int) { intop(biteq, a, b) }
+fn (a: Int) != (b: Int) { intop(bitneq, a, b) }
+
+fn (a: Int) >  (b: Int) { intop(bitgt_s, a, b) }
+fn (a: Int) >= (b: Int) { intop(bitge_s, a, b) }
+fn (a: Int) <  (b: Int) { intop(bitlt_s, a, b) }
+fn (a: Int) <= (b: Int) { intop(bitle_s, a, b) }
+
+fn not(x: Int[32]) { Int(biteqz(bits(x))) }
+
+extend fn Float64(Int(x)) {
+  x = bitcast_s(bits 64, x)
+  wasm { f64.convert_i64_s(x: i64): f64 }
+}
+
+fn js(x: Int) { js(Float64(x)) }
+
+fn print(x: Int) { print(js(x)) }
+
+fn show(x: Int[64]) { print(x) }

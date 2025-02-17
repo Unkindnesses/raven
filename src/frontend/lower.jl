@@ -18,7 +18,7 @@ struct Bind
 end
 
 struct Trait
-  pattern::Tag
+  pattern::Any
 end
 
 struct Or
@@ -80,6 +80,9 @@ resolvetags(ex::AST.Expr, mod::Tag) = typeof(ex)(resolvetags.(ex.args, (mod,)), 
 function lowerisa(ex, as, resolve)
   if ex isa Symbol
     return Trait(resolve(ex)::Tag)
+  elseif ex isa AST.Index
+    args = [x isa Number ? x : resolve(x) for x in ex[:]]
+    return Trait(pack(tag"common.Params", args...))
   elseif ex isa AST.Operator && ex[1] == :(|)
     Or(map(x -> lowerisa(x, as, resolve), ex[2:end]))
   elseif ex isa AST.Operator && ex[1] == :(&)

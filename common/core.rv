@@ -20,7 +20,9 @@ Float64 = tag".Float64"
 
 export {
   pack, part, nparts, packcat, widen, shortcutEquals
-  bitsize, bitcast, bitcast_s, bitshl, bitshr, bitand
+  bitsize, bitcast, bitcast_s
+  bitshl, bitshr_u, bitshr_s, bitand, bitor, bitxor, bitadd, bitsub, bitmul, bitdiv_u, bitdiv_s, bitrem_u, bitrem_s
+  biteq, biteqz, bitneq, bitgt_u, bitge_u, bitlt_u, bitle_u, bitgt_s, bitge_s, bitlt_s, bitle_s
   isnil, notnil, tagcast, tagstring, function, invoke, jsalloc
 }
 
@@ -34,9 +36,33 @@ shortcutEquals = tag".shortcutEquals"
 bitsize   = tag".bitsize"
 bitcast   = tag".bitcast"
 bitcast_s = tag".bitcast_s"
-bitshl    = tag".bitshl"
-bitshr    = tag".bitshr"
-bitand    = tag".bitand"
+
+# TODO rename to `core.shl` etc
+bitshl = tag".bitshl"
+bitshr_u = tag".bitshr_u"
+bitshr_s = tag".bitshr_s"
+bitand = tag".bitand"
+bitor  = tag".bitor"
+bitxor = tag".bitxor"
+bitadd = tag".bitadd"
+bitsub = tag".bitsub"
+bitmul = tag".bitmul"
+bitdiv_u = tag".bitdiv_u"
+bitdiv_s = tag".bitdiv_s"
+bitrem_u = tag".bitrem_u"
+bitrem_s = tag".bitrem_s"
+
+biteq   = tag".biteq"
+biteqz  = tag".biteqz"
+bitneq  = tag".bitneq"
+bitgt_u = tag".bitgt_u"
+bitge_u = tag".bitge_u"
+bitlt_u = tag".bitlt_u"
+bitle_u = tag".bitle_u"
+bitgt_s = tag".bitgt_s"
+bitge_s = tag".bitge_s"
+bitlt_s = tag".bitlt_s"
+bitle_s = tag".bitle_s"
 
 isnil  = tag".isnil"
 notnil = tag".notnil"

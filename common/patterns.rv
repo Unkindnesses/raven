@@ -1,5 +1,22 @@
-export { Hole, Literal, Trait, Pack, Bind, Constructor, And
+export { Any, NotNil, Hole, Literal, Trait, Pack, Bind, Constructor, And
          match, matchTrait, ismatch, isa }
+
+Any = tag".Any"
+
+fn matchTrait(tag".Any", x) { Some(x) }
+
+NotNil = tag".NotNil"
+
+fn matchTrait(tag".NotNil", x) {
+  if not(isnil(x)) { Some(notnil(x)) }
+}
+
+bundle Params(T, Ts)
+
+fn show(pack(tag".Params", T, Ts...)) {
+  show(T)
+  show(Ts)
+}
 
 bundle Pattern {
   Hole()

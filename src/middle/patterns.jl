@@ -178,7 +178,7 @@ end
 partial_match(mod, pat, val) = partial_match(mod, pat, val, [])
 
 # TODO assumes the value is unchanged by the match
-function trivial_isa(int, val, T::Tag)
+function trivial_isa(int, val, T)
   r = int[(tag"common.matchTrait", rlist(T, val))]
   isnothing(r) && return missing
   T = tag(part(r, 1))

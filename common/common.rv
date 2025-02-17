@@ -8,7 +8,9 @@ import {
     true, false
     Tag, Bits, Int32, Int64, Float32, Float64
     pack, part, nparts, packcat, widen, shortcutEquals
-    bitsize, bitcast, bitcast_s, bitshl, bitshr, bitand
+    bitsize, bitcast, bitcast_s
+    bitshl, bitshr_u, bitshr_s, bitand, bitor, bitxor, bitadd, bitsub, bitmul, bitdiv_u, bitdiv_s, bitrem_u, bitrem_s
+    biteq, biteqz, bitneq, bitgt_u, bitge_u, bitlt_u, bitle_u, bitgt_s, bitge_s, bitlt_s, bitle_s
     isnil, notnil, tagcast, tagstring, function, invoke, jsalloc
 } from "core.rv"
 
@@ -52,6 +54,7 @@ include "patterns.rv"
 include "iterate.rv"
 include "print.rv"
 
+include "integer.rv"
 include "wasm/numeric.rv"
 include "wasm/memory.rv"
 include "wasm/js.rv"

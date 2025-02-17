@@ -51,7 +51,8 @@ partial_bitcast(::Union{Bits{N},Type{Bits{N}}}, x::Type{<:Union{Bits,Int64}}) wh
 partial_bitcast(::Union{Int64,Type{Int64}}, x::Bits) = Int64(x.value)
 partial_bitcast(::Union{Int64,Type{Int64}}, x::Type{<:Bits}) = Int64
 
-partial_bitand(::Union{Bits{N},Type{Bits{N}}}, x::Union{Bits{N},Type{Bits{N}}}) where N = Bits{N}
+partial_bitop(::Union{Bits{N},Type{Bits{N}}}, x::Union{Bits{N},Type{Bits{N}}}) where N = Bits{N}
+partial_bitcmp(::Union{Bits{N},Type{Bits{N}}}, x::Union{Bits{N},Type{Bits{N}}}) where N = Bits{32}
 
 # Needed by dispatchers, since a user-defined method would need runtime matching
 # to deal with unions.
@@ -98,9 +99,19 @@ bitsize_method = RMethod(tag"common.core.bitsize", lowerpattern(rvx"[x]"), parti
 bitcast_method = RMethod(tag"common.core.bitcast", lowerpattern(rvx"[x, y]"), partial_bitcast, true)
 bitcast_s_method = RMethod(tag"common.core.bitcast_s", lowerpattern(rvx"[x, y]"), partial_bitcast, true)
 
-bitshl_method = RMethod(tag"common.core.bitshl", lowerpattern(rvx"[x, y]"), partial_bitand, true)
-bitshr_method = RMethod(tag"common.core.bitshr", lowerpattern(rvx"[x, y]"), partial_bitand, true)
-bitand_method = RMethod(tag"common.core.bitand", lowerpattern(rvx"[x, y]"), partial_bitand, true)
+bitops = [:shl, :shr_u, :shr_s, :and, :or, :xor, :add, :sub, :mul, :div_u, :div_s, :rem_u, :rem_s]
+for op in bitops
+  @eval $(Symbol(:bit, op, :_method)) = RMethod(Tag(:common, :core, $(QuoteNode(Symbol(:bit, op)))), lowerpattern(rvx"[x, y]"), partial_bitop, true)
+end
+bitop_methods = @eval [$([Symbol(:bit, op, :_method) for op in bitops]...)]
+
+bitcmps = [:eq, :neq, :gt_u, :ge_u, :lt_u, :le_u, :gt_s, :ge_s, :lt_s, :le_s]
+for op in bitcmps
+  @eval $(Symbol(:bit, op, :_method)) = RMethod(Tag(:common, :core, $(QuoteNode(Symbol(:bit, op)))), lowerpattern(rvx"[x, y]"), partial_bitcmp, true)
+end
+bitcmp_methods = @eval [$([Symbol(:bit, op, :_method) for op in bitcmps]...)]
+
+biteqz_method = RMethod(tag"common.core.biteqz", lowerpattern(rvx"[x]"), (::ValOrType{Bits}) -> Bits{32}, true)
 
 isnil_method = RMethod(tag"common.core.isnil", lowerpattern(rvx"[x]"), partial_isnil, true)
 notnil_method = RMethod(tag"common.core.notnil", lowerpattern(rvx"[x]"), partial_notnil, true)
@@ -122,9 +133,9 @@ primitives() = [
   bitsize_method,
   bitcast_method,
   bitcast_s_method,
-  bitshl_method,
-  bitshr_method,
-  bitand_method,
+  bitop_methods...,
+  bitcmp_methods...,
+  biteqz_method,
   isnil_method,
   notnil_method,
   tagcast_method,
@@ -193,37 +204,41 @@ inlinePrimitive[bitcast_s_method] = function (pr, ir, v)
   end
 end
 
-inlinePrimitive[bitshl_method] = function (pr, ir, v)
-  x, n = ir[v].expr.args[2:end]
-  sz = nbits(exprtype(ir, v))
-  if sz == 64
-    pr[v] = xcall(i64.shl, x, n)
-  elseif sz == 32
-    pr[v] = xcall(i32.shl, x, n)
-  else
-    error("unimplemented")
+for op in bitops
+  @eval inlinePrimitive[$(Symbol(:bit, op, :_method))] = function (pr, ir, v)
+    x, y = ir[v].expr.args[2:end]
+    sz = nbits(exprtype(ir, x))
+    if sz == 64
+      pr[v] = xcall(i64.$op, x, y)
+    elseif sz == 32
+      pr[v] = xcall(i32.$op, x, y)
+    else
+      error("unimplemented")
+    end
   end
 end
 
-inlinePrimitive[bitshr_method] = function (pr, ir, v)
-  x, n = ir[v].expr.args[2:end]
-  sz = nbits(exprtype(ir, v))
-  if sz == 64
-    pr[v] = xcall(i64.shr_u, x, n)
-  elseif sz == 32
-    pr[v] = xcall(i32.shr_u, x, n)
-  else
-    error("unimplemented")
+for op in bitcmps
+  @eval inlinePrimitive[$(Symbol(:bit, op, :_method))] = function (pr, ir, v)
+    x, y = ir[v].expr.args[2:end]
+    sz = nbits(exprtype(ir, x))
+    if sz == 64
+      pr[v] = xcall(i64.$op, x, y)
+    elseif sz == 32
+      pr[v] = xcall(i32.$op, x, y)
+    else
+      error("unimplemented")
+    end
   end
 end
 
-inlinePrimitive[bitand_method] = function (pr, ir, v)
-  x, y = ir[v].expr.args[2:end]
-  sz = nbits(exprtype(ir, v))
+inlinePrimitive[biteqz_method] = function (pr, ir, v)
+  x = ir[v].expr.args[2]
+  sz = nbits(exprtype(ir, x))
   if sz == 64
-    pr[v] = xcall(i64.and, x, y)
+    pr[v] = xcall(i64.eqz, x)
   elseif sz == 32
-    pr[v] = xcall(i32.and, x, y)
+    pr[v] = xcall(i32.eqz, x)
   else
     error("unimplemented")
   end

@@ -143,6 +143,7 @@ extend fn Int32(obj: JSObject) {
 }
 
 fn condition(obj: JSObject) { Int32(obj) }
+fn not(obj: JSObject) { not(Int32(obj)) }
 
 fn abort(s: JSObject) {
   retain!(s)
@@ -190,11 +191,7 @@ fn iterator(x: JSObject) {
 
 fn iterate(&x: JSObject) {
   val = x.next()
-  if val.done {
-    return nil
-  } else {
-    return Some(val.value)
-  }
+  if not(val.done) { Some(val.value) }
 }
 
 fn require(s) {

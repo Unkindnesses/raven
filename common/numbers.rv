@@ -1,10 +1,9 @@
 export {
-  Bits, Int32, Int64, Float32, Float64, Complex, Integer
+  Int32, Int64, Float32, Float64, Complex, Integer
   ==, !=, +, -, *, /, ^, >, <, >=, <=, &, abs2, div, rem, not
   zero, one, round
 }
 
-fn matchTrait(tag"common.core.Bits", x: pack(tag"common.core.Bits", _)) { Some(x) }
 fn matchTrait(tag"common.core.Int32", x: pack(tag"common.core.Int32", _)) { Some(x) }
 fn matchTrait(tag"common.core.Int64", x: pack(tag"common.core.Int64", _)) { Some(x) }
 fn matchTrait(tag"common.core.Float32", x: pack(tag"common.core.Float32", _)) { Some(x) }
@@ -17,6 +16,9 @@ fn matchTrait(tag".Integer", x: (Int32 | Int64)) { Some(x) }
 include "numbers/complex.rv"
 
 extend fn Int64(x: Int64) { x }
+
+fn bits(x: Int64) { bitcast(bits 64, x) }
+fn bits(x: Int32) { bitcast(bits 32, Int64(x)) }
 
 fn zero(x: Int64) { Int64(0) }
 fn zero(x: Int32) { Int32(0) }
@@ -41,7 +43,7 @@ fn show(x: Bits) {
   print("bits\"")
   N = bitsize(x)
   for i in range(1, N) {
-    print(Int64(bitand(bitshr(x, bitcast(x, N-i)), bitcast(x, 1))))
+    print(Int64(bitand(bitshr_u(x, bitcast(x, N-i)), bitcast(x, 1))))
   }
   print("\"")
 }
