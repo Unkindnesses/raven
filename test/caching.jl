@@ -69,11 +69,11 @@ end
 
 @testset "Match methods" begin
   cx = Raven.Compiler(src"");
-  sig = (tag"common.matchTrait", rlist(Int64, tag"common.core.Int64"))
+  sig = (tag"common.matchTrait", rlist(tag"common.core.Int64", Int64))
   @test !Caches.iscached(cx.pipe.inferred.results, sig)
   @test cx.pipe.inferred[sig] isa Pair
   Raven.reload!(cx, src"""
-    extend fn matchTrait(x: pack(tag"Lit", val), tag"Lit") { Some(x) }
+    extend fn matchTrait(tag"Lit", x: pack(tag"Lit", val)) { Some(x) }
     """)
   @test Caches.iscached(cx.pipe.inferred.results, sig)
 end

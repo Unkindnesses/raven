@@ -107,19 +107,9 @@ ishole(x) = false
 
 isslurp(x) = x isa Repeat && ishole(x.pattern)
 
-# Redundant, but this check prevents some `trivial_isa` cases becoming circular.
-function shortcut_literals(pat::Pack, val)
-  any(x -> x isa Repeat, allparts(pat)) && return false
-  nparts(pat) == nparts(val) || return true
-  return any(zip(allparts(pat), allparts(val))) do (a, b)
-    a isa Literal && isvalue(b) && a.value != b
-  end
-end
-
 function partial_match(mod, pat::Pack, val::SimpleType, path)
   bs = Dict()
   i = 0
-  shortcut_literals(pat, val) && return
   while true
     i <= nparts(val) || break
     i <= nparts(pat) || return
@@ -189,7 +179,7 @@ partial_match(mod, pat, val) = partial_match(mod, pat, val, [])
 
 # TODO assumes the value is unchanged by the match
 function trivial_isa(int, val, T::Tag)
-  r = int[(tag"common.matchTrait", rlist(val, T))]
+  r = int[(tag"common.matchTrait", rlist(T, val))]
   isnothing(r) && return missing
   T = tag(part(r, 1))
   T == tag"common.Some" ? true :

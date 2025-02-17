@@ -23,7 +23,7 @@ fn _match(val, pack(tag"common.Literal", pat)) {
 }
 
 fn _match(val, pack(tag"common.Trait", T)) {
-  m = matchTrait(val, T)
+  m = matchTrait(T, val)
   isnil(m) && return
   return [part(notnil(m), 1), simpledict()]
 }
@@ -81,5 +81,5 @@ fn match(val, pat) {
 }
 
 fn isa(val, T) {
-  not(isnil(matchTrait(val, T)))
+  not(isnil(matchTrait(T, val)))
 }

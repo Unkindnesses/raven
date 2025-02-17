@@ -28,7 +28,7 @@ fn _ == _ { false }
 
 fn matchTrait(_, _) {}
 
-fn matchTrait(t: pack(tag"common.core.Tag", _), tag"common.core.Tag") { Some(t) }
+fn matchTrait(tag"common.core.Tag", t: pack(tag"common.core.Tag", _)) { Some(t) }
 
 fn show(x) { showPack(x) }
 

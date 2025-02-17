@@ -4,15 +4,15 @@ export {
   zero, one, round
 }
 
-fn matchTrait(x: pack(tag"common.core.Bits", _), tag"common.core.Bits") { Some(x) }
-fn matchTrait(x: pack(tag"common.core.Int32", _), tag"common.core.Int32") { Some(x) }
-fn matchTrait(x: pack(tag"common.core.Int64", _), tag"common.core.Int64") { Some(x) }
-fn matchTrait(x: pack(tag"common.core.Float32", _), tag"common.core.Float32") { Some(x) }
-fn matchTrait(x: pack(tag"common.core.Float64", _), tag"common.core.Float64") { Some(x) }
+fn matchTrait(tag"common.core.Bits", x: pack(tag"common.core.Bits", _)) { Some(x) }
+fn matchTrait(tag"common.core.Int32", x: pack(tag"common.core.Int32", _)) { Some(x) }
+fn matchTrait(tag"common.core.Int64", x: pack(tag"common.core.Int64", _)) { Some(x) }
+fn matchTrait(tag"common.core.Float32", x: pack(tag"common.core.Float32", _)) { Some(x) }
+fn matchTrait(tag"common.core.Float64", x: pack(tag"common.core.Float64", _)) { Some(x) }
 
 Integer = tag".Integer"
 
-fn matchTrait(x: (Int32 | Int64), tag".Integer") { Some(x) }
+fn matchTrait(tag".Integer", x: (Int32 | Int64)) { Some(x) }
 
 include "numbers/complex.rv"
 
