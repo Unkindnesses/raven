@@ -38,7 +38,7 @@ fn retain!(JSObject(_: Int32)) {}
 
 fn js() {
   ref = wasm { call(support.global): i32 }
-  return JSObject(ref)
+  return JSObject(Int32(ref))
 }
 
 fn (obj: JSObject)[prop] { obj[js(prop)] }
@@ -46,7 +46,7 @@ fn (obj: JSObject)[prop] { obj[js(prop)] }
 fn (obj: JSObject)[prop: JSObject] {
   ref = wasm { call(support.property, jsref(obj): i32, jsref(prop): i32): i32 }
   hold(obj, prop)
-  return JSObject(ref)
+  return JSObject(Int32(ref))
 }
 
 fn field(obj: JSObject, f: Tag) { obj[string(f)] }
@@ -56,7 +56,7 @@ fn call(obj: JSObject, meth, args...) { apply(obj, js(meth), js(args)) }
 fn apply(obj: JSObject, meth: JSObject, args: JSObject) {
   ref = wasm { call(support.apply, jsref(obj): i32, jsref(meth): i32, jsref(args): i32): i32 }
   hold(obj, meth, args)
-  return JSObject(ref)
+  return JSObject(Int32(ref))
 }
 
 fn call(obj: JSObject, meth) { call(obj, js(meth)) }
@@ -64,7 +64,7 @@ fn call(obj: JSObject, meth) { call(obj, js(meth)) }
 fn call(obj: JSObject, meth: JSObject) {
   ref = wasm { call(support.call, jsref(obj): i32, jsref(meth): i32): i32 }
   hold(obj, meth)
-  return JSObject(ref)
+  return JSObject(Int32(ref))
 }
 
 fn call(obj: JSObject, meth, x) { call(obj, js(meth), js(x)) }
@@ -72,7 +72,7 @@ fn call(obj: JSObject, meth, x) { call(obj, js(meth), js(x)) }
 fn call(obj: JSObject, meth: JSObject, x: JSObject) {
   ref = wasm { call(support.call, jsref(obj): i32, jsref(meth): i32, jsref(x): i32): i32 }
   hold(obj, meth, x)
-  return JSObject(ref)
+  return JSObject(Int32(ref))
 }
 
 fn method(obj: JSObject, meth: Tag, args...) {
@@ -84,8 +84,8 @@ fn errcall(obj: JSObject, meth) { errcall(obj, js(meth)) }
 fn errcall(obj: JSObject, meth: JSObject) {
   [err, ref] = wasm { call(support.errcall, jsref(obj): i32, jsref(meth): i32): (i32, i32) }
   hold(obj, meth)
-  result = JSObject(ref)
-  if err {
+  result = JSObject(Int32(ref))
+  if Int32(err) {
     return Err(result)
   } else {
     return Ok(result)
@@ -97,8 +97,8 @@ fn errcall(obj: JSObject, meth, x) { errcall(obj, js(meth), js(x)) }
 fn errcall(obj: JSObject, meth: JSObject, x: JSObject) {
   [err, ref] = wasm { call(support.errcall, jsref(obj): i32, jsref(meth): i32, jsref(x): i32): (i32, i32) }
   hold(obj, meth, x)
-  result = JSObject(ref)
-  if err {
+  result = JSObject(Int32(ref))
+  if Int32(err) {
     return Err(result)
   } else {
     return Ok(result)
@@ -108,13 +108,13 @@ fn errcall(obj: JSObject, meth: JSObject, x: JSObject) {
 fn await(obj: JSObject) {
   ref = wasm { call(support.await, jsref(obj): i32): i32 }
   hold(obj)
-  return JSObject(ref)
+  return JSObject(Int32(ref))
 }
 
 fn (a: JSObject) == (b: JSObject) {
   result = wasm { call(support.equal, jsref(a): i32, jsref(b): i32): i32 }
   hold(a, b)
-  return result
+  return Int32(result)
 }
 
 fn new(T: JSObject, args...) {
@@ -123,7 +123,7 @@ fn new(T: JSObject, args...) {
 
 fn js(x: Float64) {
   ref = wasm { call(support.createRef, x: f64): i32 }
-  return JSObject(ref)
+  return JSObject(Int32(ref))
 }
 
 fn js(x: Float32) { js(Float64(x)) }
@@ -139,7 +139,7 @@ extend fn Float64(obj: JSObject) {
 extend fn Int32(obj: JSObject) {
   x = wasm { call(support.fromRef, jsref(obj): i32): i32 }
   hold(obj)
-  return x
+  return Int32(x)
 }
 
 fn condition(obj: JSObject) { Int32(obj) }

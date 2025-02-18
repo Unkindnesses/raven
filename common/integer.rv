@@ -5,6 +5,12 @@ fn matchTrait(tag"common.core.Bits", x: pack(tag"common.core.Bits", _)) { Some(x
 # TODO lower symbols to literals
 fn tag"common.core.Bits"[N] { Params(Bits, N) }
 
+extend fn Int32(x: Bits) { bitcast(Int32(0), x) }
+extend fn Int64(x: Bits) { bitcast(Int64(0), x) }
+
+fn bits(x: Int32) { bitcast(bits 32, Int64(x)) }
+fn bits(x: Int64) { bitcast(bits 64, Int64(x)) }
+
 # TODO cast
 fn matchTrait(Params(tag"common.core.Bits", N), x: Bits) {
   if bitsize(x) == N { Some(x) }
@@ -29,7 +35,7 @@ fn Int(x: Int64) { Int(bits(x)) }
 
 fn promote(Int(a), Int(b)) {
   T = larger(a, b)
-  return [Int(bitcast_s(T, a)), Int(bitcast_s(T, b))]
+  [Int(bitcast_s(T, a)), Int(bitcast_s(T, b))]
 }
 
 fn intop(f, a: Int, b: Int) {

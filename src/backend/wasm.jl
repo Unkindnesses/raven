@@ -6,22 +6,23 @@ using .WebAssembly: WType, WTuple, i32, i64, f32, f64
 
 const wasmPartials = Dict{WebAssembly.Op,Any}()
 
-wasmPartials[i64.add] = +
-wasmPartials[i64.sub] = -
-wasmPartials[i64.mul] = *
+wasmPartials[i64.add] = (a, b) -> Bits{64}(a + b)
+wasmPartials[i64.sub] = (a, b) -> Bits{64}(a - b)
+wasmPartials[i64.mul] = (a, b) -> Bits{64}(a * b)
 
-wasmPartials[i32.add] = +
-wasmPartials[i32.sub] = -
-wasmPartials[i32.mul] = *
+wasmPartials[i32.add] = (a, b) -> Bits{32}(a + b)
+wasmPartials[i32.sub] = (a, b) -> Bits{32}(a - b)
+wasmPartials[i32.mul] = (a, b) -> Bits{32}(a * b)
 
-wasmPartials[i64.eq] = (a, b) -> Int32(a==b)
-wasmPartials[i64.gt_s] = (a, b) -> Int32(a>b)
-wasmPartials[i64.lt_s] = (a, b) -> Int32(a<b)
-wasmPartials[i64.le_s] = (a, b) -> Int32(a<=b)
-wasmPartials[i32.eqz] = x -> Int32(x==0)
+wasmPartials[i64.eq] = (a, b) -> Bits{32}(a==b)
+wasmPartials[i64.gt_s] = (a, b) -> Bits{32}(a>b)
+wasmPartials[i64.lt_s] = (a, b) -> Bits{32}(a<b)
+wasmPartials[i64.le_s] = (a, b) -> Bits{32}(a<=b)
+wasmPartials[i32.eqz] = x -> Bits{32}(x==0)
+
 wasmPartials[i32.wrap_i64] = Int32
 
-rvtype(x::WType) = WebAssembly.jltype(x)
+rvtype(x::WType) = Dict(i32 => Bits{32}, i64 => Bits{64}, f32 => Float32, f64 => Float64)[x]
 rvtype(x::WTuple) = pack(tag"common.List", map(rvtype, x.parts)...)
 rvtype(::typeof(⊥)) = ⊥
 

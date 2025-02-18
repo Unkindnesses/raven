@@ -63,17 +63,19 @@ partial_shortcutEquals(a, b) =
   !isempty(intersect(symbolValues(a), symbolValues(b))) ? Int32 :
   Int32(false)
 
-partial_bitsize(::Union{Bits{N},Type{Bits{N}}}) where N = N
+partial_bitsize(::ValOrType{Bits{N}}) where N = N
 
-partial_bitcast(::Union{Bits{N},Type{Bits{N}}}, x::Int64) where N = Bits{N}(x)
-partial_bitcast(::Union{Bits{N},Type{Bits{N}}}, x::Bits) where N = Bits{N}(x.value)
-partial_bitcast(::Union{Bits{N},Type{Bits{N}}}, x::Type{<:Union{Bits,Int64}}) where N = Bits{N}
+partial_bitcast(::ValOrType{Bits{N}}, x::Int64) where N = Bits{N}(x)
+partial_bitcast(::ValOrType{Bits{N}}, x::Bits) where N = Bits{N}(x.value)
+partial_bitcast(::ValOrType{Bits{N}}, x::Type{<:Union{Bits,Int64}}) where N = Bits{N}
 
-partial_bitcast(::Union{Int64,Type{Int64}}, x::Bits) = Int64(x.value)
-partial_bitcast(::Union{Int64,Type{Int64}}, x::Type{<:Bits}) = Int64
+partial_bitcast(::ValOrType{Int64}, x::Bits) = reinterpret(Int64, x.value)
+partial_bitcast(::ValOrType{Int64}, x::Type{<:Bits}) = Int64
+partial_bitcast(::ValOrType{Int32}, x::Bits) = reinterpret(Int32, data(x))
+partial_bitcast(::ValOrType{Int32}, x::Type{<:Bits}) = Int32
 
-partial_bitop(::Union{Bits{N},Type{Bits{N}}}, x::Union{Bits{N},Type{Bits{N}}}) where N = Bits{N}
-partial_bitcmp(::Union{Bits{N},Type{Bits{N}}}, x::Union{Bits{N},Type{Bits{N}}}) where N = Bits{32}
+partial_bitop(::ValOrType{Bits{N}}, x::ValOrType{Bits{N}}) where N = Bits{N}
+partial_bitcmp(::ValOrType{Bits{N}}, x::ValOrType{Bits{N}}) where N = Bits{32}
 partial_biteqz(x::Bits) = Bits{32}(x.value == 0)
 partial_biteqz(::Type{<:Bits}) = Bits{32}
 
