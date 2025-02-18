@@ -15,11 +15,15 @@ struct Bits{N}
   value::UInt64
 end
 
-Bits{N}(x::Int64) where N = Bits{N}(reinterpret(UInt64, x))
+Bits{N}(x::Int64) where N = Bits{N}(reinterpret(UInt64, x) & (UInt64(1)<<N-1))
 
 nbits(::Bits{N}) where N = N
 nbits(::Type{Bits{N}}) where N = N
 nbits(::ValOrType{Int64}) = 64
+
+UInt64(x::Bits) = x.value
+
+Int64(x::Bits{N}) where N = reinterpret(Int64, x.value << (64 - N)) >> (64 - N)
 
 WebAssembly.WType(::Type{Bits{64}}) = i64
 WebAssembly.WType(::Type{Bits{32}}) = i32

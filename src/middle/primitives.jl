@@ -1,3 +1,24 @@
+struct Partial
+  val
+  typ
+end
+
+(f::Partial)(xs...) = all(isvalue, xs) ? f.val(xs...) : f.typ(xs...)
+
+for (op, f) in [(:shl, <<), (:shr_u, >>), (:shr_s, >>), (:and, &), (:or, |),
+                (:xor, ^), (:add, +), (:sub, -), (:mul, *),
+                (:div_u, ÷), (:div_s, ÷), (:rem_u, rem), (:rem_s, rem)]
+  T = endswith(string(op), "_s") ? Int64 : UInt64
+  @eval $op(x::Bits{N}, y::Bits{N}) where N = Bits{N}($f($T(x), $T(y)))
+end
+
+for (op, f) in [(:eq, ==), (:neq, !=), (:gt_u, >), (:lt_u, <),
+                (:ge_u, >=), (:le_u, <=), (:gt_s, >), (:lt_s, <),
+                (:ge_s, >=), (:le_s, <=)]
+  T = endswith(string(op), "_s") ? Int64 : UInt64
+  @eval $op(x::Bits{N}, y::Bits{N}) where N = Bits{32}($f($T(x), $T(y)))
+end
+
 # Core primitives – pack, packcat, part and nparts – are dealt with in
 # IR expansion, but we define type inference here, and implement some
 # simple built-in functions.
@@ -53,6 +74,8 @@ partial_bitcast(::Union{Int64,Type{Int64}}, x::Type{<:Bits}) = Int64
 
 partial_bitop(::Union{Bits{N},Type{Bits{N}}}, x::Union{Bits{N},Type{Bits{N}}}) where N = Bits{N}
 partial_bitcmp(::Union{Bits{N},Type{Bits{N}}}, x::Union{Bits{N},Type{Bits{N}}}) where N = Bits{32}
+partial_biteqz(x::Bits) = Bits{32}(x.value == 0)
+partial_biteqz(::Type{<:Bits}) = Bits{32}
 
 # Needed by dispatchers, since a user-defined method would need runtime matching
 # to deal with unions.
@@ -101,17 +124,21 @@ bitcast_s_method = RMethod(tag"common.core.bitcast_s", lowerpattern(rvx"[x, y]")
 
 bitops = [:shl, :shr_u, :shr_s, :and, :or, :xor, :add, :sub, :mul, :div_u, :div_s, :rem_u, :rem_s]
 for op in bitops
-  @eval $(Symbol(:bit, op, :_method)) = RMethod(Tag(:common, :core, $(QuoteNode(Symbol(:bit, op)))), lowerpattern(rvx"[x, y]"), partial_bitop, true)
+  @eval $(Symbol(:bit, op, :_method)) =
+    RMethod(Tag(:common, :core, $(QuoteNode(Symbol(:bit, op)))),
+            lowerpattern(rvx"[x, y]"), Partial($op, partial_bitop), true)
 end
 bitop_methods = @eval [$([Symbol(:bit, op, :_method) for op in bitops]...)]
 
 bitcmps = [:eq, :neq, :gt_u, :ge_u, :lt_u, :le_u, :gt_s, :ge_s, :lt_s, :le_s]
 for op in bitcmps
-  @eval $(Symbol(:bit, op, :_method)) = RMethod(Tag(:common, :core, $(QuoteNode(Symbol(:bit, op)))), lowerpattern(rvx"[x, y]"), partial_bitcmp, true)
+  @eval $(Symbol(:bit, op, :_method)) =
+    RMethod(Tag(:common, :core, $(QuoteNode(Symbol(:bit, op)))),
+            lowerpattern(rvx"[x, y]"), Partial($op, partial_bitcmp), true)
 end
 bitcmp_methods = @eval [$([Symbol(:bit, op, :_method) for op in bitcmps]...)]
 
-biteqz_method = RMethod(tag"common.core.biteqz", lowerpattern(rvx"[x]"), (::ValOrType{Bits}) -> Bits{32}, true)
+biteqz_method = RMethod(tag"common.core.biteqz", lowerpattern(rvx"[x]"), partial_biteqz, true)
 
 isnil_method = RMethod(tag"common.core.isnil", lowerpattern(rvx"[x]"), partial_isnil, true)
 notnil_method = RMethod(tag"common.core.notnil", lowerpattern(rvx"[x]"), partial_notnil, true)
@@ -208,7 +235,9 @@ for op in bitops
   @eval inlinePrimitive[$(Symbol(:bit, op, :_method))] = function (pr, ir, v)
     x, y = ir[v].expr.args[2:end]
     sz = nbits(exprtype(ir, x))
-    if sz == 64
+    if isvalue(ir[v].type)
+      pr[v] = xtuple()
+    elseif sz == 64
       pr[v] = xcall(i64.$op, x, y)
     elseif sz == 32
       pr[v] = xcall(i32.$op, x, y)
@@ -222,7 +251,9 @@ for op in bitcmps
   @eval inlinePrimitive[$(Symbol(:bit, op, :_method))] = function (pr, ir, v)
     x, y = ir[v].expr.args[2:end]
     sz = nbits(exprtype(ir, x))
-    if sz == 64
+    if isvalue(ir[v].type)
+      pr[v] = xtuple()
+    elseif sz == 64
       pr[v] = xcall(i64.$op, x, y)
     elseif sz == 32
       pr[v] = xcall(i32.$op, x, y)
@@ -235,7 +266,9 @@ end
 inlinePrimitive[biteqz_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
   sz = nbits(exprtype(ir, x))
-  if sz == 64
+  if isvalue(ir[v].type)
+    pr[v] = xtuple()
+  elseif sz == 64
     pr[v] = xcall(i64.eqz, x)
   elseif sz == 32
     pr[v] = xcall(i32.eqz, x)
