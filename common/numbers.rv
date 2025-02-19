@@ -1,5 +1,5 @@
 export {
-  Int32, Int64, Float32, Float64, Complex, Integer
+  Int64, Float32, Float64, Complex, Integer
   ==, !=, +, -, *, /, ^, >, <, >=, <=, &, |, abs2, div, rem, not
   zero, one, round
 }
@@ -11,17 +11,14 @@ fn matchTrait(tag"common.core.Float64", x: pack(tag"common.core.Float64", _)) { 
 
 Integer = tag".Integer"
 
-fn matchTrait(tag".Integer", x: (Int32 | Int64)) { Some(x) }
+fn matchTrait(tag".Integer", x: Int64) { Some(x) }
 
 include "numbers/complex.rv"
 
 extend fn Int64(x: Int64) { x }
 
 fn zero(x: Int64) { Int64(0) }
-fn zero(x: Int32) { Int32(0) }
-
 fn one(x: Int64) { Int64(1) }
-fn one(x: Int32) { Int32(1) }
 
 fn a != b {
   not(a == b)
@@ -45,18 +42,12 @@ fn show(x: Bits) {
   print("\"")
 }
 
-fn print(x: (Int64 | Int32 | Float64 | Float32)) {
+fn print(x: (Int64 | Float64 | Float32)) {
   print(string(x))
 }
 
 fn show(x: (Int64 | Float64)) {
   print(x)
-}
-
-fn show(x: Int32) {
-  print("Int32(")
-  print(x)
-  print(")")
 }
 
 fn show(x: Float32) {

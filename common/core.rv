@@ -6,12 +6,11 @@ export { true, false }
 
 # Tags for core types. Objects with these tags are only produced by builtins.
 
-export { Tag, Bits, Int32, Int64, Float32, Float64 }
+export { Tag, Bits, Int64, Float32, Float64 }
 
 Tag     = tag".Tag"
 Bits    = tag".Bits"
-Int32   = tag".Int32"
-Int64   = tag".Int64"
+Int64  = tag".Int64"
 Float32 = tag".Float32"
 Float64 = tag".Float64"
 

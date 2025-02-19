@@ -62,7 +62,7 @@ function count_inline!(ir, T::Pack, x, mode)
     P = partial_part(T, 1)
     ptr = indexer!(ir, T, 1, x, nothing)
     if mode == release
-      cleanup = call!(ir, tag"common.i32load", ptr, type = Int32)
+      cleanup = call!(ir, tag"common.i32load", ptr, type = RInt32())
       call!(ir, tag"common.release!", ptr, cleanup, type = nil)
     else
       call!(ir, tag"common.retain!", ptr, type = nil)
@@ -87,19 +87,19 @@ function count_inline!(ir, T::VPack, x, mode)
     body = block!(ir)
     after = block!(ir)
 
-    unique = call!(test, tag"common.blockUnique", ptr, type = Int32)
+    unique = call!(test, tag"common.blockUnique", ptr, type = RInt32())
     branch!(test, header, len, ptr, when = unique)
     branch!(test, after)
 
-    len = argument!(header, type = Int32, insert = false)
+    len = argument!(header, type = RInt32(), insert = false)
     pos = argument!(header, type = RPtr(), insert = false)
-    done = call!(header, tag"common.==", len, Int32(0), type = Int32)
+    done = call!(header, tag"common.==", len, Int32(0), type = RInt32())
     branch!(header, after, when = done)
     branch!(header, body)
 
     el = load(body, T.parts, pos, count = false)
     release!(body, T.parts, el)
-    len = call!(body, tag"common.-", len, Int32(1), type = Int32)
+    len = call!(body, tag"common.-", len, Int32(1), type = RInt32())
     pos = call!(body, tag"common.+", pos, Int32(sizeof(T.parts)), type = RPtr())
     branch!(body, header, len, pos)
   end

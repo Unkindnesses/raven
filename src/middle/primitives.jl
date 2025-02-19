@@ -71,8 +71,6 @@ partial_bitcast(::ValOrType{Bits{N}}, x::Type{<:Union{Bits,Int64}}) where N = Bi
 
 partial_bitcast(::ValOrType{Int64}, x::Bits) = reinterpret(Int64, x.value)
 partial_bitcast(::ValOrType{Int64}, x::Type{<:Bits}) = Int64
-partial_bitcast(::ValOrType{Int32}, x::Bits) = reinterpret(Int32, data(x))
-partial_bitcast(::ValOrType{Int32}, x::Type{<:Bits}) = Int32
 
 partial_bitop(::ValOrType{Bits{N}}, x::ValOrType{Bits{N}}) where N = Bits{N}
 partial_bitcmp(::ValOrType{Bits{N}}, x::ValOrType{Bits{N}}) where N = Bits{32}
@@ -108,8 +106,8 @@ partial_tagcast(x::Recursive, t::Tag) = partial_tagcast(unroll(x), t)
 partial_tagstring(x::Tag) = string(x)
 partial_tagstring(x::Onion) = RString()
 
-partial_function(f, I, O) = Int32
-partial_invoke(f::Union{Int32,Type{Int32}}, I, O, xs...) = rvtype(O)
+partial_function(f, I, O) = RInt32()
+partial_invoke(f, I, O, xs...) = rvtype(O)
 
 partial_jsalloc() = RBool(options().jsalloc)
 
@@ -186,7 +184,7 @@ inlinePrimitive[widen_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
   T = exprtype(ir, x)
   if T isa String
-    id = insert!(pr, v, stmt(Expr(:ref, T), type = rlist(Int32)))
+    id = insert!(pr, v, stmt(Expr(:ref, T), type = rlist(RInt32())))
     pr[v] = stmt(xcall(tag"common.JSObject", id), type = RString())
   elseif T isa Number
     pr[v] = T

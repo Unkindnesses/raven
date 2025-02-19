@@ -29,9 +29,9 @@ function interpret(int, ir::IR, args...)
         else
           target, cond, args... = args
           if !isnothing(cond)
-            @assert cond isa ValOrType{Int32}
-            cond isa Int32 || return
-            Bool(cond) || continue
+            @assert tag(cond) == tag"common.Bool"
+            isvalue(cond) || return
+            cond == RBool(true) || continue
           end
           bl = target
           foreach(((v, x),) -> env[v] = x, zip(arguments(block(ir, bl)), args))

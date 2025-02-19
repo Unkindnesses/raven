@@ -19,19 +19,17 @@ export {
 pageSize = Int32(64*1024) # 64 KiB
 headerSize = Int32(8)
 
+fn memorySize() { memoryPages() * pageSize }
+
 fn getBlockSize(p: Ptr) { i32load(p) }
 fn setBlockSize!(p: Ptr, sz: Int32) { i32store!(p, sz) }
 
-fn getBlockUsed(p: Ptr) { i32load(p + Int32(4)) }
-fn setBlockUsed!(p: Ptr, u: Int32) { i32store!(p + Int32(4), u) }
+fn getBlockUsed(p: Ptr) { i32load(p + 4) }
+fn setBlockUsed!(p: Ptr, u: Int32) { i32store!(p + 4, u) }
 
 # Initialise first block
 memoryGrow!(Int32(1))
 setBlockSize!(Ptr(0), pageSize)
-
-fn memorySize() {
-  memoryPages() * pageSize
-}
 
 fn npages(bytes: Int32) {
   div(bytes + pageSize - Int32(1), pageSize)
@@ -43,7 +41,7 @@ bundle Block(ptr: Ptr, size: Int32)
 
 fn getBlockSize(Block(_, size)) { size }
 
-fn setBlockSize!(&bl: Block(ptr, _), size) {
+fn setBlockSize!(&bl: Block(ptr, _), size: Int32) {
   setBlockSize!(ptr, size)
   bl = Block(ptr, size)
 }
@@ -105,7 +103,7 @@ fn findFreeBlock(n: Int32) {
   return bl
 }
 
-fn trim(&bl: Block(ptr, size), newsize) {
+fn trim(&bl: Block(ptr, size), newsize: Int32) {
   (size <= (newsize + headerSize)) && return
   setBlockSize!(&bl, newsize)
   newptr = ptr + newsize
@@ -148,7 +146,7 @@ fn retain!(p: Ptr) {
   if n == Int32(0) {
     abort("Memory management fault: retain")
   }
-  setBlockUsed!(p, n+Int32(1))
+  setBlockUsed!(p, n + Int32(1))
   return
 }
 
@@ -164,7 +162,7 @@ fn release!(p: Ptr, f: Int32) {
   setBlockUsed!(p, n-Int32(1))
 }
 
-fn release!(p: Ptr) { release!(p, widen(Int32(-1))) }
+fn release!(p: Ptr) { release!(p, Int32(widen(-1))) }
 
 fn allocationCount() {
   i = 0

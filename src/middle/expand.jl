@@ -31,10 +31,14 @@ function abort!(ir, s)
   push!(ir, stmt(xcall(WImport(:support, :abort), s), type = ⊥))
 end
 
+rtypeof(x::Union{Float64,Int64}) = typeof(x)
+rtypeof(::Int64) = Int64
+rtypeof(::Int32) = RInt32()
+
 # We're a bit fast and loose with types here, because `T` and `[T]` have the
 # same representation (for now).
 function call!(ir, f, args...; type)
-  Ts = [T isa Number ? typeof(T) : T for T in exprtype(ir, args)]
+  Ts = [T isa Number ? rtypeof(T) : T for T in exprtype(ir, args)]
   args = push!(ir, stmt(xtuple(args...), type = rlist(Ts...)))
   push!(ir, stmt(xcall(f, args); type))
 end
@@ -56,15 +60,15 @@ layout(xs::Onion) = (Int32, cat_layout(layout.(xs.types)...)...)
 
 function layout(T::Type{<:Bits})
   if nbits(T) <= 32
-    return UInt32
+    return Int32
   elseif nbits(T) <= 64
-    return UInt64
+    return Int64
   else
     error("Unsupported bit size $(nbits(T))")
   end
 end
 
-data(x::Bits) = layout(typeof(x))(x.value)
+data(x::Bits) = unsigned(layout(typeof(x)))(x.value)
 data(x::Number) = x
 
 function tlayout(x)
@@ -113,7 +117,7 @@ function partir(x, i)
   xlayout = layout(x)
   part(i) = xlayout isa Tuple ? push!(ir, stmt(Expr(:ref, vx, i), type = xlayout[i])) : vx
   for i = 1:nparts(x)
-    cond = call!(ir, tag"common.==", i, vi, type = Int32)
+    cond = call!(ir, tag"common.==", i, vi, type = RBool())
     branch!(ir, length(ir.blocks) + 1, when = cond)
     branch!(ir, length(ir.blocks) + 2)
     block!(ir)
@@ -157,7 +161,7 @@ function partir(s::String, i)
   argument!(ir, type = s)
   argument!(ir, type = i)
   # Punt to the backend to decide how strings get IDd
-  id = push!(ir, stmt(Expr(:ref, s), type = Int32))
+  id = push!(ir, stmt(Expr(:ref, s), type = RInt32()))
   o = call!(ir, tag"common.JSObject", id, type = JSObject())
   return!(ir, o)
   return ir
@@ -171,9 +175,9 @@ function indexer!(ir, T::Union{Primitive,Type{<:Primitive}}, i::Int, x, _)
   elseif i > 1
     abort!(ir, "Invalid index $i for $T")
   elseif T == Float64
-    push!(ir, stmt(xcall(i64.reinterpret_f64, x), type = Int64))
+    push!(ir, stmt(xcall(i64.reinterpret_f64, x), type = Bits{64}))
   elseif T == Float32
-    push!(ir, stmt(xcall(i32.reinterpret_f32, x), type = Int32))
+    push!(ir, stmt(xcall(i32.reinterpret_f32, x), type = Bits{32}))
   else
     push!(ir, x)
   end
@@ -199,13 +203,13 @@ function indexer!(ir, Ts::VPack, I::Union{Int64,Type{Int64}}, x, i)
   if I isa Int
     i = Int32((I-1)*sizeof(T))
   else
-    i = call!(ir, tag"common.core.Int32", i, type = Int32)
-    i = call!(ir, tag"common.-", i, Int32(1), type = Int32)
-    i = call!(ir, tag"common.*", i, Int32(sizeof(T)), type = Int32)
+    i = call!(ir, tag"common.Int32", i, type = RInt32())
+    i = call!(ir, tag"common.-", i, Int32(1), type = RInt32())
+    i = call!(ir, tag"common.*", i, Int32(sizeof(T)), type = RInt32())
   end
   # TODO bounds check
-  p = push!(ir, stmt(Expr(:ref, x, 2), type = Int32))
-  p = call!(ir, tag"common.+", p, i, type = Int32)
+  p = push!(ir, stmt(Expr(:ref, x, 2), type = RInt32()))
+  p = call!(ir, tag"common.+", p, i, type = RInt32())
   return load(ir, T, p, count = false)
 end
 
@@ -247,13 +251,13 @@ outlinePrimitive[packcat_method] = function (Ts::Pack)
   for l in ls
     size = call!(ir, tag"common.+", size, l, type = Int64)
   end
-  size = call!(ir, tag"common.core.Int32", size, type = Int32)
+  size = call!(ir, tag"common.Int32", size, type = RInt32())
   if sizeof(T.parts) == 0
     return!(ir, push!(ir, stmt(Expr(:tuple, size), type = T)))
     return ir
   end
-  bytes = call!(ir, tag"common.*", size, Int32(sizeof(T.parts)), type = Int32)
-  ptr = call!(ir, tag"common.malloc!", bytes, type = Int32)
+  bytes = call!(ir, tag"common.*", size, Int32(sizeof(T.parts)), type = RInt32())
+  ptr = call!(ir, tag"common.malloc!", bytes, type = RInt32())
   pos = ptr
   for i in 1:nparts(Ts)
     P = part(Ts, i)
@@ -262,13 +266,13 @@ outlinePrimitive[packcat_method] = function (Ts::Pack)
         x = indexer!(ir, P, j, ps[i], j)
         x = cast!(ir, part(P, j), T.parts, x)
         store!(ir, T.parts, pos, x)
-        pos = call!(ir, tag"common.+", pos, Int32(sizeof(T.parts)), type = Int32)
+        pos = call!(ir, tag"common.+", pos, Int32(sizeof(T.parts)), type = RInt32())
       end
     elseif P isa VPack
       # TODO memcpy when possible
       @assert sizeof(P.parts) > 0
-      len = push!(ir, stmt(Expr(:ref, ps[i], 1), type = Int32))
-      src = push!(ir, stmt(Expr(:ref, ps[i], 2), type = Int32))
+      len = push!(ir, stmt(Expr(:ref, ps[i], 1), type = RInt32()))
+      src = push!(ir, stmt(Expr(:ref, ps[i], 2), type = RInt32()))
 
       before = blocks(ir)[end]
       header = block!(ir)
@@ -276,19 +280,19 @@ outlinePrimitive[packcat_method] = function (Ts::Pack)
       after = block!(ir)
 
       branch!(before, header, pos, src, len)
-      pos = argument!(header, type = Int32, insert = false)
-      src = argument!(header, type = Int32, insert = false)
-      len = argument!(header, type = Int32, insert = false)
-      done = call!(header, tag"common.==", len, Int32(0), type = Int32)
+      pos = argument!(header, type = RInt32(), insert = false)
+      src = argument!(header, type = RInt32(), insert = false)
+      len = argument!(header, type = RInt32(), insert = false)
+      done = call!(header, tag"common.==", len, Int32(0), type = RInt32())
       branch!(header, after, when = done)
       branch!(header, body)
 
       x = load(body, P.parts, src)
       x = cast!(body, P.parts, T.parts, x)
       store!(body, T.parts, pos, x)
-      pos2 = call!(body, tag"common.+", pos, Int32(sizeof(T.parts)), type = Int32)
-      src2 = call!(body, tag"common.+", src, Int32(sizeof(T.parts)), type = Int32)
-      len2 = call!(body, tag"common.-", len, Int32(1), type = Int32)
+      pos2 = call!(body, tag"common.+", pos, Int32(sizeof(T.parts)), type = RInt32())
+      src2 = call!(body, tag"common.+", src, Int32(sizeof(T.parts)), type = RInt32())
+      len2 = call!(body, tag"common.-", len, Int32(1), type = RInt32())
       branch!(body, header, pos2, src2, len2)
 
       push!(ir, Expr(:release, ps[i]))
@@ -333,7 +337,7 @@ function nparts!(ir, T::Union{Pack,Primitive,Type{<:Primitive}}, x)
 end
 
 function nparts!(ir, T::VPack, x)
-  sz = push!(ir, stmt(Expr(:ref, x, 1), type = Int32))
+  sz = push!(ir, stmt(Expr(:ref, x, 1), type = RInt32()))
   call!(ir, tag"common.core.Int64", sz, type = Int64)
 end
 
@@ -385,22 +389,24 @@ end
 blockargtype(bl, i) = exprtype(bl.ir, arguments(bl)[i])
 
 function store!(ir, T, ptr, x)
+  @assert exprtype(ir, ptr) in (RPtr(), RInt32())
   l = tlayout(T)
   for (i, T) in enumerate(l)
     push!(ir, stmt(xcall(WType(T).store, ptr, Expr(:ref, x, i)), type = nil))
     # TODO could use constant offset here
-    i == length(l) || (ptr = call!(ir, tag"common.+", ptr, Int32(sizeof(T)), type = Int32))
+    i == length(l) || (ptr = call!(ir, tag"common.+", ptr, Int32(sizeof(T)), type = RInt32()))
   end
 end
 
 function load(ir, T, ptr; count = true)
+  @assert exprtype(ir, ptr) in (RPtr(), RInt32())
   l = tlayout(T)
   parts = []
   for (i, T) in enumerate(l)
     part = push!(ir, stmt(xcall(WType(T).load, ptr), type = T))
     push!(parts, part)
     # TODO same as above
-    i == length(l) || (ptr = call!(ir, tag"common.+", ptr, Int32(sizeof(T)), type = Int32))
+    i == length(l) || (ptr = call!(ir, tag"common.+", ptr, Int32(sizeof(T)), type = RInt32()))
   end
   x = push!(ir, stmt(Expr(:tuple, parts...), type = T))
   count && isreftype(T) && push!(ir, Expr(:retain, x))
@@ -408,13 +414,13 @@ function load(ir, T, ptr; count = true)
 end
 
 function box!(ir, T, x)
-  ptr = call!(ir, tag"common.malloc!", Int32(sizeof(T)), type = Int32)
+  ptr = call!(ir, tag"common.malloc!", Int32(sizeof(T)), type = RInt32())
   store!(ir, T, ptr, x)
   return ptr
 end
 
 function unbox!(ir, T, x; count = true)
-  ptr = push!(ir, stmt(Expr(:ref, x, 1), type = Int32))
+  ptr = push!(ir, stmt(Expr(:ref, x, 1), type = RInt32()))
   result = load(ir, T, ptr; count)
   count && push!(ir, Expr(:release, x))
   return result
@@ -441,13 +447,13 @@ function cast!(ir, from, to, x)
     if sizeof(T) == 0
       push!(ir, stmt(xtuple(Int32(n)), type = to))
     else
-      ptr = call!(ir, tag"common.malloc!", Int32(sizeof(T)*n), type = Int32)
+      ptr = call!(ir, tag"common.malloc!", Int32(sizeof(T)*n), type = RInt32())
       pos = ptr
       for i = 1:n
         el = indexer!(ir, from, i, x, nothing)
         el = cast!(ir, part(from, i), T, el)
         store!(ir, T, pos, el)
-        i == n || (pos = call!(ir, tag"common.+", pos, Int32(sizeof(T)), type = Int32))
+        i == n || (pos = call!(ir, tag"common.+", pos, Int32(sizeof(T)), type = RInt32()))
       end
       push!(ir, stmt(Expr(:tuple, Int32(n), ptr), type = to))
     end

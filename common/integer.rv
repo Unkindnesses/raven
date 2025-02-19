@@ -1,9 +1,7 @@
-export { Bits, Bool, Int, UInt, bits }
+export { Bits, Bool, Int, Int32, UInt, bits }
 
-extend fn Int32(x: Bits) { bitcast(Int32(0), x) }
 extend fn Int64(x: Bits) { bitcast(Int64(0), x) }
 
-fn bits(x: Int32) { bitcast(bits 32, Int64(x)) }
 fn bits(x: Int64) { bitcast(bits 64, Int64(x)) }
 
 fn matchTrait(tag"common.core.Bits", x: pack(tag"common.core.Bits", _)) { Some(x) }
@@ -24,13 +22,9 @@ bundle Bool(x: Bits[32])
 
 fn Bool(x: Bits) { pack(Bool, bitcast(bits 32, x)) }
 
-fn Bool(x: Int32) { Bool(bits(x)) }
-
 fn Bool(x: Bool) { x }
 
 fn bits(Bool(x)) { x }
-
-extend fn Int32(Bool(x)) { bitcast(Int32(0), x) }
 
 fn Bool(a) & Bool(b) { Bool(bitand(a, b)) }
 fn Bool(a) | Bool(b) { Bool(bitor(a, b)) }
@@ -49,6 +43,8 @@ fn matchTrait(Params(tag"common.Int", N), Int(b)) {
 fn bits(Int(x)) { x }
 
 fn Int(x: Int64) { Int(bits(x)) }
+
+extend fn Int64(x: Int(b)) { bitcast_s(Int64(0), b) }
 
 fn promote(Int(a), Int(b)) {
   T = larger(a, b)
@@ -75,6 +71,10 @@ fn (a: Int) >= (b: Int) { Bool(intop(bitge_s, a, b)) }
 fn (a: Int) <  (b: Int) { Bool(intop(bitlt_s, a, b)) }
 fn (a: Int) <= (b: Int) { Bool(intop(bitle_s, a, b)) }
 
+fn iszero(x: Int) { Bool(biteqz(bits(x))) }
+
+fn Bool(x: Int) { not(iszero(x)) }
+
 extend fn Float64(Int(x)) {
   x = bitcast_s(bits 64, x)
   wasm { f64.convert_i64_s(x: i64): f64 }
@@ -85,3 +85,19 @@ fn js(x: Int) { js(Float64(x)) }
 fn print(x: Int) { print(js(x)) }
 
 fn show(x: Int[64]) { print(x) }
+
+# Int32
+
+fn matchTrait(tag".Int32", x: Int[32]) { Some(x) }
+
+fn Int32(x: Bits[32]) { Int(x) }
+fn Int32(x: Int32) { x }
+fn Int32(x: Bool) { Int(bits(x)) }
+
+fn Int32(x: Int64) { Int(bitcast_s(bits 32, x)) }
+
+fn show(x: Int32) {
+  print("Int32(")
+  print(x)
+  print(")")
+}

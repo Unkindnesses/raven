@@ -6,7 +6,7 @@
 
 import {
   true, false
-  Tag, Bits, Int32, Int64, Float32, Float64
+  Tag, Bits, Int64, Float32, Float64
   pack, part, nparts, packcat, widen, shortcutEquals
   bitsize, bitcast, bitcast_s
   bitshl, bitshr_u, bitshr_s, bitand, bitor, bitxor, bitadd, bitsub, bitmul, bitdiv_u, bitdiv_s, bitrem_u, bitrem_s
@@ -23,6 +23,7 @@ export {
 }
 
 Bool = tag".Bool"
+Int32 = tag".Int32"
 
 fn tag(x) { part(x, 0) }
 

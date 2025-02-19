@@ -32,6 +32,7 @@ function inline(ir::IR, inlined)
     inlineable(inlined, T) || continue
     delete!(pr, v)
     v′ = IRTools.inlinehere!(pr, inlined[T], st.expr.args[2:end]...)
+    @assert v′ != nothing || st.type == ⊥
     replace!(pr, v, v′)
   end
   return IRTools.finish(pr)

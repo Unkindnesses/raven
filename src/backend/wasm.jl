@@ -10,18 +10,10 @@ wasmPartials[i64.add] = (a, b) -> Bits{64}(a + b)
 wasmPartials[i64.sub] = (a, b) -> Bits{64}(a - b)
 wasmPartials[i64.mul] = (a, b) -> Bits{64}(a * b)
 
-wasmPartials[i32.add] = (a, b) -> Bits{32}(a + b)
-wasmPartials[i32.sub] = (a, b) -> Bits{32}(a - b)
-wasmPartials[i32.mul] = (a, b) -> Bits{32}(a * b)
-
 wasmPartials[i64.eq] = (a, b) -> Bits{32}(a==b)
 wasmPartials[i64.gt_s] = (a, b) -> Bits{32}(a>b)
 wasmPartials[i64.lt_s] = (a, b) -> Bits{32}(a<b)
 wasmPartials[i64.le_s] = (a, b) -> Bits{32}(a<=b)
-wasmPartials[i32.eqz] = x -> Bits{32}(x==0)
-
-wasmPartials[i32.wrap_i64] = Int32
-wasmPartials[i64.extend_i32_s] = Int64
 
 rvtype(x::WType) = Dict(i32 => Bits{32}, i64 => Bits{64}, f32 => Float32, f64 => Float64)[x]
 rvtype(x::WTuple) = pack(tag"common.List", map(rvtype, x.parts)...)

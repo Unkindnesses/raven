@@ -4,7 +4,7 @@ bundle Ptr(x: Int32)
 
 fn Ptr(x: Int64) { Ptr(Int32(x)) }
 
-fn addr(Ptr(x)) { x }
+fn addr(Ptr(x)) { Int32(x) }
 
 fn show(x: Ptr) {
   print("Ptr@")
@@ -28,23 +28,23 @@ fn memoryPages() {
 }
 
 fn memoryGrow!(n: Int32) {
-  Int32(wasm { memory.grow(n: i32): i32 })
+  Int32(wasm { memory.grow(bits(n): i32): i32 })
 }
 
 fn i32load(p: Ptr) {
   a = addr(p)
-  Int32(wasm { i32.load(a: i32): i32 })
+  Int32(wasm { i32.load(bits(a): i32): i32 })
 }
 
 fn i32store!(p: Ptr, x: Int32) {
   a = addr(p)
-  wasm { i32.store(a: i32, x: i32) }
+  wasm { i32.store(bits(a): i32, bits(x): i32) }
 }
 
 # Function pointer
 
-TPtr = Pack(Literal(tag".Ptr"), Int32)
-TNil = Pack(Literal(tag".Nil"))
+TPtr = Pack(Literal(Ptr), Pack(Literal(Int), bits 32))
+TNil = Pack(Literal(Nil))
 
 fn Function(f, I, O) {
   ptr = function(f, I, O)
@@ -76,7 +76,7 @@ fn retain!(Ref(ptr)) { retain!(ptr) }
 
 fn cleanup!(r: Ref(ptr), func) {
   f = function(func, [TPtr], TNil)
-  i32store!(ptr, f)
+  i32store!(ptr, Int32(f))
   hold(r) # retain r until cleanup is set
   return
 }

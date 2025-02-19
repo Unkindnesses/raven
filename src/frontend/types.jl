@@ -41,12 +41,18 @@ const Primitive = Union{PrimitiveNumber,Tag,String}
 RBool() = pack(tag"common.Bool", Bits{32})
 RBool(x::Bool) = pack(tag"common.Bool", Bits{32}(x))
 
-RPtr() = pack(tag"common.Ptr", Int32)
+RInt32() = pack(tag"common.Int", Bits{32})
+RInt32(x) = pack(tag"common.Int", Bits{32}(x))
+
+RInt64() = pack(tag"common.Int", Bits{64})
+RInt64(x) = pack(tag"common.Int", Bits{64}(x))
+
+RPtr() = pack(tag"common.Ptr", RInt32())
 
 JSObject() =
   options().jsalloc ?
     pack(tag"common.JSObject", pack(tag"common.Ref", RPtr())) :
-    pack(tag"common.JSObject", Int32)
+    pack(tag"common.JSObject", RInt32())
 
 RString() = pack(tag"common.String", JSObject())
 
@@ -583,6 +589,8 @@ symbolValues(x::Onion) = reduce(vcat, map(symbolValues, x.types))
 # Raven value -> compiler type
 
 rvtype(x::Tag) = fromSymbol[x]
+
+rvtype(x::ValOrType{<:Bits{N}}) where N = Bits{N}
 
 function rvtype(x::Pack)
   if tag(x) == tag"common.List"

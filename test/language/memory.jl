@@ -68,7 +68,7 @@ test_rv"""
   ptr1 = malloc!(Int32(8))
   ptr2 = malloc!(Int32(8))
 
-  test (ptr1 == Ptr(8)) & (ptr2 == Ptr(24))
+  test (ptr1 == Ptr(8)) && (ptr2 == Ptr(24))
 
   free!(ptr1)
   free!(ptr2)
