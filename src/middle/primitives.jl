@@ -81,9 +81,9 @@ partial_biteqz(::Type{<:Bits}) = Bits{32}
 
 # Needed by dispatchers, since a user-defined method would need runtime matching
 # to deal with unions.
-partial_isnil(x::Union{Primitive,Type{<:Primitive},VPack}) = Int32(false)
-partial_isnil(x::Pack) = Int32(x == nil)
-partial_isnil(x::Onion) = any(==(nil), x.types) ? Int32 : Int32(false)
+partial_isnil(x::Union{Primitive,Type{<:Primitive},VPack}) = RBool(false)
+partial_isnil(x::Pack) = RBool(x == nil)
+partial_isnil(x::Onion) = any(==(nil), x.types) ? RBool() : RBool(false)
 
 partial_notnil(x::Pack) = tag(x) == tag"common.Nil" ? ⊥ : x
 partial_notnil(x::Union{Primitive,Type{<:Primitive}}) = x

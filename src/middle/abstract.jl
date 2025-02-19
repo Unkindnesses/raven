@@ -258,8 +258,9 @@ function update!(inf::Inference, sig)
         elseif isunreachable(br)
           break
         else
-          cond = exprtype(bl.ir, something(br.args[2], Int32(1)))
-          cond == false && continue
+          cond = exprtype(bl.ir, something(br.args[2], RBool(true)))
+          @assert tag(cond) == tag"common.Bool"
+          cond == RBool(false) && continue
           p, rr = nextpath(fr.ir, path, br.args[1])
           rr = rr || pin!(fr.ir, path, length(p))
           @assert !rr || p < path "unimplemented"
@@ -269,7 +270,7 @@ function update!(inf::Inference, sig)
             path = p
             @goto loop
           end
-          cond == true && break
+          cond == RBool(true) && break
         end
       else
         error("Unknown expr type $(st.expr.head)")

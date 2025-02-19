@@ -13,9 +13,10 @@ function trim_unreachable(ir)
           flag = true
         else
           cond = exprtype(ir, br.args[2])
-          if cond == false
+          @assert tag(cond) == tag"common.Bool"
+          if cond == RBool(false)
             delete!(pr, v)
-          elseif cond == true
+          elseif cond == RBool(true)
             flag = true
             pr[v] = IRTools.branch(br.args[1], arguments(br)...)
           end
