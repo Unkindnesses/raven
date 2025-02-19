@@ -313,7 +313,7 @@ _push!(ir::IR, x::Expr; src = nothing, bp = false, type = ⊥) = _push!(ir, stmt
 _lower!(sc, ir, x) = lower!(sc, ir, x)
 _lower!(sc, ir, x::Vector) = foreach(x -> _lower!(sc, ir, x), x)
 
-lower!(sc, ir::IR, x::Union{Number,String,Pack,Tag}) = x
+lower!(sc, ir::IR, x::Union{Number,String,Pack,Tag,Variable}) = x
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? Binding(tag"common", :nil) :
   (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
@@ -350,9 +350,10 @@ function lower!(sc, ir::IR, ex::AST.Operator, value = true)
     pat = ex[2]
     val = lower!(sc, ir, ex[3])
     lowermatch!(sc, ir, val, pat)
-  elseif ex[1] in (:(&&), :(||))
-    clauses = ex[1] == :(&&) ? [ex[3], Int32(false)] : [Int32(true), ex[3]]
-    lowerif!(sc, ir, If([ex[2], true], clauses), value)
+  elseif ex[1] in (:&&, :||)
+    cond = lower!(sc, ir, ex[2])
+    clauses = ex[1] == :&& ? [ex[3], cond] : [cond, ex[3]]
+    lowerif!(sc, ir, If([cond, true], clauses), value)
   else
     r = _push!(ir, xcall(lower!(sc, ir, ex[1]), xlist(map(x -> lower!(sc, ir, x), ex[2:end])...)), src = AST.meta(ex), bp = true)
     _push!(ir, xpart(r, 1), src = AST.meta(ex))
