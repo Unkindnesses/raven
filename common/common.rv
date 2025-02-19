@@ -11,7 +11,7 @@ import {
     bitsize, bitcast, bitcast_s
     bitshl, bitshr_u, bitshr_s, bitand, bitor, bitxor, bitadd, bitsub, bitmul, bitdiv_u, bitdiv_s, bitrem_u, bitrem_s
     biteq, biteqz, bitneq, bitgt_u, bitge_u, bitlt_u, bitle_u, bitgt_s, bitge_s, bitlt_s, bitle_s
-    isnil, notnil, tagcast, tagstring, function, invoke, jsalloc
+    notnil, tagcast, tagstring, function, invoke, jsalloc
 } from "core.rv"
 
 export {
@@ -21,6 +21,8 @@ export {
     Ok, Err, unwrap
     tag, identity, ==
 }
+
+Bool = tag".Bool"
 
 fn tag(x) { part(x, 0) }
 
@@ -37,13 +39,15 @@ fn show(x) { showPack(x) }
 fn (x |> f) { f(x) }
 
 fn condition(x) { abort("Non-boolean used as a condition") }
-fn condition(x: Int32) { x }
+fn condition(x: Bool) { Int32(x) }
 
 bundle Optional { Some(x), Nil() }
 
 fn show(_: Nil) { print("nil") }
 
 nil = Nil()
+
+fn isnil(x) { Bool(tag"common.core.isnil"(x)) }
 
 bundle Result { Ok(x), Err(e) }
 

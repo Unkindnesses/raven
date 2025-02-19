@@ -37,11 +37,11 @@ fn sub(a: Int64, b: Int64) {
 }
 
 fn eq(a: Int64, b: Int64) {
-  Int32(wasm { i64.eq(a: i64, b: ii64): i32 })
+  Bool(wasm { i64.eq(a: i64, b: ii64): i32 })
 }
 
 fn lt(a: Int64, b: Int64) {
-  Int32(wasm { i64.lt_s(a: i64, b: i64): i32 })
+  Bool(wasm { i64.lt_s(a: i64, b: i64): i32 })
 }
 
 # Overloadable operators
@@ -79,15 +79,15 @@ fn rem(a: Int64, b: Int64) {
 }
 
 fn (a: Int64) > (b: Int64) {
-  Int32(wasm { i64.gt_s(a: i64, b: i64): i32 })
+  Bool(wasm { i64.gt_s(a: i64, b: i64): i32 })
 }
 
 fn (a: Int32) > (b: Int32) {
-  Int32(wasm { i32.gt_s(a: i32, b: i32): i32 })
+  Bool(wasm { i32.gt_s(a: i32, b: i32): i32 })
 }
 
 fn (a: Int32) >= (b: Int32) {
-  Int32(wasm { i32.ge_s(a: i32, b: i32): i32 })
+  Bool(wasm { i32.ge_s(a: i32, b: i32): i32 })
 }
 
 fn (a: Int64) < (b: Int64) {
@@ -95,23 +95,23 @@ fn (a: Int64) < (b: Int64) {
 }
 
 fn (a: Int64) <= (b: Int64) {
-  Int32(wasm { i64.le_s(a: i64, b: i64): i32 })
+  Bool(wasm { i64.le_s(a: i64, b: i64): i32 })
 }
 
 fn (a: Int32) < (b: Int32) {
-  Int32(wasm { i32.lt_s(a: i32, b: i32): i32 })
+  Bool(wasm { i32.lt_s(a: i32, b: i32): i32 })
 }
 
 fn (a: Int32) <= (b: Int32) {
-  Int32(wasm { i32.lt_s(a: i32, b: i32): i32 })
+  Bool(wasm { i32.lt_s(a: i32, b: i32): i32 })
 }
 
 fn (a: Int64) == (b: Int64) {
-  Int32(wasm { i64.eq(a: i64, b: i64): i32 })
+  Bool(wasm { i64.eq(a: i64, b: i64): i32 })
 }
 
 fn (a: Int32) == (b: Int32) {
-  Int32(wasm { i32.eq(a: i32, b: i32): i32 })
+  Bool(wasm { i32.eq(a: i32, b: i32): i32 })
 }
 
 fn not(x: Int32) {
@@ -137,15 +137,15 @@ fn (a: Float64) / (b: Float64) {
 }
 
 fn (a: Float64) == (b: Float64) {
-  Int32(wasm { f64.eq(a: f64, b: f64): i32 })
+  Bool(wasm { f64.eq(a: f64, b: f64): i32 })
 }
 
 fn (a: Float64) > (b: Float64) {
-  Int32(wasm { f64.gt(a: f64, b: f64): i32 })
+  Bool(wasm { f64.gt(a: f64, b: f64): i32 })
 }
 
 fn (a: Float32) == (b: Float32) {
-  Int32(wasm { f32.eq(a: f32, b: f32): i32 })
+  Bool(wasm { f32.eq(a: f32, b: f32): i32 })
 }
 
 fn i64trunc(x: Float64) {

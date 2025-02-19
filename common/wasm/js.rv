@@ -85,7 +85,7 @@ fn errcall(obj: JSObject, meth: JSObject) {
   [err, ref] = wasm { call(support.errcall, jsref(obj): i32, jsref(meth): i32): (i32, i32) }
   hold(obj, meth)
   result = JSObject(Int32(ref))
-  if Int32(err) {
+  if Bool(err) {
     return Err(result)
   } else {
     return Ok(result)
@@ -98,7 +98,7 @@ fn errcall(obj: JSObject, meth: JSObject, x: JSObject) {
   [err, ref] = wasm { call(support.errcall, jsref(obj): i32, jsref(meth): i32, jsref(x): i32): (i32, i32) }
   hold(obj, meth, x)
   result = JSObject(Int32(ref))
-  if Int32(err) {
+  if Bool(err) {
     return Err(result)
   } else {
     return Ok(result)
@@ -114,7 +114,7 @@ fn await(obj: JSObject) {
 fn (a: JSObject) == (b: JSObject) {
   result = wasm { call(support.equal, jsref(a): i32, jsref(b): i32): i32 }
   hold(a, b)
-  return Int32(result)
+  return Bool(result)
 }
 
 fn new(T: JSObject, args...) {
@@ -142,8 +142,10 @@ extend fn Int32(obj: JSObject) {
   return Int32(x)
 }
 
-fn condition(obj: JSObject) { Int32(obj) }
-fn not(obj: JSObject) { not(Int32(obj)) }
+fn Bool(obj: JSObject) { Bool(Int32(obj)) }
+
+fn condition(obj: JSObject) { condition(Bool(obj)) }
+fn not(obj: JSObject) { not(Bool(obj)) }
 
 fn abort(s: JSObject) {
   retain!(s)

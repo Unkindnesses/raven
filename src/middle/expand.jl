@@ -425,8 +425,8 @@ cast_method = RMethod(tag"common.core.cast", lowerpattern(rvx"args"), nothing, f
 
 function cast!(ir, from, to, x)
   (to == ⊥ || from == ⊥ || from == to) && return x
-  if from isa Number && to == typeof(from)
-    from
+  if from isa Union{Number,Bits} && to == typeof(from)
+    data(from)
   elseif from isa Onion
     error("casting union not implemented")
   elseif from isa Pack && to isa Pack

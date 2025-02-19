@@ -38,6 +38,9 @@ WebAssembly.WType(::Type{Bits{32}}) = i32
 const PrimitiveNumber = Union{Bits,Int64,Int32,Float64,Float32}
 const Primitive = Union{PrimitiveNumber,Tag,String}
 
+RBool() = pack(tag"common.Bool", Bits{32})
+RBool(x::Bool) = pack(tag"common.Bool", Bits{32}(x))
+
 RPtr() = pack(tag"common.Ptr", Int32)
 
 JSObject() =

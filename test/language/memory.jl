@@ -43,7 +43,7 @@ test_rv"""
 
 test_rv"""
   {
-    setBlockUsed!(Ptr(16), true)
+    setBlockUsed!(Ptr(16), Int32(true))
     ptr = malloc!(Int32(8))
     release!(ptr)
     test allocationCount() == 0

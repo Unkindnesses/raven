@@ -5,9 +5,6 @@ fn imag(Complex(re, im)) { im }
 
 fn one(Complex(re, im)) { Complex(one(re), one(im)) }
 
-# TODO generic `==`
-fn Complex(re, im) == Complex(re, im) { true }
-
 fn abs2(Complex(re, im)) {
   (re*re) + (im*im)
 }

@@ -192,9 +192,9 @@ function refcounts(ir)
 end
 
 function aliases(ir)
-  aliases = Dict{Variable,Vector{Union{Primitive,Tuple{Variable,Int}}}}()
+  aliases = Dict{Variable,Vector{Union{Primitive,Integer,Tuple{Variable,Int}}}}()
   alias(v::Variable) = get!(() -> [(v, i) for i = 1:nregisters(layout(exprtype(ir, v)))], aliases, v)
-  alias(x::Primitive) = [x]
+  alias(x::Union{Primitive,Integer}) = [x]
   for (v, st) in ir
     if isexpr(st, :tuple)
       aliases[v] = vcat(alias.(st.expr.args)...)

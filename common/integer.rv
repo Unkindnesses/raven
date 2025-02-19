@@ -1,15 +1,15 @@
-export { Bits, Int, UInt, bits }
-
-fn matchTrait(tag"common.core.Bits", x: pack(tag"common.core.Bits", _)) { Some(x) }
-
-# TODO lower symbols to literals
-fn tag"common.core.Bits"[N] { Params(Bits, N) }
+export { Bits, Bool, Int, UInt, bits }
 
 extend fn Int32(x: Bits) { bitcast(Int32(0), x) }
 extend fn Int64(x: Bits) { bitcast(Int64(0), x) }
 
 fn bits(x: Int32) { bitcast(bits 32, Int64(x)) }
 fn bits(x: Int64) { bitcast(bits 64, Int64(x)) }
+
+fn matchTrait(tag"common.core.Bits", x: pack(tag"common.core.Bits", _)) { Some(x) }
+
+# TODO lower symbols to literals
+fn tag"common.core.Bits"[N] { Params(Bits, N) }
 
 # TODO cast
 fn matchTrait(Params(tag"common.core.Bits", N), x: Bits) {
@@ -19,6 +19,23 @@ fn matchTrait(Params(tag"common.core.Bits", N), x: Bits) {
 fn larger(a: Bits, b: Bits) {
   if bitsize(b) > bitsize(a) { b } else { a }
 }
+
+bundle Bool(x: Bits[32])
+
+fn Bool(x: Bits) { pack(Bool, bitcast(bits 32, x)) }
+
+fn Bool(x: Int32) { Bool(bits(x)) }
+
+fn Bool(x: Bool) { x }
+
+fn bits(Bool(x)) { x }
+
+extend fn Int32(Bool(x)) { bitcast(Int32(0), x) }
+
+fn Bool(a) & Bool(b) { Bool(bitand(a, b)) }
+fn Bool(a) | Bool(b) { Bool(bitor(a, b)) }
+
+fn not(Bool(x)) { Bool(biteqz(x)) }
 
 # TODO `bundle Int[N](x: Bits[N])`
 bundle Int(x: Bits)
@@ -40,25 +57,23 @@ fn promote(Int(a), Int(b)) {
 
 fn intop(f, a: Int, b: Int) {
   [a, b] = promote(a, b)
-  Int(f(bits(a), bits(b)))
+  f(bits(a), bits(b))
 }
 
-fn (a: Int) + (b: Int) { intop(bitadd, a, b) }
-fn (a: Int) - (b: Int) { intop(bitsub, a, b) }
-fn (a: Int) * (b: Int) { intop(bitmul, a, b) }
+fn (a: Int) + (b: Int) { Int(intop(bitadd, a, b)) }
+fn (a: Int) - (b: Int) { Int(intop(bitsub, a, b)) }
+fn (a: Int) * (b: Int) { Int(intop(bitmul, a, b)) }
 
-fn div(a: Int, b: Int) { intop(bitdiv_s, a, b) }
-fn rem(a: Int, b: Int) { intop(bitrem_s, a, b) }
+fn div(a: Int, b: Int) { Int(intop(bitdiv_s, a, b)) }
+fn rem(a: Int, b: Int) { Int(intop(bitrem_s, a, b)) }
 
-fn (a: Int) == (b: Int) { intop(biteq, a, b) }
-fn (a: Int) != (b: Int) { intop(bitneq, a, b) }
+fn (a: Int) == (b: Int) { Bool(intop(biteq, a, b)) }
+fn (a: Int) != (b: Int) { Bool(intop(bitneq, a, b)) }
 
-fn (a: Int) >  (b: Int) { intop(bitgt_s, a, b) }
-fn (a: Int) >= (b: Int) { intop(bitge_s, a, b) }
-fn (a: Int) <  (b: Int) { intop(bitlt_s, a, b) }
-fn (a: Int) <= (b: Int) { intop(bitle_s, a, b) }
-
-fn not(x: Int[32]) { Int(biteqz(bits(x))) }
+fn (a: Int) >  (b: Int) { Bool(intop(bitgt_s, a, b)) }
+fn (a: Int) >= (b: Int) { Bool(intop(bitge_s, a, b)) }
+fn (a: Int) <  (b: Int) { Bool(intop(bitlt_s, a, b)) }
+fn (a: Int) <= (b: Int) { Bool(intop(bitle_s, a, b)) }
 
 extend fn Float64(Int(x)) {
   x = bitcast_s(bits 64, x)

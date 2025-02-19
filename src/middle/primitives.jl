@@ -59,9 +59,9 @@ partial_widen(x) = x
 # Fast, approximate equality check; basically a stand-in for pointer equality.
 # TODO extend to handle VPack
 partial_shortcutEquals(a, b) =
-  isvalue(a) && isvalue(b) ? Int32(a == b) :
-  !isempty(intersect(symbolValues(a), symbolValues(b))) ? Int32 :
-  Int32(false)
+  isvalue(a) && isvalue(b) ? RBool(a == b) :
+  !isempty(intersect(symbolValues(a), symbolValues(b))) ? RBool() :
+  RBool(false)
 
 partial_bitsize(::ValOrType{Bits{N}}) where N = N
 
@@ -81,9 +81,9 @@ partial_biteqz(::Type{<:Bits}) = Bits{32}
 
 # Needed by dispatchers, since a user-defined method would need runtime matching
 # to deal with unions.
-partial_isnil(x::Union{Primitive,Type{<:Primitive},VPack}) = Int32(0)
+partial_isnil(x::Union{Primitive,Type{<:Primitive},VPack}) = Int32(false)
 partial_isnil(x::Pack) = Int32(x == nil)
-partial_isnil(x::Onion) = any(==(nil), x.types) ? Int32 : Int32(0)
+partial_isnil(x::Onion) = any(==(nil), x.types) ? Int32 : Int32(false)
 
 partial_notnil(x::Pack) = tag(x) == tag"common.Nil" ? ⊥ : x
 partial_notnil(x::Union{Primitive,Type{<:Primitive}}) = x
@@ -111,7 +111,7 @@ partial_tagstring(x::Onion) = RString()
 partial_function(f, I, O) = Int32
 partial_invoke(f::Union{Int32,Type{Int32}}, I, O, xs...) = rvtype(O)
 
-partial_jsalloc() = Int32(options().jsalloc)
+partial_jsalloc() = RBool(options().jsalloc)
 
 pack_method = RMethod(tag"common.core.pack", lowerpattern(rvx"args"), args -> pack(parts(args)...), true)
 part_method = RMethod(tag"common.core.part", lowerpattern(rvx"[data, i]"), partial_part, true)
@@ -299,8 +299,8 @@ end
 inlinePrimitive[isnil_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
   T = exprtype(ir, x)
-  if ir[v].type isa Int32
-    pr[v] = ir[v].type
+  if isvalue(ir[v].type)
+    pr[v] = xtuple()
   else
     i = findfirst(==(nil), T.types)
     j = insert!(pr, v, Expr(:ref, x, 1))
@@ -394,8 +394,8 @@ end
 
 function core()
   mod = RModule(tag"common.core")
-  mod[Symbol("false")] = Int32(0)
-  mod[Symbol("true")] = Int32(1)
+  mod[Symbol("false")] = RBool(false)
+  mod[Symbol("true")] = RBool(true)
   foreach(meth -> method!(mod, meth), primitives())
   return mod
 end
