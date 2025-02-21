@@ -1,4 +1,4 @@
-export { Bits, Bool, Int, Int64, Int32, bits, oftype }
+export { Bits, Bool, Int, Int64, Int32, bits, oftype, typemin, typemax }
 
 fn matchTrait(tag"common.core.Bits", x: pack(tag"common.core.Bits", _)) { Some(x) }
 
@@ -80,6 +80,15 @@ fn iszero(x: Int) { Bool(biteqz(bits(x))) }
 
 fn zero(x: Int) { oftype(x, 0) }
 fn one(x: Int) { oftype(x, 1) }
+
+fn typemin(n: Int) {
+  bs = bits(one(n))
+  Int(bitshl(bs, bitcast(bs, bits(bitsize(bs)-1))))
+}
+
+fn typemax(n: Int) {
+  typemin(n)-one(n)
+}
 
 fn Bool(x: Int) { not(iszero(x)) }
 

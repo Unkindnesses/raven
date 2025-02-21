@@ -651,3 +651,8 @@ let
   cmd = `node --experimental-wasm-stack-switching $(joinpath(@__DIR__, "brainfuck.js")) $(joinpath(@__DIR__, "test.bf"))`
   @test String(read(cmd)) == "H\n"
 end
+
+test_rv"""
+  test typemin(Int32(5)) == -2147483648
+  test typemax(Int32(5)) ==  2147483647
+  """
