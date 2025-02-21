@@ -31,9 +31,9 @@ function abort!(ir, s)
   push!(ir, stmt(xcall(WImport(:support, :abort), s), type = ⊥))
 end
 
-rtypeof(x::Union{Float64,Int64}) = typeof(x)
-rtypeof(::Int64) = Int64
+rtypeof(x::Union{Float64,Float32}) = typeof(x)
 rtypeof(::Int32) = RInt32()
+rtypeof(::Int64) = RInt64()
 
 # We're a bit fast and loose with types here, because `T` and `[T]` have the
 # same representation (for now).
@@ -109,7 +109,7 @@ end
 # Create a `part` method to dynamically index tuples allocated as registers.
 # TODO: should make sure this comes out as a switch / branch table.
 function partir(x, i)
-  i <: Int64 || error("Only Int64 indexes are supported.")
+  @assert tag(i) == tag"common.Int"
   T = partial_part(x, i)
   ir = IR(meta = FuncInfo(tag"common.core.part"))
   vx = argument!(ir, type = x)
@@ -129,8 +129,13 @@ function partir(x, i)
       part(range[1])
     y = push!(ir, stmt(ex, type = T′))
     if T′ != T
-      T′ isa Number && T == typeof(T′) || error("unsupported cast")
-      y = push!(ir, stmt(T′, type = T))
+      if T′ isa Number && T == typeof(T′)
+        y = push!(ir, stmt(T′, type = T))
+      elseif T in (RInt32(), RInt64())
+        y = push!(ir, stmt(data(Raven.part(T′,1)), type = T))
+      else
+        error("unsupported cast")
+      end
     end
     return!(ir, y)
     block!(ir)
@@ -156,7 +161,7 @@ function partir(x::Onion, i)
 end
 
 function partir(s::String, i)
-  @assert i == 1
+  @assert i in (1, RInt64(1))
   ir = IR(meta = FuncInfo(tag"common.core.part"))
   argument!(ir, type = s)
   argument!(ir, type = i)
@@ -213,12 +218,18 @@ function indexer!(ir, Ts::VPack, I::Union{Int64,Type{Int64}}, x, i)
   return load(ir, T, p, count = false)
 end
 
+function indexer!(ir, T, I::Pack, x, i)
+  @assert tag(I) == tag"common.Int"
+  I = isvalue(I) ? Int64(part(I, 1)) : Int64
+  indexer!(ir, T, I, x, i)
+end
+
 inlinePrimitive[part_method] = function (pr, ir, v)
   x, i = ir[v].expr.args[2:end]
   T, I = exprtype(ir, [x, i])
-  if T isa Pack && I isa Type{<:Integer}
+  if T isa Pack && !isvalue(I)
   elseif T isa Onion
-  elseif T isa String && I == 1
+  elseif T isa String && I in (1, RInt64(1))
   elseif T isa Recursive
     T = unroll(T)
     delete!(pr, v)
@@ -249,7 +260,7 @@ outlinePrimitive[packcat_method] = function (Ts::Pack)
   ls = [isvalue(exprtype(ir, l)) ? exprtype(ir, l) : l for l in ls]
   size = popfirst!(ls)
   for l in ls
-    size = call!(ir, tag"common.+", size, l, type = Int64)
+    size = call!(ir, tag"common.+", size, l, type = RInt64())
   end
   size = call!(ir, tag"common.Int32", size, type = RInt32())
   if sizeof(T.parts) == 0
@@ -338,7 +349,7 @@ end
 
 function nparts!(ir, T::VPack, x)
   sz = push!(ir, stmt(Expr(:ref, x, 1), type = RInt32()))
-  call!(ir, tag"common.core.Int64", sz, type = Int64)
+  call!(ir, tag"common.Int64", sz, type = RInt64())
 end
 
 inlinePrimitive[nparts_method] = function (pr, ir, v)
@@ -349,7 +360,7 @@ inlinePrimitive[nparts_method] = function (pr, ir, v)
     T = unroll(T)
     delete!(pr, v)
     x′ = unbox!(pr, T, x)
-    y = push!(pr, stmt(xcall(nparts_method, x′), type = Int64))
+    y = push!(pr, stmt(xcall(nparts_method, x′), type = RInt64()))
     replace!(pr, v, y)
     @assert T isa Onion
     isreftype(ir[v].type) && push!(pr, Expr(:release, y))

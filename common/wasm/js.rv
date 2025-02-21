@@ -127,7 +127,6 @@ fn js(x: Float64) {
 }
 
 fn js(x: Float32) { js(Float64(x)) }
-fn js(x: Int64)   { js(Float64(x)) }
 
 extend fn Float64(obj: JSObject) {
   x = wasm { call(support.fromRef, jsref(obj): i32): f64 }
@@ -164,7 +163,7 @@ fn string(x: JSObject) {
   String(x.toString())
 }
 
-fn string(x: (Int64 | Float32 | Float64)) {
+fn string(x: (Float32 | Float64)) {
   string(js(x))
 }
 

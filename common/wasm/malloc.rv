@@ -162,7 +162,7 @@ fn release!(p: Ptr, f: Int32) {
   setBlockUsed!(p, n-Int32(1))
 }
 
-fn release!(p: Ptr) { release!(p, Int32(widen(-1))) }
+fn release!(p: Ptr) { release!(p, widen(Int32(-1))) }
 
 fn allocationCount() {
   i = 0

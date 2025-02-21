@@ -13,7 +13,7 @@ fn (xs: List)[i] {
 }
 
 # TODO: sane implementation
-fn set(&xs: List, x, i: Integer) {
+fn set(&xs: List, x, i: Int) {
   ys = []
   for j in range(1, length(xs)) {
     append(&ys, if i == j { x } else { xs[j] })

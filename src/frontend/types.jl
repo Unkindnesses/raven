@@ -27,9 +27,7 @@ UInt64(x::Bits) = x.value
 Int64(x::Bits{N}) where N = reinterpret(Int64, x.value << (64 - N)) >> (64 - N)
 
 function Base.show(io::IO, bs::Bits{N}) where N
-  print(io, "bits\"")
-  print(io, bitstring(UInt64(bs))[end-N+1:end])
-  print(io, "\"")
+  print(io, "Bits{$N}($(Int64(bs)))")
 end
 
 WebAssembly.WType(::Type{Bits{64}}) = i64
@@ -610,6 +608,12 @@ vprint(io::IO, x) = show(io, x)
 
 const printers = Dict{Tag,Any}()
 
+function printPack(io::IO, s::Pack)
+  print(io, "pack(")
+  join(io, [sprint(vprint, x) for x in s.parts], ", ")
+  print(io, ")")
+end
+
 printers[tag"common.List"] = function (io::IO, s::Pack)
   print(io, "[")
   join(io, [sprint(vprint, x) for x in parts(s)], ", ")
@@ -622,12 +626,15 @@ printers[tag"common.Pair"] = function (io, s)
   vprint(io, part(s, 2))
 end
 
+printers[tag"common.Int"] = function (io, s)
+  isvalue(s) && issubset(s, RInt64()) || return printPack(io, s)
+  print(io, Int64(part(s, 1)))
+end
+
 function vprint(io::IO, s::Pack)
   isempty(s.parts) && return print(io, "pack()")
   haskey(printers, tag(s)) && return printers[tag(s)](io, s)
-  print(io, "pack(")
-  join(io, [sprint(vprint, x) for x in s.parts], ", ")
-  print(io, ")")
+  printPack(io, s)
 end
 
 function vprint(io::IO, s::VPack)

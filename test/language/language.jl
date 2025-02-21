@@ -57,7 +57,7 @@ test_rv"""
 
   test r == 8
 
-  fn pow(x, n: Int64) {
+  fn pow(x, n: Int) {
     r = one(x)
     while true {
       if n == 0 {
@@ -144,7 +144,7 @@ test_rv"""
 
 @test_rv("""
   xs = [3, 5, 7]
-  test part(xs, 5)
+  part(xs, 5)
   """,
   error = true,
   output = "Invalid index 5 for [3, 5, 7]")
@@ -157,8 +157,7 @@ test_rv"""
   output = "Invalid index for [3, 5, 7]")
 
 test_rv"""
-  test tag(widen(5)) == Int64
-  test part(widen(5), 1) == 5
+  test tag(widen(5)) == Int
   test tag("foo") == String
   """
 
@@ -627,7 +626,7 @@ test_rv"""
 
 @test_rv("""
   bitcast = tag"common.core.bitcast"
-  show bitcast(bits 32, 10)
+  show bits(Int32(10))
   """,
   output = "bits\"00000000000000000000000000001010\"")
 

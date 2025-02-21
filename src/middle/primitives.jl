@@ -12,7 +12,7 @@ for (op, f) in [(:shl, <<), (:shr_u, >>), (:shr_s, >>), (:and, &), (:or, |),
   @eval $op(x::Bits{N}, y::Bits{N}) where N = Bits{N}($f($T(x), $T(y)))
 end
 
-for (op, f) in [(:eq, ==), (:neq, !=), (:gt_u, >), (:lt_u, <),
+for (op, f) in [(:eq, ==), (:ne, !=), (:gt_u, >), (:lt_u, <),
                 (:ge_u, >=), (:le_u, <=), (:gt_s, >), (:lt_s, <),
                 (:ge_s, >=), (:le_s, <=)]
   T = endswith(string(op), "_s") ? Int64 : UInt64
@@ -33,19 +33,24 @@ partial_part(data::Pack, i::Type{<:Integer}) =
 
 partial_part(data::Union{Primitive,Type{<:PrimitiveNumber}}, t::Type{<:Integer}) = data
 
-partial_part(data::VPack, i::Union{Int,Type{<:Integer}}) =
+partial_part(data::VPack, i::ValOrType{Int64}) =
   i == 0 ? data.tag : data.parts
 
-partial_part(data::Onion, i) =
+partial_part(data::Onion, i::ValOrType{Int64}) =
   reduce(union, partial_part.(data.types, (i,)))
 
-partial_part(data::Recursive, i) =
+partial_part(data::Recursive, i::ValOrType{Int64}) =
   partial_part(unroll(data), i)
 
-partial_nparts(x::Pack) = nparts(x)
-partial_nparts(::VPack) = Int64
+function partial_part(data, x::Pack)
+  @assert tag(x) == tag"common.Int"
+  partial_part(data, isvalue(x) ? Int64(part(x, 1)) : Int64)
+end
+
+partial_nparts(x::Pack) = RInt64(nparts(x))
+partial_nparts(::VPack) = RInt64()
 partial_nparts(::String) = nparts(RString())
-partial_nparts(x::Union{Primitive,Type{<:PrimitiveNumber}}) = nparts(x)
+partial_nparts(x::Union{Primitive,Type{<:PrimitiveNumber}}) = RInt64(nparts(x))
 
 partial_nparts(x::Onion) =
   reduce(union, partial_nparts.(x.types))
@@ -56,6 +61,11 @@ partial_widen(x::String) = RString()
 partial_widen(x::PrimitiveNumber) = typeof(x)
 partial_widen(x) = x
 
+partial_widen(x::Pack) =
+  isvalue(x) && tag(x) == tag"common.Int" ?
+    pack(tag"common.Int", typeof(part(x, 1))) :
+    x
+
 # Fast, approximate equality check; basically a stand-in for pointer equality.
 # TODO extend to handle VPack
 partial_shortcutEquals(a, b) =
@@ -63,14 +73,13 @@ partial_shortcutEquals(a, b) =
   !isempty(intersect(symbolValues(a), symbolValues(b))) ? RBool() :
   RBool(false)
 
-partial_bitsize(::ValOrType{Bits{N}}) where N = N
+partial_bitsize(::ValOrType{Bits{N}}) where N = RInt64(N)
 
-partial_bitcast(::ValOrType{Bits{N}}, x::Int64) where N = Bits{N}(x)
-partial_bitcast(::ValOrType{Bits{N}}, x::Bits) where N = Bits{N}(x.value)
-partial_bitcast(::ValOrType{Bits{N}}, x::Type{<:Union{Bits,Int64}}) where N = Bits{N}
+partial_bitcast(::ValOrType{Bits{N}}, x::Bits) where N = Bits{N}(UInt64(x))
+partial_bitcast(::ValOrType{Bits{N}}, x::Type{<:Bits}) where N = Bits{N}
 
-partial_bitcast(::ValOrType{Int64}, x::Bits) = reinterpret(Int64, x.value)
-partial_bitcast(::ValOrType{Int64}, x::Type{<:Bits}) = Int64
+partial_bitcast_s(::ValOrType{Bits{N}}, x::Bits) where N = Bits{N}(Int64(x))
+partial_bitcast_s(::ValOrType{Bits{N}}, x::Type{<:Bits}) where N = Bits{N}
 
 partial_bitop(::ValOrType{Bits{N}}, x::ValOrType{Bits{N}}) where N = Bits{N}
 partial_bitcmp(::ValOrType{Bits{N}}, x::ValOrType{Bits{N}}) where N = Bits{32}
@@ -120,7 +129,7 @@ shortcutEquals_method = RMethod(tag"common.core.shortcutEquals", lowerpattern(rv
 
 bitsize_method = RMethod(tag"common.core.bitsize", lowerpattern(rvx"[x]"), partial_bitsize, true)
 bitcast_method = RMethod(tag"common.core.bitcast", lowerpattern(rvx"[x, y]"), partial_bitcast, true)
-bitcast_s_method = RMethod(tag"common.core.bitcast_s", lowerpattern(rvx"[x, y]"), partial_bitcast, true)
+bitcast_s_method = RMethod(tag"common.core.bitcast_s", lowerpattern(rvx"[x, y]"), partial_bitcast_s, true)
 
 bitops = [:shl, :shr_u, :shr_s, :and, :or, :xor, :add, :sub, :mul, :div_u, :div_s, :rem_u, :rem_s]
 for op in bitops
@@ -130,7 +139,7 @@ for op in bitops
 end
 bitop_methods = @eval [$([Symbol(:bit, op, :_method) for op in bitops]...)]
 
-bitcmps = [:eq, :neq, :gt_u, :ge_u, :lt_u, :le_u, :gt_s, :ge_s, :lt_s, :le_s]
+bitcmps = [:eq, :ne, :gt_u, :ge_u, :lt_u, :le_u, :gt_s, :ge_s, :lt_s, :le_s]
 for op in bitcmps
   @eval $(Symbol(:bit, op, :_method)) =
     RMethod(Tag(:common, :core, $(QuoteNode(Symbol(:bit, op)))),
@@ -190,6 +199,8 @@ inlinePrimitive[widen_method] = function (pr, ir, v)
     pr[v] = T
   elseif T isa Bits
     pr[v] = data(T)
+  elseif tag(T) == tag"common.Int"
+    pr[v] = data(part(T, 1))
   else
     pr[v] = x
   end

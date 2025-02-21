@@ -80,7 +80,8 @@ test_rv"""
   """
 
 test_rv"""
-  f = Function(+, [Int64, Int64], Int64)
+  TInt64 = Pack(Literal(Int), bits 64)
+  f = Function(+, [TInt64, TInt64], TInt64)
   test invoke(f, 3, 5) == 8
   """
 

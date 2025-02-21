@@ -81,7 +81,7 @@ function lowerisa(ex, as, resolve)
   if ex isa Symbol
     return Trait(resolve(ex)::Tag)
   elseif ex isa AST.Index
-    args = [x isa Number ? x : resolve(x) for x in ex[:]]
+    args = [x isa Int64 ? RInt64(x) : resolve(x) for x in ex[:]]
     return Trait(pack(tag"common.Params", args...))
   elseif ex isa AST.Operator && ex[1] == :(|)
     Or(map(x -> lowerisa(x, as, resolve), ex[2:end]))
@@ -98,6 +98,8 @@ function _lowerpattern(ex, as, resolve)
   if ex isa Symbol
     ex == :_ || ex in as || push!(as, ex)
     return ex == :_ ? hole : Bind(ex, hole)
+  elseif ex isa Int64
+    return Literal(RInt64(ex))
   elseif ex isa Primitive
     return Literal(ex)
   elseif ex isa AST.List
@@ -313,7 +315,8 @@ _push!(ir::IR, x::Expr; src = nothing, bp = false, type = ⊥) = _push!(ir, stmt
 _lower!(sc, ir, x) = lower!(sc, ir, x)
 _lower!(sc, ir, x::Vector) = foreach(x -> _lower!(sc, ir, x), x)
 
-lower!(sc, ir::IR, x::Union{Number,String,Pack,Tag,Variable}) = x
+lower!(sc, ir::IR, x::Union{Float64,String,Pack,Tag,Variable}) = x
+lower!(sc, ir::IR, x::Int64) = RInt64(x)
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? Binding(tag"common", :nil) :
   (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
@@ -562,8 +565,11 @@ end
 function lower!(sc, ir::IR, ex::AST.Syntax, value = true)
   src = AST.meta(ex)
   if ex[1] == :bits
-    size::Integer = ex[2]
+    size = ex[2]::Integer
     return Bits{size}(0)
+  elseif ex[1] == :int
+    size = ex[2]::Integer
+    pack(tag"common.Int", Bits{size}(0))
   elseif ex[1] == :return
     result = lower!(sc, ir, ex[2])
     swapreturn!(ir, result, swaps(sc), AST.meta(ex), bp = true)

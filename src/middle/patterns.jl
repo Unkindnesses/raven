@@ -252,6 +252,10 @@ function dispatcher(inf, func::Tag, Ts)
       pat = rvpattern(meth.sig.pattern)
       arms = filter(T -> issubset(rlist(nil), infercall!(inf, (func, Ts), tag"common.match", rlist(T, pat))), arms)
       m = call!(tag"common.match", args, pat)
+      if exprtype(ir, m) == ⊥
+        unreachable!(ir)
+        return ir, ret
+      end
       m = call!(part_method, m, 1)
       cond = push!(ir, stmt(xcall(isnil_method, m), type = partial_isnil(exprtype(ir, m))))
       branch!(ir, length(blocks(ir))+2, when = cond)

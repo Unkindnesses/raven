@@ -1,21 +1,15 @@
-export { Bits, Bool, Int, Int32, UInt, bits }
-
-extend fn Int64(x: Bits) { bitcast(Int64(0), x) }
-
-fn bits(x: Int64) { bitcast(bits 64, Int64(x)) }
+export { Bits, Bool, Int, Int64, Int32, bits, oftype }
 
 fn matchTrait(tag"common.core.Bits", x: pack(tag"common.core.Bits", _)) { Some(x) }
 
 # TODO lower symbols to literals
 fn tag"common.core.Bits"[N] { Params(Bits, N) }
 
+fn (a: Bits) == (b: Bits) { Bool(biteq(a, b)) }
+
 # TODO cast
 fn matchTrait(Params(tag"common.core.Bits", N), x: Bits) {
   if bitsize(x) == N { Some(x) }
-}
-
-fn larger(a: Bits, b: Bits) {
-  if bitsize(b) > bitsize(a) { b } else { a }
 }
 
 bundle Bool(x: Bits[32])
@@ -42,13 +36,24 @@ fn matchTrait(Params(tag"common.Int", N), Int(b)) {
 
 fn bits(Int(x)) { x }
 
-fn Int(x: Int64) { Int(bits(x)) }
+fn oftype(to: Int, from: Bits) { Int(bitcast(bits(to), from)) }
+fn oftype(to: Int, from: Int) { Int(bitcast_s(bits(to), bits(from))) }
 
-extend fn Int64(x: Int(b)) { bitcast_s(Int64(0), b) }
+fn oftype(to: Int, from: Bool) { oftype(to, bits(from)) }
 
-fn promote(Int(a), Int(b)) {
+# Simple versions that doesn't get overloaded; to bootstrap matching
+fn add(a: Int, b: Int) { Int(bitadd(bits(a), bits(b))) }
+fn sub(a: Int, b: Int) { Int(bitsub(bits(a), bits(b))) }
+fn eq(a: Int, b: Int) { Bool(biteq(bits(a), bits(b))) }
+fn lt(a: Int, b: Int) { Bool(bitlt_s(bits(a), bits(b))) }
+
+fn larger(a: Int, b: Int) {
+  if lt(bitsize(bits(a)), bitsize(bits(b))) { b } else { a }
+}
+
+fn promote(a: Int, b: Int) {
   T = larger(a, b)
-  [Int(bitcast_s(T, a)), Int(bitcast_s(T, b))]
+  [oftype(T, a), oftype(T, b)]
 }
 
 fn intop(f, a: Int, b: Int) {
@@ -64,7 +69,7 @@ fn div(a: Int, b: Int) { Int(intop(bitdiv_s, a, b)) }
 fn rem(a: Int, b: Int) { Int(intop(bitrem_s, a, b)) }
 
 fn (a: Int) == (b: Int) { Bool(intop(biteq, a, b)) }
-fn (a: Int) != (b: Int) { Bool(intop(bitneq, a, b)) }
+fn (a: Int) != (b: Int) { Bool(intop(bitne, a, b)) }
 
 fn (a: Int) >  (b: Int) { Bool(intop(bitgt_s, a, b)) }
 fn (a: Int) >= (b: Int) { Bool(intop(bitge_s, a, b)) }
@@ -73,6 +78,9 @@ fn (a: Int) <= (b: Int) { Bool(intop(bitle_s, a, b)) }
 
 fn iszero(x: Int) { Bool(biteqz(bits(x))) }
 
+fn zero(x: Int) { oftype(x, 0) }
+fn one(x: Int) { oftype(x, 1) }
+
 fn Bool(x: Int) { not(iszero(x)) }
 
 extend fn Float64(Int(x)) {
@@ -80,24 +88,24 @@ extend fn Float64(Int(x)) {
   wasm { f64.convert_i64_s(x: i64): f64 }
 }
 
+fn (a: Int) / (b: Int) { Float64(a) / Float64(b) }
+
 fn js(x: Int) { js(Float64(x)) }
 
 fn print(x: Int) { print(js(x)) }
 
-fn show(x: Int[64]) { print(x) }
-
-# Int32
+# Special sizes
 
 fn matchTrait(tag".Int32", x: Int[32]) { Some(x) }
+fn matchTrait(tag".Int64", x: Int[64]) { Some(x) }
 
-fn Int32(x: Bits[32]) { Int(x) }
-fn Int32(x: Int32) { x }
-fn Int32(x: Bool) { Int(bits(x)) }
-
-fn Int32(x: Int64) { Int(bitcast_s(bits 32, x)) }
+fn Int32(x) { oftype(int 32, x) }
+fn Int64(x) { oftype(int 64, x) }
 
 fn show(x: Int32) {
   print("Int32(")
   print(x)
   print(")")
 }
+
+fn show(x: Int64) { print(x) }

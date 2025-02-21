@@ -1,9 +1,3 @@
-extend fn Int64(x: Int64) { x }
-
-extend fn Float64(x: Int64) {
-  wasm { f64.convert_i64_s(x: i64): f64 }
-}
-
 extend fn Float32(x: Float64) {
   wasm { f32.demote_f64(x: f64): f32 }
 }
@@ -11,60 +5,6 @@ extend fn Float32(x: Float64) {
 extend fn Float64(x: Float32) {
   wasm { f64.promote_f32(x: f32): f64 }
 }
-
-# Simple versions that doesn't get overloaded; to bootstrap matching
-
-fn add(a: Int64, b: Int64) {
-  Int64(wasm { i64.add(a: i64, b: i64): i64 })
-}
-
-fn sub(a: Int64, b: Int64) {
-  Int64(wasm { i64.sub(a: i64, b: i64): i64 })
-}
-
-fn eq(a: Int64, b: Int64) {
-  Bool(wasm { i64.eq(a: i64, b: ii64): i32 })
-}
-
-fn lt(a: Int64, b: Int64) {
-  Bool(wasm { i64.lt_s(a: i64, b: i64): i32 })
-}
-
-# Overloadable operators
-
-fn (a: Int64) + (b: Int64) {
-  add(a, b)
-}
-
-fn (a: Int64) * (b: Int64) {
-  Int64(wasm { i64.mul(a: i64, b: i64): i64 })
-}
-
-fn (a: Int64) - (b: Int64) {
-  sub(a, b)
-}
-
-fn rem(a: Int64, b: Int64) {
-  Int64(wasm { i64.rem_s(a: i64, b: i64): i64 })
-}
-
-fn (a: Int64) > (b: Int64) {
-  Bool(wasm { i64.gt_s(a: i64, b: i64): i32 })
-}
-
-fn (a: Int64) < (b: Int64) {
-  lt(a, b)
-}
-
-fn (a: Int64) <= (b: Int64) {
-  Bool(wasm { i64.le_s(a: i64, b: i64): i32 })
-}
-
-fn (a: Int64) == (b: Int64) {
-  Bool(wasm { i64.eq(a: i64, b: i64): i32 })
-}
-
-# Float operators
 
 fn (a: Float64) + (b: Float64) {
   wasm { f64.add(a: f64, b: f64): f64 }
@@ -98,7 +38,3 @@ fn round(x: Float64) {
   x = wasm { f64.nearest(x: f64): f64 }
   return i64trunc(x)
 }
-
-# Conversions
-
-fn (a: Int64) / (b: Int64) { Float64(a) / Float64(b) }

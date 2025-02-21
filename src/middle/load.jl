@@ -21,6 +21,8 @@ resolve_static(cx::LoadState, x::Symbol) =
 
 function simpleconst(cx::LoadState, x)
   x isa Symbol && return cx.mod[x]
+  x isa Int32 && return RInt32(x)
+  x isa Int64 && return RInt64(x)
   x isa Primitive && return x
   x isa AST.Template && x[1] == :tag && return modtag(cx.mod.name, x[2])
   return
