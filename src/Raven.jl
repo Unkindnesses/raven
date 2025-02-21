@@ -1,5 +1,6 @@
 module Raven
 
+include("Unions/Unions.jl")
 include("IRTools/IRTools.jl")
 include("Caches/Caches.jl")
 include("Dwarf/Dwarf.jl")
@@ -8,7 +9,7 @@ include("WebAssembly/WebAssembly.jl")
 using Base64, JSON, Sockets
 using MacroTools: @q, @forward, isexpr
 
-using .Caches, .IRTools, .Dwarf, .WebAssembly
+using .Unions, .Caches, .IRTools, .Dwarf, .WebAssembly
 using .IRTools: IR, Variable, Statement, Variable, argument!, block, blocks,
   arguments, argtypes, block, isreturn, isunreachable, branches, prune!,
   return!, unreachable!, branch!, block!, stmt, predecessors, successors, Slot,

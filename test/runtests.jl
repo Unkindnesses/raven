@@ -2,6 +2,10 @@ using Raven, Test
 
 @testset "Raven" begin
 
+@testset "Unions" begin
+  include("unions.jl")
+end
+
 @testset "Caches" begin
   include("caches.jl")
 end
