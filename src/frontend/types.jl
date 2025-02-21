@@ -175,7 +175,7 @@ struct Onion
     isempty(xs) && return ⊥
     length(xs) == 1 && return only(xs)
     @assert !any(x -> x isa Onion, xs)
-    return new((sort(collect(xs), lt = t_isless)...,))
+    return new((sort(collect(xs), by = sortkey)...,))
   end
 end
 
@@ -261,13 +261,6 @@ typesize(x::Onion) = 1 + sum(typesize, x.types)
 typesize(x::Raven.Pack) = 1 + sum(typesize, x.parts)
 typesize(x::Raven.VPack) = 1 + typesize(x.tag) + typesize(x.parts)
 typesize(x::Recursive) = 1 + typesize(x.type)
-
-# Order
-
-_repr(x) = repr(x)
-_repr(x::Int32) = "$x::Int32"
-
-t_isless(x, y) = _repr(x) < _repr(y)
 
 # Type errors (known bugs / unsupported cases)
 
@@ -420,7 +413,7 @@ function _union(x, y; self = _union)
     end
     z = onion(ys...)
     return z
-  elseif typekey(x) === typekey(y)
+  elseif sortkey(x) === sortkey(y)
     if x isa Primitive && y isa Primitive
       return x == y ? x : x isa String ? RString() : typeof(x)
     elseif x isa Type
@@ -445,20 +438,21 @@ end
 
 # Type keys
 
-tokey(x::Tag) = x
-tokey(x) = nothing
+tokey(x::Tag) = (string(x),)
+tokey(x) = ()
 
-typekey(x) = tokey(tag(x))
-typekey(x::Tag) = (tag(x), x)
-typekey(x::Union{Bits,Type{<:Bits}}) = (tag(x), nbits(x))
-typekey(x::Unreachable) = nothing
+sortkey(x) = tokey(tag(x))
+sortkey(x::Tag) = (string(tag(x)), string(x))
+sortkey(x::Union{Bits,Type{<:Bits}}) = (string(tag(x)), nbits(x))
+sortkey(x::Onion) = sortkey(x.types[1])
+sortkey(x::Recursive) = sortkey(x.type)
 
-typekeys(x) = Set([typekey(x)])
-typekeys(x::Recursive) = typekeys(x.type)
-typekeys(x::Onion) = reduce(Base.union, typekeys.(x.types))
-typekeys(x::Set) = x
+typekey(x) = Set{Any}([sortkey(x)])
+typekey(x::Recursive) = typekey(x.type)
+typekey(x::Onion) = reduce(Base.union, typekey.(x.types))
+typekey(x::Set) = x
 
-overlapping(a, b) = !Base.isdisjoint(typekeys(a), typekeys(b))
+overlapping(a, b) = !Base.isdisjoint(typekey(a), typekey(b))
 
 partial_eltype(x::Pack; union = union) = reduce(union, parts(x), init = ⊥)
 partial_eltype(x::VPack; union = union) = x.parts
@@ -505,16 +499,16 @@ function reroll_inner(T, x::Recursive; seen)
 end
 
 reroll(T, x; seen) =
-  isrecur(x, T) ? (Recur(), typekeys(x)) :
+  isrecur(x, T) ? (Recur(), typekey(x)) :
   reroll_outer(T, x; seen)
 
 function reroll(T)
   isrecursive(T) && return T
   xs = disjuncts(T)
   ys = reroll_inner.((T,), xs; seen = Set())
-  ys = [(x, Base.union(k1, k2)) for ((x, k1), k2) in zip(ys, typekeys.(xs))]
+  ys = [(x, Base.union(k1, k2)) for ((x, k1), k2) in zip(ys, typekey.(xs))]
   xs = []
-  # Group by typekeys in common
+  # Group by typekey in common
   for (x, ks) in ys
     as, bs = splitby(((_, k),) -> !Base.isdisjoint(ks, k), xs)
     x = onion(x, [d for a in first.(as) for d in disjuncts(a)]...)
@@ -576,7 +570,9 @@ end
 
 recursive(T) = recurser()(T)
 
-union(x, y) = recursive(_union(x, y))
+const union_cache = Dict{Tuple{Any,Any},Any}()
+
+union(x, y) = get!(() -> recursive(_union(x, y)), union_cache, (x, y))
 
 # Internal symbols
 
