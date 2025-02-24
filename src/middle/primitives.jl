@@ -16,7 +16,7 @@ for (op, f) in [(:eq, ==), (:ne, !=), (:gt_u, >), (:lt_u, <),
                 (:ge_u, >=), (:le_u, <=), (:gt_s, >), (:lt_s, <),
                 (:ge_s, >=), (:le_s, <=)]
   T = endswith(string(op), "_s") ? Int64 : UInt64
-  @eval $op(x::Bits{N}, y::Bits{N}) where N = Bits{32}($f($T(x), $T(y)))
+  @eval $op(x::Bits{N}, y::Bits{N}) where N = Bits{1}($f($T(x), $T(y)))
 end
 
 # Core primitives – pack, packcat, part and nparts – are dealt with in
@@ -82,9 +82,9 @@ partial_bitcast_s(::ValOrType{Bits{N}}, x::Bits) where N = Bits{N}(Int64(x))
 partial_bitcast_s(::ValOrType{Bits{N}}, x::Type{<:Bits}) where N = Bits{N}
 
 partial_bitop(::ValOrType{Bits{N}}, x::ValOrType{Bits{N}}) where N = Bits{N}
-partial_bitcmp(::ValOrType{Bits{N}}, x::ValOrType{Bits{N}}) where N = Bits{32}
-partial_biteqz(x::Bits) = Bits{32}(x.value == 0)
-partial_biteqz(::Type{<:Bits}) = Bits{32}
+partial_bitcmp(::ValOrType{Bits{N}}, x::ValOrType{Bits{N}}) where N = Bits{1}
+partial_biteqz(x::Bits) = Bits{1}(x.value == 0)
+partial_biteqz(::Type{<:Bits}) = Bits{1}
 
 # Needed by dispatchers, since a user-defined method would need runtime matching
 # to deal with unions.

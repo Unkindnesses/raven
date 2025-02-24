@@ -315,8 +315,14 @@ _push!(ir::IR, x::Expr; src = nothing, bp = false, type = ⊥) = _push!(ir, stmt
 _lower!(sc, ir, x) = lower!(sc, ir, x)
 _lower!(sc, ir, x::Vector) = foreach(x -> _lower!(sc, ir, x), x)
 
-lower!(sc, ir::IR, x::Union{Float64,String,Pack,Tag,Variable}) = x
-lower!(sc, ir::IR, x::Int64) = RInt64(x)
+lower!(sc, ir::IR, x::Variable) = x
+
+function lower!(sc, ir::IR, x::Union{Float64,String,Pack,Tag})
+  _push!(ir, xtuple(), type = x)
+end
+
+lower!(sc, ir::IR, x::Int64) = lower!(sc, ir, RInt64(x))
+
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? Binding(tag"common", :nil) :
   (foreach(x -> _lower!(sc, ir, x), x[1:end-1]); lower!(sc, ir, x[end]))
@@ -421,7 +427,7 @@ lower!(sc, ir::IR, ex::AST.Field) =
                   AST.meta(ex)))
 
 function lower!(sc, ir::IR, ex::AST.List)
-  # TODO: should use the `tuple` function.
+  # TODO: should use the `list` function.
   # But this puts off the need for special argument inference.
   argtuple!(sc, ir, ex[:], AST.meta(ex))[1]
 end

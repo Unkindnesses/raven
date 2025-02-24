@@ -12,9 +12,9 @@ fn matchTrait(Params(tag"common.core.Bits", N), x: Bits) {
   if bitsize(x) == N { Some(x) }
 }
 
-bundle Bool(x: Bits[32])
+bundle Bool(x: Bits[1])
 
-fn Bool(x: Bits) { pack(Bool, bitcast(bits 32, x)) }
+fn Bool(x: Bits) { pack(Bool, bitcast(bits 1, x)) }
 
 fn Bool(x: Bool) { x }
 
@@ -24,6 +24,10 @@ fn Bool(a) & Bool(b) { Bool(bitand(a, b)) }
 fn Bool(a) | Bool(b) { Bool(bitor(a, b)) }
 
 fn not(Bool(x)) { Bool(biteqz(x)) }
+
+fn show(x: Bool) {
+  print(if x { "true" } else { "false" })
+}
 
 # TODO `bundle Int[N](x: Bits[N])`
 bundle Int(x: Bits)

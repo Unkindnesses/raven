@@ -38,8 +38,8 @@ WebAssembly.WType(::Type{Bits{32}}) = i32
 const PrimitiveNumber = Union{Bits,Int64,Int32,Float64,Float32}
 const Primitive = Union{PrimitiveNumber,Tag,String}
 
-RBool() = pack(tag"common.Bool", Bits{32})
-RBool(x::Bool) = pack(tag"common.Bool", Bits{32}(x))
+RBool() = pack(tag"common.Bool", Bits{1})
+RBool(x::Bool) = pack(tag"common.Bool", Bits{1}(x))
 
 RInt32() = pack(tag"common.Int", Bits{32})
 RInt32(x) = pack(tag"common.Int", Bits{32}(x))

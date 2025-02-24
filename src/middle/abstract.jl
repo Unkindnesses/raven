@@ -272,6 +272,8 @@ function update!(inf::Inference, sig)
           end
           cond == RBool(true) && break
         end
+      elseif isexpr(st, :tuple)
+        @assert isvalue(st.type)
       else
         error("Unknown expr type $(st.expr.head)")
       end

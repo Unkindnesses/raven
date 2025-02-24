@@ -37,6 +37,9 @@ function interpret(int, ir::IR, args...)
           foreach(((v, x),) -> env[v] = x, zip(arguments(block(ir, bl)), args))
           break
         end
+      elseif isexpr(st, :tuple)
+        @assert isvalue(st.type)
+        env[v] = st.type
       elseif isexpr(st, :(=))
         return
       else
