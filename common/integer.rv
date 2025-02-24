@@ -103,6 +103,16 @@ fn js(x: Int) { js(Float64(x)) }
 
 fn print(x: Int) { print(js(x)) }
 
+fn show(x: Int) {
+  N = bitsize(bits(x))
+  x = oftype(int 64, x)
+  print("oftype(int ")
+  print(N)
+  print(", ")
+  print(x)
+  print(")")
+}
+
 # Special sizes
 
 fn matchTrait(tag".Int32", x: Int[32]) { Some(x) }

@@ -13,9 +13,11 @@ ValOrType{T} = Union{T,Type{<:T}}
 
 struct Bits{N}
   value::UInt64
+  Bits{N}(x::UInt64) where N = new(x & (UInt64(1)<<N-1))
 end
 
-Bits{N}(x::Int64) where N = Bits{N}(reinterpret(UInt64, x) & (UInt64(1)<<N-1))
+Bits{N}(x::Int64) where N = Bits{N}(reinterpret(UInt64, x))
+Bits{N}(x::Bool) where N = Bits{N}(UInt64(x))
 
 nbits(::Bits{N}) where N = N
 nbits(::Type{Bits{N}}) where N = N

@@ -639,6 +639,14 @@ test_rv"""
     pack(Float64, bits"0011111111010101010101010101010101010101010101010101010101010101")
   """
 
+@test_rv("""
+  show widen(bits"101")
+  """, output = "bits\"101\"")
+
+@test_rv("""
+  show Int(widen(bits"100"))
+  """, output = "oftype(int 3, -4)")
+
 test_rv"""
   {
     x = widen(Float32(0.1))

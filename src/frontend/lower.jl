@@ -442,7 +442,7 @@ function lower!(sc, ir::IR, ex::AST.Template)
     modtag(mod(sc), ex[2])
   elseif ex[1] == :bits
     s = ex[2]
-    Bits{length(s)}(Base.parse(UInt64, s, base = 2))
+    Bits{length(s)}(isempty(s) ? 0 : Base.parse(UInt64, s, base = 2))
   end
 end
 

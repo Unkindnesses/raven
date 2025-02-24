@@ -50,6 +50,7 @@ cat_layout(x) = (x,)
 cat_layout(x::Tuple) = x
 cat_layout(x, xs...) = (cat_layout(x)..., cat_layout(xs...)...)
 
+# TODO layouts/wtypes should be unsigned
 layout(T::Type{<:Union{Float64,Float32,Int64,Int32}}) = T
 layout(x::Union{Primitive,Unreachable}) = ()
 layout(x::Pack) = cat_layout(layout.(x.parts)...)

@@ -210,81 +210,105 @@ inlinePrimitive[bitsize_method] = function (pr, ir, v)
   pr[v] = xtuple()
 end
 
+function mask(T, x)
+  m = (one(unsigned(layout(T))) << nbits(T)) - 0x01
+  stmt(xcall(WType(layout(T)).and, x, m), type = layout(T))
+end
+
+function extend!(pr, v, T, x)
+  shift = layout(T)(64 - nbits(T))
+  x = insert!(pr, v, stmt(xcall(WType(layout(T)).shl, x, shift), type = layout(T)))
+  x = insert!(pr, v, stmt(xcall(WType(layout(T)).shr_s, x, shift), type = layout(T)))
+end
+
 inlinePrimitive[bitcast_method] = function (pr, ir, v)
-  x = ir[v].expr.args[3]
-  to = nbits(ir[v].type)
-  from = nbits(exprtype(ir, x))
   if isvalue(ir[v].type)
     pr[v] = xtuple()
-  elseif to == from
-    pr[v] = x
-  elseif (to, from) == (32, 64)
-    pr[v] = xcall(i32.wrap_i64, x)
-  elseif (to, from) == (64, 32)
-    pr[v] = xcall(i64.extend_i32_u, x)
-  else
-    error("unimplemented")
+    return
   end
+  x = ir[v].expr.args[3]
+  F = exprtype(ir, x)
+  T = exprtype(ir, v)
+  if (layout(T), layout(F)) == (Int32, Int64)
+    x = insert!(pr, v, stmt(xcall(i32.wrap_i64, x), type = Int32))
+  elseif (layout(T), layout(F)) == (Int64, Int32)
+    x = insert!(pr, v, stmt(xcall(i64.extend_i32_u, x), type = Int64))
+  end
+  if nbits(T) < nbits(F) && nbits(T) < nbits(layout(T))
+    x = insert!(pr, v, mask(T, x))
+  end
+  pr[v] = x
+  return
 end
 
 inlinePrimitive[bitcast_s_method] = function (pr, ir, v)
-  x = ir[v].expr.args[3]
-  to = nbits(ir[v].type)
-  from = nbits(exprtype(ir, x))
   if isvalue(ir[v].type)
     pr[v] = xtuple()
-  elseif to <= from
-    inlinePrimitive[bitcast_method](pr, ir, v)
-  elseif (to, from) == (64, 32)
-    pr[v] = xcall(i64.extend_i32_s, x)
-  else
-    error("unimplemented")
+    return
   end
+  x = ir[v].expr.args[3]
+  F = exprtype(ir, x)
+  T = exprtype(ir, v)
+  nbits(T) <= nbits(F) && return inlinePrimitive[bitcast_method](pr, ir, v)
+  if nbits(F) < nbits(layout(F))
+    x = extend!(pr, v, F, x)
+  end
+  if (nbits(layout(T)), nbits(layout(F))) == (64, 32)
+    x = insert!(pr, v, stmt(xcall(i64.extend_i32_s, x), type = Int64))
+  end
+  if nbits(T) < nbits(layout(T))
+    x = insert!(pr, v, mask(T, x))
+  end
+  pr[v] = x
+  return
 end
 
 for op in bitops
   @eval inlinePrimitive[$(Symbol(:bit, op, :_method))] = function (pr, ir, v)
-    x, y = ir[v].expr.args[2:end]
-    sz = nbits(exprtype(ir, x))
-    if isvalue(ir[v].type)
+    T = exprtype(ir, v)
+    if isvalue(T)
       pr[v] = xtuple()
-    elseif sz == 64
-      pr[v] = xcall(i64.$op, x, y)
-    elseif sz == 32
-      pr[v] = xcall(i32.$op, x, y)
-    else
-      error("unimplemented")
+      return
     end
+    x, y = ir[v].expr.args[2:end]
+    sz = nbits(layout(T))
+    if $(endswith(string(op), "_s")) && nbits(T) < nbits(layout(T))
+      x = extend!(pr, v, T, x)
+      y = extend!(pr, v, T, y)
+    end
+    r = insert!(pr, v, stmt(xcall(WType(layout(T)).$op, x, y), type = layout(T)))
+    if nbits(T) < nbits(layout(T))
+      r = insert!(pr, v, mask(T, r))
+    end
+    pr[v] = r
   end
 end
 
 for op in bitcmps
   @eval inlinePrimitive[$(Symbol(:bit, op, :_method))] = function (pr, ir, v)
-    x, y = ir[v].expr.args[2:end]
-    sz = nbits(exprtype(ir, x))
-    if isvalue(ir[v].type)
+    if isvalue(exprtype(ir, v))
       pr[v] = xtuple()
-    elseif sz == 64
-      pr[v] = xcall(i64.$op, x, y)
-    elseif sz == 32
-      pr[v] = xcall(i32.$op, x, y)
-    else
-      error("unimplemented")
+      return
     end
+    x, y = ir[v].expr.args[2:end]
+    T = union(exprtype(ir, [x, y])...)
+    if $(endswith(string(op), "_s")) && nbits(T) < nbits(layout(T))
+      x = extend!(pr, v, T, x)
+      y = extend!(pr, v, T, y)
+    end
+    pr[v] = xcall(WType(layout(T)).$op, x, y)
   end
 end
 
 inlinePrimitive[biteqz_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
-  sz = nbits(exprtype(ir, x))
+  T = exprtype(ir, x)
   if isvalue(ir[v].type)
     pr[v] = xtuple()
-  elseif sz == 64
+  elseif nbits(layout(T)) == 64
     pr[v] = xcall(i64.eqz, x)
-  elseif sz == 32
+  elseif nbits(layout(T)) == 32
     pr[v] = xcall(i32.eqz, x)
-  else
-    error("unimplemented")
   end
 end
 
