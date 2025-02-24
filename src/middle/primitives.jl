@@ -427,8 +427,6 @@ end
 
 function core()
   mod = RModule(tag"common.core")
-  mod[Symbol("false")] = RBool(false)
-  mod[Symbol("true")] = RBool(true)
   foreach(meth -> method!(mod, meth), primitives())
   return mod
 end

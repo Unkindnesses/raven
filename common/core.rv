@@ -1,9 +1,3 @@
-export { true, false }
-
-# Defined by the compiler.
-# false = Int32(0)
-# true  = Int32(1)
-
 # Tags for core types. Objects with these tags are only produced by builtins.
 
 export { Tag, Bits, Float32, Float64 }

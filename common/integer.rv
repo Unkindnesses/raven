@@ -1,4 +1,4 @@
-export { Bits, Bool, Int, Int64, Int32, bits, oftype, typemin, typemax }
+export { Bits, Bool, true, false, Int, Int64, Int32, bits, oftype, typemin, typemax }
 
 fn matchTrait(tag"common.core.Bits", x: pack(tag"common.core.Bits", _)) { Some(x) }
 
@@ -28,6 +28,12 @@ fn not(Bool(x)) { Bool(biteqz(x)) }
 fn show(x: Bool) {
   print(if x { "true" } else { "false" })
 }
+
+true  = Bool(bits"1")
+false = Bool(bits"0")
+
+fn condition(x) { abort("Non-boolean used as a condition") }
+fn condition(x: Bool) { x }
 
 # TODO `bundle Int[N](x: Bits[N])`
 bundle Int(x: Bits)
