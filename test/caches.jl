@@ -10,7 +10,7 @@ level1[1] = 5
 
 cache_log = []
 
-level2 = Cache{Int,String}() do self, i
+level2 = Cache{Int,String}() do i
   push!(cache_log, i)
   string(level1[i])
 end
@@ -29,7 +29,7 @@ reset!(level2, deps = level1)
 
 @test level2[1] == "6"
 
-level3 = Cache{Int,String}() do self, i
+level3 = Cache{Int,String}() do i
   level2[i] * "!"
 end
 
@@ -40,7 +40,7 @@ reset!(Pipeline([level1, level2, level3]))
 
 @test level3[1] == "7!"
 
-optional = Cache{Int,String}() do self, i
+optional = Cache{Int,String}() do i
   haskey(level1, i) ? string(level1[i]) : "default"
 end
 
@@ -55,7 +55,7 @@ reset!(optional, deps = level1)
   init = Caches.Dict{Int,Int}()
   init[0] = 0; init[1] = 1
 
-  fib = Cache{Int,Int}() do self, i
+  fib = CycleCache{Int,Int}(_ -> 0) do self, i
     push!(log, i)
     i <= 1 ? init[i] : self[i-1] + self[i-2]
   end
@@ -80,12 +80,12 @@ end
   data[1] = 2
   log = []
 
-  level1 = EagerCache() do self, i
+  level1 = EagerCache() do i
     push!(log, i)
     data[i]^2
   end
 
-  level2 = Cache() do self, i
+  level2 = Cache() do i
     push!(log, i)
     level1[i] + 1
   end
@@ -117,5 +117,6 @@ end
     return (y + x/y)/2
   end
   @test ch[2] ≈ sqrt(2)
-  @test isempty(Caches.invalid(ch.cache))
+  reset!(ch)
+  @test Caches.iscached(ch, 2)
 end

@@ -539,7 +539,7 @@ function expand(inf, ir, ret)
 end
 
 function Expanded(inf::Inferred)
-  Cache{Any,Union{Redirect,IR}}() do self, sig
+  Cache{Any,Union{Redirect,IR}}() do sig
     if haskey(outlinePrimitive, sig[1])
       outlinePrimitive[sig[1]](sig[2:end]...)
     elseif inf[sig] isa Redirect

@@ -8,6 +8,7 @@ export @Pipeline, Cache, EagerCache, CycleCache, DualCache, Pipeline
 include("utils.jl")
 include("basic.jl")
 include("cache.jl")
+include("cycle.jl")
 include("pipeline.jl")
 
 end

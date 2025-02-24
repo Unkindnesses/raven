@@ -115,7 +115,7 @@ end
 function frame!(inf::Inference, name::Binding)
   get!(inf.frames, name) do
     T, deps = Caches.trackdeps(() -> inf.defs[name])
-    inf.deps[name] = Set(second.(deps))
+    inf.deps[name] = deps
     if T isa Binding
       parent = frame!(inf, T)
       push!(parent.edges, name)
@@ -200,7 +200,7 @@ end
 
 function update_dispatcher!(inf::Inference, sig)
   (ir, ret), deps = Caches.trackdeps(() -> dispatcher(inf, sig...))
-  inf.deps[sig] = Set(second.(deps))
+  inf.deps[sig] = deps
   fr = inf.frames[sig]
   fr.ir = looped(IRTools.expand!(ir))
   if !issubset(ret, fr.rettype)

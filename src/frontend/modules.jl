@@ -139,10 +139,10 @@ struct Definitions
 end
 
 function Definitions(comp::Modules)
-  globals = Cache{Binding,Any}() do self, b
+  globals = Cache{Binding,Any}() do b
     get(comp[b.mod].defs, b.name, ⊥)
   end
-  methods = EagerCache{Tag,Vector{RMethod}}() do self, name
+  methods = EagerCache{Tag,Vector{RMethod}}() do name
     Raven.methods(comp, name)
   end
   Definitions(globals, methods)

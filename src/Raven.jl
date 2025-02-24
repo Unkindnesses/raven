@@ -1,7 +1,7 @@
 module Raven
 
-include("Caches/Caches.jl")
 include("IRTools/IRTools.jl")
+include("Caches/Caches.jl")
 include("Dwarf/Dwarf.jl")
 include("WebAssembly/WebAssembly.jl")
 

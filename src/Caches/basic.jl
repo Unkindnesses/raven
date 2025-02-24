@@ -44,7 +44,7 @@ keys(ch::Dict) = keys(ch.data)
 
 reset!(ch::Dict; deps = []) = return
 
-id(ch::Dict, k) = (nullkey, ch.data[k][1])
+id(ch::Dict, k) = ch.data[k][1]
 
 function getindex(ch::Dict{K,V}, k::K) where {K,V}
   (id, value) = ch.data[k]

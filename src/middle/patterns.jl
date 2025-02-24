@@ -190,7 +190,7 @@ end
 # Filtered methods
 
 function MatchMethods(defs, interp)
-  EagerCache() do _, (f, Ts)
+  EagerCache() do (f, Ts)
     result = []
     for meth in reverse(defs[f])
       m = partial_match(interp, meth.sig.pattern, Ts)

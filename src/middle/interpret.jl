@@ -65,11 +65,11 @@ end
 
 struct Interpreter
   defs::Definitions
-  results::Cache{Any,Any}
+  results::Any
 end
 
 function Interpreter(defs::Definitions)
-  ch = Cache{Any,Any}() do self, sig
+  ch = CycleCache{Any,Any}(_ -> nothing) do self, sig
     self = Interpreter(defs, self)
     interpret(self, sig...)
   end

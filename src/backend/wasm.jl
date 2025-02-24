@@ -73,9 +73,10 @@ end
 
 function WGlobals(types)
   gtypes = WType[]
-  globals = Cache{Binding,Vector{Int}}() do self, b
-    T = types[b]
-    T isa Binding && return self[T]
+  globals = Cache{Binding,Vector{Int}}() do T
+    while T isa Binding
+      T = types[T]
+    end
     start = length(gtypes)-1
     l = wparts(T)
     append!(gtypes, l)
@@ -197,13 +198,13 @@ function Wasm(defs, code)
   count = Dict{Symbol,Int}()
   # TODO should be `funcs`, not `code`, to make global redefs of the same type
   # more efficient. But that creates an awkward cycle between names and funcs.
-  names = DualCache{Any,Symbol}() do self, sig
+  names = DualCache{Any,Symbol}() do sig
     sig[1] isa WImport || code[sig] # new name if code changes
     id = wname(sig[1])
     c = count[id] = get(count, id, 0)+1
     return Symbol(id, ":", c)
   end
-  funcs = Cache{Any,WebAssembly.Func}() do self, sig
+  funcs = Cache{Any,WebAssembly.Func}() do sig
     # TODO: we use `frame` to avoid redirects, but this can duplicate function
     # bodies. Should instead avoid calling redirected sigs, eg via casting.
     ir = lowerwasm(frame(code, sig), names, globals, tables)
