@@ -1,4 +1,4 @@
-export { iterate, iterator, Range, range, Mapping, mapping }
+export { next, iterator, Range, range, Mapping, mapping }
 
 bundle IndexIterator(xs, i: Int64)
 
@@ -6,7 +6,7 @@ fn IndexIterator(xs) { IndexIterator(xs, 1) }
 
 fn iterator(i: IndexIterator) { i }
 
-fn iterate(&itr: IndexIterator(xs, i)) {
+fn next(&itr: IndexIterator(xs, i)) {
   if i > length(xs) {
     return nil
   } else {
@@ -31,8 +31,8 @@ bundle Mapping(func, itr)
 
 fn iterator(m: Mapping) { m }
 
-fn iterate(&m: Mapping(func, itr)) {
-  next = iterate(&itr)
+fn next(&m: Mapping(func, itr)) {
+  next = next(&itr)
   m = Mapping(func, itr)
   # TODO if let / match
   if isnil(next) {

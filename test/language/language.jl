@@ -220,15 +220,15 @@ test_rv"""
     xs = range(widen(5), widen(6))
     itr = iterator(xs)
 
-    val = iterate(&itr)
+    val = next(&itr)
     test not(isnil(val))
     test part(val, 1) == 5
 
-    val = iterate(&itr)
+    val = next(&itr)
     test not(isnil(val))
     test part(val, 1) == 6
 
-    val = iterate(&itr)
+    val = next(&itr)
     test isnil(val)
   }
   """

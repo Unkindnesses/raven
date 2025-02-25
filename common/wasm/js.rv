@@ -189,7 +189,7 @@ fn iterator(x: JSObject) {
   x[js().Symbol.iterator].call(x)
 }
 
-fn iterate(&x: JSObject) {
+fn next(&x: JSObject) {
   val = x.next()
   if not(val.done) { Some(val.value) }
 }
