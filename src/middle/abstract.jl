@@ -354,26 +354,30 @@ end
 
 # Results and caching
 
-struct Inferred
+mutable struct Inferred
   inf::Inference
   results::Caches.Dict{Any,Any}
+  time::UInt64
 end
 
 function Inferred(defs::Definitions, meths::EagerCache)
   inf = Inference(defs, meths)
-  return Inferred(inf, Caches.Dict())
+  return Inferred(inf, Caches.Dict(), 0)
 end
 
 Caches.iscached(i::Inferred, k) = iscached(i.results, k)
+Caches.time(i::Inferred, k) = i.inf.frames[k].time
+Caches.time(i::Inferred) = i.time
 
 function Base.getindex(i::Inferred, sig)
   iscached(i, sig) && return i.results[sig]
   # Don't let inference dependencies leak
-  _, deps = Caches.trackdeps() do
+  _, deps, t = Caches.trackdeps() do
     frame!(i.inf, Parent((), 1), sig...)
     infer!(i.inf)
   end
   @assert isempty(deps)
+  i.time += t
   for (k, fr) in i.inf.frames
     (k isa Binding || iscached(i, k)) && continue
     i.results[k] = fr isa Redirect ? fr : (prune!(unloop(fr.ir)) => fr.rettype)

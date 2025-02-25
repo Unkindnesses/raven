@@ -24,6 +24,8 @@ end
 
 reset!(ch::Ref; deps = []) = return
 
+time(::Ref) = UInt64(0)
+
 # Just an IdDict, with tracking enabled for `Cache`s.
 
 struct Dict{K,V}
@@ -104,3 +106,5 @@ function get!(ch::Dict{K,V}, k::K, default::V) where {K,V}
 end
 
 Base.IdDict(ch::Dict) = copy(ch.data)
+
+time(::Dict) = UInt64(0)

@@ -5,10 +5,11 @@ struct CycleCacheValue{T}
   id::NFT
   deps::Set{NFT}
   edges::Set{NFT}
+  time::UInt64
 end
 
-CycleCacheValue{T}(value, id, deps) where T =
-  CycleCacheValue{T}(value, id, deps, Set{NFT}())
+CycleCacheValue{T}(value, id, deps, time) where T =
+  CycleCacheValue{T}(value, id, deps, Set{NFT}(), time)
 
 struct CycleCache{K,V}
   init::Any
@@ -40,6 +41,9 @@ cached(ch::CycleCache, k) = ch.data[k].value
 id(c::CycleCache, k) = c.data[k].id
 deps(c::CycleCache, k) = c.data[k].deps
 edges(c::CycleCache, k) = c.data[k].edges
+time(c::CycleCache, k) = c.data[k].time
+
+time(ch::CycleCache) = sum(v.time for (_, v) in ch.data)
 
 function delete!(c::CycleCache{K,V}, k::K) where {K,V}
   iscached(c, k) || return
@@ -69,23 +73,24 @@ end
 
 function update!(c::CycleCache{K,V}, k) where {K,V}
   v = c.data[k]
-  val, deps = trackdeps() do
+  val, deps, time = trackdeps() do
     c.default(Inner(c), k)
   end
+  time += v.time
   if !isequal(val, v.value)
     # TODO could clear old deps, but need to preserve those from `init`.
-    set!(c, k, CycleCacheValue{V}(val, v.id, union(v.deps, deps)))
+    set!(c, k, CycleCacheValue{V}(val, v.id, union(v.deps, deps), time))
     foreach(s -> push!(c.queue, s), edges(c, k))
   elseif !issubset(deps, v.deps)
-    set!(c, k, CycleCacheValue{V}(val, v.id, union(v.deps, deps)))
+    set!(c, k, CycleCacheValue{V}(val, v.id, union(v.deps, deps), time))
   end
   return
 end
 
 function getindex(c::CycleCache{K,V}, k::K; loop = true) where {K,V}
   if !haskey(c.data, k)
-    val, deps = trackdeps(() -> c.init(k))
-    set!(c, k, CycleCacheValue{V}(val, NFT(), deps))
+    val, deps, time = trackdeps(() -> c.init(k))
+    set!(c, k, CycleCacheValue{V}(val, NFT(), deps, time))
     update!(c, k)
   end
   loop && while !isempty(c.queue)

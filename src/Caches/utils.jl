@@ -1,3 +1,23 @@
+# Timer
+
+macro time(ex)
+  quote
+    start = Base.time_ns()
+    stack = get!(task_local_storage(), :timer, Base.RefValue{UInt64}[])::Vector{Base.RefValue{UInt64}}
+    offset = Base.RefValue(UInt64(0))
+    push!(stack, offset)
+    local result
+    try
+      result = $(esc(ex))
+    finally
+      pop!(stack)
+    end
+    span = Base.time_ns() - start
+    isempty(stack) || (stack[end][] += span)
+    result, span-offset[]
+  end
+end
+
 # Unique ID type
 
 const nft_id = Base.Ref(UInt64(0))
@@ -26,13 +46,12 @@ function trackdeps(f)
   stack = cache_deps()
   deps = Set{NFT}()
   push!(stack, deps)
-  result = nothing
   try
-    result = f()
+    result, t = @time f()
+    return result, deps, t
   finally
     pop!(stack)
   end
-  return result, deps
 end
 
 function track!(t::NFT)
@@ -54,3 +73,5 @@ fingerprint(s::AbstractVector) =
 
 # TODO should probably assume dependencies
 reset!(ch; deps = []) = foreach(ch -> reset!(ch; deps), subcaches(ch))
+
+time(ch) = sum(time(c) for c in subcaches(ch))

@@ -2,6 +2,7 @@ struct CacheValue{T}
   value::T
   id::NFT
   deps::Set{NFT}
+  time::UInt64
 end
 
 struct Cache{K,V}
@@ -25,6 +26,9 @@ iscached(ch::Cache, k) = haskey(ch.data, k)
 cached(ch::Cache, k) = ch.data[k].value
 id(c::Cache, k) = c.data[k].id
 deps(c::Cache, k) = c.data[k].deps
+time(ch::Cache, k) = ch.data[k].time
+
+time(ch::Cache) = sum(v.time for (_, v) in ch.data)
 
 function Base.delete!(c::Cache{K,V}, k::K) where {K,V}
   haskey(c.data, k) || return
@@ -40,8 +44,8 @@ function set!(c::Cache{K,V}, k::K, v::CacheValue{V}) where {K,V}
   return v
 end
 
-function set!(c::Cache{K,V}, k::K, v::V; deps = Set()) where {K,V}
-  set!(c, k, CacheValue{V}(v, NFT(), deps))
+function set!(c::Cache{K,V}, k::K, v::V; deps = Set(), time = 0) where {K,V}
+  set!(c, k, CacheValue{V}(v, NFT(), deps, time))
   return v
 end
 
@@ -53,8 +57,8 @@ end
 
 function getindex(c::Cache{K,V}, k::K) where {K,V}
   if !iscached(c, k)
-    v, deps = value(c, k)
-    set!(c, k, v; deps)
+    v, deps, time = value(c, k)
+    set!(c, k, v; deps, time)
   end
   track!(id(c, k))
   return cached(c, k)
@@ -83,17 +87,22 @@ EagerCache{K,V}(args...) where {K,V} = EagerCache{K,V}(Cache{K,V}(args...))
 
 getindex(c::EagerCache, args...) = getindex(c.cache, args...)
 
-id(c::EagerCache, k) = id(c.cache, k)
-
 fingerprint(c::EagerCache) = fingerprint(c.cache)
+
+iscached(ch::EagerCache, k) = haskey(ch.cache, k)
+cached(ch::EagerCache, k) = cached(ch.cache, k)
+id(c::EagerCache, k) = id(c.cache, k)
+deps(c::EagerCache, k) = deps(c.cache, k)
+time(ch::EagerCache, k...) = time(ch.cache, k...)
 
 function reset!(c::EagerCache{K,V}; deps = []) where {K,V}
   for k in invalid(c.cache; deps)
-    v, deps = value(c.cache, k)
-    if isequal(v, cached(c.cache, k))
-      set!(c.cache, k, CacheValue{V}(v, id(c, k), deps))
+    v, deps, time = value(c.cache, k)
+    if isequal(v, cached(c, k))
+      time += Caches.time(c, k)
+      set!(c.cache, k, CacheValue{V}(v, id(c, k), deps, time))
     else
-      set!(c.cache, k, v; deps)
+      set!(c.cache, k, v; deps, time)
     end
   end
 end
@@ -110,6 +119,8 @@ end
 DualCache{K,V}(args...) where {K,V} = DualCache(Cache{K,V}(args...))
 
 fingerprint(c::DualCache) = fingerprint(c.cache)
+
+time(ch::DualCache, k...) = time(ch.cache, k...)
 
 function getindex(c::DualCache, k)
   v = c.cache[k]
