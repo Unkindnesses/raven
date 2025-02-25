@@ -221,15 +221,15 @@ test_rv"""
     itr = iterator(xs)
 
     val = next(&itr)
-    test not(isnil(val))
+    test not(nil?(val))
     test part(val, 1) == 5
 
     val = next(&itr)
-    test not(isnil(val))
+    test not(nil?(val))
     test part(val, 1) == 6
 
     val = next(&itr)
-    test isnil(val)
+    test nil?(val)
   }
   """
 
@@ -247,12 +247,12 @@ test_rv"""
     test haskey(d, tag"b")
     test not(haskey(d, tag"c"))
 
-    test not(isnil(merge(d, tag"b", "foo")))
-    test isnil(merge(d, tag"b", "bar"))
-    test not(isnil(merge(d, tag"c", 9)))
+    test not(nil?(merge(d, tag"b", "foo")))
+    test nil?(merge(d, tag"b", "bar"))
+    test not(nil?(merge(d, tag"c", 9)))
 
-    test not(isnil(merge(d, tag"a", widen(7))))
-    test isnil(merge(d, tag"a", widen(8)))
+    test not(nil?(merge(d, tag"a", widen(7))))
+    test nil?(merge(d, tag"a", widen(8)))
   }
   """
 
@@ -260,11 +260,11 @@ test_rv"""
   {
     b1 = seq(Pair(tag"a", 1), Pair(tag"b", 2))
     b2 = seq(Pair(tag"b", widen(2)), Pair(tag"d", 3))
-    test not(isnil(merge(&b1, b2)))
+    test not(nil?(merge(&b1, b2)))
 
     b1 = seq(Pair(tag"a", 1), Pair(tag"b", 2))
     b2 = seq(Pair(tag"b", widen(3)), Pair(tag"d", 3))
-    test isnil(merge(&b1, b2))
+    test nil?(merge(&b1, b2))
   }
   """
 
@@ -276,7 +276,7 @@ test_rv"""
     xs = foo(widen(0))
     test string(tag(xs)) == "common.Empty"
     test nparts(xs) == 0
-    test isempty(xs)
+    test empty?(xs)
     test length(xs) == 0
     test allocationCount() == 0
 
@@ -285,7 +285,7 @@ test_rv"""
     test nparts(xs) == 2
     test part(xs, 2) == 5
     test part(part(xs, 1), 2) == 4
-    test not(isempty(xs))
+    test not(empty?(xs))
     test length(xs) == 5
     test allocationCount() == 0
   }
@@ -393,8 +393,8 @@ test_rv"""
   """
 
 test_rv"""
-  test not(isnil(match(widen(1), Literal(1))))
-  test isnil(match(widen(2), Literal(1)))
+  test not(nil?(match(widen(1), Literal(1))))
+  test nil?(match(widen(2), Literal(1)))
   """
 
 test_rv"""

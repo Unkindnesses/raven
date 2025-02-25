@@ -1,4 +1,4 @@
-export { List, length, set, append, isempty, map, collect }
+export { List, length, set, append, empty?, map, collect }
 
 bundle List(xs...)
 
@@ -21,7 +21,7 @@ fn set(&xs: List, x, i: Int) {
   xs = ys
 }
 
-fn isempty(xs: List) {
+fn empty?(xs: List) {
   length(xs) == 0
 }
 
@@ -33,7 +33,7 @@ fn append(&xs, x) {
 fn iterator(xs: List) { IndexIterator(xs) }
 
 fn rest(xs: List) {
-  if isempty(xs) { abort("List is empty")  }
+  if empty?(xs) { abort("List is empty")  }
   result = []
   for i in range(2, length(xs)) {
     append(&result, xs[i])

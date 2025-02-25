@@ -58,7 +58,7 @@ fn next(&bl: Block(ptr, size)) {
   bl = Block(ptr, getBlockSize(ptr))
 }
 
-fn isLastBlock(Block(ptr, size)) {
+fn lastBlock?(Block(ptr, size)) {
   addr(ptr + size) == memorySize()
 }
 
@@ -70,7 +70,7 @@ fn publicPtr(Block(ptr, _)) {
 
 # Combine a block with free neighbours to the right
 fn coalesce(&bl: Block) {
-  isLastBlock(bl) && return
+  lastBlock?(bl) && return
   cl = next(bl)
   Bool(getBlockUsed(cl)) && return
   coalesce(&cl)
@@ -81,7 +81,7 @@ fn coalesce(&bl: Block) {
 # Find a free block of size >= n, creating it if necessary.
 fn findFreeBlock(n: Int32) {
   bl = firstBlock()
-  while not(isLastBlock(bl)) {
+  while not(lastBlock?(bl)) {
     if not(Bool(getBlockUsed(bl))) {
       coalesce(&bl)
       (getBlockSize(bl) >= n) && return bl
@@ -169,7 +169,7 @@ fn allocationCount() {
   bl = firstBlock()
   while true {
     Bool(getBlockUsed(bl)) && (i = i + 1)
-    isLastBlock(bl) && break
+    lastBlock?(bl) && break
     next(&bl)
   }
   return i

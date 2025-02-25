@@ -35,7 +35,7 @@ fn next(&m: Mapping(func, itr)) {
   next = next(&itr)
   m = Mapping(func, itr)
   # TODO if let / match
-  if isnil(next) {
+  if nil?(next) {
     return nil
   } else {
     Some(x) = notnil(next)

@@ -1,5 +1,5 @@
 export {
-  Sequence, Prepend, Empty, seq, first, rest, prepend, isempty, length, seqRange, repeat, sum
+  Sequence, Prepend, Empty, seq, first, rest, prepend, empty?, length, seqRange, repeat, sum
 }
 
 bundle Sequence { Prepend(xs, x), Empty() }
@@ -15,8 +15,8 @@ fn first(l: Prepend) { part(l, 2) }
 fn rest(l: Empty)  { abort("rest: seq is empty") }
 fn rest(l: Prepend) { part(l, 1) }
 
-fn isempty(_: Prepend) { false }
-fn isempty(_: Empty) { true }
+fn empty?(_: Prepend) { false }
+fn empty?(_: Empty) { true }
 
 fn length(Prepend(xs, _)) { 1 + length(xs) }
 fn length(Empty()) { 0 }

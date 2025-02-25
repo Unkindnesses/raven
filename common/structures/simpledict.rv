@@ -56,7 +56,7 @@ fn merge(&d: Prepend, k: Tag, v) {
     }
   } else {
     e = merge(rest(d), k, v)
-    if isnil(e) {
+    if nil?(e) {
       d = nil
     } else {
       d = prepend(notnil(e), p)
@@ -70,7 +70,7 @@ fn merge(&d, e: Empty) { d }
 fn merge(&d, e: Prepend) {
   p = first(e)
   merge(&d, part(p, 1), part(p, 2))
-  if isnil(d) { return d = nil }
+  if nil?(d) { return d = nil }
   d = notnil(d)
   return merge(&d, rest(e))
 }

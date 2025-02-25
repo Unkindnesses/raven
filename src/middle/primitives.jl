@@ -149,7 +149,7 @@ bitcmp_methods = @eval [$([Symbol(:bit, op, :_method) for op in bitcmps]...)]
 
 biteqz_method = RMethod(tag"common.core.biteqz", lowerpattern(rvx"[x]"), partial_biteqz, true)
 
-isnil_method = RMethod(tag"common.core.isnil", lowerpattern(rvx"[x]"), partial_isnil, true)
+isnil_method = RMethod(tag"common.core.nil?", lowerpattern(rvx"[x]"), partial_isnil, true)
 notnil_method = RMethod(tag"common.core.notnil", lowerpattern(rvx"[x]"), partial_notnil, true)
 tagcast_method = RMethod(tag"common.core.tagcast", lowerpattern(rvx"[x, t]"), partial_tagcast, true)
 tagstring_method = RMethod(tag"common.core.tagstring", lowerpattern(rvx"[x]"), partial_tagstring, true)

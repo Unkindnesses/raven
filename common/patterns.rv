@@ -8,7 +8,7 @@ fn matchTrait(tag".Any", x) { Some(x) }
 NotNil = tag".NotNil"
 
 fn matchTrait(tag".NotNil", x) {
-  if not(isnil(x)) { Some(notnil(x)) }
+  if not(nil?(x)) { Some(notnil(x)) }
 }
 
 bundle Params(T, Ts)
@@ -41,13 +41,13 @@ fn _match(val, pack(tag"common.Literal", pat)) {
 
 fn _match(val, pack(tag"common.Trait", T)) {
   m = matchTrait(T, val)
-  isnil(m) && return
+  nil?(m) && return
   return [part(notnil(m), 1), simpledict()]
 }
 
 fn _match(val, pack(tag"common.Bind", name, p)) {
   m = _match(val, p)
-  isnil(m) && return
+  nil?(m) && return
   m = notnil(m)
   val = part(m, 1)
   bs = part(m, 2)
@@ -58,7 +58,7 @@ fn _match(val, pack(tag"common.Bind", name, p)) {
 fn _match(xs, p: Pack) {
   eq(nparts(xs), sub(nparts(p), 1)) || return
   m = _match(tag(xs), part(p, 1))
-  isnil(m) && return
+  nil?(m) && return
   m = notnil(m)
   tag = part(m, 1)
   xs = tagcast(xs, tag)
@@ -66,9 +66,9 @@ fn _match(xs, p: Pack) {
   result = pack(tag)
   i = 1
   while lt(i, nparts(p)) {
-    if not(isnil(bs)) {
+    if not(nil?(bs)) {
       m = _match(part(xs, i), part(p, add(i, 1)))
-      if isnil(m) {
+      if nil?(m) {
         bs = nil
         result = nil
       } else {
@@ -83,7 +83,7 @@ fn _match(xs, p: Pack) {
     }
     i = add(i, 1)
   }
-  isnil(bs) && return
+  nil?(bs) && return
   return [notnil(result), notnil(bs)]
 }
 
@@ -93,10 +93,10 @@ fn _match(val, pack(tag".Constructor", name, args...)) {
 
 fn match(val, pat) {
   result = _match(val, pat)
-  isnil(result) && return
+  nil?(result) && return
   return part(notnil(result), 2)
 }
 
 fn isa(val, T) {
-  not(isnil(matchTrait(T, val)))
+  not(nil?(matchTrait(T, val)))
 }
