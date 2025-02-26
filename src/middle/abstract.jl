@@ -366,23 +366,27 @@ function Inferred(defs::Definitions, meths::EagerCache)
 end
 
 Caches.iscached(i::Inferred, k) = iscached(i.results, k)
-Caches.time(i::Inferred, k) = i.inf.frames[k].time
 Caches.time(i::Inferred) = i.time
 
-function Base.getindex(i::Inferred, sig)
+function _getindex(i::Inferred, sig)
   iscached(i, sig) && return i.results[sig]
   # Don't let inference dependencies leak
-  _, deps, t = Caches.trackdeps() do
+  _, deps = Caches.trackdeps() do
     frame!(i.inf, Parent((), 1), sig...)
     infer!(i.inf)
   end
   @assert isempty(deps)
-  i.time += t
   for (k, fr) in i.inf.frames
     (k isa Binding || iscached(i, k)) && continue
     i.results[k] = fr isa Redirect ? fr : (prune!(unloop(fr.ir)) => fr.rettype)
   end
   return i.results[sig]
+end
+
+function Base.getindex(i::Inferred, sig)
+  result, t = Caches.@time _getindex(i, sig)
+  i.time += t
+  return result
 end
 
 Caches.fingerprint(i::Inferred) = fingerprint(i.results)

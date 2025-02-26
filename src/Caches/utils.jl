@@ -47,8 +47,7 @@ function trackdeps(f)
   deps = Set{NFT}()
   push!(stack, deps)
   try
-    result, t = @time f()
-    return result, deps, t
+    return f(), deps
   finally
     pop!(stack)
   end

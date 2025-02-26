@@ -50,9 +50,10 @@ function set!(c::Cache{K,V}, k::K, v::V; deps = Set(), time = 0) where {K,V}
 end
 
 function value(c::Cache{K,V}, k::K; self = c) where {K,V}
-  trackdeps() do
+  (result, deps), time = @time trackdeps() do
     convert(V, c.default(k))::V
   end
+  return result, deps, time
 end
 
 function getindex(c::Cache{K,V}, k::K) where {K,V}

@@ -73,11 +73,12 @@ end
 
 function update!(c::CycleCache{K,V}, k) where {K,V}
   v = c.data[k]
-  val, deps, time = trackdeps() do
-    c.default(Inner(c), k)
+  ((val, eq), deps), time = @time trackdeps() do
+    val = c.default(Inner(c), k)
+    val, isequal(val, v.value)
   end
   time += v.time
-  if !isequal(val, v.value)
+  if !eq
     # TODO could clear old deps, but need to preserve those from `init`.
     set!(c, k, CycleCacheValue{V}(val, v.id, union(v.deps, deps), time))
     foreach(s -> push!(c.queue, s), edges(c, k))
@@ -89,7 +90,7 @@ end
 
 function getindex(c::CycleCache{K,V}, k::K; loop = true) where {K,V}
   if !haskey(c.data, k)
-    val, deps, time = trackdeps(() -> c.init(k))
+    (val, deps), time = @time trackdeps(() -> c.init(k))
     set!(c, k, CycleCacheValue{V}(val, NFT(), deps, time))
     update!(c, k)
   end
