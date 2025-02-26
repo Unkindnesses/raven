@@ -49,7 +49,7 @@ end
 
 partial_nparts(x::Pack) = RInt64(nparts(x))
 partial_nparts(::VPack) = RInt64()
-partial_nparts(::String) = nparts(RString())
+partial_nparts(::String) = RInt64(nparts(RString()))
 partial_nparts(x::Union{Primitive,Type{<:PrimitiveNumber}}) = RInt64(nparts(x))
 
 partial_nparts(x::Onion) =
