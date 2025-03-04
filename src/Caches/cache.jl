@@ -8,10 +8,10 @@ end
 struct Cache{K,V}
   default::Any
   fingerprint::Set{NFT}
-  data::IdDict{K,CacheValue{V}}
+  data::Base.Dict{K,CacheValue{V}}
 end
 
-Cache{K,V}(f) where {K,V} = Cache{K,V}(f, Set{NFT}(), IdDict())
+Cache{K,V}(f) where {K,V} = Cache{K,V}(f, Set{NFT}(), Base.Dict())
 
 Cache(f) = Cache{Any,Any}(f)
 
@@ -73,7 +73,7 @@ end
 
 reset!(c::Cache; deps = []) = foreach(k -> delete!(c, k), invalid(c; deps))
 
-Base.IdDict(c::Cache) = IdDict(k => v.value for (k, v) in c.data)
+Base.Dict(c::Cache) = Dict(k => v.value for (k, v) in c.data)
 
 # Eagerly updated version
 
@@ -112,9 +112,9 @@ end
 
 struct DualCache{K,V}
   cache::Cache{K,V}
-  keys::IdDict{V,K}
-  DualCache{K,V}(c::Cache{K,V}) where {K,V} = new{K,V}(c, IdDict{V,K}())
-  DualCache(c::Cache{K,V}) where {K,V} = new{K,V}(c, IdDict{V,K}())
+  keys::Base.Dict{V,K}
+  DualCache{K,V}(c::Cache{K,V}) where {K,V} = new{K,V}(c, Base.Dict{V,K}())
+  DualCache(c::Cache{K,V}) where {K,V} = new{K,V}(c, Base.Dict{V,K}())
 end
 
 DualCache{K,V}(args...) where {K,V} = DualCache(Cache{K,V}(args...))

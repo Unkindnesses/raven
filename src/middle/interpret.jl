@@ -29,9 +29,9 @@ function interpret(int, ir::IR, args...)
         else
           target, cond, args... = args
           if !isnothing(cond)
-            @assert tag(cond) == tag"common.Bool"
+            @assert issubset(cond, RType(Bool))
             isvalue(cond) || return
-            cond == RBool(true) || continue
+            cond == RType(true) || continue
           end
           bl = target
           foreach(((v, x),) -> env[v] = x, zip(arguments(block(ir, bl)), args))
@@ -65,6 +65,8 @@ function interpret(int, func::Tag, args)
     return isempty(meth.sig.swap) ? rlist(result) : result
   end
 end
+
+interpret(int, func::RType, args) = interpret(int, atom(func)::Tag, args)
 
 struct Interpreter
   defs::Definitions

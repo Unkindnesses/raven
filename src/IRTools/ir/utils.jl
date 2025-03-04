@@ -66,32 +66,32 @@ exprtype(ir::Pipe, x; typeof = Typeof) = typeof(x)
 
 struct WorkQueue{T}
   items::Vector{T}
+  seen::Set{T}
 end
 
-WorkQueue{T}() where T = WorkQueue(T[])
+WorkQueue{T}() where T = WorkQueue{T}(T[], Set{T}())
 
 WorkQueue() = WorkQueue{Any}()
 
-WorkQueue(xs) = WorkQueue(collect(xs))
-
-function Base.delete!(q::WorkQueue, x)
-  i = findfirst(y -> x === y, q.items)
-  i === nothing || (deleteat!(q.items, i))
-  return q
-end
+WorkQueue(itr) = WorkQueue(collect(itr), Set(itr))
 
 function Base.push!(q::WorkQueue, x)
-  delete!(q, x)
+  x in q.seen && return
   push!(q.items, x)
+  push!(q.seen, x)
   return q
 end
 
-function Base.pushfirst!(q::WorkQueue, x)
-  delete!(q, x)
-  pushfirst!(q.items, x)
-  return q
+function Base.pop!(q::WorkQueue)
+  x = pop!(q.items)
+  delete!(q.seen, x)
+  return x
 end
 
-Base.pop!(q::WorkQueue) = pop!(q.items)
-Base.popfirst!(q::WorkQueue) = popfirst!(q.items)
+function Base.popfirst!(q::WorkQueue)
+  x = popfirst!(q.items)
+  delete!(q.seen, x)
+  return x
+end
+
 Base.isempty(q::WorkQueue) = isempty(q.items)

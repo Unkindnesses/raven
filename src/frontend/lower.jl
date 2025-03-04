@@ -5,7 +5,8 @@ struct Hole end
 const hole = Hole()
 
 struct Literal
-  value
+  value::RType
+  Literal(x) = new(RType(x))
 end
 
 struct Repeat
@@ -18,8 +19,16 @@ struct Bind
 end
 
 struct Trait
-  pattern::Any
+  pattern::RType
+  Trait(x) = new(RType(x))
 end
+
+struct Pack
+  parts::Vector{Any}
+end
+
+nparts(x::Pack) = length(x.parts)-1
+Base.getindex(x::Pack, i) = x.parts[i+1]
 
 struct Or
   patterns::Vector{Any}
@@ -41,7 +50,6 @@ end
 # Raven versions
 
 rvpattern(::Hole) = pack(tag"common.Hole")
-rvpattern(x::Primitive) = x
 rvpattern(x::Literal) = pack(tag"common.Literal", x.value)
 rvpattern(x::Bind) = pack(tag"common.Bind", Tag(x.name), rvpattern(x.pattern))
 rvpattern(xs::Pack) = pack(tag"common.Pack", rvpattern.(xs.parts)...)
@@ -50,17 +58,18 @@ rvpattern(x::Trait) = pack(tag"common.Trait", x.pattern)
 rvpattern(xs::Constructor) = pack(tag"common.Constructor", xs.func, rvpattern.(xs.args)...)
 
 function jlpattern(x)
-  if tag(x) == tag"common.Hole"
+  t = atom(tag(x))::Tag
+  if t == tag"common.Hole"
     Hole()
-  elseif tag(x) == tag"common.Literal"
+  elseif t == tag"common.Literal"
     Literal(part(x, 1))
-  elseif tag(x) == tag"common.Bind"
-    Bind(Symbol(part(x, 1)), jlpattern(part(x, 2)))
-  elseif tag(x) == tag"common.Pack"
-    pack(jlpattern.(parts(x))...)
-  elseif tag(x) == tag"common.And"
+  elseif t == tag"common.Bind"
+    Bind(Symbol(atom(part(x, 1))::Tag), jlpattern(part(x, 2)))
+  elseif t == tag"common.Pack"
+    Pack(jlpattern.(parts(x)))
+  elseif t == tag"common.And"
     And(collect(jlpattern.(parts(x))))
-  elseif tag(x) == tag"common.Trait"
+  elseif t == tag"common.Trait"
     Trait(part(x, 1))
   else
     error("unrecognised pattern $(tag(x))")
@@ -79,9 +88,9 @@ resolvetags(ex::AST.Expr, mod::Tag) = typeof(ex)(resolvetags.(ex.args, (mod,)), 
 
 function lowerisa(ex, as, resolve)
   if ex isa Symbol
-    return Trait(resolve(ex)::Tag)
+    return Trait(atom(resolve(ex))::Tag)
   elseif ex isa AST.Index
-    args = [x isa Int64 ? RInt64(x) : resolve(x) for x in ex[:]]
+    args = [x isa Int64 ? RType(x) : resolve(x) for x in ex[:]]
     return Trait(pack(tag"common.Params", args...))
   elseif ex isa AST.Operator && ex[1] == :(|)
     Or(map(x -> lowerisa(x, as, resolve), ex[2:end]))
@@ -99,8 +108,8 @@ function _lowerpattern(ex, as, resolve)
     ex == :_ || ex in as || push!(as, ex)
     return ex == :_ ? hole : Bind(ex, hole)
   elseif ex isa Int64
-    return Literal(RInt64(ex))
-  elseif ex isa Primitive
+    return Literal(RType(ex))
+  elseif ex isa Union{Number,String,Tag}
     return Literal(ex)
   elseif ex isa AST.List
     pack(Literal(tag"common.List"), map(x -> _lowerpattern(x, as, resolve), ex.args)...)
@@ -116,9 +125,9 @@ function _lowerpattern(ex, as, resolve)
     Repeat(_lowerpattern(ex[1], as, resolve))
   elseif ex isa AST.Call
     name = ex[1]::Union{Symbol,Tag}
-    name isa Symbol && (name = resolve(name)::Tag)
+    name isa Symbol && (name = atom(resolve(name))::Tag)
     name == tag"common.core.pack" ?
-      pack(map(x -> _lowerpattern(x, as, resolve), ex[2:end])...) :
+      Pack(map(x -> _lowerpattern(x, as, resolve), ex[2:end])) :
       Constructor(name, _lowerpattern.(ex[2:end], (as,), (resolve,)))
   elseif ex isa AST.Group && length(ex) == 1
     _lowerpattern(ex[1], as, resolve)
@@ -143,7 +152,7 @@ function _lowersig(ex, as, swaps, resolve)
       _lowerpattern(x, as, resolve)
     end
   end
-  pack(Literal(tag"common.List"), args...)
+  Pack([Literal(tag"common.List"), args...])
 end
 
 function lowerpattern(ex; mod = tag"", resolve = x -> error("Couldn't statically resolve $x"))
@@ -264,11 +273,11 @@ rcall(f, args...) = xpart(xcall(f, xlist(args...)), 1)
 function IRTools.print_stmt(io::IO, ::Val{:pack}, ex)
   if ex.args[1] == tag"common.List"
     print(io, "[")
-    join(io, [sprint(vprint, x) for x in ex.args[2:end]], ", ")
+    join(io, ex.args[2:end], ", ")
     print(io, "]")
   else
     print(io, "pack[")
-    join(io, [sprint(vprint, x) for x in ex.args], ", ")
+    join(io, ex.args, ", ")
     print(io, "]")
   end
 end
@@ -283,7 +292,7 @@ mod(sc::GlobalScope) = sc.mod
 
 variable!(sc::GlobalScope, name) = sc[name]
 
-swaps(sc::GlobalScope) = nothing
+swaps(::GlobalScope) = nothing
 
 struct Scope
   parent::Union{Scope,GlobalScope}
@@ -317,11 +326,9 @@ _lower!(sc, ir, x::Vector) = foreach(x -> _lower!(sc, ir, x), x)
 
 lower!(sc, ir::IR, x::Variable) = x
 
-function lower!(sc, ir::IR, x::Union{Float64,String,Pack,Tag})
-  _push!(ir, xtuple(), type = x)
+function lower!(sc, ir::IR, x::Union{Tag,String,Float64,Int64})
+  _push!(ir, xtuple(), type = RType(x))
 end
-
-lower!(sc, ir::IR, x::Int64) = lower!(sc, ir, RInt64(x))
 
 lower!(sc, ir::IR, x::Vector) =
   isempty(x) ? Binding(tag"common", :nil) :

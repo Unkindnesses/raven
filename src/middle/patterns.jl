@@ -54,12 +54,21 @@ function _merge(as, bs)
   return as
 end
 
+# TODO match results don't have to be identical, if
+# bindings and paths are right we can merge types.
+function partial_match_union(mod, pat, val, path)
+  ms = map(x -> partial_match(mod, pat, x, path), val.union)
+  any(x -> x === missing, ms) && return missing
+  all(==(first(ms)), ms) && return first(ms)
+  return missing
+end
+
 function partial_match(mod, pat::Hole, val, path)
   return Dict()
 end
 
 function partial_match(mod, pat::Literal, val, path)
-  if isvalue(val)
+  if isvalue(val) && isvalue(pat.value)
     return pat.value == val ? Dict() : nothing
   else
     return missing # could reject more cases here
@@ -76,15 +85,9 @@ function partial_match(mod, pat::Trait, val, path)
   r === true ? Dict() : r === false ? nothing : missing
 end
 
-function partial_match(mod, pat::And, val, path)
-  bs = Dict()
-  for p in pat.patterns
-    bs = @try _merge(bs, @try partial_match(mod, p, val, path))
-  end
-  return bs
-end
-
 function partial_match(mod, pat::Or, val, path)
+  isfield(val, :recursive) && return partial_match(mod, pat, unroll(val), path)
+  isfield(val, :union) && return partial_match_union(mod, pat, val, path)
   for p in pat.patterns
     m = partial_match(mod, p, val, path)
     isnothing(m) && continue
@@ -107,7 +110,7 @@ ishole(x) = false
 
 isslurp(x) = x isa Repeat && ishole(x.pattern)
 
-function partial_match(mod, pat::Pack, val::SimpleType, path)
+function partial_match_pack(mod, pat::Pack, val::RType, path)
   bs = Dict()
   i = 0
   while true
@@ -122,7 +125,7 @@ function partial_match(mod, pat::Pack, val::SimpleType, path)
       return missing
     else
       # continue on `missing`, since we might narrow to `nothing` later
-      b = partial_match(mod, part(pat, i), part(val, i), [path..., i])
+      b = partial_match(mod, pat[i], part(val, i), [path..., i])
       b === nothing && return
       bs = _merge(bs, b)
     end
@@ -138,41 +141,30 @@ function partial_match(mod, pat::Pack, val::SimpleType, path)
   return bs
 end
 
-# TODO match results don't have to be identical, if
-# bindings and paths are right we can merge types.
-function partial_match_union(mod, pat, val::Onion, path)
-  ms = map(x -> partial_match(mod, pat, x, path), val.types)
-  any(x -> x === missing, ms) && return missing
-  all(==(first(ms)), ms) && return first(ms)
-  return missing
-end
-
-function partial_match(mod, pat::Pack, val::Onion, path)
-  partial_match_union(mod, pat, val, path)
-end
-
-function partial_match(mod, pat::Or, val::Onion, path)
-  partial_match_union(mod, pat, val, path)
-end
-
-function partial_match(mod, pat::Pack, val::Recursive, path)
-  partial_match(mod, pat, unroll(val), path)
-end
-
-function partial_match(mod, pat::Or, val::Recursive, path)
-  partial_match(mod, pat, unroll(val), path)
-end
-
-function partial_match(mod, pat::Pack, val::VPack, path)
-  bs = @try partial_match(mod, tag(pat), tag(val), [path..., 0])
+function partial_match_vpack(mod, pat::Pack, val::RType, path)
+  bs = @try partial_match(mod, pat[0], tag(val), [path..., 0])
   isempty(bs) || return missing
-  (nparts(pat) == 1 && part(pat, 1) isa Repeat) || return missing
-  pat = part(pat, 1).pattern
+  (nparts(pat) == 1 && pat[1] isa Repeat) || return missing
+  pat = pat[1].pattern
   b, r = pat isa Bind ? (pat.name, pat.pattern) : (nothing, pat)
-  bs′ = partial_match(mod, r, val.parts, path)
+  bs′ = partial_match(mod, r, partial_eltype(val), path)
   isnothing(bs′) && return
   isempty(bs′) || return missing
   return b == nothing ? bs : _assoc(bs, b => (val, path))
+end
+
+function partial_match(mod, pat::Pack, val::RType, path)
+  if isatom(val) || isfield(val, :pack)
+    partial_match_pack(mod, pat, val, path)
+  elseif isfield(val, :vpack)
+    partial_match_vpack(mod, pat, val, path)
+  elseif isfield(val, :union)
+    partial_match_union(mod, pat, val, path)
+  elseif isfield(val, :recursive)
+    partial_match(mod, pat, unroll(val), path)
+  else
+    error("unimplemented")
+  end
 end
 
 partial_match(mod, pat, val) = partial_match(mod, pat, val, [])
@@ -182,8 +174,8 @@ function trivial_isa(int, val, T)
   r = int[(tag"common.matchTrait", rlist(T, val))]
   isnothing(r) && return missing
   T = tag(part(r, 1))
-  T == tag"common.Some" ? true :
-  T == tag"common.Nil" ? false :
+  T == RType(tag"common.Some") ? true :
+  T == RType(tag"common.Nil") ? false :
   missing
 end
 
@@ -207,9 +199,10 @@ end
 
 # Generate dispatchers
 
-dispatch_arms(T) = [T]
-dispatch_arms(T::Onion) = T.types
-dispatch_arms(T::Recursive) = dispatch_arms(unroll(T))
+dispatch_arms(T) =
+  isfield(T, :union) ? T.union :
+  isfield(T, :recursive) ? dispatch_arms(unroll(T)) :
+  [T]
 
 function dispatch_arms(T::Pack)
   result = [[]]
@@ -267,12 +260,17 @@ function dispatcher(inf, func::Tag, Ts)
         push!(as, call!(part_method, call!(tag"common.getkey", m, Tag(arg)), 1))
       end
       result = call!(meth, as...)
-      isempty(meth.sig.swap) && (result = push!(ir, stmt(xlist(result), type = rlist(exprtype(ir, result)))))
+      isempty(meth.sig.swap) && exprtype(ir, result) != ⊥ &&
+        (result = push!(ir, stmt(xlist(result), type = rlist(exprtype(ir, result)))))
       return!(ir, result)
       ret = union(ret, exprtype(ir, result))
       block!(ir)
     else # certain to match
       result = call!(meth, [indexer!(ir, Ts, args, m[x][2]) for x in meth.sig.args]...)
+      if exprtype(ir, result) == ⊥
+        unreachable!(ir)
+        return ir, ret
+      end
       isempty(meth.sig.swap) && (result = push!(ir, stmt(xlist(result), type = rlist(exprtype(ir, result)))))
       return!(ir, result)
       ret = union(ret, exprtype(ir, result))

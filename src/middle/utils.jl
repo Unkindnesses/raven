@@ -13,10 +13,10 @@ function trim_unreachable(ir)
           flag = true
         else
           cond = exprtype(ir, br.args[2])
-          @assert tag(cond) == tag"common.Bool"
-          if cond == RBool(false)
+          @assert issubset(cond, RType(Bool))
+          if cond == RType(false)
             delete!(pr, v)
-          elseif cond == RBool(true)
+          elseif cond == RType(true)
             flag = true
             pr[v] = IRTools.branch(br.args[1], arguments(br)...)
           end
@@ -112,23 +112,24 @@ options() = dynamic_value(:options, Options())::Options
 
 # Union splitting
 
-function union_downcast!(ir, T::Onion, i::Integer, x)
-  offset = sum(nregisters, layout.(T.types[1:i-1]), init = 0)+1
-  parts = [push!(ir, Expr(:ref, x, j+offset)) for j = 1:nregisters(layout(T.types[i]))]
-  return layout(T.types[i]) isa Tuple ? push!(ir, stmt(Expr(:tuple, parts...), type = T.types[i])) : parts[1]
+function union_downcast!(ir, T::RType, i::Integer, x)
+  offset = sum(nregisters, layout.(T.union[1:i-1]), init = 0)+1
+  parts = [push!(ir, Expr(:ref, x, j+offset)) for j = 1:nregisters(layout(T.union[i]))]
+  return layout(T.union[i]) isa Tuple ? push!(ir, stmt(Expr(:tuple, parts...), type = T.union[i])) : parts[1]
 end
 
 # `f` is reponsible for freeing its argument value, but not for freeing `x`
 # (since they are the same object)
-function union_cases!(f, ir, T::Onion, x)
+function union_cases!(f, ir, T::RType, x)
+  @assert isfield(T, :union)
   j = push!(ir, Expr(:ref, x, 1))
-  for case in 1:length(T.types)
-    cond = push!(ir, stmt(xcall(i32.eq, j, Int32(case)), type = Int32))
+  for case in 1:length(T.union)
+    cond = push!(ir, stmt(xcall(i32.eq, j, Int32(case)), type = RType(Bool)))
     branch!(ir, length(blocks(ir))+1, when = cond)
     branch!(ir, length(blocks(ir))+2)
     block!(ir)
     val = union_downcast!(ir, T, case, x)
-    ret = f(T.types[case], val)
+    ret = f(T.union[case], val)
     return!(ir, ret)
     block!(ir)
   end

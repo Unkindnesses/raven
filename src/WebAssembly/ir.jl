@@ -82,8 +82,8 @@ end
 function stack(ir::IR)
   ret = WType[]
   env = Dict()
+  parts(x) = [Const(x)]
   parts(x::Variable) = env[x]
-  parts(x::Real) = [Const(x)]
   parts(xs::AbstractVector) = [p for x in xs for p in parts(x)]
   parts!(x, T) = (env[x] = [(x, i) for (i, _) in enumerate(flattype(T))])
   lv = IRTools.liveness(ir)
@@ -100,14 +100,14 @@ function stack(ir::IR)
       if ex isa Variable
         env[v] = env[ex]
         delete!(pr, v)
+      elseif !isexpr(ex)
+        env[v] = [Const(ex)]
+        delete!(pr, v)
       elseif isexpr(st, :tuple)
         env[v] = vcat([parts(x) for x in ex.args]...)
         delete!(pr, v)
       elseif isexpr(st, :ref)
         env[v] = [parts(ex.args[1])[ex.args[2]]]
-        delete!(pr, v)
-      elseif ex isa Number
-        env[v] = [Const(ex)]
         delete!(pr, v)
       elseif isexpr(st, :call)
         parts!(v, st.type)

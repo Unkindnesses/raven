@@ -10,6 +10,7 @@ for (op, f) in [(:shl, <<), (:shr_u, >>), (:shr_s, >>), (:and, &), (:or, |),
                 (:div_u, ÷), (:div_s, ÷), (:rem_u, rem), (:rem_s, rem)]
   T = endswith(string(op), "_s") ? Int64 : UInt64
   @eval $op(x::Bits{N}, y::Bits{N}) where N = Bits{N}($f($T(x), $T(y)))
+  @eval $op(x::RType, y::RType) = RType($op(atom(x), atom(y)))
 end
 
 for (op, f) in [(:eq, ==), (:ne, !=), (:gt_u, >), (:lt_u, <),
@@ -17,108 +18,133 @@ for (op, f) in [(:eq, ==), (:ne, !=), (:gt_u, >), (:lt_u, <),
                 (:ge_s, >=), (:le_s, <=)]
   T = endswith(string(op), "_s") ? Int64 : UInt64
   @eval $op(x::Bits{N}, y::Bits{N}) where N = Bits{1}($f($T(x), $T(y)))
+  @eval $op(x::RType, y::RType) = RType($op(atom(x), atom(y)))
 end
 
 # Core primitives – pack, packcat, part and nparts – are dealt with in
 # IR expansion, but we define type inference here, and implement some
 # simple built-in functions.
 
-partial_part(data::Union{Pack,Primitive,Type{<:Primitive}}, i::Integer) =
-  0 <= i <= nparts(data) ? part(data, i) : ⊥
+function Int64(x::RType)
+  @assert atom(tag(x)) == tag"common.Int"
+  isvalue(x) ? Int64(atom(part(x, 1))) : Int64
+end
+
+partial_part(data::RType, i::RType) =
+  isfield(data, :union) ? reduce(union, partial_part.(data.union, (i,))) :
+  isfield(data, :recursive) ? partial_part(unroll(data), i) :
+  partial_part(data, Int64(i))
+
+function partial_part(data::RType, i::Integer)
+  if isatom(data) || isfield(data, :pack)
+    0 <= i <= nparts(data) ? part(data, i) : ⊥
+  elseif isfield(data, :vpack)
+    i == 0 ? tag(data) : partial_eltype(data)
+  else
+    error("unimplemented")
+  end
+end
 
 # TODO: HACK: we assume index != 0 when indexing dynamically.
 # Should instead have a seperate `index` function that enforces this.
-partial_part(data::Pack, i::Type{<:Integer}) =
-  reduce(union, parts(data))
+partial_part(data::RType, i::Type{Int64}) = partial_eltype(data)
 
-partial_part(data::Union{Primitive,Type{<:PrimitiveNumber}}, t::Type{<:Integer}) = data
+partial_nparts(x::RType) =
+  isfield(x, :union) ? reduce(union, RType.(partial_nparts.(x.union))) :
+  isfield(x, :recursive) ? partial_nparts(unroll(x)) :
+  isfield(x, :vpack) ? RType(Int64) :
+  RType(nparts(x))
 
-partial_part(data::VPack, i::ValOrType{Int64}) =
-  i == 0 ? data.tag : data.parts
+# partial_widen(x::RType) = (@show(x); error("unimplemented"))
 
-partial_part(data::Onion, i::ValOrType{Int64}) =
-  reduce(union, partial_part.(data.types, (i,)))
+partial_widen(x::RType) =
+  isfield(x, :string) ? RString() :
+  isatom(x) ? abstract(x) :
+  isfield(x, :pack) && tag(x) in RType.((tag"common.Int", tag"common.Bool")) ? pack(tag(x), abstract(part(x, 1))) :
+  error("unimplemented")
 
-partial_part(data::Recursive, i::ValOrType{Int64}) =
-  partial_part(unroll(data), i)
-
-function partial_part(data, x::Pack)
-  @assert tag(x) == tag"common.Int"
-  partial_part(data, isvalue(x) ? Int64(part(x, 1)) : Int64)
-end
-
-partial_nparts(x::Pack) = RInt64(nparts(x))
-partial_nparts(::VPack) = RInt64()
-partial_nparts(::String) = RInt64(nparts(RString()))
-partial_nparts(x::Union{Primitive,Type{<:PrimitiveNumber}}) = RInt64(nparts(x))
-
-partial_nparts(x::Onion) =
-  reduce(union, partial_nparts.(x.types))
-
-partial_nparts(x::Recursive) = partial_nparts(unroll(x))
-
-partial_widen(x::String) = RString()
-partial_widen(x::PrimitiveNumber) = typeof(x)
-partial_widen(x) = x
-
-partial_widen(x::Pack) =
-  isvalue(x) && tag(x) == tag"common.Int" ?
-    pack(tag"common.Int", typeof(part(x, 1))) :
-    x
+symbolValues(x::RType) =
+  isfield(x, :recursive) ? symbolValues(unroll(x)) :
+  isfield(x, :tag) ? Set([x]) :
+  isfield(x, :union) ? reduce(union, symbolValues.(x.union)) :
+  Set{Tag}()
 
 # Fast, approximate equality check; basically a stand-in for pointer equality.
 # TODO extend to handle VPack
 partial_shortcutEquals(a, b) =
-  isvalue(a) && isvalue(b) ? RBool(a == b) :
-  !isempty(intersect(symbolValues(a), symbolValues(b))) ? RBool() :
-  RBool(false)
+  isvalue(a) && isvalue(b) ? RType(a == b) :
+  !isempty(intersect(symbolValues(a), symbolValues(b))) ? RType(Bool) :
+  RType(false)
 
-partial_bitsize(::ValOrType{Bits{N}}) where N = RInt64(N)
+partial_bitsize(x::RType) = RType(Int64(x.bits[1]))
 
 partial_bitcast(::ValOrType{Bits{N}}, x::Bits) where N = Bits{N}(UInt64(x))
 partial_bitcast(::ValOrType{Bits{N}}, x::Type{<:Bits}) where N = Bits{N}
+partial_bitcast(a::RType, b::RType) = RType(partial_bitcast(atom(a), atom(b)))
 
 partial_bitcast_s(::ValOrType{Bits{N}}, x::Bits) where N = Bits{N}(Int64(x))
 partial_bitcast_s(::ValOrType{Bits{N}}, x::Type{<:Bits}) where N = Bits{N}
+partial_bitcast_s(a::RType, b::RType) = RType(partial_bitcast_s(atom(a), atom(b)))
 
 partial_bitop(::ValOrType{Bits{N}}, x::ValOrType{Bits{N}}) where N = Bits{N}
+partial_bitop(x::RType, y::RType) = RType(partial_bitop(atom(x), atom(y)))
+
 partial_bitcmp(::ValOrType{Bits{N}}, x::ValOrType{Bits{N}}) where N = Bits{1}
+partial_bitcmp(x::RType, y::RType) = RType(partial_bitcmp(atom(x), atom(y)))
+
 partial_biteqz(x::Bits) = Bits{1}(x.value == 0)
 partial_biteqz(::Type{<:Bits}) = Bits{1}
+partial_biteqz(x::RType) = RType(partial_biteqz(atom(x)))
 
 # Needed by dispatchers, since a user-defined method would need runtime matching
 # to deal with unions.
-partial_isnil(x::Union{Primitive,Type{<:Primitive},VPack}) = RBool(false)
-partial_isnil(x::Pack) = RBool(x == nil)
-partial_isnil(x::Onion) = any(==(nil), x.types) ? RBool() : RBool(false)
+partial_isnil(x::RType) =
+  x == nil ? RType(true) :
+  issubset(nil, x) ? RType(Bool) :
+  RType(false)
 
-partial_notnil(x::Pack) = tag(x) == tag"common.Nil" ? ⊥ : x
-partial_notnil(x::Union{Primitive,Type{<:Primitive}}) = x
-
-function partial_notnil(x::Onion)
-  ps = filter(x -> tag(x) != tag"common.Nil", x.types)
-  return length(ps) == 1 ? ps[1] : Onion(ps)
+function partial_notnil(x::RType)
+  !issubset(nil, x) ? x :
+  isfield(x, :pack) ? (x == nil ? ⊥ : x) :
+  isfield(x, :union) ? onion(filter(x -> x != nil, x.union)...) :
+  isfield(x, :recursive) ? recursive(partial_notnil(unroll(x))) :
+  @assert false
 end
 
-partial_notnil(x::Recursive) = recursive(partial_notnil(unroll(x)))
-
-partial_tagcast(x::Union{Pack,VPack,Primitive,Type{<:PrimitiveNumber}}, t::Tag) =
-  tag(x) == t ? x : ⊥
-
-function partial_tagcast(x::Onion, t::Tag)
-  ps = filter(x -> tag(x) == t, x.types)
+function partial_tagcast(x::RType, t::RType)
+  @assert isvalue(t)
+  x = unroll(x)
+  isfield(x, :union) || return (tag(x) == t ? x : ⊥)
+  ps = filter(x -> tag(x) == t, x.union)
   return isempty(ps) ? ⊥ : only(ps)
 end
 
-partial_tagcast(x::Recursive, t::Tag) = partial_tagcast(unroll(x), t)
+partial_tagstring(x::RType) =
+  isfield(x, :tag) ? RType(x.tag) :
+  isfield(x, :union) ? RString() :
+  error("unimplemented")
 
-partial_tagstring(x::Tag) = string(x)
-partial_tagstring(x::Onion) = RString()
+function rvtype(x::RType)
+  @assert isvalue(x)
+  if isfield(x, :tag)
+    error("unimplemented")
+  elseif isatom(x)
+    abstract(x)
+  elseif tag(x) == RType(tag"common.List")
+    pack(tag(x), rvtype.(parts(x))...)
+  elseif tag(x) == RType(tag"common.Pack")
+    pack(rvtype.(parts(x))...)
+  elseif tag(x) == RType(tag"common.Literal")
+    return part(x, 1)
+  else
+    error("Unrecognised type $x")
+  end
+end
 
-partial_function(f, I, O) = RInt32()
+partial_function(f, I, O) = RType(Int32)
 partial_invoke(f, I, O, xs...) = rvtype(O)
 
-partial_jsalloc() = RBool(options().jsalloc)
+partial_jsalloc() = RType(options().jsalloc)
 
 pack_method = RMethod(tag"common.core.pack", lowerpattern(rvx"args"), args -> pack(parts(args)...), true)
 part_method = RMethod(tag"common.core.part", lowerpattern(rvx"[data, i]"), partial_part, true)
@@ -192,15 +218,13 @@ const outlinePrimitive = IdDict{RMethod,Any}()
 inlinePrimitive[widen_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
   T = exprtype(ir, x)
-  if T isa String
-    id = insert!(pr, v, stmt(Expr(:ref, T), type = rlist(RInt32())))
+  if isfield(T, :string)
+    id = insert!(pr, v, stmt(Expr(:ref, T.string), type = rlist(RType(Int32))))
     pr[v] = stmt(xcall(tag"common.JSObject", id), type = RString())
-  elseif T isa Number
-    pr[v] = T
-  elseif T isa Bits
-    pr[v] = data(T)
-  elseif tag(T) == tag"common.Int"
-    pr[v] = data(part(T, 1))
+  elseif isatom(T) && isvalue(T)
+    pr[v] = atom(T)
+  elseif tag(T) in RType.((tag"common.Int", tag"common.Bool"))
+    pr[v] = atom(part(T, 1))
   else
     pr[v] = x
   end
@@ -211,14 +235,15 @@ inlinePrimitive[bitsize_method] = function (pr, ir, v)
 end
 
 function mask(T, x)
-  m = (one(unsigned(layout(T))) << nbits(T)) - 0x01
+  m = bits(layout(T))((1 << nbits(T)) - 1)
   stmt(xcall(WType(layout(T)).and, x, m), type = layout(T))
 end
 
 function extend!(pr, v, T, x)
-  shift = layout(T)(64 - nbits(T))
-  x = insert!(pr, v, stmt(xcall(WType(layout(T)).shl, x, shift), type = layout(T)))
-  x = insert!(pr, v, stmt(xcall(WType(layout(T)).shr_s, x, shift), type = layout(T)))
+  S = bits(layout(T))
+  shift = S(nbits(S) - nbits(T))
+  x = insert!(pr, v, stmt(xcall(WType(layout(T)).shl, x, shift), type = RType(S)))
+  x = insert!(pr, v, stmt(xcall(WType(layout(T)).shr_s, x, shift), type = RType(S)))
 end
 
 inlinePrimitive[bitcast_method] = function (pr, ir, v)
@@ -227,12 +252,12 @@ inlinePrimitive[bitcast_method] = function (pr, ir, v)
     return
   end
   x = ir[v].expr.args[3]
-  F = exprtype(ir, x)
-  T = exprtype(ir, v)
+  F = atom(exprtype(ir, x))
+  T = atom(exprtype(ir, v))
   if (layout(T), layout(F)) == (Int32, Int64)
-    x = insert!(pr, v, stmt(xcall(i32.wrap_i64, x), type = Int32))
+    x = insert!(pr, v, stmt(xcall(i32.wrap_i64, x), type = RType(Bits{32})))
   elseif (layout(T), layout(F)) == (Int64, Int32)
-    x = insert!(pr, v, stmt(xcall(i64.extend_i32_u, x), type = Int64))
+    x = insert!(pr, v, stmt(xcall(i64.extend_i32_u, x), type = RType(Bits{64})))
   end
   if nbits(T) < nbits(F) && nbits(T) < nbits(layout(T))
     x = insert!(pr, v, mask(T, x))
@@ -247,14 +272,14 @@ inlinePrimitive[bitcast_s_method] = function (pr, ir, v)
     return
   end
   x = ir[v].expr.args[3]
-  F = exprtype(ir, x)
-  T = exprtype(ir, v)
+  F = atom(exprtype(ir, x))
+  T = atom(exprtype(ir, v))
   nbits(T) <= nbits(F) && return inlinePrimitive[bitcast_method](pr, ir, v)
   if nbits(F) < nbits(layout(F))
     x = extend!(pr, v, F, x)
   end
   if (nbits(layout(T)), nbits(layout(F))) == (64, 32)
-    x = insert!(pr, v, stmt(xcall(i64.extend_i32_s, x), type = Int64))
+    x = insert!(pr, v, stmt(xcall(i64.extend_i32_s, x), type = RType(Bits{64})))
   end
   if nbits(T) < nbits(layout(T))
     x = insert!(pr, v, mask(T, x))
@@ -265,8 +290,8 @@ end
 
 for op in bitops
   @eval inlinePrimitive[$(Symbol(:bit, op, :_method))] = function (pr, ir, v)
-    T = exprtype(ir, v)
-    if isvalue(T)
+    T = atom(exprtype(ir, v))
+    if T isa Bits
       pr[v] = xtuple()
       return
     end
@@ -276,7 +301,7 @@ for op in bitops
       x = extend!(pr, v, T, x)
       y = extend!(pr, v, T, y)
     end
-    r = insert!(pr, v, stmt(xcall(WType(layout(T)).$op, x, y), type = layout(T)))
+    r = insert!(pr, v, stmt(xcall(WType(layout(T)).$op, x, y), type = RType(T)))
     if nbits(T) < nbits(layout(T))
       r = insert!(pr, v, mask(T, r))
     end
@@ -291,7 +316,7 @@ for op in bitcmps
       return
     end
     x, y = ir[v].expr.args[2:end]
-    T = union(exprtype(ir, [x, y])...)
+    T = atom(union(exprtype(ir, [x, y])...))
     if $(endswith(string(op), "_s")) && nbits(T) < nbits(layout(T))
       x = extend!(pr, v, T, x)
       y = extend!(pr, v, T, y)
@@ -312,20 +337,22 @@ inlinePrimitive[biteqz_method] = function (pr, ir, v)
   end
 end
 
-symoverlap(x::Tag, ys::Onion) = [i for (i, y) in enumerate(ys.types) if x == y]
-symoverlap(xs::Onion, y::Tag) = symoverlap(y, xs)
+symoverlap(x::RType, y::RType) =
+  isfield(x, :tag) && isfield(y, :union) ? [i for (i, y) in enumerate(y.union) if x == y] :
+  isfield(x, :union) && isfield(y, :tag) ? symoverlap(y, x) :
+  error("unimplemented")
 
 inlinePrimitive[shortcutEquals_method] = function (pr, ir, v)
   if isvalue(ir[v].type)
     pr[v] = Expr(:tuple)
   else # symbol case
     a, b = ir[v].expr.args[2:3]
-    Ta, Tb = exprtype(ir, [a, b])
-    Tb isa Onion && ((a, Ta, b, Tb) = (b, Tb, a, Ta))
-    ov = symoverlap(Ta, Tb)
+    A, B = exprtype(ir, [a, b])
+    isfield(B, :union) && ((a, A, b, B) = (b, B, a, A))
+    ov = symoverlap(A, B)
     length(ov) == 1 || error("not implemented")
-    i = insert!(pr, v, Expr(:ref, a, 1))
-    pr[v] = xcall(i32.eq, i, Int32(ov[1]))
+    i = insert!(pr, v, stmt(Expr(:ref, a, 1), type = RType(Bits{32})))
+    pr[v] = xcall(i32.eq, i, Bits{32}(ov[1]))
   end
 end
 
@@ -335,9 +362,9 @@ inlinePrimitive[isnil_method] = function (pr, ir, v)
   if isvalue(ir[v].type)
     pr[v] = xtuple()
   else
-    i = findfirst(==(nil), T.types)
-    j = insert!(pr, v, Expr(:ref, x, 1))
-    pr[v] = xcall(i32.eq, j, Int32(i))
+    i = findfirst(==(nil), T.union)
+    j = insert!(pr, v, stmt(Expr(:ref, x, 1), type = RType(Bits{32})))
+    pr[v] = xcall(i32.eq, j, Bits{32}(i))
   end
   isreftype(T) && push!(pr, Expr(:release, x))
 end
@@ -352,8 +379,8 @@ inlinePrimitive[notnil_method] = function (pr, ir, v)
     delete!(pr, v)
     replace!(pr, v, abort!(pr, "notnil(nil)"))
   else
-    @assert T isa Onion && !(ir[v].type isa Onion)
-    i = findfirst(x -> x != nil, T.types)
+    @assert isfield(T, :union) && !isfield(ir[v].type, :union)
+    i = findfirst(x -> x != nil, T.union)
     delete!(pr, v)
     replace!(pr, v, union_downcast!(pr, T, i, x))
   end
@@ -370,32 +397,32 @@ inlinePrimitive[tagcast_method] = function (pr, ir, v)
     replace!(pr, v, abort!(pr, "tagcast"))
   else
     delete!(pr, v)
-    if T isa Recursive
+    if isfield(T, :recursive)
       T = unroll(T)
       x = unbox!(pr, T, x)
     end
-    i = findfirst(x -> Raven.tag(x) == tag, (T::Onion).types)
+    i = findfirst(x -> Raven.tag(x) == tag, T.union)
     replace!(pr, v, union_downcast!(pr, T, i, x))
   end
 end
 
 inlinePrimitive[tagstring_method] = function (pr, ir, v)
-  if ir[v].type isa String
+  if isvalue(ir[v].type)
     pr[v] = Expr(:tuple)
   end
 end
 
-function string!(ir, s)
+function string!(ir, s::RType)
   s = push!(ir, stmt(Expr(:tuple), type = s))
   push!(ir, stmt(xcall(part_method, s, 1), type = RString()))
 end
 
-outlinePrimitive[tagstring_method] = function (T::Onion)
+outlinePrimitive[tagstring_method] = function (T)
+  @assert isfield(T, :union)
   ir = IR(meta = FuncInfo(tag"common.core.tagstring"))
   x = argument!(ir, type = T)
   union_cases!(ir, T, x) do S, _
-    @assert S isa Tag
-    string!(ir, string(S))
+    string!(ir, RType(string(atom(S)::Tag)))
   end
   return ir
 end

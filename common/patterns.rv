@@ -97,6 +97,6 @@ fn match(val, pat) {
   return part(notnil(result), 2)
 }
 
-fn isa(val, T) {
+fn isa?(val, T) {
   not(nil?(matchTrait(T, val)))
 }

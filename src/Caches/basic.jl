@@ -26,15 +26,15 @@ reset!(ch::Ref; deps = []) = return
 
 time(::Ref) = UInt64(0)
 
-# Just an IdDict, with tracking enabled for `Cache`s.
+# Just a dict, with tracking enabled for `Cache`s.
 
 struct Dict{K,V}
   fingerprint::Set{NFT}
-  data::IdDict{K,Tuple{NFT,V}}
-  haskey::IdDict{K,NFT}
+  data::Base.Dict{K,Tuple{NFT,V}}
+  haskey::Base.Dict{K,NFT}
 end
 
-Dict{K,V}() where {K,V} = Dict{K,V}(Set{NFT}(), IdDict{K,Tuple{NFT,V}}(), IdDict{K,NFT}())
+Dict{K,V}() where {K,V} = Dict{K,V}(Set{NFT}(), Base.Dict{K,Tuple{NFT,V}}(), Base.Dict{K,NFT}())
 Dict() = Dict{Any,Any}()
 
 Base.copy(d::Dict{K,V}) where {K,V} =
@@ -105,6 +105,6 @@ function get!(ch::Dict{K,V}, k::K, default::V) where {K,V}
   haskey(ch, k) ? ch[k] : (ch[k] = default)
 end
 
-Base.IdDict(ch::Dict) = copy(ch.data)
+Base.Dict(ch::Dict) = copy(ch.data)
 
 time(::Dict) = UInt64(0)

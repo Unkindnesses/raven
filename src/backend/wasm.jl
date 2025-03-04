@@ -15,7 +15,7 @@ wasmPartials[i64.gt_s] = (a, b) -> Bits{32}(a>b)
 wasmPartials[i64.lt_s] = (a, b) -> Bits{32}(a<b)
 wasmPartials[i64.le_s] = (a, b) -> Bits{32}(a<=b)
 
-rvtype(x::WType) = Dict(i32 => Bits{32}, i64 => Bits{64}, f32 => Float32, f64 => Float64)[x]
+rvtype(x::WType) = Dict(i32 => Bits{32}, i64 => Bits{64}, f32 => Float32, f64 => Float64)[x] |> RType
 rvtype(x::WTuple) = pack(tag"common.List", map(rvtype, x.parts)...)
 rvtype(::typeof(⊥)) = ⊥
 
@@ -60,6 +60,8 @@ function wlayout(x)
   l = layout(x)
   l isa Tuple ? WTuple(collect(WType.(l))) : WType(l)
 end
+
+wlayout(::Unreachable) = WTuple()
 
 function wparts(x)
   ly = wlayout(x)
@@ -130,7 +132,7 @@ function lowerwasm(ir::IR, names, globals, tables)
       if st.expr.args[1] isa WImport
         args = st.expr.args[2:end]
         name = names[(st.expr.args[1],
-                      Tuple(WType.(partial_widen.(exprtype(ir, args)))),
+                      Tuple(WType.(atom.(abstract.(exprtype(ir, args))))),
                       Tuple(wparts(st.type)))]
         st = stmt(st, expr = xcall(WebAssembly.Call(name), args...))
       end
@@ -189,6 +191,7 @@ struct Wasm
 end
 
 wname(x::Tag) = Symbol(x)
+wname(x::RType) = wname(atom(x)::Tag)
 wname(x::RMethod) = Symbol(Symbol(x.name), ":method")
 wname(x::WImport) = Symbol(x.mod, ":", x.name)
 

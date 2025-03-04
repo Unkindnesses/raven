@@ -41,7 +41,9 @@ bundle Int(x: Bits)
 fn tag"common.Int"[N] { Params(Int, N) }
 
 fn matchTrait(Params(tag"common.Int", N), Int(b)) {
-  matchTrait(Bits[N], b)
+  if isa?(b, Bits[N]) {
+    Some(Int(b))
+  }
 }
 
 fn bits(Int(x)) { x }

@@ -43,7 +43,7 @@ fn printList(Empty()) {
 
 fn printList(Prepend(xs, x)) {
   print(x)
-  if not(isa(xs, Empty)) {
+  if not(isa?(xs, Empty)) {
     print(", ")
   }
   printList(xs)

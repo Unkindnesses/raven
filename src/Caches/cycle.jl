@@ -16,12 +16,12 @@ struct CycleCache{K,V}
   default::Any
   fingerprint::Set{NFT}
   keys::Base.Dict{NFT,K}
-  data::IdDict{K,CycleCacheValue{V}}
+  data::Base.Dict{K,CycleCacheValue{V}}
   queue::WorkQueue{NFT}
 end
 
 CycleCache{K,V}(f, init) where {K,V} =
-  CycleCache{K,V}(init, f, Set{NFT}(), Base.Dict{NFT,K}(), IdDict(), WorkQueue{NFT}())
+  CycleCache{K,V}(init, f, Set{NFT}(), Base.Dict{NFT,K}(), Base.Dict(), WorkQueue{NFT}())
 
 CycleCache(f, init) = CycleCache{Any,Any}(f, init)
 

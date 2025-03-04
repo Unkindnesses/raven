@@ -5,11 +5,42 @@ const ⊥ = Unreachable()
 
 Base.show(io::IO, ::Unreachable) = print(io, "⊥")
 
-reconstruct(::Unreachable) = (), _ -> ⊥
+# Tags
 
-# Primitives
+struct Tag
+  path::NTuple{N,Symbol} where N
+end
 
-ValOrType{T} = Union{T,Type{<:T}}
+Tag(t::Tag) = t
+Tag(parts::Symbol...) = Tag((parts...,))
+Tag(a::Tag, b::Tag) = Tag((a.path..., b.path...))
+Tag(a, b) = Tag(Tag(a), Tag(b))
+
+Base.string(id::Tag) = join(id.path, ".")
+
+Base.Symbol(id::Tag) = Symbol(string(id))
+
+function Base.show(io::IO, id::Tag)
+  print(io, "tag\"")
+  join(io, id.path, ".")
+  print(io, "\"")
+end
+
+Tag(s::String) = Tag(Symbol.(split(s, ".", keepempty=false))...)
+
+path(t::Tag) = Tag(t.path[1:end-1]...)
+name(t::Tag) = t.path[end]
+
+macro tag_str(ex)
+  Tag(ex)
+end
+
+function modtag(mod::Tag, tag::String)
+  prefix = startswith(tag, ".") ? mod : tag""
+  return Tag(prefix, tag)
+end
+
+# Bits
 
 struct Bits{N}
   value::UInt64
@@ -17,333 +48,320 @@ struct Bits{N}
 end
 
 Bits{N}(x::Int64) where N = Bits{N}(reinterpret(UInt64, x))
+Bits{N}(x::Int32) where N = Bits{N}(Int64(x))
 Bits{N}(x::Bool) where N = Bits{N}(UInt64(x))
 
-nbits(::Bits{N}) where N = N
-nbits(::Type{Bits{N}}) where N = N
-nbits(::ValOrType{Int32}) = 32
-nbits(::ValOrType{Int64}) = 64
+ValOrType{T} = Union{T,Type{<:T}}
 
-UInt64(x::Bits) = x.value
+nbits(::ValOrType{Bits{N}}) where N = N
 
-Int64(x::Bits{N}) where N = reinterpret(Int64, x.value << (64 - N)) >> (64 - N)
+Base.UInt64(x::Bits) = x.value
+Base.UInt32(x::Bits) = UInt32(x.value)
+Base.Int64(x::Bits{N}) where N = reinterpret(Int64, x.value << (64 - N)) >> (64 - N)
+
+Base.bitstring(x::Bits) = bitstring(UInt64(x))[end-nbits(x)+1:end]
 
 function Base.show(io::IO, bs::Bits{N}) where N
   print(io, "Bits{$N}($(Int64(bs)))")
 end
 
+bits(x::ValOrType{Bits}) = x
+bits(x::Type{Float32}) = Bits{32}
+bits(x::Type{Float64}) = Bits{64}
+bits(x::Float32) = Bits{32}(UInt64(reinterpret(UInt32, x)))
+bits(x::Float64) = Bits{64}(reinterpret(UInt64, x))
+bits(x::Type{Int32}) = Bits{32}
+bits(x::Type{Int64}) = Bits{64}
+bits(x::Union{Int32,Int64}) = bits(typeof(x))(x)
+
+nbits(::Type{Int32}) = 32
+nbits(::Type{Int64}) = 64
+
 WebAssembly.WType(::Type{Bits{64}}) = i64
 WebAssembly.WType(::Type{Bits{32}}) = i32
 
-const PrimitiveNumber = Union{Bits,Int64,Int32,Float64,Float32}
-const Primitive = Union{PrimitiveNumber,Tag,String}
+WebAssembly.Const(x::Bits) =
+  nbits(x) <= 32 ? WebAssembly.Const(UInt32(x)) : WebAssembly.Const(UInt64(x))
 
-RBool() = pack(tag"common.Bool", Bits{1})
-RBool(x::Bool) = pack(tag"common.Bool", Bits{1}(x))
+# Types
 
-RInt32() = pack(tag"common.Int", Bits{32})
-RInt32(x) = pack(tag"common.Int", Bits{32}(x))
+@union struct RType
+  tag::String
+  bits::Tuple{UInt8,Union{UInt64,Nothing}}
+  f32::Union{Float32,Nothing}
+  f64::Union{Float64,Nothing}
+  string::String
+  pack::Vector{RType}
+  vpack::Tuple{RType,RType}
+  union::Vector{RType}
+  recurrence::Nothing
+  recursive::RType
+end
 
-RInt64() = pack(tag"common.Int", Bits{64})
-RInt64(x) = pack(tag"common.Int", Bits{64}(x))
+const RAnno = Union{RType,Unreachable}
 
-RPtr() = pack(tag"common.Ptr", RInt32())
+function Base.hash(T::RType, h::UInt64)
+  Unions.dispatch(T) do f
+    hash((f, Unions.unsafe_getproperty(T, f)), h ⊻ 0x4bd213eedb18202d)
+  end
+end
+
+RType(x::RType) = x
+
+RType(x::Tag) = RType(tag = string(x))
+RType(x::Bits) = RType(bits = (nbits(x),UInt64(x)))
+RType(x::Float32) = RType(f32 = x)
+RType(x::Float64) = RType(f64 = x)
+RType(x::String) = RType(string = x)
+
+RType(::Type{Float32}) = RType(f32 = nothing)
+RType(::Type{Float64}) = RType(f64 = nothing)
+RType(::Type{Bits{N}}) where N = RType(bits = (N,nothing))
+
+pack(parts::Vector{RType}) = RType(pack = parts)
+pack(xs...) = pack(RType[RType(x) for x in xs])
+vpack(t, xs) = RType(vpack = (RType(t), RType(xs)))
+recursive(x) = RType(recursive = RType(x))
+recurrence = RType(recurrence = nothing)
+
+pack(T::RType, x::RType) =
+  T == RType(tag"common.core.Float32") && isfield(x, :bits) && x.bits[1] == 32 ?
+    RType(isvalue(x) ? reinterpret(Float32, x.bits[2] % UInt32) : Float32) :
+  T == RType(tag"common.core.Float64") && isfield(x, :bits) && x.bits[1] == 64 ?
+    RType(isvalue(x) ? reinterpret(Float64, x.bits[2]) : Float64) :
+  pack([T, x])
+
+function onion(xs::Vector{RType})
+  @assert !isempty(xs)
+  length(xs) == 1 && return xs[1]
+  @assert !any(x -> isfield(x, :union), xs)
+  RType(union = sort!(xs, by = sortkey))
+end
+
+onion(xs...) = onion([RType(x) for x in xs])
+
+isatom(x::RType) = field(x) in (:tag, :bits, :f32, :f64, :string)
+
+atom(x::RType) =
+  isfield(x, :tag) ? Tag(x.tag) :
+  isfield(x, :string) ? x.string :
+  isfield(x, :bits) ? (isnothing(x.bits[2]) ? Bits{Int(x.bits[1])} : Bits{Int(x.bits[1])}(x.bits[2])) :
+  isfield(x, :f32) ? (isnothing(x.f32) ? Float32 : x.f32) :
+  isfield(x, :f64) ? (isnothing(x.f64) ? Float64 : x.f64) :
+  error("not an atom type")
+
+bits(x::RType) = RType(bits(atom(x)))
+
+abstract(x::RType) =
+  isfield(x, :bits) ? RType(bits = (x.bits[1], nothing)) :
+  isfield(x, :f32) ? RType(Float32) :
+  isfield(x, :f64) ? RType(Float64) :
+  isfield(x, :string) ? RString() :
+  error("not an atom type")
+
+isvalue(x::RType) =
+  isfield(x, :tag, :string) ||
+  (isfield(x, :bits) && !isnothing(x.bits[2])) ||
+  (isfield(x, :f32) && !isnothing(x.f32)) ||
+  (isfield(x, :f64) && !isnothing(x.f64)) ||
+  (isfield(x, :pack)) && all(isvalue, x.pack)
+
+tag(x::RType)::RType =
+  isfield(x, :tag) ? RType(tag"common.core.Tag") :
+  isfield(x, :bits) ? RType(tag"common.core.Bits") :
+  isfield(x, :f32) ?  RType(tag"common.core.Float32") :
+  isfield(x, :f64) ?  RType(tag"common.core.Float64") :
+  isfield(x, :string) ? RType(tag"common.String") :
+  isfield(x, :pack) ? x.pack[1] :
+  isfield(x, :vpack) ? x.vpack[1] :
+  isfield(x, :recursive) ? tag(x.recursive) :
+  error("No fixed tag for $(field(x)) type")
+
+allparts(x::RType) =
+  isfield(x, :tag, :bits) ? [tag(x), x] :
+  isfield(x, :f32, :f64) ? [tag(x), bits(x)] :
+  isfield(x, :string) ? [tag(x), JSObject()] :
+  isfield(x, :pack) ? x.pack :
+  error("No fixed parts for $(field(x)) type")
+
+part(x::RType, i::Integer) = allparts(x)[i+1]
+
+nparts(x::RType) = length(allparts(x))-1
+
+parts(x::RType) = allparts(x)[2:end]
+
+packcat(x) = x
+
+packcat(x, y) =
+  isfield(x, :vpack) || isfield(y, :vpack) ?
+    vpack(tag(x), union(partial_eltype(x), partial_eltype(y))) :
+  pack(tag(x), parts(x)..., parts(y)...)
+
+packcat(x, y, z...) = packcat(packcat(x, y), z...)
+
+function sortkey(x::RType)
+  if isfield(x, :tag)
+    (tag(x).tag, x.tag)
+  elseif isfield(x, :bits)
+    (tag(x).tag, x.bits[1])
+  elseif isfield(x, :union)
+    sortkey(x.union[1])
+  elseif isfield(x, :recursive)
+    sortkey(x.recursive)
+  else
+    key = tag(x)
+    isfield(key, :tag) ? (key.tag,) : ()
+  end
+end
+
+function typekey(x::RType, r = Set{Any}())
+  if isfield(x, :union)
+    foreach(x -> typekey(x, r), x.union)
+  elseif isfield(x, :recursive)
+    typekey(x.recursive, r)
+  else
+    push!(r, sortkey(x))
+  end
+  return r
+end
+
+overlapping(a::RType, b::RType) = !Base.isdisjoint(typekey(a), typekey(b))
+
+# Common types
+
+nil = pack(tag"common.Nil")
+
+RType(::Type{Bool}) = pack(tag"common.Bool", Bits{1})
+RType(x::Bool) = pack(tag"common.Bool", Bits{1}(x))
+
+RType(::Type{Int32}) = pack(tag"common.Int", Bits{32})
+RType(x::Int32) = pack(tag"common.Int", Bits{32}(x))
+
+RType(::Type{Int64}) = pack(tag"common.Int", Bits{64})
+RType(x::Int64) = pack(tag"common.Int", Bits{64}(x))
+
+RPtr() = pack(tag"common.Ptr", Int32)
 
 JSObject() =
   options().jsalloc ?
     pack(tag"common.JSObject", pack(tag"common.Ref", RPtr())) :
-    pack(tag"common.JSObject", RInt32())
+    pack(tag"common.JSObject", Int32)
 
 RString() = pack(tag"common.String", JSObject())
-
-const fromSymbol = Dict{Tag,Type}()
-
-for T in :[Bits, Int64, Int32, Tag].args
-  local tag = Tag(tag"common.core", T)
-  @eval fromSymbol[$tag] = $T
-  @eval part(x::Union{$T,Type{<:$T}}, i::Integer) =
-          i == 0 ? $tag :
-          i == 1 ? x :
-          error("Tried to access part $i of 1")
-end
-
-fromSymbol[tag"common.core.Float32"] = Float32
-fromSymbol[tag"common.core.Float64"] = Float64
-
-bits(x::Float32) = Bits{32}(reinterpret(UInt32, x))
-bits(x::Float64) = Bits{64}(reinterpret(UInt64, x))
-bits(::Type{Float32}) = Bits{32}
-bits(::Type{Float64}) = Bits{64}
-
-part(x::ValOrType{Float32}, i::Integer) =
-  i == 0 ? tag"common.core.Float32" :
-  i == 1 ? bits(x) :
-  error("Tried to access part $i of 1")
-
-part(x::ValOrType{Float64}, i::Integer) =
-  i == 0 ? tag"common.core.Float64" :
-  i == 1 ? bits(x) :
-  error("Tried to access part $i of 1")
-
-part(s::String, i::Integer) =
-  i == 0 ? tag"common.String" :
-  i == 1 ? JSObject() :
-  error("Tried to access part $i of 1")
-
-allparts(s::String) = (tag"common.String", JSObject())
-
-nparts(s::String) = 1
-
-isvalue(x) = false
-isvalue(x::Primitive) = true
-
-nparts(x::ValOrType{Primitive}) = 1
-
-allparts(x::ValOrType{Primitive}) = (part(x, 0), part(x, 1))
-
-reconstruct(x::ValOrType{Primitive}) = (), _ -> x
-
-# Packs
-
-struct Pack{N}
-  parts::NTuple{N,Any}
-  Pack(x...) = new{length(x)}(x)
-end
-
-pack(x...) = any(==(⊥), x) ? ⊥ : Pack(x...)
-
-nil = pack(tag"common.Nil")
-
-nparts(x::Pack) = length(x.parts)-1
-part(x::Pack, i) = x.parts[i+1]
-parts(x) = x.parts[2:end]
-allparts(x::Pack) = x.parts
-isvalue(xs::Pack) = all(isvalue, parts(xs))
-
-Base.getindex(x::Pack, i::Integer) = x.parts[i+1]
-Base.getindex(x::Pack, i::AbstractVector) = pack(x.parts[i.+1]...)
-Base.lastindex(x::Pack) = lastindex(x.parts)
-Base.iterate(x::Pack, st...) = iterate(x.parts, st...)
-
-tag(x) = partial_part(x, 0)
-
-pack(t::Tag, x::ValOrType{Union{Tag,Bits,Int32,Int64}}) =
-  t == tag(x) ? x : Pack(t, x)
-
-pack(t::Tag, x::Bits) =
-  t == tag(Float32) && nbits(x) == 32 ? reinterpret(Float32, x.value % UInt32) :
-  t == tag(Float64) && nbits(x) == 64 ? reinterpret(Float64, x.value) :
-  Pack(t, x)
-
-pack(t::Tag, x::Type{<:Bits}) =
-  t == tag(Float32) && nbits(x) == 32 ? Float32 :
-  t == tag(Float64) && nbits(x) == 64 ? Float64 :
-  Pack(t, x)
-
-reconstruct(x::Pack) = x.parts, ps -> pack(ps...)
-
-struct VPack # variable width
-  tag::Any
-  parts::Any
-end
-
-vpack(tag, parts) =
-  tag == ⊥ ? ⊥ :
-  parts == ⊥ ? pack(tag) :
-  VPack(tag, parts)
-
-tag(x::VPack) = x.tag
+RType(::Type{String}) = RString()
 
 rlist(xs...) = pack(tag"common.List", xs...)
 
-packcat(x) = x
-packcat(x, y) = pack(tag(x), parts(x)..., parts(y)...)
-packcat(x, y, z, zs...) = packcat(packcat(x, y), z, zs...)
-
-packcat(x::Pack, y::Pack) = invoke(packcat, Tuple{Any,Any}, x, y)
-
-packcat(x::Union{VPack,Pack}, y::Union{VPack,Pack}) =
-  VPack(tag(x), union(partial_eltype(x), partial_eltype(y)))
-
-reconstruct(x::VPack) = (x.tag, x.parts), args -> vpack(args...)
-
-const SimpleType = Union{Primitive,Type{<:Primitive},Pack,VPack}
-
-# Abstract Types
-
-struct Onion
-  types::NTuple{N,Any} where N
-  function Onion(xs)
-    isempty(xs) && return ⊥
-    length(xs) == 1 && return only(xs)
-    @assert !any(x -> x isa Onion, xs)
-    return new((sort(collect(xs), by = sortkey)...,))
-  end
-end
-
-onion(xs...) = Onion([d for ds in xs for d in disjuncts(ds)])
-
-reconstruct(x::Onion) = x.types, xs -> onion(xs...)
-
-disjuncts(::Unreachable) = ()
-disjuncts(x) = (x,)
-disjuncts(x::Onion) = x.types
-
-function Base.show(io::IO, or::Onion)
-  for i = 1:length(or.types)
-    i == 1 || print(io, " | ")
-    show(io, or.types[i])
-  end
-end
-
-function splittags(f, x::Onion)
-  tags = filter(t -> t isa Tag, x.types)
-  t = filter(t -> !(t isa Tag), x.types)
-  result = Any[f(t) for t in tags]
-  isempty(t) || push!(result, f(Onion(t)))
-  return Onion(result)
-end
-
-pack(ts::Onion, xs...) = error("unsupported")
-vpack(ts::Onion, xs) = error("unsupported")
-
-# Recursion
-
-struct Recursive
-  type::Any
-  function Recursive(type)
-    @assert !any(x -> x isa Recursive, disjuncts(type))
-    return new(type)
-  end
-end
-
-struct Recur end
-
-Base.show(io::IO, T::Recursive) = print(io, "(T = ", T.type, ")")
-Base.show(io::IO, ::Recur) = print(io, "T")
-
-isrecursive(x) = any(x -> x isa Recursive, disjuncts(x))
-
-occursin(x, y) = x == y || any(y -> occursin(x, y), reconstruct(y)[1])
-occursin(x, y::Union{Recur,Recursive}) = x == y
-
-_unroll(S, T::Recursive) = T
-_unroll(S, T::Recur) = S
-
-function _unroll(S, T)
-  xs, re = reconstruct(T)
-  re(_unroll.((S,), xs))
-end
-
-_unroll(T) = T
-_unroll(T::Recursive) = _unroll(T, T.type)
-_unroll(T::Onion) = Onion([x for S in disjuncts(T) for x in disjuncts(_unroll(S))])
-
-unroll_inner(S, T::Recursive) = T
-unroll_inner(S, T::Recur) = S
-unroll_inner(S, T::Onion) = onion((unroll_inner(S, d) for d in disjuncts(T))...)
-
-function unroll_inner(S, T)
-  xs, re = reconstruct(T)
-  T = re(unroll.((S,), xs))
-end
-
-unroll(S, T) = reroll(unroll_inner(S, T))
-
-unroll(T) = T
-unroll(T::Recursive) = unroll_inner(T, T.type)
-unroll(T::Onion) = Onion([x for S in disjuncts(T) for x in disjuncts(unroll(S))])
-
-# Size
-
-typesize(::Unreachable) = 1
-typesize(x::Union{Primitive,Type{<:Primitive}}) = 1
-typesize(x::Recur) = 1
-typesize(x::Onion) = 1 + sum(typesize, x.types)
-typesize(x::Raven.Pack) = 1 + sum(typesize, x.parts)
-typesize(x::Raven.VPack) = 1 + typesize(x.tag) + typesize(x.parts)
-typesize(x::Recursive) = 1 + typesize(x.type)
-
-# Type errors (known bugs / unsupported cases)
-
-struct TypeError
-  name::String
-end
-
 # Subset
 
-function _issubset(self, x, y)
-  if x == ⊥
-    true
-  elseif y == ⊥
-    false
-  elseif x isa Recursive || y isa Recursive
-    self(_unroll(x), _unroll(y))
-  elseif x isa Onion
-    all(self(T, y) for T in x.types)
-  elseif y isa Onion
-    any(self(x, T) for T in y.types)
-  elseif x isa Primitive && y isa Primitive
-    x === y
-  elseif x isa Primitive && y isa Type
-    x isa y
-  elseif x isa Type && y isa Type
-    x <: y
-  elseif x isa String
-    self(RString(), y)
-  elseif x isa Pack && y isa Pack
-    nparts(x) == nparts(y) && all(self.(x.parts, y.parts))
-  elseif x isa Pack && y isa VPack
-    self(tag(x), tag(y)) && all(self.(parts(x), (y.parts,)))
-  elseif x isa VPack && y isa VPack
-    self(tag(x), tag(y)) && self(x.parts, y.parts)
+function postwalk(f::F, x::RType) where F
+  inner(x) = postwalk(f, x)
+  y = if isatom(x) || isfield(x, :recursive, :recurrence)
+    x
+  elseif isfield(x, :pack)
+    parts = RType[]
+    for p in x.pack
+      q = inner(p)
+      q === ⊥ && return ⊥
+      push!(parts, q)
+    end
+    pack(parts)
+  elseif isfield(x, :vpack)
+    tag = inner(x.vpack[1])
+    parts = inner(x.vpack[2])
+    parts == ⊥ ? pack(tag) : vpack(tag, parts::RType)
+  elseif isfield(x, :union)
+    ts = RType[]
+    for t in x.union
+      s = inner(t)
+      s === ⊥ && continue
+      isfield(s, :union) ? append!(ts, s.union) : push!(ts, s)
+    end
+    onion(ts)
+  else
+    @assert false
+  end
+  return f(y)::RAnno
+end
+
+function _unroll(T::RType, S::RAnno = T)
+  if isfield(T, :recursive)
+    postwalk(T.recursive) do x
+      isfield(x, :recurrence) ? S : x
+    end
+  elseif isfield(T, :union)
+    onion([x for S in T.union for x in disjuncts(_unroll(S))])
+  else
+    T
+  end
+end
+
+function _issubset(self::T, x::RType, y::RType)::Bool where T
+  issubset(x, y) = _issubset(self, x, y)
+  if isfield(x, :recursive) || isfield(y, :recursive)
+    self[(_unroll(x), _unroll(y))]
+  elseif isfield(x, :union)
+    all(issubset(T, y) for T in x.union)
+  elseif isfield(y, :union)
+    any(issubset(x, T) for T in y.union)
+  elseif isatom(x) && isatom(y)
+    x == y ||
+    field(x) == field(y) && !isvalue(y) &&
+      (!isfield(x, :bits) || x.bits[1] == y.bits[1])
+  elseif isfield(x, :string)
+    issubset(RString(), y)
+  elseif isfield(x, :pack) && isfield(y, :pack)
+    nparts(x) == nparts(y) && all(issubset.(x.pack, y.pack))
+  elseif isfield(x, :pack) && isfield(y, :vpack)
+    issubset(tag(x), tag(y)) && all(issubset.(x.pack[2:end], (y.vpack[2],)))
+  elseif isfield(x, :vpack) && isfield(y, :vpack)
+    issubset(tag(x), tag(y)) && issubset(x.vpack[2], y.vpack[2])
   else
     false
   end
 end
 
 function subsetter()
-  fp = Fixpoint(_ -> true) do self, (x, y)
-    _issubset((x, y) -> self[(x, y)], x, y)
+  fp = Fixpoint{Tuple{RType,RType},Bool}(_ -> true) do self, (x, y)
+    _issubset(self, x, y)
   end
   (x, y) -> fp[(x, y)]
 end
 
-issubset(x, y) = subsetter()(x, y)
+issubset(x::RType, y::RType) = subsetter()(x, y)
+issubset(::RType, ::Unreachable) = false
+issubset(::Unreachable, ::Unreachable) = true
 
 # Disjoint
 
-function _isdisjoint(self, x, y)
-  if ⊥ in (x, y)
-    true
-  elseif x isa Recursive || y isa Recursive
-    self(_unroll(x), _unroll(y))
-  elseif x isa Onion || y isa Onion
-    all(self(x, y) for x in disjuncts(x) for y in disjuncts(y))
-  elseif x isa Primitive && y isa Primitive
-    x !== y
-  elseif x isa Primitive && y isa Type
-    !(x isa y)
-  elseif x isa Type && y isa Primitive
-    self(y, x)
-  elseif x isa Type && y isa Type
-    x != y
-  elseif x isa Pack && y isa Pack
-    nparts(x) != nparts(y) || any(self.(x.parts, y.parts))
-  elseif x isa Pack && y isa VPack
-    self(tag(x), tag(y)) || any(self.(parts(x), (y.parts,)))
-  elseif x isa VPack && y isa Pack
-    self(y, x)
-  elseif x isa VPack && y isa VPack
-    self(tag(x), tag(y))
+disjuncts(x::RType) = isfield(x, :union) ? x.union : RType[x]
+
+function _isdisjoint(self::T, x::RType, y::RType)::Bool where T
+  isdisjoint(x, y) = _isdisjoint(self, x, y)
+  if isfield(x, :recursive) || isfield(y, :recursive)
+    self[(_unroll(x), _unroll(y))]
+  elseif isfield(x, :union) || isfield(y, :union)
+    all(isdisjoint(x, y) for x in disjuncts(x) for y in disjuncts(y))
+  elseif isatom(x) && isatom(y)
+    field(x) != field(y) ||
+    isvalue(x) && isvalue(y) && x != y ||
+    isfield(x, :bits) && x.bits[1] != y.bits[1]
+  elseif isfield(x, :pack) && isfield(y, :pack)
+    nparts(x) != nparts(y) || any(isdisjoint.(x.pack, y.pack))
+  elseif isfield(x, :pack) && isfield(y, :vpack)
+    isdisjoint(tag(x), tag(y)) || any(isdisjoint.(x.pack[2:end], (y.vpack[2],)))
+  elseif isfield(x, :vpack) && isfield(y, :pack)
+    isdisjoint(y, x)
+  elseif isfield(x, :vpack) && isfield(y, :vpack)
+    isdisjoint(tag(x), tag(y))
   else
     true
   end
 end
 
 function disjointer()
-  fp = Fixpoint(_ -> false) do self, (x, y)
-    _isdisjoint((x, y) -> self[(x, y)], x, y)
+  fp = Fixpoint{Tuple{RType,RType},Bool}(_ -> false) do self, (x, y)
+    _isdisjoint(self, x, y)
   end
   (x, y) -> fp[(x, y)]
 end
@@ -351,30 +369,31 @@ end
 isdisjoint(x, y) = disjointer()(x, y)
 
 function _isdistinct(self, x, y; isdisjoint)
-  if x isa Recursive || y isa Recursive
-    self(_unroll(x), _unroll(y))
-  elseif x isa Onion || y isa Onion
-    all(self(x, y) for x in disjuncts(x) for y in disjuncts(y)) &&
+  isdistinct(x, y) = _isdistinct(self, x, y; isdisjoint)
+  result = if isfield(x, :recursive) || isfield(y, :recursive)
+    self[(_unroll(x), _unroll(y))]
+  elseif isfield(x, :union) || isfield(y, :union)
+    all(isdistinct(x, y) for x in disjuncts(x) for y in disjuncts(y)) &&
     count(!isdisjoint(x, y) for x in disjuncts(x) for y in disjuncts(y)) < 2
-  elseif x isa Pack && y isa Pack
+  elseif isfield(x, :pack) && isfield(y, :pack)
+    nparts(x) < 1 || isdisjoint(x, y) || all(isdistinct.(x.pack, y.pack))
+  elseif isfield(x, :pack) && isfield(y, :vpack)
     nparts(x) < 1 || isdisjoint(x, y) ||
-      all(self(x, y) for (x, y) in zip(x.parts, y.parts))
-  elseif x isa Pack && y isa VPack
-    nparts(x) < 1 || isdisjoint(x, y) ||
-      (self(tag(x), tag(y)) && all(self(x, y.parts) for x in x.parts))
-  elseif x isa VPack && y isa Pack
-    self(y, x)
-  elseif x isa VPack && y isa VPack
-    isdisjoint(x.tag, y.tag) || isdisjoint(x.parts, y.parts)
+      (isdistinct(tag(x), tag(y)) && all(isdistinct(x, partial_eltype(y)) for x in x.pack))
+  elseif isfield(x, :vpack) && isfield(y, :pack)
+    isdistinct(y, x)
+  elseif isfield(x, :vpack) && isfield(y, :vpack)
+    isdisjoint(tag(x), tag(y)) || isdisjoint(x.vpack[2], y.vpack[2])
   else
     true
   end
+  return result
 end
 
 function distincter()
   isdisjoint = disjointer()
-  fp = Fixpoint(_ -> false) do self, (x, y)
-    _isdistinct((x, y) -> self[(x, y)], x, y; isdisjoint)
+  fp = Fixpoint{Tuple{RType,RType},Bool}(_ -> false) do self, (x, y)
+    _isdistinct(self, x, y; isdisjoint)
   end
   (x, y) -> fp[(x, y)]
 end
@@ -383,82 +402,27 @@ isdistinct(x, y) = distincter()(x, y)
 
 # Union
 
-finite(T, depth = 1) = T
-finite(T::Onion, depth = 1) = onion(finite.(disjuncts(T), depth)...)
-
-function finite(T::Recursive, depth = 1)
-  term = _unroll(⊥, T.type)
-  if isdistinct(term, T)
-    term = _unroll(term, T.type)
-  end
-  for i = 1:depth
-    term = _unroll(term, T.type)
-  end
-  return term
-end
-
-function _union(x, y; self = _union)
-  max(typesize(x), typesize(y)) > 500 && throw(TypeError("size"))
-  x, y = finite.((x, y))
-  if x == ⊥
-    return y
-  elseif y == ⊥
-    return x
-  elseif x isa Onion || y isa Onion
-    ys = []
-    for x in (disjuncts(y)..., disjuncts(x)...)
-      while true
-        xs, ys = splitby(y -> overlapping(x, y), ys)
-        isempty(xs) && break
-        x = reduce((x, y) -> _union(x, y; self), xs, init = x)
-      end
-      append!(ys, disjuncts(x))
+function finite(T::RType, depth = 1)
+  if isfield(T, :union)
+    onion([d for x in T.union for d in disjuncts(finite(x, depth))])
+  elseif isfield(T, :recursive)
+    term = _unroll(T, ⊥)
+    isdistinct(T, term) && (term = _unroll(T, term))
+    for i = 1:depth
+      term = _unroll(T, term)
     end
-    z = onion(ys...)
-    return z
-  elseif sortkey(x) === sortkey(y)
-    if x isa Primitive && y isa Primitive
-      return x == y ? x : x isa String ? RString() : typeof(x)
-    elseif x isa Type
-      return x
-    elseif y isa Type
-      return y
-    elseif x isa VPack || y isa VPack || nparts(x) != nparts(y)
-      t = self(tag(x), tag(y))
-      t == ⊥ && return ⊥
-      parts = self(partial_eltype(x; union = self),
-                   partial_eltype(y; union = self))
-      parts == ⊥ && return pack(t)
-      z = VPack(t, parts)
-      return z
-    else
-      return pack([self(part(x, i), part(y, i)) for i = 0:nparts(x)]...)
-    end
+    term
   else
-    return onion(x, y)
+    T
   end
 end
 
-# Type keys
+finite(::Unreachable) = ⊥
 
-tokey(x::Tag) = (string(x),)
-tokey(x) = ()
-
-sortkey(x) = tokey(tag(x))
-sortkey(x::Tag) = (string(tag(x)), string(x))
-sortkey(x::Union{Bits,Type{<:Bits}}) = (string(tag(x)), nbits(x))
-sortkey(x::Onion) = sortkey(x.types[1])
-sortkey(x::Recursive) = sortkey(x.type)
-
-typekey(x) = Set{Any}([sortkey(x)])
-typekey(x::Recursive) = typekey(x.type)
-typekey(x::Onion) = reduce(Base.union, typekey.(x.types))
-typekey(x::Set) = x
-
-overlapping(a, b) = !Base.isdisjoint(typekey(a), typekey(b))
-
-partial_eltype(x::Pack; union = union) = reduce(union, parts(x), init = ⊥)
-partial_eltype(x::VPack; union = union) = x.parts
+partial_eltype(x::RType; union = union) =
+  isfield(x, :pack) ? reduce(union, x.pack[2:end], init = ⊥) :
+  isfield(x, :vpack) ? x.vpack[2] :
+  error("No eltype for $(field(x)) type")
 
 function splitby(f, xs)
   ts = empty(xs)
@@ -469,40 +433,96 @@ function splitby(f, xs)
   return ts, fs
 end
 
-splitby(f, xs::Tuple) = splitby(f, collect(xs))
+function _union(x::RAnno, y::RAnno; self = _union)::RAnno
+  x, y = finite.((x, y))
+  if x === ⊥
+    return y
+  elseif y === ⊥
+    return x
+  elseif isfield(x, :union) || isfield(y, :union)
+    ys = RType[]
+    for x in vcat(disjuncts(y), disjuncts(x))
+      while true
+        xs, ys = splitby(y -> overlapping(x, y), ys)
+        isempty(xs) && break
+        x = reduce((x, y) -> _union(x, y; self), xs, init = x)
+      end
+      append!(ys, disjuncts(x))
+    end
+    return onion(ys)
+  elseif sortkey(x) != sortkey(y)
+    return onion(x, y)
+  elseif isatom(x) && isatom(y)
+    return x == y ? x : abstract(x)
+  elseif isfield(x, :vpack) || isfield(y, :vpack) || nparts(x) != nparts(y)
+    t = self(tag(x), tag(y))
+    t === ⊥ && return ⊥
+    parts = self(partial_eltype(x; union = self),
+                 partial_eltype(y; union = self))
+    parts === ⊥ && return pack(t)
+    z = vpack(t, parts)
+    return z
+  else
+    return pack([self(x.pack[i], y.pack[i]) for i = 1:length(x.pack)]...)
+  end
+end
 
 # Reroll
 
-rfinite(T::Recursive) = finite(T)
+function reconstruct(x::RType)
+  parts::Vector{RType} =
+    isfield(x, :pack) ? x.pack :
+    isfield(x, :vpack) ? [x.vpack...] :
+    isfield(x, :union) ? x.union :
+    RType[]
+  re(xs::Vector{RType}) =
+    isfield(x, :pack) ? pack(xs) :
+    isfield(x, :vpack) ? vpack(xs[1], xs[2]) :
+    isfield(x, :union) ? onion(xs) :
+    x
+  return parts, re
+end
+
+Base.occursin(x::RType, y::RType) =
+  x == y ||
+  !isfield(y, :recursive, :recurrence) &&
+    any(y -> occursin(x, y), reconstruct(y)[1])
+
+isrecursive(x) =
+  isfield(x, :recursive) || isfield(x, :union) && any(isrecursive, x.union)
 
 function rfinite(T)
-  xs, re = reconstruct(T)
-  re(rfinite.(xs))
+  postwalk(T) do t
+    isfield(t, :recursive) ? finite(t) : t
+  end
 end
 
 isrecur(x, T) = !isdistinct(x, T) && issubset(rfinite(x), T)
 
-function reroll_inner(T, x; self = reroll, seen)
-  xs, re = reconstruct(x)
-  ys = self.((T,), xs; seen)
-  re(first.(ys)), reduce(Base.union, second.(ys), init = Set())
+function reroll_inner(T, x; self = reroll, seen)::Tuple{RType,Set{Any}}
+  if isfield(x, :recursive)
+    x in seen && return x, Set()
+    y, ks = reroll_outer(T, _unroll(x); seen = Set([seen..., x]))
+    isempty(ks) && return x, Set()
+    occursin(x, y) && return x, Set()
+    return y, ks
+  else
+    xs, re = reconstruct(x)
+    ys = self.((T,), xs; seen)
+    return re(first.(ys)), reduce(Base.union!, second.(ys), init = Set())
+  end
 end
 
-reroll_outer(T, x; seen) = reroll_inner(T, x; seen)
-
-reroll_outer(T, x::Onion; seen) =
-  reroll_inner(T, x, self = reroll_inner; seen)
-
-function reroll_inner(T, x::Recursive; seen)
-  x in seen && return nothing, Set()
-  y, ks = reroll_outer(T, _unroll(x); seen = Set([seen..., x]))
-  isempty(ks) && return x, Set()
-  occursin(nothing, y) && return x, Set()
-  return y, ks
+function reroll_outer(T, x; seen)::Tuple{RType,Any}
+  if isfield(x, :union)
+    reroll_inner(T, x, self = reroll_inner; seen)
+  else
+    reroll_inner(T, x; seen)
+  end
 end
 
-reroll(T, x; seen) =
-  isrecur(x, T) ? (Recur(), typekey(x)) :
+reroll(T, x; seen)::Tuple{RType,Any} =
+  isrecur(x, T) ? (recurrence, typekey(x)) :
   reroll_outer(T, x; seen)
 
 function reroll(T)
@@ -510,7 +530,7 @@ function reroll(T)
   xs = disjuncts(T)
   ys = reroll_inner.((T,), xs; seen = Set())
   ys = [(x, Base.union(k1, k2)) for ((x, k1), k2) in zip(ys, typekey.(xs))]
-  xs = []
+  xs = Tuple{RType,Set{Any}}[]
   # Group by typekey in common
   for (x, ks) in ys
     as, bs = splitby(((_, k),) -> !Base.isdisjoint(ks, k), xs)
@@ -518,28 +538,56 @@ function reroll(T)
     ks = reduce(Base.union, second.(as), init = ks)
     xs = [bs..., (x, ks)]
   end
-  xs = [occursin(Recur(), x) ? Recursive(x) : x for x in first.(xs)]
+  xs = [occursin(recurrence, x) ? recursive(x) : x for x in first.(xs)]
   return onion(xs...)
+end
+
+function unroll_inner(S, T)
+  if isfield(T, :recursive)
+    T
+  elseif isfield(T, :recurrence)
+    S
+  elseif isfield(T, :union)
+    onion([unroll_inner(S, d) for d in disjuncts(T)])
+  else
+    xs, re = reconstruct(T)
+    re(unroll.((S,), xs))
+  end
+end
+
+unroll(S, T) = reroll(unroll_inner(S, T))
+
+function unroll(T)
+  if isfield(T, :recursive)
+    unroll_inner(T, T.recursive)
+  elseif isfield(T, :union)
+    onion([x for S in disjuncts(T) for x in disjuncts(unroll(S))])
+  else
+    T
+  end
 end
 
 # Lift
 # (type to merge, subset present, recursion present)
 
 function lift_inner(T, x; self = lift, seen)
-  xs, _ = reconstruct(x)
-  ys = self.((T,), xs; seen)
-  reduce(_union, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
+  if isfield(x, :recursive)
+    x in seen && return ⊥, false, true
+    inner, s, r = lift_outer(T, _unroll(x); seen = Set([seen..., x]))
+    s && r ? (x, true, false) : (inner, s, false)
+  else
+    xs, _ = reconstruct(x)
+    ys = self.((T,), xs; seen)
+    reduce(_union, first.(ys), init = ⊥), any(second.(ys)), any(third.(ys))
+  end
 end
 
-lift_outer(T, x; seen) = lift_inner(T, x; seen)
-
-lift_outer(T, x::Onion; seen) =
-  lift_inner(T, x; self = lift_inner, seen)
-
-function lift_inner(T, x::Recursive; seen)
-  x in seen && return ⊥, false, true
-  inner, s, r = lift_outer(T, _unroll(x); seen = Set([seen..., x]))
-  s && r ? (x, true, false) : (inner, s, false)
+function lift_outer(T, x; seen)
+  if isfield(x, :union)
+    lift_inner(T, x; self = lift_inner, seen)
+  else
+    lift_inner(T, x; seen)
+  end
 end
 
 lift(T, x; seen) =
@@ -550,104 +598,90 @@ lift(T) = lift_outer(T, T; seen = Set())[1]
 
 # Recursive
 
-function recurse_inner(T; self)
-  xs, re = reconstruct(T)
-  return re(self.(xs))
+function recur_inner(T; self)
+  if isfield(T, :union)
+    onion([recur_inner(x; self) for x in disjuncts(T)])
+  else
+    xs, re = reconstruct(T)
+    return re(self.(xs))
+  end
 end
 
-recurse_inner(T::Onion; self) =
-  onion([recurse_inner(x; self) for x in disjuncts(T)]...)
-
-function _recursive(T; self = identity)
-  R = reroll(recurse_inner(_union(_unroll(T), lift(T)); self))
+function _recur(T; self = identity)
+  R = reroll(recur_inner(_union(_unroll(T), lift(T)); self))
   issubset(R, T) ? R : self(R)
 end
 
 function recurser()
   check(old, new) = issubset(old, new) || throw(TypeError("subset"))
-  fp = Fixpoint(identity; check) do self, T
-    _recursive(T, self = T -> self[T])
+  fp = Fixpoint{RType,RType}(identity; check) do self, T
+    _recur(T, self = T -> self[T])
   end
   return T -> fp[T]
 end
 
-recursive(T) = recurser()(T)
+recur(T) = recurser()(T)
 
-union(x, y) = recursive(_union(x, y))
+const union_cache = Dict{Tuple{RType,RType},RType}()
 
-# Internal symbols
+Base.union(x::RType, y::RType) = get!(() -> recur(_union(x, y)), union_cache, (x, y))
 
-symbolValues(::Union{Primitive,Type{<:Primitive},Pack}) = []
-symbolValues(x::Tag) = [x]
-symbolValues(x::Onion) = reduce(vcat, map(symbolValues, x.types))
+# TODO make sure `union(x, ⊥) == x`
+Base.union(x::RType, ::Unreachable) = union(x, x)
+Base.union(::Unreachable, y::RType) = union(y, y)
+Base.union(::Unreachable, ::Unreachable) = ⊥
 
-# Raven value -> compiler type
+# Display
 
-rvtype(x::Tag) = fromSymbol[x]
-
-rvtype(x::ValOrType{<:Bits{N}}) where N = Bits{N}
-
-function rvtype(x::Pack)
-  if tag(x) == tag"common.List"
-    pack(tag(x), rvtype.(parts(x))...)
-  elseif tag(x) == tag"common.Pack"
-    pack(rvtype.(parts(x))...)
-  elseif tag(x) == tag"common.Literal"
-    return part(x, 1)
+function Base.show(io::IO, x::RType)
+  if isfield(x, :tag)
+    print(io, "tag")
+    show(io, x.tag)
+  elseif isfield(x, :bits)
+    N, x = x.bits
+    print(io, "bits")
+    if isnothing(x)
+      print(io, " ", Int64(N))
+    else
+      print(io, "\"$(bitstring(Bits{N}(x)))\"")
+    end
+  elseif isfield(x, :f32)
+    print(io, isnothing(x.f32) ? "Float32" : "$(x.f32)f0")
+  elseif isfield(x, :f64)
+    print(io, isnothing(x.f64) ? "Float64" : x.f64)
+  elseif isfield(x, :string)
+    show(io, x.string)
+  elseif isfield(x, :pack)
+    if tag(x) == RType(tag"common.Int")
+      N = nbits(atom(part(x, 1)))
+      if isvalue(x)
+        val = Int64(x)
+        nbits(atom(part(x, 1))) == 64 ? print(io, val) : print(io, "oftype(int $N, $val)")
+      else
+        print(io, "int ", N)
+      end
+    elseif tag(x) == RType(tag"common.List")
+      print(io, "[")
+      join(io, x.pack[2:end], ", ")
+      print(io, "]")
+    else
+      print(io, "pack(")
+      join(io, x.pack, ", ")
+      print(io, ")")
+    end
+  elseif isfield(x, :vpack)
+    if tag(x) == RType(tag"common.List")
+      print(io, "[", x.vpack[2], " ...]")
+    else
+      print(io, "vpack(", x.vpack[1], ", ", x.vpack[2], " ...)")
+    end
+  elseif isfield(x, :union)
+    join(io, x.union, " | ")
+  elseif isfield(x, :recurrence)
+    print(io, "T")
+  elseif isfield(x, :recursive)
+    print(io, "(T = ", x.recursive, ")")
   else
-    error("Unrecognised type $x")
+    @assert false
   end
 end
-
-# Printing
-
-vprint(io::IO, x) = show(io, x)
-
-const printers = Dict{Tag,Any}()
-
-function printPack(io::IO, s::Pack)
-  print(io, "pack(")
-  join(io, [sprint(vprint, x) for x in s.parts], ", ")
-  print(io, ")")
-end
-
-printers[tag"common.List"] = function (io::IO, s::Pack)
-  print(io, "[")
-  join(io, [sprint(vprint, x) for x in parts(s)], ", ")
-  print(io, "]")
-end
-
-printers[tag"common.Pair"] = function (io, s)
-  vprint(io, part(s, 1))
-  print(io, " => ")
-  vprint(io, part(s, 2))
-end
-
-printers[tag"common.Int"] = function (io, s)
-  isvalue(s) && issubset(s, RInt64()) || return printPack(io, s)
-  print(io, Int64(part(s, 1)))
-end
-
-function vprint(io::IO, s::Pack)
-  isempty(s.parts) && return print(io, "pack()")
-  haskey(printers, tag(s)) && return printers[tag(s)](io, s)
-  printPack(io, s)
-end
-
-function vprint(io::IO, s::VPack)
-  print(io, "vpack(")
-  vprint(io, s.tag)
-  print(io, ", ")
-  vprint(io, s.parts)
-  print(io, " ...)")
-end
-
-vprint(io::IO, ::Type{T}) where T = print(io, "$T")
-
-vprint(io::IO, x::AST.Expr) = print(io, "`", x, "`")
-
-Base.show(io::IO, d::Pack) = vprint(io, d)
-Base.show(io::IO, d::VPack) = vprint(io, d)
-
-# Show inside AST
-AST._show(io::AST.Ctx, x::Pack) = show(io.io, x)

@@ -27,18 +27,18 @@ frame(inf::Union{Inferred,Cache}, T) = inf[sig(inf, T)]
 # Panic
 
 function abort!(ir, s)
-  s = push!(ir, stmt(Expr(:ref, s), type = Int32))
+  s = push!(ir, stmt(Expr(:ref, s), type = RType(Bits{32})))
   push!(ir, stmt(xcall(WImport(:support, :abort), s), type = ⊥))
 end
 
 rtypeof(x::Union{Float64,Float32}) = typeof(x)
-rtypeof(::Int32) = RInt32()
-rtypeof(::Int64) = RInt64()
+rtypeof(::Int32) = RType(Int32)
+rtypeof(::Int64) = RType(Int64)
 
 # We're a bit fast and loose with types here, because `T` and `[T]` have the
 # same representation (for now).
 function call!(ir, f, args...; type)
-  Ts = [T isa Number ? rtypeof(T) : T for T in exprtype(ir, args)]
+  Ts = [x isa Variable ? exprtype(ir, x) : rtypeof(x) for x in args]
   args = push!(ir, stmt(xtuple(args...), type = rlist(Ts...)))
   push!(ir, stmt(xcall(f, args); type))
 end
@@ -50,15 +50,9 @@ cat_layout(x) = (x,)
 cat_layout(x::Tuple) = x
 cat_layout(x, xs...) = (cat_layout(x)..., cat_layout(xs...)...)
 
-# TODO layouts/wtypes should be unsigned
-layout(T::Type{<:Union{Float64,Float32,Int64,Int32}}) = T
-layout(x::Union{Primitive,Unreachable}) = ()
-layout(x::Pack) = cat_layout(layout.(x.parts)...)
-layout(x::VPack) = cat_layout(layout(x.tag), Int32, layout(x.parts) == () ? () : Int32) # size, pointer
-layout(x::Recursive) = (Int32,)
-layout(x::Recur) = Int32
-layout(xs::Onion) = (Int32, cat_layout(layout.(xs.types)...)...)
+layout(T::Type{<:Union{Float64,Float32,Int32,Int64}}) = T
 
+  # TODO layouts/wtypes should be unsigned
 function layout(T::Type{<:Bits})
   if nbits(T) <= 32
     return Int32
@@ -69,8 +63,14 @@ function layout(T::Type{<:Bits})
   end
 end
 
-data(x::Bits) = unsigned(layout(typeof(x)))(x.value)
-data(x::Number) = x
+layout(T::RType) =
+  isvalue(T) ? () :
+  isatom(T) ? layout(atom(T)) :
+  isfield(T, :pack) ? cat_layout(layout.(T.pack)...) :
+  isfield(T, :vpack) ? cat_layout(layout(tag(T)), Int32, layout(partial_eltype(T)) == () ? () : Int32) : # size, pointer
+  isfield(T, :recursive) ? (Int32,) :
+  isfield(T, :union) ? (Int32, cat_layout(layout.(T.union)...)...) :
+  error("unimplemented")
 
 function tlayout(x)
   rs = layout(x)
@@ -81,9 +81,9 @@ nregisters(l::Type) = 1
 nregisters(l::Tuple) = length(l)
 
 function sublayout(T, i)
-  before = pack(T.parts[1:i]...)
+  before = pack(allparts(T)[1:i]...)
   offset = nregisters(layout(before))
-  length = nregisters(layout(T.parts[i+1]))
+  length = nregisters(layout(allparts(T)[i+1]))
   offset .+ (1:length)
 end
 
@@ -92,10 +92,12 @@ sizeof(T) = sum(sizeof, tlayout(T), init = 0)
 
 inlinePrimitive[pack_method] = function (pr, ir, v)
   T = exprtype(ir, v)
-  if T == Float64
-    pr[v] = xcall(f64.reinterpret_i64, ir[v].expr.args[2])
-  elseif T == Float32
-    pr[v] = xcall(f32.reinterpret_i32, ir[v].expr.args[2])
+  if T == RType(Float64)
+    x = insert!(pr, v, stmt(Expr(:ref, ir[v].expr.args[2], 1), type = RType(Bits{64})))
+    pr[v] = xcall(f64.reinterpret_i64, x)
+  elseif T == RType(Float32)
+    x = insert!(pr, v, stmt(Expr(:ref, ir[v].expr.args[2], 1), type = RType(Bits{32})))
+    pr[v] = xcall(f32.reinterpret_i32, x)
   else
     # Arguments are turned into a tuple when calling any function, so this
     # is just a cast.
@@ -110,7 +112,9 @@ end
 # Create a `part` method to dynamically index tuples allocated as registers.
 # TODO: should make sure this comes out as a switch / branch table.
 function partir(x, i)
-  @assert tag(i) == tag"common.Int"
+  isfield(x, :string) && return partir(x.string, i)
+  isfield(x, :union) && return partir_union(x, i)
+  @assert tag(i) == RType(tag"common.Int")
   T = partial_part(x, i)
   ir = IR(meta = FuncInfo(tag"common.core.part"))
   vx = argument!(ir, type = x)
@@ -118,7 +122,7 @@ function partir(x, i)
   xlayout = layout(x)
   part(i) = xlayout isa Tuple ? push!(ir, stmt(Expr(:ref, vx, i), type = xlayout[i])) : vx
   for i = 1:nparts(x)
-    cond = call!(ir, tag"common.==", i, vi, type = RBool())
+    cond = call!(ir, tag"common.==", i, vi, type = RType(Bool))
     branch!(ir, length(ir.blocks) + 1, when = cond)
     branch!(ir, length(ir.blocks) + 2)
     block!(ir)
@@ -132,8 +136,8 @@ function partir(x, i)
     if T′ != T
       if T′ isa Number && T == typeof(T′)
         y = push!(ir, stmt(T′, type = T))
-      elseif T in (RInt32(), RInt64())
-        y = push!(ir, stmt(data(Raven.part(T′,1)), type = T))
+      elseif T in (RType(Int32), RType(Int64))
+        y = push!(ir, stmt(atom(Raven.part(T′,1)), type = T))
       else
         error("unsupported cast")
       end
@@ -145,14 +149,14 @@ function partir(x, i)
   return ir
 end
 
-function partir(x::Onion, i)
+function partir_union(x::RType, i)
   ir = IR(meta = FuncInfo(tag"common.core.part"))
   retT = partial_part(x, i)
   vx = argument!(ir, type = x)
   vi = argument!(ir, type = i)
   union_cases!(ir, x, vx) do T, val
     # TODO possibly insert `part_method` calls and redo lowering
-    ret = indexer!(ir, T, i, val, vi)
+    ret = indexer!(ir, T, Int64(i), val, vi)
     isreftype(partial_part(T, i)) && push!(ir, Expr(:retain, ret))
     isreftype(T) && push!(ir, Expr(:release, val))
     ret = cast!(ir, partial_part(T, i), retT, ret)
@@ -162,12 +166,12 @@ function partir(x::Onion, i)
 end
 
 function partir(s::String, i)
-  @assert i in (1, RInt64(1))
+  @assert i == RType(1)
   ir = IR(meta = FuncInfo(tag"common.core.part"))
-  argument!(ir, type = s)
+  argument!(ir, type = RType(s))
   argument!(ir, type = i)
   # Punt to the backend to decide how strings get IDd
-  id = push!(ir, stmt(Expr(:ref, s), type = RInt32()))
+  id = push!(ir, stmt(Expr(:ref, s), type = RType(Int32)))
   o = call!(ir, tag"common.JSObject", id, type = JSObject())
   return!(ir, o)
   return ir
@@ -175,73 +179,79 @@ end
 
 outlinePrimitive[part_method] = partir
 
-function indexer!(ir, T::Union{Primitive,Type{<:Primitive}}, i::Int, x, _)
-  if isvalue(part(T, i))
-    push!(ir, xtuple())
-  elseif i > 1
-    abort!(ir, "Invalid index $i for $T")
-  elseif T == Float64
-    push!(ir, stmt(xcall(i64.reinterpret_f64, x), type = Bits{64}))
-  elseif T == Float32
-    push!(ir, stmt(xcall(i32.reinterpret_f32, x), type = Bits{32}))
-  else
-    push!(ir, x)
-  end
-end
-
-function indexer!(ir, T::Pack, i::Int, x, _)
-  if 0 <= i <= nparts(T)
-    _part(i) = push!(ir, stmt(Expr(:ref, x, i), type = layout(T)[i]))
-    range = sublayout(T, i)
-    if layout(part(T, i)) isa Type
-      push!(ir, stmt(Expr(:ref, x, range[1]), type = part(T, i)))
+function indexer!(ir, T::RType, i::Int, x, _)
+  if isatom(T)
+    if i > 1
+      abort!(ir, "Invalid index $i for $T")
+    elseif isvalue(part(T, i))
+      push!(ir, xtuple())
+    elseif T == RType(Float64)
+      push!(ir, stmt(xcall(i64.reinterpret_f64, x), type = Bits{64}))
+    elseif T == RType(Float32)
+      push!(ir, stmt(xcall(i32.reinterpret_f32, x), type = Bits{32}))
     else
-      push!(ir, stmt(Expr(:tuple, _part.(range)...), type = part(T, i)))
+      push!(ir, x)
+    end
+  elseif isfield(T, :vpack)
+    vpack_indexer!(ir, T, i, x, i)
+  elseif isfield(T, :pack)
+    if 0 <= i <= nparts(T)
+      _part(i) = push!(ir, stmt(Expr(:ref, x, i), type = layout(T)[i]))
+      range = sublayout(T, i)
+      if layout(part(T, i)) isa Type
+        push!(ir, stmt(Expr(:ref, x, range[1]), type = part(T, i)))
+      else
+        push!(ir, stmt(Expr(:tuple, _part.(range)...), type = part(T, i)))
+      end
+    else
+      abort!(ir, "Invalid index $i for $T")
     end
   else
-    abort!(ir, "Invalid index $i for $T")
+    error("unimplemented")
   end
 end
 
-function indexer!(ir, Ts::VPack, I::Union{Int64,Type{Int64}}, x, i)
-  T = Ts.parts
+function indexer!(ir, T::RType, I::Type{Int64}, x, i)
+  if isfield(T, :vpack)
+    vpack_indexer!(ir, T, I, x, i)
+  else
+    error("unimplemented")
+  end
+end
+
+function vpack_indexer!(ir, Ts::RType, I::Union{Int64,Type{Int64}}, x, i)
+  T = partial_eltype(Ts)
   (I == 0 || layout(T) == ()) && return push!(ir, Expr(:tuple))
   if I isa Int
     i = Int32((I-1)*sizeof(T))
   else
-    i = call!(ir, tag"common.Int32", i, type = RInt32())
-    i = call!(ir, tag"common.-", i, Int32(1), type = RInt32())
-    i = call!(ir, tag"common.*", i, Int32(sizeof(T)), type = RInt32())
+    i = call!(ir, tag"common.Int32", i, type = RType(Int32))
+    i = call!(ir, tag"common.-", i, Int32(1), type = RType(Int32))
+    i = call!(ir, tag"common.*", i, Int32(sizeof(T)), type = RType(Int32))
   end
   # TODO bounds check
-  p = push!(ir, stmt(Expr(:ref, x, 2), type = RInt32()))
-  p = call!(ir, tag"common.+", p, i, type = RInt32())
+  p = push!(ir, stmt(Expr(:ref, x, 2), type = RType(Int32)))
+  p = call!(ir, tag"common.+", p, i, type = RType(Int32))
   return load(ir, T, p, count = false)
-end
-
-function indexer!(ir, T, I::Pack, x, i)
-  @assert tag(I) == tag"common.Int"
-  I = isvalue(I) ? Int64(part(I, 1)) : Int64
-  indexer!(ir, T, I, x, i)
 end
 
 inlinePrimitive[part_method] = function (pr, ir, v)
   x, i = ir[v].expr.args[2:end]
   T, I = exprtype(ir, [x, i])
-  if T isa Pack && !isvalue(I)
-  elseif T isa Onion
-  elseif T isa String && I in (1, RInt64(1))
-  elseif T isa Recursive
+  if isfield(T, :pack) && !isvalue(I)
+  elseif isfield(T, :union)
+  elseif isfield(T, :string) && I == RType(1)
+  elseif isfield(T, :recursive)
     T = unroll(T)
     delete!(pr, v)
     x′ = unbox!(pr, T, x)
     y = push!(pr, stmt(xcall(part_method, x′, i), type = ir[v].type))
     replace!(pr, v, y)
-    @assert T isa Onion
+    @assert isfield(T, :union)
     isreftype(ir[v].type) && push!(pr, Expr(:release, y))
   else
     delete!(pr, v)
-    y = indexer!(pr, T, I, x, i)
+    y = indexer!(pr, T, Int64(I), x, i)
     replace!(pr, v, y)
     isreftype(exprtype(ir, v)) && push!(pr, Expr(:retain, y))
     isreftype(T) && push!(pr, Expr(:release, x))
@@ -251,40 +261,42 @@ end
 # packcat
 # =======
 
-outlinePrimitive[packcat_method] = function (Ts::Pack)
-  T = packcat(parts(Ts)...)::VPack
-  @assert tag(T) isa Tag
+outlinePrimitive[packcat_method] = function (Ts)
+  @assert isfield(Ts, :pack)
+  T = packcat(parts(Ts)...)
+  @assert isfield(T, :vpack)
+  @assert isfield(tag(T), :tag)
   ir = IR(meta = FuncInfo(tag"common.core.packcat"))
   xs = argument!(ir, type = Ts)
   ps = [indexer!(ir, Ts, i, xs, i) for i in 1:nparts(Ts)]
   ls = [nparts!(ir, part(Ts, i), ps[i]) for i in 1:nparts(Ts)]
-  ls = [isvalue(exprtype(ir, l)) ? exprtype(ir, l) : l for l in ls]
+  ls = [isvalue(exprtype(ir, l)) ? Int64(exprtype(ir, l)) : l for l in ls]
   size = popfirst!(ls)
   for l in ls
-    size = call!(ir, tag"common.+", size, l, type = RInt64())
+    size = call!(ir, tag"common.+", size, l, type = RType(Int64))
   end
-  size = call!(ir, tag"common.Int32", size, type = RInt32())
-  if sizeof(T.parts) == 0
+  size = call!(ir, tag"common.Int32", size, type = RType(Int32))
+  if sizeof(partial_eltype(T)) == 0
     return!(ir, push!(ir, stmt(Expr(:tuple, size), type = T)))
     return ir
   end
-  bytes = call!(ir, tag"common.*", size, Int32(sizeof(T.parts)), type = RInt32())
-  ptr = call!(ir, tag"common.malloc!", bytes, type = RInt32())
+  bytes = call!(ir, tag"common.*", size, Int32(sizeof(partial_eltype(T))), type = RType(Int32))
+  ptr = call!(ir, tag"common.malloc!", bytes, type = RType(Int32))
   pos = ptr
   for i in 1:nparts(Ts)
     P = part(Ts, i)
-    if P isa Pack
+    if isfield(P, :pack)
       for j in 1:nparts(P)
         x = indexer!(ir, P, j, ps[i], j)
-        x = cast!(ir, part(P, j), T.parts, x)
-        store!(ir, T.parts, pos, x)
-        pos = call!(ir, tag"common.+", pos, Int32(sizeof(T.parts)), type = RInt32())
+        x = cast!(ir, part(P, j), partial_eltype(T), x)
+        store!(ir, partial_eltype(T), pos, x)
+        pos = call!(ir, tag"common.+", pos, Int32(sizeof(partial_eltype(T))), type = RType(Int32))
       end
-    elseif P isa VPack
+    elseif isfield(P, :vpack)
       # TODO memcpy when possible
-      @assert sizeof(P.parts) > 0
-      len = push!(ir, stmt(Expr(:ref, ps[i], 1), type = RInt32()))
-      src = push!(ir, stmt(Expr(:ref, ps[i], 2), type = RInt32()))
+      @assert sizeof(partial_eltype(P)) > 0
+      len = push!(ir, stmt(Expr(:ref, ps[i], 1), type = RType(Int32)))
+      src = push!(ir, stmt(Expr(:ref, ps[i], 2), type = RType(Int32)))
 
       before = blocks(ir)[end]
       header = block!(ir)
@@ -292,19 +304,19 @@ outlinePrimitive[packcat_method] = function (Ts::Pack)
       after = block!(ir)
 
       branch!(before, header, pos, src, len)
-      pos = argument!(header, type = RInt32(), insert = false)
-      src = argument!(header, type = RInt32(), insert = false)
-      len = argument!(header, type = RInt32(), insert = false)
-      done = call!(header, tag"common.==", len, Int32(0), type = RInt32())
+      pos = argument!(header, type = RType(Int32), insert = false)
+      src = argument!(header, type = RType(Int32), insert = false)
+      len = argument!(header, type = RType(Int32), insert = false)
+      done = call!(header, tag"common.==", len, Int32(0), type = RType(Int32))
       branch!(header, after, when = done)
       branch!(header, body)
 
-      x = load(body, P.parts, src)
-      x = cast!(body, P.parts, T.parts, x)
-      store!(body, T.parts, pos, x)
-      pos2 = call!(body, tag"common.+", pos, Int32(sizeof(T.parts)), type = RInt32())
-      src2 = call!(body, tag"common.+", src, Int32(sizeof(T.parts)), type = RInt32())
-      len2 = call!(body, tag"common.-", len, Int32(1), type = RInt32())
+      x = load(body, partial_eltype(P), src)
+      x = cast!(body, partial_eltype(P), partial_eltype(T), x)
+      store!(body, partial_eltype(T), pos, x)
+      pos2 = call!(body, tag"common.+", pos, Int32(sizeof(partial_eltype(T))), type = RType(Int32))
+      src2 = call!(body, tag"common.+", src, Int32(sizeof(partial_eltype(T))), type = RType(Int32))
+      len2 = call!(body, tag"common.-", len, Int32(1), type = RType(Int32))
       branch!(body, header, pos2, src2, len2)
 
       push!(ir, Expr(:release, ps[i]))
@@ -321,7 +333,9 @@ inlinePrimitive[packcat_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
   S = exprtype(ir, x)
   T = ir[v].type
-  if S isa Pack && T isa Union{Pack,PrimitiveNumber,Type{<:PrimitiveNumber}}
+  if isvalue(T)
+    pr[v] = xtuple()
+  elseif isfield(S, :pack) && isatom(T) || isfield(T, :pack)
     @assert tlayout(S) == tlayout(T)
     pr[v] = Expr(:cast, x)
   end
@@ -330,7 +344,8 @@ end
 # nparts
 # ======
 
-outlinePrimitive[nparts_method] = function (x::Onion)
+outlinePrimitive[nparts_method] = function (x)
+  @assert isfield(x, :union)
   ir = IR(meta = FuncInfo(tag"common.core.nparts"))
   retT = partial_nparts(x)
   vx = argument!(ir, type = x)
@@ -344,26 +359,26 @@ outlinePrimitive[nparts_method] = function (x::Onion)
   return ir
 end
 
-function nparts!(ir, T::Union{Pack,Primitive,Type{<:Primitive}}, x)
-  return push!(ir, stmt(Expr(:tuple), type = nparts(T)))
-end
-
-function nparts!(ir, T::VPack, x)
-  sz = push!(ir, stmt(Expr(:ref, x, 1), type = RInt32()))
-  call!(ir, tag"common.Int64", sz, type = RInt64())
+function nparts!(ir, T::RType, x)
+  if isfield(T, :vpack)
+    sz = push!(ir, stmt(Expr(:ref, x, 1), type = RType(Int32)))
+    call!(ir, tag"common.Int64", sz, type = RType(Int64))
+  else
+    push!(ir, stmt(xtuple(), type = RType(nparts(T))))
+  end
 end
 
 inlinePrimitive[nparts_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
   T = exprtype(ir, x)
-  if T isa Onion
-  elseif T isa Recursive
+  if isfield(T, :union)
+  elseif isfield(T, :recursive)
     T = unroll(T)
     delete!(pr, v)
     x′ = unbox!(pr, T, x)
-    y = push!(pr, stmt(xcall(nparts_method, x′), type = RInt64()))
+    y = push!(pr, stmt(xcall(nparts_method, x′), type = RType(Int64)))
     replace!(pr, v, y)
-    @assert T isa Onion
+    @assert isfield(T, :union)
     isreftype(ir[v].type) && push!(pr, Expr(:release, y))
   else
     delete!(pr, v)
@@ -401,24 +416,25 @@ end
 blockargtype(bl, i) = exprtype(bl.ir, arguments(bl)[i])
 
 function store!(ir, T, ptr, x)
-  @assert exprtype(ir, ptr) in (RPtr(), RInt32())
+  @assert exprtype(ir, ptr) in (RPtr(), RType(Int32))
   l = tlayout(T)
   for (i, T) in enumerate(l)
     push!(ir, stmt(xcall(WType(T).store, ptr, Expr(:ref, x, i)), type = nil))
     # TODO could use constant offset here
-    i == length(l) || (ptr = call!(ir, tag"common.+", ptr, Int32(sizeof(T)), type = RInt32()))
+    i == length(l) || (ptr = call!(ir, tag"common.+", ptr, Int32(sizeof(T)), type = RType(Int32)))
   end
 end
 
 function load(ir, T, ptr; count = true)
-  @assert exprtype(ir, ptr) in (RPtr(), RInt32())
+  @assert exprtype(ir, ptr) in (RPtr(), RType(Int32))
   l = tlayout(T)
   parts = []
   for (i, T) in enumerate(l)
-    part = push!(ir, stmt(xcall(WType(T).load, ptr), type = T))
+    bits = push!(ir, stmt(Expr(:ref, ptr, 1), type = RType(Bits{32})))
+    part = push!(ir, stmt(xcall(WType(T).load, bits), type = T))
     push!(parts, part)
     # TODO same as above
-    i == length(l) || (ptr = call!(ir, tag"common.+", ptr, Int32(sizeof(T)), type = RInt32()))
+    i == length(l) || (ptr = call!(ir, tag"common.+", ptr, Int32(sizeof(T)), type = RType(Int32)))
   end
   x = push!(ir, stmt(Expr(:tuple, parts...), type = T))
   count && isreftype(T) && push!(ir, Expr(:retain, x))
@@ -426,13 +442,13 @@ function load(ir, T, ptr; count = true)
 end
 
 function box!(ir, T, x)
-  ptr = call!(ir, tag"common.malloc!", Int32(sizeof(T)), type = RInt32())
+  ptr = call!(ir, tag"common.malloc!", Int32(sizeof(T)), type = RType(Int32))
   store!(ir, T, ptr, x)
   return ptr
 end
 
 function unbox!(ir, T, x; count = true)
-  ptr = push!(ir, stmt(Expr(:ref, x, 1), type = RInt32()))
+  ptr = push!(ir, stmt(Expr(:ref, x, 1), type = RType(Int32)))
   result = load(ir, T, ptr; count)
   count && push!(ir, Expr(:release, x))
   return result
@@ -443,42 +459,42 @@ cast_method = RMethod(tag"common.core.cast", lowerpattern(rvx"args"), nothing, f
 
 function cast!(ir, from, to, x)
   (to == ⊥ || from == ⊥ || from == to) && return x
-  if from isa Union{Number,Bits} && to == typeof(from)
-    data(from)
-  elseif from isa Onion
+  if isfield(from, :bits, :f32, :f64) && to == abstract(from)
+    atom(from)
+  elseif isfield(from, :union)
     error("casting union not implemented")
-  elseif from isa Pack && to isa Pack
+  elseif isfield(from, :pack) && isfield(to, :pack)
     @assert nparts(from) == nparts(to)
     parts = [indexer!(ir, from, i, x, nothing) for i = 0:nparts(from)]
     parts = [cast!(ir, part(from, i), part(to, i), parts[i+1]) for i = 0:nparts(from)]
     push!(ir, stmt(Expr(:tuple, parts...), type = to))
-  elseif from isa Pack && to isa VPack
-    @assert tag(to) isa Tag
-    T = to.parts
+  elseif isfield(from, :pack) && isfield(to, :vpack)
+    @assert isfield(tag(to), :tag)
+    T = partial_eltype(to)
     n = nparts(from)
     if sizeof(T) == 0
       push!(ir, stmt(xtuple(Int32(n)), type = to))
     else
-      ptr = call!(ir, tag"common.malloc!", Int32(sizeof(T)*n), type = RInt32())
+      ptr = call!(ir, tag"common.malloc!", Int32(sizeof(T)*n), type = RType(Int32))
       pos = ptr
       for i = 1:n
         el = indexer!(ir, from, i, x, nothing)
         el = cast!(ir, part(from, i), T, el)
         store!(ir, T, pos, el)
-        i == n || (pos = call!(ir, tag"common.+", pos, Int32(sizeof(T)), type = RInt32()))
+        i == n || (pos = call!(ir, tag"common.+", pos, Int32(sizeof(T)), type = RType(Int32)))
       end
       push!(ir, stmt(Expr(:tuple, Int32(n), ptr), type = to))
     end
-  elseif from isa String && to == RString()
+  elseif isfield(from, :string) && to == RString()
     string!(ir, from)
-  elseif to isa Onion
-    i = findfirst(==(from), to.types)
+  elseif isfield(to, :union)
+    i = findfirst(==(from), to.union)
     @assert i != nothing
     x = (isvariable(x) ? [x] : [])
     return push!(ir, Expr(:tuple, Int32(i),
                           reduce(vcat, [j == i ? x : collect(zero.(layout(p)))
-                                        for (j, p) in enumerate(to.types)])...))
-  elseif from isa Pack && to isa Recursive
+                                        for (j, p) in enumerate(to.union)])...))
+  elseif isfield(from, :pack) && isfield(to, :recursive)
     to = unroll(to)
     x = cast!(ir, from, to, x)
     box!(ir, to, x)
@@ -494,7 +510,7 @@ function casts!(inf::Inferred, ir, ret)
     if isexpr(st, :call) && st.expr.args[1] isa WebAssembly.Instruction
       args = st.expr.args[2:end]
       Ts = exprtype(ir, args)
-      pr[v] = xcall(st.expr.args[1], [T isa Union{Number,Bits} ? data(T) : x for (x, T) in zip(args, Ts)]...)
+      pr[v] = xcall(st.expr.args[1], [atom(T) isa Union{Number,Bits} ? atom(T) : x for (x, T) in zip(args, Ts)]...)
     elseif isexpr(st, :call)
       S = (exprtype(ir, st.expr.args)...,)
       partial = S[1] isa RMethod && S[1].partial

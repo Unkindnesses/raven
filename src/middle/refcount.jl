@@ -25,13 +25,16 @@
 # that the block only sometimes releases a preceding variable. For now this case
 # is an error.
 
-isrefobj(x::Pack) = tag(x) == tag"common.Ref"
+isrefobj(x::RType) = tag(x) == RType(tag"common.Ref")
 
-isreftype(x) = false
-isreftype(xs::Onion) = any(isreftype, xs.types)
-isreftype(xs::Pack) = isrefobj(xs) || any(isreftype, xs.parts)
-isreftype(x::VPack) = layout(x.parts) != ()
-isreftype(x::Recursive) = true
+isreftype(_) = false
+
+isreftype(x::RType) =
+  isfield(x, :pack) ? isrefobj(x) || any(isreftype, parts(x)) :
+  isfield(x, :union) ? any(isreftype, x.union) :
+  isfield(x, :vpack) ? layout(partial_eltype(x)) != () :
+  isfield(x, :recursive) ? true :
+  false
 
 isglobal(ir, v) = haskey(ir, v) && isexpr(ir[v], :global)
 
@@ -45,7 +48,7 @@ retain_method = RMethod(tag"common.core.retain", lowerpattern(rvx"args"), nothin
 release_method = RMethod(tag"common.core.release", lowerpattern(rvx"args"), nothing, false)
 
 count!(ir, T, x, mode) =
-  T isa Pack && !isrefobj(T) ? count_inline!(ir, T, x, mode) :
+  isfield(T, :pack) && !isrefobj(T) ? count_inline!(ir, T, x, mode) :
   push!(ir, stmt(xcall(mode == retain ? retain_method : release_method, x), type = nil))
 
 retain!(ir, T, x) = count!(ir, T, x, retain)
@@ -53,16 +56,30 @@ release!(ir, T, x) = count!(ir, T, x, release)
 
 function countptr!(ir, ptr, mode)
   f = mode == retain ? tag"common.retain!" : tag"common.release!"
-  @assert tag(exprtype(ir, ptr)) == tag"common.Ptr"
+  @assert tag(exprtype(ir, ptr)) == RType(tag"common.Ptr")
   call!(ir, f, ptr, type = nil)
 end
 
-function count_inline!(ir, T::Pack, x, mode)
+function count_inline!(ir, T::RType, x, mode)
+  if isfield(T, :pack)
+    pack_count_inline!(ir, T, x, mode)
+  elseif isfield(T, :vpack)
+    vpack_count_inline!(ir, T, x, mode)
+  elseif isfield(T, :union)
+    union_count_inline!(ir, T, x, mode)
+  elseif isfield(T, :recursive)
+    recursive_count_inline!(ir, T, x, mode)
+  else
+    error("unimplemented")
+  end
+end
+
+function pack_count_inline!(ir, T::RType, x, mode)
   if isrefobj(T)
     P = partial_part(T, 1)
     ptr = indexer!(ir, T, 1, x, nothing)
     if mode == release
-      cleanup = call!(ir, tag"common.i32load", ptr, type = RInt32())
+      cleanup = call!(ir, tag"common.i32load", ptr, type = RType(Int32))
       call!(ir, tag"common.release!", ptr, cleanup, type = nil)
     else
       call!(ir, tag"common.retain!", ptr, type = nil)
@@ -76,37 +93,37 @@ function count_inline!(ir, T::Pack, x, mode)
   end
 end
 
-function count_inline!(ir, T::VPack, x, mode)
+function vpack_count_inline!(ir, T::RType, x, mode)
   isreftype(T) || return
   len = push!(ir, stmt(Expr(:ref, x, 1), type = Int32))
   ptr = push!(ir, stmt(Expr(:ref, x, 2), type = RPtr()))
   pos = ptr
-  if mode == release && isreftype(T.parts)
+  if mode == release && isreftype(partial_eltype(T))
     test = blocks(ir)[end]
     header = block!(ir)
     body = block!(ir)
     after = block!(ir)
 
-    unique = call!(test, tag"common.blockUnique", ptr, type = RInt32())
+    unique = call!(test, tag"common.blockUnique", ptr, type = RType(Int32))
     branch!(test, header, len, ptr, when = unique)
     branch!(test, after)
 
-    len = argument!(header, type = RInt32(), insert = false)
+    len = argument!(header, type = RType(Int32), insert = false)
     pos = argument!(header, type = RPtr(), insert = false)
-    done = call!(header, tag"common.==", len, Int32(0), type = RInt32())
+    done = call!(header, tag"common.==", len, Int32(0), type = RType(Int32))
     branch!(header, after, when = done)
     branch!(header, body)
 
-    el = load(body, T.parts, pos, count = false)
-    release!(body, T.parts, el)
-    len = call!(body, tag"common.-", len, Int32(1), type = RInt32())
-    pos = call!(body, tag"common.+", pos, Int32(sizeof(T.parts)), type = RPtr())
+    el = load(body, partial_eltype(T), pos, count = false)
+    release!(body, partial_eltype(T), el)
+    len = call!(body, tag"common.-", len, Int32(1), type = RType(Int32))
+    pos = call!(body, tag"common.+", pos, Int32(sizeof(partial_eltype(T))), type = RPtr())
     branch!(body, header, len, pos)
   end
   countptr!(ir, ptr, mode)
 end
 
-function count_inline!(ir, T::Onion, x, mode)
+function union_count_inline!(ir, T::RType, x, mode)
   union_cases!(ir, T, x) do T, x
     if isreftype(T)
       count!(ir, T, x, mode)
@@ -115,7 +132,7 @@ function count_inline!(ir, T::Onion, x, mode)
   end
 end
 
-function count_inline!(ir, T::Recursive, x, mode)
+function recursive_count_inline!(ir, T::RType, x, mode)
   ptr = push!(ir, stmt(Expr(:ref, x, 1), type = RPtr()))
   if mode == release
     unique = call!(ir, tag"common.blockUnique", ptr, type = Int32)
@@ -192,9 +209,9 @@ function refcounts(ir)
 end
 
 function aliases(ir)
-  aliases = Dict{Variable,Vector{Union{Primitive,Integer,Tuple{Variable,Int}}}}()
+  aliases = Dict{Variable,Vector{Any}}()
   alias(v::Variable) = get!(() -> [(v, i) for i = 1:nregisters(layout(exprtype(ir, v)))], aliases, v)
-  alias(x::Union{Primitive,Integer}) = [x]
+  alias(x::Union{RMethod,Bits,Int32,Int64}) = [x]
   for (v, st) in ir
     if isexpr(st, :tuple)
       aliases[v] = vcat(alias.(st.expr.args)...)

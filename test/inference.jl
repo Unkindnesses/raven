@@ -1,5 +1,5 @@
 using Raven, Test
-using Raven: @tag_str, @src_str, RInt64, reload!, rlist
+using Raven: @tag_str, @src_str, reload!, rlist
 
 compiler = Raven.global_compiler()
 inf = compiler.pipe.inferred;
@@ -15,8 +15,8 @@ reload!(compiler, src"""
   }
   """)
 
-ir, T = inf[(tag"pow", rlist(RInt64(2), RInt64(3)))]
-@test T == rlist(RInt64(8))
+ir, T = inf[(tag"pow", rlist(2, 3))]
+@test T == rlist(8)
 
 reload!(compiler, src"""
   fn fib(n) {
@@ -28,8 +28,8 @@ reload!(compiler, src"""
   }
   """)
 
-ir, T = inf[(tag"fib", rlist(RInt64(20)))]
-@test T == rlist(RInt64())
+ir, T = inf[(tag"fib", rlist(20))]
+@test T == rlist(Int64)
 
 reload!(compiler, src"""
   fn fib(n) { fib(n-1) + fib(n-2) }
@@ -45,5 +45,5 @@ reload!(compiler, src"""
   }
   """)
 
-ir, T = inf[(tag"fibSequence", rlist(RInt64(5)))]
-@test T == rlist(rlist(RInt64.([1, 1, 2, 3, 5])...))
+ir, T = inf[(tag"fibSequence", rlist(5))]
+@test T == rlist(rlist(1, 1, 2, 3, 5))

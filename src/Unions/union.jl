@@ -1,6 +1,11 @@
 using MacroTools
 using MacroTools: @capture, @q
 
+isbits(T) =
+  T isa Union ? isbits(T.a) && isbits(T.b) :
+  T.name == Tuple.name ? all(isbits, T.parameters) :
+  isbitstype(T)
+
 function fieldtype(ex)
   @capture(ex, _::T_ | _)
   return something(T, Any)
@@ -58,7 +63,7 @@ macro union(ex)
     $([
       @q function $(esc(T))(::Val{$(QuoteNode(f))}, value) where {$(esc.(params(T))...)}
         f_val = convert($(esc(types[f])), value)
-        if $(f in unboxed) && isbitstype($(esc(types[f])))
+        if $(f in unboxed) && isbits($(esc(types[f])))
           new($(UInt8(i)), f_val, nothing)
         else
           new($(UInt8(i)), nothing, f_val)
@@ -69,7 +74,7 @@ macro union(ex)
   end
   :(let
     types = Dict($([:($(QuoteNode(f)) => $(esc(types[f]))) for f in unboxed]...))
-    unboxed = [f for (f, T) in types if isbitstype(T)]
+    unboxed = [f for (f, T) in types if isbits(T)]
     Storage = Union{Nothing,[types[f] for f in unboxed]...}
     P($(esc(namify(T))), $(esc.(params(T))...)) = Union{Nothing,$([:($(QuoteNode(f)) in unboxed ? Union{} : $(esc(types[f]))) for f in fields]...)}
     $type
@@ -81,7 +86,7 @@ macro union(ex)
     $([
       :(function Unions.unsafe_getproperty(x::$(esc(T)), ::Val{$(QuoteNode(f))}) where {$(esc.(params(T))...)}
         $(if f in unboxed
-          :(if isbitstype($(esc(types[f])))
+          :(if isbits($(esc(types[f])))
             return getfield(x, :bits)::$(esc(types[f]))
           end)
         end)
@@ -125,7 +130,9 @@ end
 
 field(x) = fields(x)[getfield(x, :tag)]
 
-function isfield(x, f)
+function isfield(x, f::Symbol)
   @assert f in fields(x)
-  return field(x) === f
+  return fieldidx(typeof(x), f) === getfield(x, :tag)
 end
+
+isfield(x, f, g, h...) = isfield(x, f) || isfield(x, g, h...)

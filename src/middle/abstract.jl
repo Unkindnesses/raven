@@ -1,7 +1,13 @@
 const recursionLimit = 10
 
 _typeof(x) = error("invalid constant $x::$(typeof(x))")
-_typeof(x::Union{Bits,Number,String,Tag,RMethod,Pack}) = x
+_typeof(x::RMethod) = x
+_typeof(x::Union{Tag,Int64,Int32,Float64,Float32,Bits,String}) = RType(x)
+
+function _typeof(x::RType)
+  @assert isvalue(x)
+  return x
+end
 
 # TODO constants should be converted early to empty tuples of constant type.
 # If literals appear in the IR they are runtime values (eg args to foreign calls)
@@ -65,32 +71,23 @@ Frame(P, ir::LoopIR, T = ⊥) =
 
 Base.show(io::IO, ::Frame) = print(io, "Frame(...)")
 
-function frame(P, ir::IR, args...)
+function frame(P, ir::IR, args::RType...)
   ir = prepare_ir!(copy(ir))
   @assert length(arguments(ir.ir)) == length(args)
   argtypes(ir.body[1]) .= args
   return Frame(P, ir)
 end
 
-function const_frame(P, T, F, sig...)
-  name = F isa Tag ? F : F.name
-  ir = IR(meta = FuncInfo(name, trampoline = true))
-  foreach(T -> argument!(ir, T), sig)
-  r = push!(ir, stmt(Expr(:tuple), type = T))
-  return!(ir, r)
-  return Frame(P, looped(ir), T)
-end
-
 struct Inference
   defs::Definitions
   meths::EagerCache
-  deps::IdDict{Any,Set{Caches.NFT}}
-  frames::IdDict{Sig,Union{Frame,GlobalFrame,Redirect}}
+  deps::Dict{Any,Set{Caches.NFT}}
+  frames::Dict{Sig,Union{Frame,GlobalFrame,Redirect}}
   queue::WorkQueue{Tuple}
 end
 
 function Inference(defs::Definitions, meths::EagerCache)
-  Inference(defs, meths, IdDict(), Dict(), WorkQueue{Tuple}())
+  Inference(defs, meths, Dict(), Dict(), WorkQueue{Tuple}())
 end
 
 function sig(inf::Inference, T)
@@ -125,13 +122,13 @@ function frame!(inf::Inference, name::Binding)
   end
 end
 
-function irframe!(inf::Inference, P, ir, F, Ts...)
+function irframe!(inf::Inference, P, ir, F, Ts::RType...)
   inf.frames[(F, Ts...)] = frame(P, ir, Ts...)
   update!(inf, (F, Ts...))
   return frame(inf, (F, Ts...))
 end
 
-function frame!(inf::Inference, P, meth::RMethod, Ts...)
+function frame!(inf::Inference, P, meth::RMethod, Ts::RType...)
   if meth.partial
     meth.func(Ts...)
   elseif haskey(inf.frames, (meth, Ts...))
@@ -144,7 +141,7 @@ function frame!(inf::Inference, P, meth::RMethod, Ts...)
   end
 end
 
-function frame!(inf::Inference, P, F, Ts)
+function frame!(inf::Inference, P, F, Ts::RType)
   haskey(inf.frames, (F, Ts)) && return frame(inf, (F, Ts))
   inf.frames[(F, Ts)] = Frame(P, looped(IR()))
   update!(inf, (F, Ts))
@@ -186,7 +183,9 @@ function infercall!(inf::Inference, P, sig...)
 end
 
 function infercall!(inf::Inference, P, ir, ex::Expr)
-  infercall!(inf, P, exprtype(ir, ex.args)...)
+  (F, args...) = exprtype(ir, ex.args)
+  F isa RType && (F = atom(F)::Tag)
+  infercall!(inf, P, F, args...)
 end
 
 function cleardeps!(inf::Inference, sig)
@@ -258,9 +257,9 @@ function update!(inf::Inference, sig)
         elseif isunreachable(br)
           break
         else
-          cond = exprtype(bl.ir, something(br.args[2], RBool(true)))
-          @assert tag(cond) == tag"common.Bool"
-          cond == RBool(false) && continue
+          cond = exprtype(bl.ir, something(br.args[2], RType(true)))
+          @assert tag(cond) == RType(tag"common.Bool")
+          cond == RType(false) && continue
           p, rr = nextpath(fr.ir, path, br.args[1])
           rr = rr || pin!(fr.ir, path, length(p))
           @assert !rr || p < path "unimplemented"
@@ -270,7 +269,7 @@ function update!(inf::Inference, sig)
             path = p
             @goto loop
           end
-          cond == RBool(true) && break
+          cond == RType(true) && break
         end
       elseif isexpr(st, :tuple)
         @assert isvalue(st.type)
@@ -369,6 +368,7 @@ Caches.iscached(i::Inferred, k) = iscached(i.results, k)
 Caches.time(i::Inferred) = i.time
 
 function _getindex(i::Inferred, sig)
+  sig[1] isa RType && (sig = (atom(sig[1])::Tag, sig[2:end]...))
   iscached(i, sig) && return i.results[sig]
   # Don't let inference dependencies leak
   _, deps = Caches.trackdeps() do

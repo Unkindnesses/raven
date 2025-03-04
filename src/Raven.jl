@@ -10,6 +10,7 @@ using Base64, JSON, Sockets
 using MacroTools: @q, @forward, isexpr
 
 using .Unions, .Caches, .IRTools, .Dwarf, .WebAssembly
+using .Unions: isfield, field
 using .IRTools: IR, Variable, Statement, Variable, argument!, block, blocks,
   arguments, argtypes, block, isreturn, isunreachable, branches, prune!,
   return!, unreachable!, branch!, block!, stmt, predecessors, successors, Slot,
@@ -20,10 +21,9 @@ import Base: ==, hash
 
 include("utils.jl")
 
-include("frontend/tag.jl")
+include("frontend/types.jl")
 include("frontend/ast.jl")
 include("frontend/parse.jl")
-include("frontend/types.jl")
 include("frontend/modules.jl")
 include("frontend/lower.jl")
 

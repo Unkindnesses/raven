@@ -21,10 +21,8 @@ resolve_static(cx::LoadState, x::Symbol) =
 
 function simpleconst(cx::LoadState, x)
   x isa Symbol && return cx.mod[x]
-  x isa Int32 && return RInt32(x)
-  x isa Int64 && return RInt64(x)
-  x isa Primitive && return x
-  x isa AST.Template && x[1] == :tag && return modtag(cx.mod.name, x[2])
+  x isa Union{Number,String,Tag} && return RType(x)
+  x isa AST.Template && x[1] == :tag && return RType(modtag(cx.mod.name, x[2]))
   return
 end
 
@@ -36,7 +34,7 @@ end
 
 function load_import(cx, x)
   path = x[4]::String
-  mod = Tag(tag"common", pathtag(path).path...)
+  mod = Tag(tag"common", pathtag(path).path)
   @assert haskey(cx.comp.mods, mod)
   mod = cx.comp.mods[mod]
   import!(cx.mod, mod, x[2][:])
@@ -48,8 +46,8 @@ function load_clear(cx, x)
     @assert x isa Symbol
     haskey(cx.mod.defs, x) || continue
     T = cx.mod[x]
-    @assert T isa Tag || isempty(symbolValues(T))
-    T isa Tag && delete!(cx.mod.methods, T)
+    @assert isfield(T, :tag) || isempty(symbolValues(T))
+    isfield(T, :tag) && delete!(cx.mod.methods, atom(T))
     delete!(cx.mod.defs, x)
   end
 end
@@ -82,9 +80,9 @@ function vload(cx::LoadState, x::AST.Syntax; src)
   var = sig[1]::Union{Tag,Symbol}
   tag =
     var isa Tag ? var :
-    extend ? resolve_static(cx, var)::Tag :
+    extend ? atom(resolve_static(cx, var))::Tag :
     Tag(cx.mod.name, var)
-  (!extend && var isa Symbol) && (cx.mod[var] = tag)
+  (!extend && var isa Symbol) && (cx.mod[var] = RType(tag))
   resolve = x -> resolve_static(cx, x)
   sig = lowerpattern(AST.List(sig[2:end]...); mod = cx.mod.name, resolve)
   method!(cx.mod, RMethod(tag, sig,

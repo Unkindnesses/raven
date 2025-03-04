@@ -20,7 +20,8 @@ RMethod(name::Tag, pat, func) = RMethod(name, pat, func, false)
 
 Base.show(io::IO, meth::RMethod) = print(io, "RMethod($(string(meth.name)))")
 
-function union(a::RMethod, b::RMethod)
+# TODO remove
+function Base.union(a::RMethod, b::RMethod)
   @assert a === b
   return a
 end
@@ -58,12 +59,12 @@ Base.delete!(ms::Methods, k::Tag) = delete!(ms.methods, k)
 
 struct RModule
   name::Tag
-  defs::Caches.Dict{Symbol,Any}
+  defs::Caches.Dict{Symbol,Union{RAnno,Binding}}
   exports::Set{Symbol}
   methods::Methods
 end
 
-RModule(name) = RModule(name, Caches.Dict{Symbol,Any}(), Set{Symbol}(), Methods(name))
+RModule(name) = RModule(name, Caches.Dict{Symbol,Union{RAnno,Binding}}(), Set{Symbol}(), Methods(name))
 
 @forward RModule.defs Base.getindex, Base.setindex!, Base.haskey, Base.get, Base.get!
 
@@ -112,7 +113,7 @@ Caches.subcaches(c::Modules) = values(c.mods)
 
 Base.getindex(cx::Modules, b::Binding) = cx.mods[b.mod][b.name]
 
-Base.setindex!(cx::Modules, T, b::Binding) =
+Base.setindex!(cx::Modules, T::RType, b::Binding) =
   cx.mods[b.mod][b.name] = T
 
 function resolve_static(cx::Modules, b::Binding)
