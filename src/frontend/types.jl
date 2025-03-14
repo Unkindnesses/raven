@@ -360,7 +360,8 @@ function _isdistinct(self, x, y; isdisjoint)
     nparts(x) < 1 || isdisjoint(x, y) ||
       all(self(x, y) for (x, y) in zip(x.parts, y.parts))
   elseif x isa Pack && y isa VPack
-    nparts(x) < 1 || isdisjoint(x, y)
+    nparts(x) < 1 || isdisjoint(x, y) ||
+      (self(tag(x), tag(y)) && all(self(x, y.parts) for x in x.parts))
   elseif x isa VPack && y isa Pack
     self(y, x)
   elseif x isa VPack && y isa VPack

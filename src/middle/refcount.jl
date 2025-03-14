@@ -215,6 +215,8 @@ function elide_counts!(ir)
     for (v, st) in bl
       isexpr(st, :call) || continue
       if ismethod(st.expr.args[1], tag"common.core.retain")
+        # TODO aliases for args
+        haskey(vs, st.expr.args[2]) || continue
         push!(get!(retains, vs[st.expr.args[2]], []), v)
       elseif ismethod(st.expr.args[1], tag"common.core.release")
         haskey(vs, st.expr.args[2]) || continue

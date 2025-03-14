@@ -248,8 +248,13 @@ let
 end
 
 let
-  T = onion(pack(tag"a", pack(tag"b")), vpack(tag"b", Int), vpack(tag"d", vpack(tag"a", pack(tag"b", Int))))
+  T = onion(vpack(tag"a", pack(tag"b")), vpack(tag"b", Int), vpack(tag"d", vpack(tag"a", vpack(tag"b", Int))))
   @test recursive(T) == Recursive(onion(vpack(tag"a", Recur()), vpack(tag"b", Int64), vpack(tag"d", Recur())))
+end
+
+let
+  T = pack(tag"List", vpack(tag"List", vpack(tag"List", Float64)))
+  @test recursive(T) == T
 end
 
 struct Generator

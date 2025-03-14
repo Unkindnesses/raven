@@ -664,3 +664,17 @@ test_rv"""
   test typemin(Int32(5)) == -2147483648
   test typemax(Int32(5)) ==  2147483647
   """
+
+@test_rv("""
+  fn group(n) {
+    xs = []
+    result = []
+    for i in range(1, n) {
+      append(&xs, i)
+      append(&result, xs)
+    }
+    return result
+  }
+
+  show group(widen(3))
+  """, output = "[[1], [1, 2], [1, 2, 3]]")
