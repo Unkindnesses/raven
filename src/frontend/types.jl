@@ -573,9 +573,7 @@ end
 
 recursive(T) = recurser()(T)
 
-const union_cache = Dict{Tuple{Any,Any},Any}()
-
-union(x, y) = get!(() -> recursive(_union(x, y)), union_cache, (x, y))
+union(x, y) = recursive(_union(x, y))
 
 # Internal symbols
 
