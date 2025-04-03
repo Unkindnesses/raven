@@ -509,7 +509,9 @@ function reroll_inner(T, x; self = reroll, seen)::Tuple{RType,Set{Any}}
   else
     xs, re = reconstruct(x)
     ys = self.((T,), xs; seen)
-    return re(first.(ys)), reduce(Base.union!, second.(ys), init = Set())
+    ch = isfield(x, :union) ? [d for y in first.(ys) for d in disjuncts(y)] :
+      first.(ys)
+    return re(ch), reduce(Base.union!, second.(ys), init = Set())
   end
 end
 
@@ -608,8 +610,16 @@ function recur_inner(T; self)
 end
 
 function _recur(T; self = identity)
-  R = reroll(recur_inner(_union(_unroll(T), lift(T)); self))
-  issubset(R, T) ? R : self(R)
+  if isfield(T, :vpack) || isfield(T, :union) || isfield(T, :recursive)
+    R = reroll(recur_inner(_union(_unroll(T), lift(T)); self))
+    issubset(R, T) ? R : self(R)
+  else
+    recur_inner(_unroll(T); self)
+  end
+end
+
+struct TypeError
+  name::String
 end
 
 function recurser()

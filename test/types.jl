@@ -24,6 +24,7 @@ let
   @test union(T, T) == T
 
   Tw = pack(tag"Prepend", T, Float64)
+  @test recur(Tw) == Tw
 
   @test issubset(Tw, T)
 
@@ -247,7 +248,7 @@ end
 let
   I = recursive(onion(vpack(tag"a", recurrence), vpack(tag"b", recurrence)))
   T = pack(tag"b", I, vpack(tag"b", Bits{32}))
-  @test recur(T) == recursive(onion(Bits{32}, vpack(tag"a", recurrence), vpack(tag"b", recurrence)))
+  @test recur(T) == T#recursive(onion(Bits{32}, vpack(tag"a", recurrence), vpack(tag"b", recurrence)))
 end
 
 let
