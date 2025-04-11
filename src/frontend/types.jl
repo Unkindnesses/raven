@@ -90,7 +90,6 @@ WebAssembly.Const(x::Bits) =
   bits::Tuple{UInt8,Union{UInt64,Nothing}}
   f32::Union{Float32,Nothing}
   f64::Union{Float64,Nothing}
-  string::String
   pack::Vector{RType}
   vpack::Tuple{RType,RType}
   union::Vector{RType}
@@ -112,7 +111,6 @@ RType(x::Tag) = RType(tag = string(x))
 RType(x::Bits) = RType(bits = (nbits(x),UInt64(x)))
 RType(x::Float32) = RType(f32 = x)
 RType(x::Float64) = RType(f64 = x)
-RType(x::String) = RType(string = x)
 
 RType(::Type{Float32}) = RType(f32 = nothing)
 RType(::Type{Float64}) = RType(f64 = nothing)
@@ -140,11 +138,10 @@ end
 
 onion(xs...) = onion([RType(x) for x in xs])
 
-isatom(x::RType) = field(x) in (:tag, :bits, :f32, :f64, :string)
+isatom(x::RType) = field(x) in (:tag, :bits, :f32, :f64)
 
 atom(x::RType) =
   isfield(x, :tag) ? Tag(x.tag) :
-  isfield(x, :string) ? x.string :
   isfield(x, :bits) ? (isnothing(x.bits[2]) ? Bits{Int(x.bits[1])} : Bits{Int(x.bits[1])}(x.bits[2])) :
   isfield(x, :f32) ? (isnothing(x.f32) ? Float32 : x.f32) :
   isfield(x, :f64) ? (isnothing(x.f64) ? Float64 : x.f64) :
@@ -156,11 +153,10 @@ abstract(x::RType) =
   isfield(x, :bits) ? RType(bits = (x.bits[1], nothing)) :
   isfield(x, :f32) ? RType(Float32) :
   isfield(x, :f64) ? RType(Float64) :
-  isfield(x, :string) ? RString() :
   error("not an atom type")
 
 isvalue(x::RType) =
-  isfield(x, :tag, :string) ||
+  isfield(x, :tag) ||
   (isfield(x, :bits) && !isnothing(x.bits[2])) ||
   (isfield(x, :f32) && !isnothing(x.f32)) ||
   (isfield(x, :f64) && !isnothing(x.f64)) ||
@@ -171,7 +167,6 @@ tag(x::RType)::RType =
   isfield(x, :bits) ? RType(tag"common.core.Bits") :
   isfield(x, :f32) ?  RType(tag"common.core.Float32") :
   isfield(x, :f64) ?  RType(tag"common.core.Float64") :
-  isfield(x, :string) ? RType(tag"common.String") :
   isfield(x, :pack) ? x.pack[1] :
   isfield(x, :vpack) ? x.vpack[1] :
   isfield(x, :recursive) ? tag(x.recursive) :
@@ -180,7 +175,6 @@ tag(x::RType)::RType =
 allparts(x::RType) =
   isfield(x, :tag, :bits) ? [tag(x), x] :
   isfield(x, :f32, :f64) ? [tag(x), bits(x)] :
-  isfield(x, :string) ? [tag(x), JSObject()] :
   isfield(x, :pack) ? x.pack :
   error("No fixed parts for $(field(x)) type")
 
@@ -308,8 +302,6 @@ function _issubset(self::T, x::RType, y::RType)::Bool where T
     x == y ||
     field(x) == field(y) && !isvalue(y) &&
       (!isfield(x, :bits) || x.bits[1] == y.bits[1])
-  elseif isfield(x, :string)
-    issubset(RString(), y)
   elseif isfield(x, :pack) && isfield(y, :pack)
     nparts(x) == nparts(y) && all(issubset.(x.pack, y.pack))
   elseif isfield(x, :pack) && isfield(y, :vpack)
@@ -659,8 +651,6 @@ function Base.show(io::IO, x::RType)
     print(io, isnothing(x.f32) ? "Float32" : "$(x.f32)f0")
   elseif isfield(x, :f64)
     print(io, isnothing(x.f64) ? "Float64" : x.f64)
-  elseif isfield(x, :string)
-    show(io, x.string)
   elseif isfield(x, :pack)
     if tag(x) == RType(tag"common.Int")
       N = nbits(atom(part(x, 1)))

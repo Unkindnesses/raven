@@ -21,7 +21,7 @@ resolve_static(cx::LoadState, x::Symbol) =
 
 function simpleconst(cx::LoadState, x)
   x isa Symbol && return cx.mod[x]
-  x isa Union{Number,String,Tag} && return RType(x)
+  x isa Union{Number,Tag} && return RType(x)
   x isa AST.Template && x[1] == :tag && return RType(modtag(cx.mod.name, x[2]))
   return
 end

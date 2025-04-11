@@ -52,7 +52,7 @@ cat_layout(x, xs...) = (cat_layout(x)..., cat_layout(xs...)...)
 
 layout(T::Type{<:Union{Float64,Float32,Int32,Int64}}) = T
 
-  # TODO layouts/wtypes should be unsigned
+# TODO layouts/wtypes should be unsigned
 function layout(T::Type{<:Bits})
   if nbits(T) <= 32
     return Int32
@@ -112,7 +112,6 @@ end
 # Create a `part` method to dynamically index tuples allocated as registers.
 # TODO: should make sure this comes out as a switch / branch table.
 function partir(x, i)
-  isfield(x, :string) && return partir(x.string, i)
   isfield(x, :union) && return partir_union(x, i)
   @assert tag(i) == RType(tag"common.Int")
   T = partial_part(x, i)
@@ -162,18 +161,6 @@ function partir_union(x::RType, i)
     ret = cast!(ir, partial_part(T, i), retT, ret)
     return ret
   end
-  return ir
-end
-
-function partir(s::String, i)
-  @assert i == RType(1)
-  ir = IR(meta = FuncInfo(tag"common.core.part"))
-  argument!(ir, type = RType(s))
-  argument!(ir, type = i)
-  # Punt to the backend to decide how strings get IDd
-  id = push!(ir, stmt(Expr(:ref, s), type = RType(Int32)))
-  o = call!(ir, tag"common.JSObject", id, type = JSObject())
-  return!(ir, o)
   return ir
 end
 
@@ -240,7 +227,6 @@ inlinePrimitive[part_method] = function (pr, ir, v)
   T, I = exprtype(ir, [x, i])
   if isfield(T, :pack) && !isvalue(I)
   elseif isfield(T, :union)
-  elseif isfield(T, :string) && I == RType(1)
   elseif isfield(T, :recursive)
     T = unroll(T)
     delete!(pr, v)
@@ -485,8 +471,6 @@ function cast!(ir, from, to, x)
       end
       push!(ir, stmt(Expr(:tuple, Int32(n), ptr), type = to))
     end
-  elseif isfield(from, :string) && to == RString()
-    string!(ir, from)
   elseif isfield(to, :union)
     i = findfirst(==(from), to.union)
     @assert i != nothing

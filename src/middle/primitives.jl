@@ -55,10 +55,7 @@ partial_nparts(x::RType) =
   isfield(x, :vpack) ? RType(Int64) :
   RType(nparts(x))
 
-# partial_widen(x::RType) = (@show(x); error("unimplemented"))
-
 partial_widen(x::RType) =
-  isfield(x, :string) ? RString() :
   isatom(x) ? abstract(x) :
   isfield(x, :pack) && tag(x) in RType.((tag"common.Int", tag"common.Bool")) ? pack(tag(x), abstract(part(x, 1))) :
   error("unimplemented")
@@ -119,10 +116,7 @@ function partial_tagcast(x::RType, t::RType)
   return isempty(ps) ? ⊥ : only(ps)
 end
 
-partial_tagstring(x::RType) =
-  isfield(x, :tag) ? RType(x.tag) :
-  isfield(x, :union) ? RString() :
-  error("unimplemented")
+partial_tagstring(x::RType) = RString()
 
 function rvtype(x::RType)
   @assert isvalue(x)
@@ -218,10 +212,7 @@ const outlinePrimitive = IdDict{RMethod,Any}()
 inlinePrimitive[widen_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
   T = exprtype(ir, x)
-  if isfield(T, :string)
-    id = insert!(pr, v, stmt(Expr(:ref, T.string), type = rlist(RType(Int32))))
-    pr[v] = stmt(xcall(tag"common.JSObject", id), type = RString())
-  elseif isatom(T) && isvalue(T)
+  if isatom(T) && isvalue(T)
     pr[v] = atom(T)
   elseif tag(T) in RType.((tag"common.Int", tag"common.Bool"))
     pr[v] = atom(part(T, 1))
@@ -412,9 +403,18 @@ inlinePrimitive[tagstring_method] = function (pr, ir, v)
   end
 end
 
-function string!(ir, s::RType)
-  s = push!(ir, stmt(Expr(:tuple), type = s))
-  push!(ir, stmt(xcall(part_method, s, 1), type = RString()))
+function string!(ir, s::String)
+  id = push!(ir, stmt(Expr(:ref, s), type = rlist(Int32)))
+  push!(ir, stmt(xcall(tag"common.JSObject", id), type = RString()))
+end
+
+inlinePrimitive[tagstring_method] = function (pr, ir, v)
+  T = exprtype(ir, ir[v].expr.args[2])
+  if isfield(T, :tag)
+    delete!(pr, v)
+    s = string!(pr, string(atom(T)::Tag))
+    replace!(pr, v, s)
+  end
 end
 
 outlinePrimitive[tagstring_method] = function (T)
@@ -422,7 +422,7 @@ outlinePrimitive[tagstring_method] = function (T)
   ir = IR(meta = FuncInfo(tag"common.core.tagstring"))
   x = argument!(ir, type = T)
   union_cases!(ir, T, x) do S, _
-    string!(ir, RType(string(atom(S)::Tag)))
+    string!(ir, string(atom(S)::Tag))
   end
   return ir
 end

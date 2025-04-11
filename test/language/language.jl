@@ -529,7 +529,7 @@ test_rv"""
     if x {
       return widen(5)
     } else {
-      return widen("foo")
+      return "foo"
     }
   }
 

@@ -285,7 +285,7 @@ function dispatcher(inf, func::Tag, Ts)
     error("Compiler fault: couldn't guarantee abort method matches")
   end
   if options().jspanic
-    call!(tag"common.abort", "No matching method: $func: $Ts")
+    call!(tag"common.abort", string!(ir, "No matching method: $func: $Ts"))
   end
   unreachable!(ir)
   return ir, ret

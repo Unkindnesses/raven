@@ -326,8 +326,15 @@ _lower!(sc, ir, x::Vector) = foreach(x -> _lower!(sc, ir, x), x)
 
 lower!(sc, ir::IR, x::Variable) = x
 
-function lower!(sc, ir::IR, x::Union{Tag,String,Float64,Int64})
+function lower!(sc, ir::IR, x::Union{Tag,Float64,Int64})
   _push!(ir, xtuple(), type = RType(x))
+end
+
+function lower!(sc, ir::IR, x::String)
+  id = push!(ir, stmt(Expr(:ref, x), type = rlist(Int32)))
+  obj = push!(ir, xcall(tag"common.JSObject", id))
+  s = push!(ir, xcall(tag"common.String", obj))
+  push!(ir, xpart(s, 1))
 end
 
 lower!(sc, ir::IR, x::Vector) =
@@ -467,7 +474,7 @@ function lowermatch!(sc, ir::IR, val, pat)
   branch!(ir, length(blocks(ir))+1, when = isnil)
   branch!(ir, length(blocks(ir))+2)
   block!(ir)
-  push!(ir, rcall(tag"common.abort", "match failed: $(sig.pattern)"))
+  push!(ir, rcall(tag"common.abort", lower!(sc, ir, "match failed: $(sig.pattern)")))
   block!(ir)
   m = push!(ir, xcall(notnil_method, m))
   for arg in sig.args

@@ -2,7 +2,7 @@ const recursionLimit = 10
 
 _typeof(x) = error("invalid constant $x::$(typeof(x))")
 _typeof(x::RMethod) = x
-_typeof(x::Union{Tag,Int64,Int32,Float64,Float32,Bits,String}) = RType(x)
+_typeof(x::Union{Tag,Int64,Int32,Float64,Float32,Bits}) = RType(x)
 
 function _typeof(x::RType)
   @assert isvalue(x)
@@ -273,6 +273,8 @@ function update!(inf::Inference, sig)
         end
       elseif isexpr(st, :tuple)
         @assert isvalue(st.type)
+      elseif isexpr(st, :ref) && st.expr.args[1] isa String
+        @assert st.type isa RType
       else
         error("Unknown expr type $(st.expr.head)")
       end
