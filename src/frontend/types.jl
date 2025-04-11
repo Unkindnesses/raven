@@ -626,11 +626,13 @@ recur(T) = recurser()(T)
 
 const union_cache = Dict{Tuple{RType,RType},RType}()
 
-Base.union(x::RType, y::RType) = get!(() -> recur(_union(x, y)), union_cache, (x, y))
+function Base.union(x::RType, y::RType)
+  sortkey(x) <= sortkey(y) || ((x, y) = (y, x))
+  get!(() -> recur(_union(x, y)), union_cache, (x, y))
+end
 
-# TODO make sure `union(x, ⊥) == x`
-Base.union(x::RType, ::Unreachable) = union(x, x)
-Base.union(::Unreachable, y::RType) = union(y, y)
+Base.union(x::RType, ::Unreachable) = x
+Base.union(::Unreachable, y::RType) = y
 Base.union(::Unreachable, ::Unreachable) = ⊥
 
 # Display
