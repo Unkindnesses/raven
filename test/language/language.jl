@@ -657,7 +657,7 @@ test_rv"""
 let
   Raven.compile(joinpath(@__DIR__, "brainfuck.rv"))
   cmd = `node --experimental-wasm-stack-switching $(joinpath(@__DIR__, "brainfuck.js")) $(joinpath(@__DIR__, "test.bf"))`
-  @test String(read(cmd)) == "H\n"
+  @test String(read(cmd)) == "Hello World!\n"
 end
 
 test_rv"""

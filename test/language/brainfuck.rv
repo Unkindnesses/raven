@@ -1,4 +1,39 @@
-bundle Tape(xs: List, i: Int64)
+bundle Instr {
+  Left(), Right()
+  Inc(), Dec()
+  Read(), Write()
+  Loop(body: List)
+}
+
+fn parse(code) {
+  stack = []
+  body = []
+  for ch in code {
+    if ch == "<" {
+      append(&body, Left())
+    } else if ch == ">" {
+      append(&body, Right())
+    } else if ch == "+" {
+      append(&body, Inc())
+    } else if ch == "-" {
+      append(&body, Dec())
+    } else if ch == "," {
+      append(&body, Read())
+    } else if ch == "." {
+      append(&body, Write())
+    } else if ch == "[" {
+      append(&stack, body)
+      body = []
+    } else if ch == "]" {
+      loop = Loop(body)
+      body = pop(&stack)
+      append(&body, loop)
+    }
+  }
+  return body
+}
+
+bundle Tape(data: List, i: Int64)
 
 fn Tape() { Tape([0], 1) }
 
@@ -26,22 +61,37 @@ fn dec(&tape: Tape(xs, i)) {
   tape = Tape(xs, i)
 }
 
-fn interpret(file) {
-  tape = Tape()
-  for char in readFile(file) {
-    if char == "+" {
-      inc(&tape)
-    } else if char == "-" {
-      dec(&tape)
-    } else if char == ">" {
-      right(&tape)
-    } else if char == "<" {
-      left(&tape)
-    } else if char == "." {
-      print(js().String.fromCharCode(tape[]))
+fn eval(&tape: Tape, instr) {
+  if instr == Left() {
+    left(&tape)
+  } else if instr == Right() {
+    right(&tape)
+  } else if instr == Inc() {
+    inc(&tape)
+  } else if instr == Dec() {
+    dec(&tape)
+  } else if instr == Write() {
+    print(js().String.fromCharCode(tape[]))
+  } else if tag(instr) == Loop {
+    Loop(body) = instr
+    while tape[] != 0 {
+      interpret(&tape, body)
     }
   }
-  println()
 }
 
-interpret(args()[3])
+fn interpret(&tape: Tape, code) {
+  for instr in code {
+    eval(&tape, instr)
+  }
+  return tape
+}
+
+fn interpret(code) {
+  interpret(Tape(), code)
+}
+
+{
+  code = parse(readFile(args()[3]))
+  interpret(code)
+}

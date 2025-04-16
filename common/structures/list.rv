@@ -1,4 +1,4 @@
-export { List, length, set, append, empty?, map, collect }
+export { List, length, set, append, pop, empty?, map, collect }
 
 bundle List(xs...)
 
@@ -25,9 +25,17 @@ fn empty?(xs: List) {
   length(xs) == 0
 }
 
-fn append(&xs, x) {
+fn append(&xs: List, x) {
   xs = [xs..., x]
   return xs
+}
+
+fn pop(&xs: List) {
+  last = xs[length(xs)]
+  ys = []
+  for i in range(1, length(xs)-1) { append(&ys, xs[i]) }
+  xs = ys
+  return last
 }
 
 fn iterator(xs: List) { IndexIterator(xs) }

@@ -186,10 +186,13 @@ parts(x::RType) = allparts(x)[2:end]
 
 packcat(x) = x
 
-packcat(x, y) =
-  isfield(x, :vpack) || isfield(y, :vpack) ?
+function packcat(x, y)
+  x, y = unroll.((x, y))
+  z = isfield(x, :vpack) || isfield(y, :vpack) ?
     vpack(tag(x), union(partial_eltype(x), partial_eltype(y))) :
   pack(tag(x), parts(x)..., parts(y)...)
+  return recur(z)
+end
 
 packcat(x, y, z...) = packcat(packcat(x, y), z...)
 

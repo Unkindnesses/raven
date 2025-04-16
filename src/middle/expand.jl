@@ -225,21 +225,18 @@ end
 inlinePrimitive[part_method] = function (pr, ir, v)
   x, i = ir[v].expr.args[2:end]
   T, I = exprtype(ir, [x, i])
-  if isfield(T, :pack) && !isvalue(I)
-  elseif isfield(T, :union)
-  elseif isfield(T, :recursive)
+  delete!(pr, v)
+  if isfield(T, :recursive)
     T = unroll(T)
-    delete!(pr, v)
-    x′ = unbox!(pr, T, x)
-    y = push!(pr, stmt(xcall(part_method, x′, i), type = ir[v].type))
+    x = unbox!(pr, T, x)
+  end
+  if isfield(T, :pack) && !isvalue(I) || isfield(T, :union)
+    y = push!(pr, stmt(xcall(part_method, x, i), type = partial_part(T, I)))
     replace!(pr, v, y)
-    @assert isfield(T, :union)
-    isreftype(ir[v].type) && push!(pr, Expr(:release, y))
   else
-    delete!(pr, v)
     y = indexer!(pr, T, Int64(I), x, i)
     replace!(pr, v, y)
-    isreftype(exprtype(ir, v)) && push!(pr, Expr(:retain, y))
+    isreftype(partial_part(T, I)) && push!(pr, Expr(:retain, y))
     isreftype(T) && push!(pr, Expr(:release, x))
   end
 end
@@ -250,8 +247,9 @@ end
 outlinePrimitive[packcat_method] = function (Ts)
   @assert isfield(Ts, :pack)
   T = packcat(parts(Ts)...)
-  @assert isfield(T, :vpack)
+  @assert isfield(unroll(T), :vpack)
   @assert isfield(tag(T), :tag)
+  E = partial_eltype(unroll(T))
   ir = IR(meta = FuncInfo(tag"common.core.packcat"))
   xs = argument!(ir, type = Ts)
   ps = [indexer!(ir, Ts, i, xs, i) for i in 1:nparts(Ts)]
@@ -262,21 +260,25 @@ outlinePrimitive[packcat_method] = function (Ts)
     size = call!(ir, tag"common.+", size, l, type = RType(Int64))
   end
   size = call!(ir, tag"common.Int32", size, type = RType(Int32))
-  if sizeof(partial_eltype(T)) == 0
+  if isfield(T, :vpack) && sizeof(E) == 0
     return!(ir, push!(ir, stmt(Expr(:tuple, size), type = T)))
     return ir
   end
-  bytes = call!(ir, tag"common.*", size, Int32(sizeof(partial_eltype(T))), type = RType(Int32))
+  bytes = call!(ir, tag"common.*", size, Int32(sizeof(E)), type = RType(Int32))
   ptr = call!(ir, tag"common.malloc!", bytes, type = RType(Int32))
   pos = ptr
   for i in 1:nparts(Ts)
     P = part(Ts, i)
+    if isfield(P, :recursive)
+      P = unroll(P)
+      ps[i] = unbox!(ir, P, ps[i])
+    end
     if isfield(P, :pack)
       for j in 1:nparts(P)
         x = indexer!(ir, P, j, ps[i], j)
-        x = cast!(ir, part(P, j), partial_eltype(T), x)
-        store!(ir, partial_eltype(T), pos, x)
-        pos = call!(ir, tag"common.+", pos, Int32(sizeof(partial_eltype(T))), type = RType(Int32))
+        x = cast!(ir, part(P, j), E, x)
+        store!(ir, E, pos, x)
+        pos = call!(ir, tag"common.+", pos, Int32(sizeof(E)), type = RType(Int32))
       end
     elseif isfield(P, :vpack)
       # TODO memcpy when possible
@@ -298,10 +300,10 @@ outlinePrimitive[packcat_method] = function (Ts)
       branch!(header, body)
 
       x = load(body, partial_eltype(P), src)
-      x = cast!(body, partial_eltype(P), partial_eltype(T), x)
-      store!(body, partial_eltype(T), pos, x)
-      pos2 = call!(body, tag"common.+", pos, Int32(sizeof(partial_eltype(T))), type = RType(Int32))
-      src2 = call!(body, tag"common.+", src, Int32(sizeof(partial_eltype(T))), type = RType(Int32))
+      x = cast!(body, partial_eltype(P), E, x)
+      store!(body, E, pos, x)
+      pos2 = call!(body, tag"common.+", pos, Int32(sizeof(E)), type = RType(Int32))
+      src2 = call!(body, tag"common.+", src, Int32(sizeof(E)), type = RType(Int32))
       len2 = call!(body, tag"common.-", len, Int32(1), type = RType(Int32))
       branch!(body, header, pos2, src2, len2)
 
@@ -310,7 +312,11 @@ outlinePrimitive[packcat_method] = function (Ts)
       error("unsupported")
     end
   end
-  result = push!(ir, stmt(Expr(:tuple, size, ptr), type = T))
+  result = push!(ir, stmt(Expr(:tuple, size, ptr), type = unroll(T)))
+  if isfield(T, :recursive)
+    result = box!(ir, unroll(T), result)
+    result = push!(ir, stmt(xtuple(result), type = T))
+  end
   return!(ir, result)
   return ir
 end
@@ -346,10 +352,16 @@ outlinePrimitive[nparts_method] = function (x)
 end
 
 function nparts!(ir, T::RType, x)
+  if isfield(T, :recursive)
+    T = unroll(T)
+    x = unbox!(ir, T, x)
+  end
   if isfield(T, :vpack)
     sz = push!(ir, stmt(Expr(:ref, x, 1), type = RType(Int32)))
+    push!(ir, Expr(:release, x))
     call!(ir, tag"common.Int64", sz, type = RType(Int64))
   else
+    push!(ir, Expr(:release, x))
     push!(ir, stmt(xtuple(), type = RType(nparts(T))))
   end
 end
@@ -357,17 +369,15 @@ end
 inlinePrimitive[nparts_method] = function (pr, ir, v)
   x = ir[v].expr.args[2]
   T = exprtype(ir, x)
-  if isfield(T, :union)
-  elseif isfield(T, :recursive)
+  delete!(pr, v)
+  if isfield(T, :recursive)
     T = unroll(T)
-    delete!(pr, v)
-    x′ = unbox!(pr, T, x)
-    y = push!(pr, stmt(xcall(nparts_method, x′), type = RType(Int64)))
+    x = unbox!(pr, T, x)
+  end
+  if isfield(T, :union)
+    y = push!(pr, stmt(xcall(nparts_method, x), type = RType(Int64)))
     replace!(pr, v, y)
-    @assert isfield(T, :union)
-    isreftype(ir[v].type) && push!(pr, Expr(:release, y))
   else
-    delete!(pr, v)
     replace!(pr, v, nparts!(pr, T, x))
     isreftype(T) && push!(pr, Expr(:release, x))
   end
@@ -386,6 +396,7 @@ function lowerdata(ir)
       else
         F = exprtype(ir, st.expr.args[1])
         if haskey(inlinePrimitive, F)
+          # TODO deletion/replacement here rather than within each primitive
           inlinePrimitive[F](pr, ir, v)
         end
       end
@@ -405,7 +416,8 @@ function store!(ir, T, ptr, x)
   @assert exprtype(ir, ptr) in (RPtr(), RType(Int32))
   l = tlayout(T)
   for (i, T) in enumerate(l)
-    push!(ir, stmt(xcall(WType(T).store, ptr, Expr(:ref, x, i)), type = nil))
+    part = push!(ir, Expr(:ref, x, i))
+    push!(ir, stmt(xcall(WType(T).store, ptr, part), type = nil))
     # TODO could use constant offset here
     i == length(l) || (ptr = call!(ir, tag"common.+", ptr, Int32(sizeof(T)), type = RType(Int32)))
   end
@@ -472,8 +484,8 @@ function cast!(ir, from, to, x)
       push!(ir, stmt(Expr(:tuple, Int32(n), ptr), type = to))
     end
   elseif isfield(to, :union)
-    i = findfirst(==(from), to.union)
-    @assert i != nothing
+    i = findfirst(x -> issubset(from, x), to.union)
+    x = cast!(ir, from, to.union[i], x)
     x = (isvariable(x) ? [x] : [])
     return push!(ir, Expr(:tuple, Int32(i),
                           reduce(vcat, [j == i ? x : collect(zero.(layout(p)))
@@ -481,7 +493,8 @@ function cast!(ir, from, to, x)
   elseif isfield(from, :pack) && isfield(to, :recursive)
     to = unroll(to)
     x = cast!(ir, from, to, x)
-    box!(ir, to, x)
+    x = box!(ir, to, x)
+    push!(ir, stmt(xtuple(x), type = recur(to)))
   else
     error("unsupported cast: $(repr(from)) -> $(repr(to))")
   end
