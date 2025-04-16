@@ -241,6 +241,9 @@ function elide_counts!(ir)
         if !isempty(rets)
           delete!(ir, pop!(rets))
           delete!(ir, v)
+        else
+          # TODO figure out which `retain`s can be affected by a `release`
+          empty!(retains)
         end
       end
     end
