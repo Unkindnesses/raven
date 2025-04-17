@@ -226,6 +226,19 @@ function formacro(ex)
   )
 end
 
+function matchmacro(ex)
+  val = ex[2]::Symbol
+  clauses = (ex[3]::AST.Block)[:]
+  body = Any[:if]
+  for (i, ex) in enumerate(clauses)
+    i == 1 || push!(body, :else, :if)
+    @assert ex isa AST.Syntax && ex[1] == :let
+    push!(body, :let, AST.Operator(:(=), ex[2], val), ex[3]::AST.Block)
+  end
+  push!(body, :else, AST.Block(AST.Call(tag"common.abort", "Match clause failed")))
+  return AST.Syntax(body...)
+end
+
 function showmacro(ex; pack = false)
   ex = ex[2]
   name = gensym()
@@ -253,6 +266,7 @@ macros = Dict(
   :show => showmacro,
   :showPack => x -> showmacro(x, pack = true),
   :test => testmacro,
+  :match => matchmacro,
 )
 
 # Expr -> IR lowering
@@ -507,6 +521,10 @@ function lowerwhile!(sc, ir::IR, ex, value = true)
   return value ? Binding(tag"common", :nil) : nothing
 end
 
+struct LetCond
+  ex
+end
+
 struct If
   cond::Vector{Any}
   body::Vector{Any}
@@ -515,18 +533,18 @@ end
 function If(b::AST.Syntax)
   cond = []
   body = []
-  push!(cond, b[2])
-  push!(body, b[3])
-  args = b[4:end]
+  args = b[:]
   while !isempty(args)
-    @assert popfirst!(args) == :else "Broken if block"
     if args[1] == :if
       popfirst!(args)
-      push!(cond, popfirst!(args))
+      c = popfirst!(args)
+      c == :let && (c = LetCond(popfirst!(args)))
+      push!(cond, c)
     else
       push!(cond, true)
     end
     push!(body, popfirst!(args))
+    @assert (isempty(args) || popfirst!(args) == :else) "Broken if block"
   end
   if cond[end] !== true
     push!(cond, true)
@@ -550,15 +568,34 @@ function lowerif!(sc, ir::IR, ex::If, value = true)
       block!(ir)
       break
     end
-    cond = lower!(sc, ir, cond)
-    cond = _push!(ir, rcall(tag"common.condition", cond))
-    c = blocks(ir)[end]
-    t = block!(ir)
-    body!(ir, body)
-    push!(ts, blocks(ir)[end])
-    f = block!(ir)
-    branch!(c, t, when = cond)
-    branch!(c, f)
+    if cond isa LetCond
+      _, pat, val = cond.ex[:]
+      val = lower!(sc, ir, val)
+      sig = lowerpattern(pat, mod = mod(sc), resolve = resolve_static)
+      pat = rvpattern(sig.pattern)
+      m = push!(ir, rcall(tag"common.match", val, pat))
+      isnil = push!(ir, xcall(isnil_method, m))
+      c = blocks(ir)[end]
+      t = block!(ir)
+      for arg in sig.args
+        push!(ir, Expr(:(=), variable!(sc, arg), rcall(tag"common.getkey", m, Tag(arg))))
+      end
+      body!(ir, body)
+      push!(ts, blocks(ir)[end])
+      f = block!(ir)
+      branch!(c, f, when = isnil)
+      branch!(c, t)
+    else
+      cond = lower!(sc, ir, cond)
+      cond = _push!(ir, rcall(tag"common.condition", cond))
+      c = blocks(ir)[end]
+      t = block!(ir)
+      body!(ir, body)
+      push!(ts, blocks(ir)[end])
+      f = block!(ir)
+      branch!(c, t, when = cond)
+      branch!(c, f)
+    end
   end
   b = blocks(ir)[end]
   for i = 1:length(ts)

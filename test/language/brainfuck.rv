@@ -9,6 +9,7 @@ fn parse(code) {
   stack = []
   body = []
   for ch in code {
+    # TODO cleaner dictionary lookup
     if ch == "<" {
       append(&body, Left())
     } else if ch == ">" {
@@ -61,21 +62,17 @@ fn dec(&tape: Tape(xs, i)) {
   tape = Tape(xs, i)
 }
 
-fn eval(&tape: Tape, instr) {
-  if instr == Left() {
-    left(&tape)
-  } else if instr == Right() {
-    right(&tape)
-  } else if instr == Inc() {
-    inc(&tape)
-  } else if instr == Dec() {
-    dec(&tape)
-  } else if instr == Write() {
-    print(js().String.fromCharCode(tape[]))
-  } else if tag(instr) == Loop {
-    Loop(body) = instr
-    while tape[] != 0 {
-      interpret(&tape, body)
+fn eval(&tape: Tape, instr: Instr) {
+  match instr {
+    let Left()  { left(&tape) }
+    let Right() { right(&tape) }
+    let Inc()   { inc(&tape) }
+    let Dec()   { dec(&tape) }
+    let Write() { print(js().String.fromCharCode(tape[])) }
+    let Loop(body) {
+      while tape[] != 0 {
+        interpret(&tape, body)
+      }
     }
   }
 }
