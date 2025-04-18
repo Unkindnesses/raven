@@ -383,6 +383,10 @@ function lower!(sc, ir::IR, ex::AST.Operator, value = true)
     x = variable!(sc, ex[2])
     _push!(ir, :($x = $y))
     return x
+  elseif ex[1] == :(=) && ex[2] isa AST.Index
+    xs, i = ex[2][:]
+    x = ex[3]
+    lower!(sc, ir, AST.meta(AST.Call(tag"common.set", AST.Swap(xs), x, i), AST.meta(ex)))
   elseif ex[1] == :(=)
     pat = ex[2]
     val = lower!(sc, ir, ex[3])

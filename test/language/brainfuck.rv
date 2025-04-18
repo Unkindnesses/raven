@@ -53,12 +53,12 @@ fn right(&tape: Tape(xs, i)) {
 }
 
 fn inc(&tape: Tape(xs, i)) {
-  set(&xs, xs[i]+1, i)
+  xs[i] = xs[i]+1
   tape = Tape(xs, i)
 }
 
 fn dec(&tape: Tape(xs, i)) {
-  set(&xs, xs[i]-1, i)
+  xs[i] = xs[i]-1
   tape = Tape(xs, i)
 }
 
