@@ -1,7 +1,7 @@
 #!/usr/bin/env node --enable-source-maps --experimental-wasm-stack-switching
 import * as commander from 'commander'
 import * as nodeRepl from 'node:repl'
-import { compile, exec } from './backend/compiler'
+import { compile, compileJS, exec } from './backend/compiler'
 import { REPL } from './backend/repl'
 
 async function startRepl() {
@@ -38,9 +38,12 @@ async function main() {
     .command('compile')
     .description('Compile a Raven source file')
     .argument('<source>', 'Source file to compile')
-    .action(async (source) => {
+    .option('-o, --output <file>', 'Rename output file')
+    .option('--js', 'Emit JS')
+    .action(async (source, { output, js }) => {
       let { inline, memcheck } = program.optsWithGlobals()
-      await compile(source, { options: { inline, memcheck } })
+      if (js) await compileJS(source, { options: { inline, memcheck }, output })
+      else await compile(source, { options: { inline, memcheck }, output })
     })
 
   program

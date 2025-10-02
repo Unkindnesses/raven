@@ -17,11 +17,11 @@ import * as ast from '../frontend/ast'
 import { core } from '../middle/primitives'
 import * as path from 'path'
 import { only } from '../utils/map'
-import { mkdir } from 'fs/promises'
+import { chmod, mkdir, readFile, writeFile } from 'fs/promises'
 import { spawn, SpawnOptions } from 'node:child_process'
 import { dirname } from '../dirname'
 
-export { Pipeline, Compiler, emit, withEmit, compile, exec, run }
+export { Pipeline, Compiler, emit, withEmit, compile, compileJS, exec, run }
 
 class Pipeline implements Caching {
   readonly sources: mods.Modules
@@ -128,19 +128,37 @@ interface CompileConfig {
   dir?: string
   compiler?: Compiler
   options?: Partial<Options>
+  output?: string
 }
 
 async function compile(file: string, config: CompileConfig = {}): Promise<string> {
-  let { dir = path.dirname(file), compiler = new Compiler(), options = {} } = config
+  let { dir = path.dirname(file), compiler = new Compiler(), options = {}, output } = config
   const base = path.basename(file, path.extname(file))
-  const wasmPath = path.join(dir, `${base}.wasm`)
-  await mkdir(dir, { recursive: true })
+  const wasmPath = output ?? path.join(dir, `${base}.wasm`)
+  await mkdir(path.dirname(wasmPath), { recursive: true })
   await withOptions(options, async () => {
     const em = compiler.reload(file)
     if (!(em instanceof wasm.BatchEmitter)) throw new Error('nope')
     await wasm.emitwasm(em, compiler.pipe.wasm, wasmPath)
   })
   return wasmPath
+}
+
+async function compileJS(file: string, config: CompileConfig = {}): Promise<string> {
+  let { dir = path.dirname(file), compiler = new Compiler(), options = {}, output } = config
+  const base = path.basename(file, path.extname(file))
+  const jsPath = output ?? path.join(dir, `${base}.js`)
+  await mkdir(path.dirname(jsPath), { recursive: true })
+  await withOptions(options, async () => {
+    const em = compiler.reload(file)
+    if (!(em instanceof wasm.BatchEmitter)) throw new Error('nope')
+    const bytes = wasm.emitwasmBinary(em, compiler.pipe.wasm)
+    const base64 = Buffer.from(bytes).toString('base64')
+    const runtime = await readFile(execPath, 'utf8')
+    await writeFile(jsPath, `${runtime}\nbinary = Buffer.from('${base64}', 'base64')\n`)
+    await chmod(jsPath, 0o755)
+  })
+  return jsPath
 }
 
 async function run(cmd: string, args: readonly string[] = [], options: SpawnOptions = {}) {
@@ -154,6 +172,6 @@ async function run(cmd: string, args: readonly string[] = [], options: SpawnOpti
 const execPath = path.join(dirname, '../build/backend/exec.js')
 
 async function exec(file: string, args: string[] = [], config?: CompileConfig): Promise<void> {
-  const wasmPath = await compile(file, config)
-  await run('node', ['--experimental-wasm-stack-switching', execPath, wasmPath, ...args], { stdio: 'inherit' })
+  if (path.extname(file).toLowerCase() !== '.wasm') file = await compile(file, config)
+  await run('node', ['--experimental-wasm-stack-switching', execPath, file, ...args], { stdio: 'inherit' })
 }

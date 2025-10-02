@@ -15,7 +15,7 @@ import { Redirect, type Sig } from '../middle/abstract'
 import { Accessor } from '../utils/fixpoint'
 import { dirname } from '../dirname'
 
-export { wasmPartials, Wasm, BatchEmitter, StreamEmitter, Emitter, emitwasm, lowerwasm, lowerwasm_globals }
+export { wasmPartials, Wasm, BatchEmitter, StreamEmitter, Emitter, emitwasm, emitwasmBinary, lowerwasm, lowerwasm_globals }
 
 type PartialFn = (...args: Type[]) => Type
 
@@ -307,6 +307,10 @@ async function binary(m: wasm.Module, file: string): Promise<void> {
 
 async function emitwasm(em: BatchEmitter, mod: Wasm, out: string): Promise<void> {
   await binary(wasmmodule(em, mod.globals, mod.tables), out)
+}
+
+function emitwasmBinary(em: BatchEmitter, mod: Wasm): Uint8Array {
+  return wasmBinary(wasmmodule(em, mod.globals, mod.tables))
 }
 
 // Stream emitter, for REPL
