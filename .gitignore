@@ -8,3 +8,7 @@
 /cases*
 /*.jl
 /*.rv
+node_modules
+build
+/old
+test/*/*.js

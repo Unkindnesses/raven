@@ -1,0 +1,221 @@
+import { some } from '../utils/map'
+import { Type, issubset, union, asType } from '../frontend/types'
+import { IRValue, MIR } from '../frontend/modules'
+import { IR, Block, stmt, Branch, CFG, Component, components, entry, rename, Expr, unreachable, getIndent, withIndent } from '../utils/ir'
+
+export { LoopIR, loop, looped, unloop, Path, tail, block, nextpath, nextpathTo, pin, reroll, blockargs }
+
+function copyblock<T, A, M>(to: Block<IR<T, A, M>>, from: Block<IR<T, A, M>>) {
+  const env = new Map<number, number>()
+  for (let i = 0; i < from.args.length; i++)
+    env.set(from.args[i], to.argument(from.argtypes[i]))
+  for (const [v, st] of from)
+    env.set(v, to.push(rename(env, st)))
+}
+
+class LoopIR<T, A, M> {
+  constructor(readonly ir: IR<T, A, M>, readonly bls: number[], readonly body: IR<T, A, M>[], public max: number) { }
+}
+
+function showLoop<T, A, M>(l: LoopIR<T, A, M>, args: (T | number)[], pr: (x: T) => string): string {
+  const show = (x: T | number) => typeof x === 'number' ? `%${x}` : pr(x)
+  let s = args.length ? `loop ${args.map(show).join(', ')}:` : 'loop:'
+  l.body.forEach((b, i) => {
+    const head = '  '.repeat(getIndent() + 2) + `#${i + 1}:`
+    const body = withIndent(3, () => b.toString())
+    s += `\n${head}\n${body}`
+  })
+  return s
+}
+
+function loopexpr<T, A, M>(l: LoopIR<T, A, M>, ...args: (T | number)[]): Expr<T> & { loop: LoopIR<T, A, M> } {
+  return {
+    head: 'loop',
+    body: args as (T | number)[],
+    loop: l,
+    map(f: (x: T | number) => T | number) { return loopexpr(l, ...(this.body.map(f) as (T | number)[])) },
+    show(pr: (x: T) => string) { return showLoop(l, args, pr) }
+  }
+}
+
+function loop<T, A, M>(b: Block<IR<T, A, M>>): LoopIR<T, A, M> | null {
+  if (b.length === 0) return null
+  const [, first] = [...b][0]
+  if (first.expr.head !== 'loop') return null
+  const e = first.expr as { head: 'loop', loop?: LoopIR<T, A, M> }
+  return e.loop ?? null
+}
+
+function looped<T, A, M>(ir: IR<T, A, M>, cs?: Component): LoopIR<T, A, M> {
+  cs ??= components(new CFG(ir))
+  if (!Array.isArray(cs)) cs = [cs]
+  const out = new IR<T, A, M>(ir.meta, ir.show, ir.typeOf)
+  const blocks: number[] = []
+  cs.forEach((ch, i) => {
+    const bl = i === 0 ? out.block(1) : out.newBlock()
+    if (typeof ch === 'number') {
+      blocks.push(ch)
+      copyblock(bl, ir.block(ch))
+    } else {
+      blocks.push(entry(ch))
+      const argts = ir.block(entry(ch)).argtypes
+      const args = argts.map(T => bl.argument(T))
+      bl.push(stmt(loopexpr(looped(ir, ch), ...args)))
+    }
+  })
+  return new LoopIR(out, blocks, [out.clone()], 8)
+}
+
+function nblocksBlock<T, A, M>(b: Block<IR<T, A, M>>): number {
+  const l = loop(b)
+  return l ? nblocksLoop(l) : 1
+}
+
+function nblocksIR<T, A, M>(ir: IR<T, A, M>): number {
+  return Array.from(ir.blocks()).reduce((a, b) => a + nblocksBlock(b), 0)
+}
+
+function nblocksLoop<T, A, M>(l: LoopIR<T, A, M>): number {
+  return l.body.reduce((acc, x) => acc + nblocksIR(x), 0)
+}
+
+function blockmap<T, A, M>(l: LoopIR<T, A, M>, offset = 1): Map<number, number> {
+  const map = new Map<number, number>()
+  for (const b of l.ir.blocks()) {
+    map.set(l.bls[b.id], offset)
+    const l2 = loop(b)
+    offset += l2 ? nblocksLoop(l2) : 1
+  }
+  return map
+}
+
+function unloop<T, A, M>(l: LoopIR<T, A, M>): IR<T, A, M> {
+  const out = new IR<T, A, M>(l.ir.meta, l.ir.show, l.ir.typeOf)
+  out.deleteBlock(1)
+  const unloopRec = (l: LoopIR<T, A, M>, bs: Map<number, number>) => {
+    for (let iter = 0; iter < l.body.length; iter++) {
+      const lir = l.body[iter]
+      const entryId = out.blockCount + 1
+      const local = new Map([...blockmap(l, entryId), ...bs])
+      const nextEntry = entryId + nblocksIR(lir)
+      local.set(l.bls[0], iter === l.body.length - 1 ? entryId : nextEntry)
+      for (const b of lir.blocks()) {
+        const inner = loop(b)
+        if (inner) unloopRec(inner, local)
+        else {
+          const c = out.newBlock()
+          copyblock(c, b)
+          for (const [v, st] of c) if (st.expr instanceof Branch) {
+            if (st.expr.isreturn() || st.expr.isunreachable()) continue
+            const target = some(local.get(st.expr.target))
+            c.ir.set(v, new Branch(target, st.expr.args, st.expr.when))
+          }
+        }
+      }
+    }
+  }
+  unloopRec(l, new Map())
+  return out
+}
+
+// Navigation during inference
+
+class Path {
+  constructor(readonly parts: [number, number][] = [[1, 1]]) { } // iter, block
+  lt(other: Path): boolean {
+    const A = this.parts, B = other.parts
+    for (let i = 0; i < Math.min(A.length, B.length); i++) {
+      if (A[i][0] !== B[i][0]) return A[i][0] < B[i][0]
+      if (A[i][1] !== B[i][1]) return A[i][1] < B[i][1]
+    }
+    return A.length < B.length
+  }
+}
+
+function tail(p: Path): Path { return new Path(p.parts.slice(1)) }
+
+function block<T, A, M>(ir: LoopIR<T, A, M>, p: Path): Block<IR<T, A, M>> {
+  for (let i = 0; i < p.parts.length - 1; i++) {
+    const [itr, b] = p.parts[i]
+    const l = loop(ir.body[itr - 1].block(b))
+    if (!l) throw new Error('Invalid loop path')
+    ir = l
+  }
+  const [itr, b] = p.parts[p.parts.length - 1]
+  return ir.body[itr - 1].block(b)
+}
+
+function blockargs(x: MIR | Block<MIR>, args: Type[]): boolean {
+  const bl = x instanceof IR ? x.block(1) : x
+  let changed = false
+  for (let i = 0; i < bl.argtypes.length; i++) {
+    if (bl.argtypes[i] !== unreachable && issubset(args[i], asType(bl.argtypes[i]))) continue
+    bl.bb.args[i][1] = bl.argtypes[i] === unreachable ? args[i] : union(asType(bl.argtypes[i]), args[i])
+    changed = true
+  }
+  return changed
+}
+
+function reroll(ir: LoopIR<IRValue, any, any>): boolean {
+  ir.max = 1
+  if (ir.body.length === 1) return false
+  let changed = false
+  const first = ir.body[0]
+  for (const x of ir.body.slice(1)) {
+    changed ||= blockargs(first, x.block(1).argtypes.map(a => asType(a)))
+  }
+  ir.body.length = 1
+  return changed
+}
+
+function nextpath<T, A, M>(ir: LoopIR<T, A, M>, p: Path): Path | null {
+  const [itr, bl] = p.parts[0]
+  const inner = loop(ir.body[itr - 1].block(bl))
+  const next = p.parts.length === 1 || !inner ? null : nextpath(inner, tail(p))
+  if (next) return new Path([p.parts[0], ...next.parts])
+  return bl < ir.bls.length ? new Path([[itr, bl + 1]]) :
+    itr < ir.body.length ? new Path([[itr + 1, 1]]) : null
+}
+
+function nextpathTo(ir: LoopIR<IRValue, unknown, unknown>, p: Path, target: number): [Path, boolean] {
+  const q: [number, number][] = []
+  for (const [itr, b] of p.parts) {
+    const c = ir.bls.indexOf(target) + 1
+    if (c === 0 || c === b) { // back edge
+      ir = some(loop(ir.body[itr - 1].block(b)))
+      q.push([itr, b])
+      continue
+    }
+    if (c === 1) {
+      if (itr >= ir.max) {
+        q.push([1, 1])
+        return [new Path(q), reroll(ir)]
+      }
+      if (itr === ir.body.length) ir.body.push(ir.ir.clone())
+      q.push([itr + 1, 1])
+      return [new Path(q), false]
+    } else {
+      q.push([itr, c])
+      return [new Path(q), false]
+    }
+  }
+  throw new Error(`Invalid block target ${target}`)
+}
+
+// If a loop iteration breaks out, don't unroll it further.
+function pin(ir: LoopIR<IRValue, unknown, unknown>, p: Path, depth: number): boolean {
+  let rr = false
+  for (let i = 0; i < p.parts.length; i++) {
+    const [itr, b] = p.parts[i]
+    if (i + 1 > depth) {
+      ir.max = itr
+      if (ir.body.length > ir.max) {
+        rr ||= reroll(ir)
+        if (itr !== 1) return rr
+      }
+    }
+    if (i < p.parts.length - 1)
+      ir = some(loop(ir.body[itr - 1].block(b)))
+  }
+  return rr
+}

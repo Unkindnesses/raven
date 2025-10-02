@@ -1,0 +1,31 @@
+{
+  "name": "raven",
+  "version": "0.0.0",
+  "files": [
+    "build",
+    "common"
+  ],
+  "bin": {
+    "raven": "build/index.js"
+  },
+  "scripts": {
+    "build": "esbuild --platform=node --sourcemap --bundle --outdir=build src/index.ts src/backend/worker.ts src/backend/exec.ts",
+    "watch": "npm run build -- --watch",
+    "start": "npm run build && node --enable-source-maps --experimental-wasm-stack-switching build/index.js",
+    "test": "npm run build && node --max-old-space-size=8192 --enable-source-maps --experimental-wasm-stack-switching ./node_modules/uvu/bin.js -r tsm test -i '^(?!.*\\.ts$).*'"
+  },
+  "devDependencies": {
+    "@types/assert": "^1.5.11",
+    "@types/lodash": "^4.17.16",
+    "@types/node": "^22.15.3",
+    "assert": "^2.0.0",
+    "esbuild": "^0.25.3",
+    "tsm": "^2.3.0",
+    "typescript": "^5.9.3",
+    "uvu": "^0.5.6"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "lodash": "^4.17.21"
+  }
+}

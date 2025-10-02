@@ -1,5 +1,5 @@
 export {
-  JSObject, abort, js, property, call, errcall, await, new, sleep
+  JSObject, debugger, abort, js, property, call, errcall, await, new, sleep
   readline, require
 }
 
@@ -144,6 +144,10 @@ fn Bool(obj: JSObject) { Bool(Int32(obj)) }
 
 fn condition(obj: JSObject) { condition(Bool(obj)) }
 fn not(obj: JSObject) { not(Bool(obj)) }
+
+fn debugger() {
+  wasm { call(support.debugger) }
+}
 
 fn abort(s: JSObject) {
   retain!(s)

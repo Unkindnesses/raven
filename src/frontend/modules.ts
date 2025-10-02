@@ -1,0 +1,217 @@
+import { HashMap } from "../utils/map"
+import { Source, Anno, unreachable } from "../utils/ir"
+import { Type, Tag, tag, repr } from "./types"
+import * as types from "./types"
+import { Type as WType } from "../wasm/wasm"
+import * as cache from "../utils/cache"
+import * as ir from "../utils/ir"
+import isEqual from 'lodash/isEqual'
+import { Pattern } from "./patterns"
+
+export { Module, Method, Signature, Binding, asBinding, asFunc, asConst, Modules, FuncInfo, Definitions, Const, MIR, IRValue, IRType, WIntrinsic, WImport, showIRValue }
+
+class WIntrinsic {
+  constructor(readonly name: string) { }
+}
+
+class WImport {
+  constructor(readonly mod: string, readonly name: string) { }
+}
+
+class FuncInfo {
+  constructor(
+    readonly name: Tag,
+    readonly source: Source | undefined = undefined,
+    readonly trampoline: boolean = false
+  ) { }
+  toString() {
+    return `Function ${this.name} at ${JSON.stringify(this.source)}`
+  }
+}
+
+class Binding {
+  constructor(readonly mod: Tag, readonly name: string) { }
+}
+
+function asBinding(x: unknown): Binding {
+  if (x instanceof Binding) return x
+  throw new Error(`Expected Binding, got ${typeof x}`)
+}
+
+function asFunc(x: unknown): Tag | Method {
+  if (x instanceof Method || x instanceof Tag) return x
+  throw new Error(`Expected Tag or Method, got ${typeof x}`)
+}
+
+class Const {
+  constructor(
+    readonly type: 'i32' | 'i64' | 'f32' | 'f64',
+    readonly value: number | bigint) { }
+  static i32(v: number | bigint) { return new Const('i32', v) }
+  static i64(v: number | bigint) { return new Const('i64', v) }
+  static f32(v: number | bigint) { return new Const('f32', v) }
+  static f64(v: number | bigint) { return new Const('f64', v) }
+  static from(t: WType, v: number | bigint): Const {
+    if (t === WType.i32) return Const.i32(v)
+    if (t === WType.i64) return Const.i64(v)
+    if (t === WType.f32) return Const.f32(v)
+    if (t === WType.f64) return Const.f64(v)
+    throw new Error(`Unsupported Wasm const type ${t}`)
+  }
+}
+
+function asConst(x: unknown): Const {
+  if (x instanceof Const) return x
+  throw new Error(`Expected Const, got ${typeof x}`)
+}
+
+type IRValue = Type | Const | Method | ir.Slot | Binding | string | WIntrinsic | WImport
+type IRType = Type | WType[]
+type MIR = ir.IR<IRValue, IRType, FuncInfo | undefined>
+
+function irTypeOf(x: IRValue): IRValue | IRType {
+  if (x instanceof Const) {
+    if (x.type === 'i32') return types.int32()
+    if (x.type === 'i64') return types.int64()
+    if (x.type === 'f32') return types.float32()
+    if (x.type === 'f64') return types.float64()
+  }
+  return x
+}
+
+function showIRValue(x: IRValue | IRType): string {
+  if (typeof x === 'string') return JSON.stringify(x)
+  if (x instanceof ir.Slot) return x.toString()
+  if (x instanceof Binding) return `${x.mod}.${x.name}`
+  if (x instanceof WIntrinsic) return x.name
+  if (x instanceof WImport) return `\$${x.mod}.${x.name}`
+  if (x instanceof Method) return x.toString()
+  if (x instanceof Const) return `${x.type}(${x.value.toString()})`
+  if (Array.isArray(x)) return `[${x.join(', ')}]`
+  return repr(x)
+}
+
+function MIR(meta: FuncInfo | undefined): MIR {
+  return new ir.IR<IRValue, IRType, FuncInfo | undefined>(meta, showIRValue, irTypeOf)
+}
+
+interface Signature {
+  pattern: Pattern
+  args: string[]
+  swap: Map<number, string>
+}
+
+class Method {
+  constructor(
+    readonly name: Tag,
+    readonly sig: Signature,
+    readonly func: MIR | ((...args: Type[]) => Anno<Type>),
+    readonly partial: boolean = false
+  ) { }
+  toString() { return `Method(${this.name})` }
+}
+
+class Methods implements cache.Caching {
+  private imports = new cache.Ref<Tag[]>([])
+  private methods = new cache.Map<Tag, (Method | Tag)[]>()
+
+  get subcaches() { return [this.imports, this.methods] }
+  get(k: Tag) { return this.methods.get(k) ?? this.imports.get() }
+
+  method(m: Method) {
+    const ms = this.methods.get(m.name) ?? this.imports.get()
+    this.methods.set(m.name, [...ms, m])
+  }
+
+  import(mod: Tag) {
+    if (this.imports.get().some(m => isEqual(m, mod))) return
+    this.imports.set([...this.imports.get(), mod])
+    for (const k of this.methods.keys())
+      this.methods.set(k, [...this.methods.get(k)!, mod])
+  }
+
+  clear() {
+    this.imports.set([])
+    this.methods.clear()
+  }
+
+  delete(k: Tag) { return this.methods.delete(k) }
+}
+
+class Module implements cache.Caching {
+  readonly defs = new cache.Map<string, Anno<Type> | Binding>()
+  readonly exports = new Set<string>()
+  readonly methods = new Methods()
+  constructor(readonly name: Tag) { }
+
+  get subcaches() { return [this.defs, this.methods] }
+  method(m: Method) { this.methods.method(m) }
+  get(k: string) { return this.defs.get(k) }
+  set(k: string, v: Anno<Type> | Binding) { this.defs.set(k, v) }
+  has(k: string) { return this.defs.has(k) }
+  delete(k: string) { return this.defs.delete(k) }
+
+  clear() {
+    this.defs.clear()
+    this.exports.clear()
+    this.methods.clear()
+  }
+
+  import(from: Module, vars: string[] = []) {
+    this.methods.import(from.name)
+    for (const v of vars) {
+      if (!from.exports.has(v)) throw new Error(`Module ${from.name} does not export ${v} `)
+      this.set(v, new Binding(from.name, v))
+    }
+  }
+}
+
+class Modules implements cache.Caching {
+  private mods = new HashMap<Tag, Module>()
+  get subcaches() { return this.mods.values() }
+  module(m: Tag | Module) {
+    if (m instanceof Module) {
+      this.mods.set(m.name, m)
+      return m
+    } else {
+      const mod = this.mods.get(m) ?? new Module(m)
+      this.mods.set(m, mod)
+      return mod
+    }
+  }
+  get(b: Binding) { return this.mods.get(b.mod)?.get(b.name) }
+  set(b: Binding, v: Anno<Type> | Binding) { this.module(b.mod).set(b.name, v) }
+  resolve_static(b: Binding): Anno<Type> {
+    const val = this.get(b)
+    if (val === undefined) throw new Error(`Binding ${b.name} not found in module ${b.mod} `)
+    return val instanceof Binding ? this.resolve_static(val) : val
+  }
+}
+
+function methods(cx: Modules, name: Tag, mod: Tag = tag(""), ms: Method[] = [], seen = new Set<Tag>()) {
+  for (const m of cx.module(mod).methods.get(name)) {
+    if (m instanceof Tag) {
+      if (seen.has(m)) continue
+      seen.add(m)
+      methods(cx, name, m, ms, seen)
+    } else {
+      ms.push(m)
+    }
+  }
+  return ms
+}
+
+class Definitions implements cache.Caching {
+  private comp: Modules
+  readonly globals: cache.Cache<Binding, Anno<Type> | Binding>
+  readonly methods: cache.EagerCache<Tag, Method[]>
+  constructor(comp: Modules) {
+    this.comp = comp
+    this.globals = new cache.Cache<Binding, Anno<Type> | Binding>(b => comp.module(b.mod).get(b.name) ?? unreachable)
+    this.methods = new cache.EagerCache<Tag, Method[]>(name => methods(comp, name))
+  }
+  get subcaches() { return [this.globals, this.methods] }
+  resolve_static(b: Binding): Anno<Type> {
+    return this.comp.resolve_static(b)
+  }
+}
