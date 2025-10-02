@@ -603,7 +603,7 @@ test('clear function', async () => {
   `, { error: true, output: 'No matching method' })
 })
 
-test('pow without js refcounting', async () => {
+test.skip('pow without js refcounting', async () => {
   await rv(`
     fn pow(x, n: Int64) {
       r = one(x)

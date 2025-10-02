@@ -5,8 +5,11 @@ import { spawn } from 'node:child_process'
 import * as assert from 'assert'
 import { compile, Compiler } from './backend/compiler'
 import { type Options } from './utils/options'
+import { dirname } from './dirname'
 
 export { run, test, reset, runNode }
+
+const execPath = path.join(dirname, '../build/backend/exec.js')
 
 let _compiler: Compiler | undefined = undefined
 
@@ -24,9 +27,9 @@ interface Result {
   output: string
 }
 
-async function runNode(entry: string, args: string[] = []): Promise<Result> {
+async function runNode(wasm: string, args: string[] = []): Promise<Result> {
   return await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['--experimental-wasm-stack-switching', entry, ...args], { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(process.execPath, ['--experimental-wasm-stack-switching', execPath, wasm, ...args], { stdio: ['ignore', 'pipe', 'pipe'] })
     let output = ''
     child.stdout?.on('data', chunk => { output += chunk.toString() })
     child.stderr?.on('data', chunk => { output += chunk.toString() })
@@ -43,8 +46,8 @@ async function run(code: string, options?: Partial<Options>): Promise<Result> {
   const rvPath = path.join(dir, 'test.rv')
   try {
     await writeFile(rvPath, code)
-    const jsPath = await compile(rvPath, { options, dir, compiler: comp })
-    return await runNode(jsPath)
+    const wasm = await compile(rvPath, { options, dir, compiler: comp })
+    return await runNode(wasm)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

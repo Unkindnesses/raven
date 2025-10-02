@@ -19,6 +19,7 @@ import * as path from 'path'
 import { only } from '../utils/map'
 import { mkdir } from 'fs/promises'
 import { spawn, SpawnOptions } from 'node:child_process'
+import { dirname } from '../dirname'
 
 export { Pipeline, Compiler, emit, withEmit, compile, exec, run }
 
@@ -132,14 +133,14 @@ interface CompileConfig {
 async function compile(file: string, config: CompileConfig = {}): Promise<string> {
   let { dir = path.dirname(file), compiler = new Compiler(), options = {} } = config
   const base = path.basename(file, path.extname(file))
+  const wasmPath = path.join(dir, `${base}.wasm`)
   await mkdir(dir, { recursive: true })
   await withOptions(options, async () => {
     const em = compiler.reload(file)
     if (!(em instanceof wasm.BatchEmitter)) throw new Error('nope')
-    await wasm.emitwasm(em, compiler.pipe.wasm, path.join(dir, `${base}.wasm`))
-    await wasm.emitjs(path.join(dir, `${base}.js`), `${base}.wasm`)
+    await wasm.emitwasm(em, compiler.pipe.wasm, wasmPath)
   })
-  return path.join(dir, `${base}.js`)
+  return wasmPath
 }
 
 async function run(cmd: string, args: readonly string[] = [], options: SpawnOptions = {}) {
@@ -150,7 +151,9 @@ async function run(cmd: string, args: readonly string[] = [], options: SpawnOpti
   })
 }
 
+const execPath = path.join(dirname, '../build/backend/exec.js')
+
 async function exec(file: string, args: string[] = [], config?: CompileConfig): Promise<void> {
-  const js = await compile(file, config)
-  await run('node', ['--experimental-wasm-stack-switching', js, ...args], { stdio: 'inherit' })
+  const wasmPath = await compile(file, config)
+  await run('node', ['--experimental-wasm-stack-switching', execPath, wasmPath, ...args], { stdio: 'inherit' })
 }

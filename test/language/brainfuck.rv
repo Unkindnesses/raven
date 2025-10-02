@@ -89,6 +89,6 @@ fn interpret(code) {
 }
 
 {
-  code = parse(readFile(args()[3]))
+  code = parse(readFile(args()[4]))
   interpret(code)
 }

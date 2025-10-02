@@ -2,7 +2,7 @@ import * as types from '../frontend/types'
 import { Type, Bits, asBits, bits, tag } from '../frontend/types'
 import * as wasm from '../wasm/wasm'
 import { binary as wasmBinary } from '../wasm/binary'
-import { readFile, writeFile } from 'fs/promises'
+import { writeFile } from 'fs/promises'
 import * as path from 'path'
 import { options } from '../utils/options'
 import { irfunc, Instr, setdiff } from '../wasm/ir'
@@ -15,7 +15,7 @@ import { Redirect, type Sig } from '../middle/abstract'
 import { Accessor } from '../utils/fixpoint'
 import { dirname } from '../dirname'
 
-export { wasmPartials, Wasm, BatchEmitter, StreamEmitter, Emitter, emitwasm, emitjs, lowerwasm, lowerwasm_globals }
+export { wasmPartials, Wasm, BatchEmitter, StreamEmitter, Emitter, emitwasm, lowerwasm, lowerwasm_globals }
 
 type PartialFn = (...args: Type[]) => Type
 
@@ -307,20 +307,6 @@ async function binary(m: wasm.Module, file: string): Promise<void> {
 
 async function emitwasm(em: BatchEmitter, mod: Wasm, out: string): Promise<void> {
   await binary(wasmmodule(em, mod.globals, mod.tables), out)
-}
-
-// JS support
-
-const supportPath = path.join(dirname, '../build/backend/exec.js')
-
-async function emitjs(file: string, wasmFile: string): Promise<void> {
-  let s = ''
-  s += '// This file contains generated code.\n\n'
-  s += await readFile(supportPath, 'utf8')
-  s += '\n'
-  if (options().jsalloc) s += `main('${wasmFile}'); \n`
-  else s += `main('${wasmFile}', {memcheck: false});\n`
-  await writeFile(file, s)
 }
 
 // Stream emitter, for REPL

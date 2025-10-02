@@ -1,9 +1,7 @@
 import { loadWasm, table } from './support'
 
-export { main }
-
-async function main(wasm: string, { memcheck = true } = {}) {
-  let { _start } = await loadWasm(__dirname + '/' + wasm)
+async function main({ memcheck = true } = {}) {
+  let { _start } = await loadWasm(process.argv[2])
   _start = (WebAssembly as any).promising(_start)
   try {
     await (_start as any)()
@@ -14,3 +12,5 @@ async function main(wasm: string, { memcheck = true } = {}) {
   if (memcheck && Object.keys(table).length !== 0)
     throw new Error("Memory management fault: JSObject")
 }
+
+main()
