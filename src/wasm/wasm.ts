@@ -5,7 +5,7 @@ export {
   Type, sizeof,
   Signature, LineInfo, Instruction,
   Const, RefNull, nop, GetLocal, SetLocal, GetGlobal, SetGlobal, Op, Drop, Select, Convert, Branch, Call, CallIndirect, Return, unreachable, Block, Loop, instr,
-  Func, Table, Mem, Global, Elem, Data, Import, Export, Module,
+  Func, Table, Mem, Global, Elem, Data, Import, Export, CustomSection, Module,
   signatures, callees
 }
 
@@ -235,6 +235,15 @@ function Export(name: string, as: string = name): Export {
   return { name, as }
 }
 
+interface CustomSection {
+  name: string
+  data: Uint8Array
+}
+
+function CustomSection(name: string, data: Uint8Array): CustomSection {
+  return { name, data }
+}
+
 interface Module {
   funcs: Func[]
   mems: Mem[]
@@ -244,6 +253,7 @@ interface Module {
   data: Data[]
   imports: Import[]
   exports: Export[]
+  customs: CustomSection[]
 }
 
 function Module(options: Partial<Module> = {}): Module {
@@ -255,7 +265,8 @@ function Module(options: Partial<Module> = {}): Module {
     elems: options.elems || [],
     data: options.data || [],
     imports: options.imports || [],
-    exports: options.exports || []
+    exports: options.exports || [],
+    customs: options.customs || []
   }
 }
 

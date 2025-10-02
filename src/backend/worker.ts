@@ -6,7 +6,6 @@ import { loadWasm, support } from './support'
 export { WorkerCommand, WorkerRequest, WorkerResponse }
 
 type WorkerCommand =
-  | { type: 'strings', strings: string[] }
   | { type: 'wasm', module: Uint8Array }
 
 type WorkerRequest = WorkerCommand & { id: number }
@@ -27,8 +26,7 @@ port.on('message', (msg: WorkerRequest) => {
   const type = msg.type
   current = current.then(async () => {
     try {
-      if (msg.type === 'strings') support.strings = msg.strings
-      else if (msg.type === 'wasm') await runWasm(msg.module)
+      if (msg.type === 'wasm') await runWasm(msg.module)
       else throw new Error('unknown command ' + String(type))
       port.postMessage({ id: msg.id, type: 'ok' })
     } catch (error) {

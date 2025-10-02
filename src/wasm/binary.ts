@@ -200,6 +200,12 @@ function custom(cx: BinaryContext, nm: string, f: (cx: BinaryContext) => void): 
   })
 }
 
+function customSections(cx: BinaryContext, sections: wasm.CustomSection[]): void {
+  for (const section of sections) {
+    custom(cx, section.name, buf => buf.write(section.data))
+  }
+}
+
 function types(cx: BinaryContext, m: wasm.Module): void {
   const sigs = wasm.signatures(m)
   if (sigs.length === 0) return
@@ -437,6 +443,7 @@ function binary(m: wasm.Module): Uint8Array {
   globals(cx, m.globals)
   wexports(cx, m)
   elems(cx, m.elems)
+  customSections(cx, m.customs)
   const dbg = code(cx, m.funcs)
   names(cx, m)
   emitDwarf(cx, dbg)

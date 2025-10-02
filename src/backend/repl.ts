@@ -88,7 +88,6 @@ class REPL {
   }
 
   private async flush() {
-    await this.command({ type: 'strings', strings: this.pipe.wasm.tables.strings })
     while (this.emitter.queue.length) {
       const module = this.emitter.queue.shift()!
       const binary = wasmBinary(module)

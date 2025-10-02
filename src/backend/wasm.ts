@@ -10,7 +10,7 @@ import { unreachable, Anno, Pipe, expr, stmt, Val, asAnno } from '../utils/ir'
 import isEqual from 'lodash/isEqual'
 import { layout } from '../middle/expand'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe } from '../utils/cache'
-import { Binding, Definitions, MIR, WImport, WIntrinsic, Method, Const, asFunc, IRValue, asBinding, FuncInfo } from '../frontend/modules'
+import { Binding, Definitions, MIR, WImport, WIntrinsic, Method, Const, asFunc, asBinding, FuncInfo } from '../frontend/modules'
 import { Redirect, type Sig } from '../middle/abstract'
 import { Accessor } from '../utils/fixpoint'
 import { dirname } from '../dirname'
@@ -280,6 +280,10 @@ function startfunc(main: string[]): wasm.Func {
     new FuncInfo(tag('common.core.main'), undefined, true))
 }
 
+function stringSection(strings: string[]): wasm.CustomSection {
+  return wasm.CustomSection('raven.strings', new TextEncoder().encode(JSON.stringify(strings)))
+}
+
 function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.Module {
   em.funcs.unshift(startfunc(em.main))
   return wasm.Module({
@@ -292,29 +296,27 @@ function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.M
     globals: globals.types.map(t => wasm.Global(t)),
     tables: [wasm.Table(tables.funcs.length)],
     elems: [wasm.Elem(0, tables.funcs)],
-    mems: [wasm.Mem(0, undefined, 'cm32p2_memory')]
+    mems: [wasm.Mem(0, undefined, 'cm32p2_memory')],
+    customs: [stringSection(tables.strings)]
   })
 }
 
 async function binary(m: wasm.Module, file: string): Promise<void> {
-  await writeFile(file, Buffer.from(wasmBinary(m)))
+  await writeFile(file, wasmBinary(m))
 }
 
-async function emitwasm(em: BatchEmitter, mod: Wasm, out: string): Promise<string[]> {
+async function emitwasm(em: BatchEmitter, mod: Wasm, out: string): Promise<void> {
   await binary(wasmmodule(em, mod.globals, mod.tables), out)
-  return mod.tables.strings
 }
 
 // JS support
 
 const supportPath = path.join(dirname, '../build/backend/exec.js')
 
-async function emitjs(file: string, wasmFile: string, strings: string[]): Promise<void> {
+async function emitjs(file: string, wasmFile: string): Promise<void> {
   let s = ''
   s += '// This file contains generated code.\n\n'
   s += await readFile(supportPath, 'utf8')
-  s += '\n'
-  s += `support.strings = [${strings.map(s => JSON.stringify(s)).join(', ')}]`
   s += '\n'
   if (options().jsalloc) s += `main('${wasmFile}'); \n`
   else s += `main('${wasmFile}', {memcheck: false});\n`
@@ -381,7 +383,8 @@ class StreamEmitter implements Emitter {
       globals,
       tables: [wasm.Table(mod.tables.funcs.length)],
       elems: [wasm.Elem(0, Array.from(mod.tables.funcs))],
-      mems: first ? [wasm.Mem(0, undefined, 'memory')] : []
+      mems: first ? [wasm.Mem(0, undefined, 'memory')] : [],
+      customs: [stringSection(mod.tables.strings)]
     })
     this.queue.push(wmod)
     this.globals = mod.globals.types.length

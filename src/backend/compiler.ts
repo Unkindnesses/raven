@@ -136,8 +136,8 @@ async function compile(file: string, config: CompileConfig = {}): Promise<string
   await withOptions(options, async () => {
     const em = compiler.reload(file)
     if (!(em instanceof wasm.BatchEmitter)) throw new Error('nope')
-    const strings = await wasm.emitwasm(em, compiler.pipe.wasm, path.join(dir, `${base}.wasm`))
-    await wasm.emitjs(path.join(dir, `${base}.js`), `${base}.wasm`, strings)
+    await wasm.emitwasm(em, compiler.pipe.wasm, path.join(dir, `${base}.wasm`))
+    await wasm.emitjs(path.join(dir, `${base}.js`), `${base}.wasm`)
   })
   return path.join(dir, `${base}.js`)
 }

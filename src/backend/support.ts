@@ -112,9 +112,58 @@ const support = {
   debugger: () => { debugger }
 }
 
+function readVarUint(bytes: Uint8Array, offset: number): [number, number] | null {
+  let result = 0
+  let shift = 0
+  let pos = offset
+  while (pos < bytes.length) {
+    const byte = bytes[pos]
+    pos += 1
+    result |= (byte & 0x7f) << shift
+    if ((byte & 0x80) === 0) return [result >>> 0, pos]
+    shift += 7
+    if (shift > 35) break
+  }
+  return null
+}
+
+function extractStrings(bytes: Uint8Array): string[] | null {
+  if (bytes.length < 8) return null
+  const target = 'raven.strings'
+  const decoder = new TextDecoder()
+  let offset = 8 // magic + version
+  while (offset < bytes.length) {
+    const id = bytes[offset]
+    offset += 1
+    const sizeRead = readVarUint(bytes, offset)
+    if (!sizeRead) return null
+    const [size, sizeEnd] = sizeRead
+    offset = sizeEnd
+    const sectionEnd = offset + size
+    if (sectionEnd > bytes.length) return null
+    if (id === 0) {
+      const nameRead = readVarUint(bytes, offset)
+      if (!nameRead) return null
+      const [nameLen, nameEnd] = nameRead
+      const nameStop = nameEnd + nameLen
+      if (nameStop > sectionEnd) return null
+      const name = decoder.decode(bytes.slice(nameEnd, nameStop))
+      if (name === target) {
+        const payload = bytes.slice(nameStop, sectionEnd)
+        if (payload.length === 0) return []
+        const json = decoder.decode(payload)
+        return JSON.parse(json)
+      }
+    }
+    offset = sectionEnd
+  }
+  return null
+}
+
 async function loadWasm(buf: string | Uint8Array, imports = { support }) {
   if (typeof buf === 'string')
     buf = await fs.readFile(buf)
-  let res = await WebAssembly.instantiate(new Uint8Array(buf), imports as any)
+  support.strings = extractStrings(buf) ?? []
+  let res: any = await WebAssembly.instantiate(buf, imports as any)
   return res.instance.exports
 }
