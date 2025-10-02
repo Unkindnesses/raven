@@ -1,5 +1,5 @@
 {
-  "name": "raven",
+  "name": "@unkindnesses/raven",
   "version": "0.0.0",
   "files": [
     "build",
@@ -27,5 +27,8 @@
   "dependencies": {
     "commander": "^12.1.0",
     "lodash": "^4.17.21"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
