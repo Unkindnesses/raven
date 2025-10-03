@@ -47,12 +47,13 @@ async function main() {
     })
 
   program
-    .argument('[source]', 'Source file to execute')
+    .argument('[source] [args...]', 'Source file to execute')
     .option('--no-inline', 'Disable function inlining')
     .option('--no-memcheck', 'Disable allocation checks')
-    .action(async (source) => {
+    .action(async (xs) => {
       let { inline, memcheck } = program.optsWithGlobals()
-      if (source) await exec(source, [], { options: { inline, memcheck } })
+      let [source, ...args] = xs
+      if (source) await exec(source, args, { options: { inline, memcheck } })
       else await startRepl()
     })
 
