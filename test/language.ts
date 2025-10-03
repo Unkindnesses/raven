@@ -2,10 +2,8 @@ import * as path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { test } from 'uvu'
 import assert from 'assert'
-import { test as rv, reset as _reset, runNode } from '../src/test'
+import { test as rv, runNode } from '../src/test'
 import { compile } from '../src/backend/compiler'
-
-function reset() { test('reset', () => { _reset() }) }
 
 test('show', async () => {
   await rv('show 2+2', { output: '(2 + 2) = 4' })
@@ -187,8 +185,6 @@ test('invalid dynamic index', async () => {
     test part(xs, widen(5))
   `, { error: true, output: 'Invalid index for [3, 5, 7]' })
 })
-
-reset()
 
 test('tag builtin', async () => {
   await rv(`
@@ -464,8 +460,6 @@ test('let shadowing', async () => {
   `)
 })
 
-reset()
-
 test('match literal', async () => {
   await rv(`
     test not(nil?(match(widen(1), Literal(1))))
@@ -682,8 +676,6 @@ test('program args', async () => {
   `, { output: 'node' })
 })
 
-reset()
-
 test('append in if', async () => {
   await rv(`
     {
@@ -803,8 +795,6 @@ test('array values', async () => {
     show group(widen(3))
   `, { output: '[[1], [1, 2], [1, 2, 3]]' })
 })
-
-reset()
 
 test('wasi', async () => {
   await compile(path.join(__dirname, 'language', 'wasi.rv'),

@@ -1,7 +1,5 @@
 import { test } from 'uvu'
-import { test as rv, reset as _reset } from '../src/test'
-
-function reset() { test('reset', () => { _reset() }) }
+import { test as rv } from '../src/test'
 
 test('Ptr', async () => {
   await rv(`
@@ -109,7 +107,5 @@ test('ref cleanup', async () => {
     test allocationCount() == 0
   `)
 })
-
-reset()
 
 test.run()

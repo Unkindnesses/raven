@@ -7,20 +7,11 @@ import { compile, Compiler } from './backend/compiler'
 import { type Options } from './utils/options'
 import { dirname } from './dirname'
 
-export { run, test, reset, runNode }
+export { run, test, runNode }
 
 const execPath = path.join(dirname, '../build/backend/exec.js')
 
-let _compiler: Compiler | undefined = undefined
-
-function reset() {
-  _compiler = undefined
-}
-
-function compiler() {
-  if (_compiler === undefined) _compiler = new Compiler()
-  return _compiler
-}
+let compiler = new Compiler()
 
 interface Result {
   code: number
@@ -41,7 +32,7 @@ async function runNode(wasm: string, args: string[] = []): Promise<Result> {
 }
 
 async function run(code: string, options?: Partial<Options>): Promise<Result> {
-  const comp = options === undefined ? compiler() : new Compiler()
+  const comp = options === undefined ? compiler : new Compiler()
   const dir = await mkdtemp(path.join(tmpdir(), 'raven-test-'))
   const rvPath = path.join(dir, 'test.rv')
   try {
