@@ -1,5 +1,5 @@
 import { Type, Tag, tag, asTag } from "../frontend/types"
-import { Module, Modules, Binding, Method, FuncInfo } from "../frontend/modules"
+import { Module, Modules, Binding, FuncInfo } from "../frontend/modules"
 import { Anno, unreachable } from "../utils/ir"
 import { modtag } from "../frontend/patterns"
 import { lower_toplevel, bundlemacro, lowerfn, source } from "../frontend/lower"
@@ -88,8 +88,7 @@ function load_expr(cx: LoadState, x: ast.Tree): void {
   const meta = new FuncInfo(tag('common.core.main'), x.meta && source(x.meta))
   const [ir, defs] = lower_toplevel(cx.mod, x, (x: ast.Symbol) => resolve_static(cx, x), meta)
   for (const def of defs) if (!cx.mod.has(def)) cx.mod.set(def, unreachable)
-  cx.mod.method(new Method(tag('common.core.main'), lowerpattern(ast.List()), ir))
-  emit(ir)
+  emit(cx.mod.method(tag('common.core.main'), lowerpattern(ast.List()), ir))
 }
 
 function isfn(x: ast.Tree): boolean {
@@ -118,7 +117,7 @@ function load_fn(cx: LoadState, x: ast.Expr): void {
   const sigPattern = lowerpattern(ast.List(...signature.args.slice(1)), cx.mod.name, resolve)
   const meta = new FuncInfo(fnTag, x.meta && source(x.meta))
   const ir = lowerfn(cx.mod.name, sigPattern, body, resolve, meta)
-  cx.mod.method(new Method(fnTag, sigPattern, ir))
+  cx.mod.method(fnTag, sigPattern, ir)
 }
 
 function vload(cx: LoadState, x: ast.Tree): void {

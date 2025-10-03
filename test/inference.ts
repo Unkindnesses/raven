@@ -26,7 +26,7 @@ test('infer Nil', () => {
 })
 
 test('nil const', () => {
-  const nil = compiler.pipe.defs.globals.get(new Binding(tag('common'), 'nil'))
+  const nil = compiler.pipe.defs.global(new Binding(tag('common'), 'nil'))
   assert.deepEqual(nil, pack(tag('common.Nil')))
 })
 

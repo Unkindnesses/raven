@@ -471,7 +471,7 @@ function casts(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
       pr.set(v, xcall(ex.body[0], ...args))
     } else if (ex.head === 'call') {
       const S = ex.body.map(a => pr.type(a))
-      const partial = S[0] instanceof Method && S[0].partial
+      const partial = S[0] instanceof Method && S[0].func !== undefined
       if (!partial && S.every(t => t !== ir.unreachable)) {
         const sig: Sig = [asFunc(S[0]), ...S.slice(1).map(x => asType(x))]
         if (!(inf.get(sig) instanceof Redirect)) continue

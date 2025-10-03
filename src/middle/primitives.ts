@@ -215,7 +215,7 @@ function partial_jsalloc(): Type {
 }
 
 function primitive(name: string, pattern: string, func: (...args: Type[]) => Anno<Type>): Method {
-  return new Method(tag(name), lowerpattern(parse.expr(pattern)), func, true)
+  return new Method(tag('common.core'), tag(name), lowerpattern(parse.expr(pattern)), func)
 }
 
 const pack_method = primitive('common.core.pack', 'args', (args: Type) => types.pack(...types.parts(args)))
@@ -630,6 +630,6 @@ inlinePrimitive.set(jsalloc_method, (pr, ir, v) => { pr.set(v, xtuple()) })
 
 function core() {
   const mod = new Module(tag('common.core'))
-  for (const meth of primitives()) mod.method(meth)
+  for (const meth of primitives()) mod.methods.method(meth)
   return mod
 }

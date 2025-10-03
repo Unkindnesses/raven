@@ -12,8 +12,6 @@ import { reset, pipe, type Caching } from '../utils/cache'
 import { loadmodule, reload, common, SourceString } from '../middle/load'
 import { binding, Options, options, withOptions } from '../utils/options'
 import { assigned_globals } from '../frontend/lower'
-import { lowerpattern } from '../frontend/patterns'
-import * as ast from '../frontend/ast'
 import { core } from '../middle/primitives'
 import * as path from 'path'
 import { only } from '../utils/map'
@@ -67,14 +65,10 @@ class Pipeline implements Caching {
     em.emit(this.wasm, fn)
   }
 
-  emitIR(ir: mods.MIR, em: wasm.Emitter): void {
-    this.emit(new mods.Method(tag('common.core.main'), lowerpattern(ast.List()), ir), em)
-  }
-
   loadcommon(emitter: wasm.Emitter): this {
-    const emit = (ir: mods.MIR) => {
+    const emit = (m: mods.Method) => {
       reset(this)
-      this.emitIR(ir, emitter)
+      this.emit(m, emitter)
     }
     withEmit(emit, () => {
       this.sources.module(core())
@@ -88,8 +82,8 @@ class Pipeline implements Caching {
   }
 }
 
-const [withEmit, getEmit] = binding<(ir: mods.MIR) => void>('emit', _ => { })
-function emit(ir: mods.MIR): void { return getEmit()(ir) }
+const [withEmit, getEmit] = binding<(m: mods.Method) => void>('emit', _ => { })
+function emit(m: mods.Method): void { return getEmit()(m) }
 
 class Compiler {
   readonly pipe: Pipeline
@@ -110,14 +104,14 @@ class Compiler {
   reload(src: string | SourceString): wasm.Emitter {
     if (!(this.emitter instanceof wasm.BatchEmitter)) throw new Error('nope')
     const em = this.emitter.clone()
-    const emitIR = (ir: mods.MIR) => {
+    const emitIR = (m: mods.Method) => {
       reset(this.pipe)
-      this.pipe.emitIR(ir, em)
+      this.pipe.emit(m, em)
     }
     withEmit(emitIR, () => { reload(this.pipe.sources, src) })
     reset(this.pipe)
     if (options().memcheck) {
-      const checks = this.pipe.defs.methods.get(tag('common.checkAllocations'))
+      const checks = this.pipe.defs.methods(tag('common.checkAllocations'))
       this.pipe.emit(only(checks), em)
     }
     return em

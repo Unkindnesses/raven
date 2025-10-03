@@ -60,9 +60,9 @@ class REPL {
 
   private async init() {
     this.pipe.loadcommon(this.emitter)
-    await withEmit(ir => {
+    await withEmit(m => {
       reset(this.pipe)
-      this.pipe.emitIR(ir, this.emitter)
+      this.pipe.emit(m, this.emitter)
     }, () => {
       reload(this.pipe.sources, source('repl', ''))
     })
@@ -72,9 +72,9 @@ class REPL {
 
   async eval(src: string) {
     this.output = ''
-    await withEmit(ir => {
+    await withEmit(m => {
       reset(this.pipe)
-      this.pipe.emitIR(ir, this.emitter)
+      this.pipe.emit(m, this.emitter)
     }, () => {
       const defs = this.pipe.sources
       const module = defs.module(tag(''))

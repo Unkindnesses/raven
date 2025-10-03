@@ -93,13 +93,16 @@ function interpretIR(int: Interpreter, ir: MIR, ...args: Type[]): Type | undefin
 
 function interpretMethod(int: Interpreter, meth: Method, ...args: Type[]): Type | undefined {
   if (meth === invoke_method) return
-  if (meth.func instanceof IR) return interpretIR(int, meth.func, ...args)
-  const result = meth.func(...args)
-  return result === unreachable ? undefined : result
+  if (meth.func) {
+    const result = meth.func(...args)
+    return result === unreachable ? undefined : result
+  }
+  const ir = some(int.defs.ir(meth))
+  return interpretIR(int, ir, ...args)
 }
 
 function interpretFunc(int: Interpreter, func: Tag, args: Type): Type | undefined {
-  const methods = int.defs.methods.get(func)
+  const methods = int.defs.methods(func)
   for (const meth of methods.slice().reverse()) {
     const m = partial_match(int, meth.sig.pattern, args)
     if (m === null) continue

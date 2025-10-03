@@ -216,7 +216,7 @@ function trivial_isa(int: Interpreter, val: types.Type, T: types.Type): boolean 
 function MatchMethods(defs: Definitions, interp: Interpreter) {
   return new EagerCache<[types.Tag, types.Type], [Method, Match | undefined][]>(([f, Ts]) => {
     const result: [Method, Match | undefined][] = []
-    const methods = defs.methods.get(f)
+    const methods = defs.methods(f)
     for (const meth of methods.slice().reverse()) {
       const m = partial_match(interp, meth.sig.pattern, Ts)
       if (m === null) continue

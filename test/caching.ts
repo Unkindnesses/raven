@@ -15,8 +15,8 @@ test('globals', () => {
   const foo = new Binding(tag(''), 'foo')
   const bar = new Binding(tag(''), 'bar')
 
-  assert.deepEqual(defs.globals.get(foo), types.int64(1))
-  assert.deepEqual(defs.globals.get(bar), types.int64(1))
+  assert.deepEqual(defs.global(foo), types.int64(1))
+  assert.deepEqual(defs.global(bar), types.int64(1))
 
   const fooId = defs.globals.id(foo)
   const barId = defs.globals.id(bar)
@@ -24,8 +24,8 @@ test('globals', () => {
   compiler.reload(source('', 'foo = 1, bar = 2'))
   reset(defs, [compiler.pipe.sources])
 
-  assert.deepEqual(defs.globals.get(foo), types.int64(1))
-  assert.deepEqual(defs.globals.get(bar), types.int64(2))
+  assert.deepEqual(defs.global(foo), types.int64(1))
+  assert.deepEqual(defs.global(bar), types.int64(2))
 
   assert.notEqual(fooId, defs.globals.id(foo)) // TODO should be equal
   assert.notEqual(barId, defs.globals.id(bar))
@@ -35,18 +35,18 @@ test('methods', () => {
   const compiler = new Compiler(source('', 'fn foo(x) { x+1 }'))
   const defs = compiler.pipe.defs
 
-  assert.equal(defs.methods.get(tag('foo')).length, 1)
-  assert.ok(defs.methods.get(tag('common.core.main')).length > 0)
+  assert.equal(defs.methods(tag('foo')).length, 1)
+  assert.ok(defs.methods(tag('common.core.main')).length > 0)
 
-  const fooId = defs.methods.id(tag('foo'))
-  const mainId = defs.methods.id(tag('common.core.main'))
+  const fooId = defs.table.id(tag('foo'))
+  const mainId = defs.table.id(tag('common.core.main'))
 
   compiler.reload(source('', 'fn foo(x) { x+2 }'))
   reset(compiler.pipe)
 
-  assert.equal(defs.methods.get(tag('foo')).length, 1)
-  assert.notEqual(fooId, defs.methods.id(tag('foo')))
-  assert.equal(mainId, defs.methods.id(tag('common.core.main')))
+  assert.equal(defs.methods(tag('foo')).length, 1)
+  assert.notEqual(fooId, defs.table.id(tag('foo')))
+  assert.equal(mainId, defs.table.id(tag('common.core.main')))
 })
 
 test('inference', () => {

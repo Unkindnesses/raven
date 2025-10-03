@@ -1,4 +1,4 @@
-import { HashMap } from "../utils/map"
+import { HashMap, some } from "../utils/map"
 import { Source, Anno, unreachable } from "../utils/ir"
 import { Type, Tag, tag, repr } from "./types"
 import * as types from "./types"
@@ -102,11 +102,12 @@ interface Signature {
 }
 
 class Method {
+  readonly nft = cache.nft()
   constructor(
+    readonly mod: Tag,
     readonly name: Tag,
     readonly sig: Signature,
-    readonly func: MIR | ((...args: Type[]) => Anno<Type>),
-    readonly partial: boolean = false
+    readonly func?: (...args: Type[]) => Anno<Type>
   ) { }
   toString() { return `Method(${this.name})` }
 }
@@ -114,13 +115,17 @@ class Method {
 class Methods implements cache.Caching {
   private imports = new cache.Ref<Tag[]>([])
   private methods = new cache.Map<Tag, (Method | Tag)[]>()
+  private code = new cache.Map<Method, MIR>()
 
-  get subcaches() { return [this.imports, this.methods] }
+  get subcaches() { return [this.imports, this.methods, this.code] }
   get(k: Tag) { return this.methods.get(k) ?? this.imports.get() }
+  ir(m: Method) { return some(this.code.get(m)) }
 
-  method(m: Method) {
+  method(m: Method, ir?: MIR) {
     const ms = this.methods.get(m.name) ?? this.imports.get()
     this.methods.set(m.name, [...ms, m])
+    if (ir) this.code.set(m, ir)
+    return m
   }
 
   import(mod: Tag) {
@@ -133,9 +138,14 @@ class Methods implements cache.Caching {
   clear() {
     this.imports.set([])
     this.methods.clear()
+    this.code.clear()
   }
 
-  delete(k: Tag) { return this.methods.delete(k) }
+  delete(k: Tag) {
+    for (const m of this.get(k))
+      if (m instanceof Method) this.code.delete(m)
+    return this.methods.delete(k)
+  }
 }
 
 class Module implements cache.Caching {
@@ -145,7 +155,8 @@ class Module implements cache.Caching {
   constructor(readonly name: Tag) { }
 
   get subcaches() { return [this.defs, this.methods] }
-  method(m: Method) { this.methods.method(m) }
+  method(name: Tag, sig: Signature, ir: MIR) { return this.methods.method(new Method(this.name, name, sig), ir) }
+  ir(m: Method) { return this.methods.ir(m) }
   get(k: string) { return this.defs.get(k) }
   set(k: string, v: Anno<Type> | Binding) { this.defs.set(k, v) }
   has(k: string) { return this.defs.has(k) }
@@ -181,6 +192,7 @@ class Modules implements cache.Caching {
   }
   get(b: Binding) { return this.mods.get(b.mod)?.get(b.name) }
   set(b: Binding, v: Anno<Type> | Binding) { this.module(b.mod).set(b.name, v) }
+  ir(m: Method) { return some(this.mods.get(m.mod)).ir(m) }
   resolve_static(b: Binding): Anno<Type> {
     const val = this.get(b)
     if (val === undefined) throw new Error(`Binding ${b.name} not found in module ${b.mod} `)
@@ -203,15 +215,18 @@ function methods(cx: Modules, name: Tag, mod: Tag = tag(""), ms: Method[] = [], 
 
 class Definitions implements cache.Caching {
   private comp: Modules
-  readonly globals: cache.Cache<Binding, Anno<Type> | Binding>
-  readonly methods: cache.EagerCache<Tag, Method[]>
+  globals: cache.Cache<Binding, Anno<Type> | Binding>
+  table: cache.EagerCache<Tag, Method[]>
   constructor(comp: Modules) {
     this.comp = comp
     this.globals = new cache.Cache<Binding, Anno<Type> | Binding>(b => comp.module(b.mod).get(b.name) ?? unreachable)
-    this.methods = new cache.EagerCache<Tag, Method[]>(name => methods(comp, name))
+    this.table = new cache.EagerCache<Tag, Method[]>(name => methods(comp, name))
   }
-  get subcaches() { return [this.globals, this.methods] }
+  get subcaches() { return [this.globals, this.table] }
   resolve_static(b: Binding): Anno<Type> {
     return this.comp.resolve_static(b)
   }
+  global(b: Binding) { return this.globals.get(b) }
+  methods(n: Tag) { return this.table.get(n) }
+  ir(m: Method) { return this.comp.ir(m) }
 }

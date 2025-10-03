@@ -38,8 +38,8 @@ async function main() {
     .command('compile')
     .description('Compile a Raven source file')
     .argument('<source>', 'Source file to compile')
-    .option('-o, --output <file>', 'Rename output file')
     .option('--js', 'Emit JS')
+    .option('-o, --output <file>', 'Rename output file')
     .action(async (source, { output, js }) => {
       let { inline, memcheck } = program.optsWithGlobals()
       if (js) await compileJS(source, { options: { inline, memcheck }, output })

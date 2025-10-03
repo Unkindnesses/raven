@@ -98,7 +98,7 @@ function recursionDepth(inf: Inference, T: Sig | null, F: Func): number {
 function globalFrame(inf: Inference, name: Binding): GlobalFrame {
   const existing = inf.globals.get(name)
   if (existing) return existing
-  const [T, deps] = trackdeps(() => some(inf.defs.globals.get(name)))
+  const [T, deps] = trackdeps(() => inf.defs.global(name))
   inf.deps.set(name, deps)
   let type = T
   if (type instanceof Binding) {
@@ -119,11 +119,13 @@ function irframe(inf: Inference, P: Parent, ir: MIR, F: Func, ...Ts: Type[]): Fr
 }
 
 function methodFrame(inf: Inference, P: Parent, meth: Method, ...Ts: Type[]): Frame | Anno<Type> {
-  if (!(meth.func instanceof IR)) return meth.func(...Ts)
+  if (meth.func) return meth.func(...Ts)
   const sig: Sig = [meth, ...Ts]
   if (inf.frames.has(sig)) return inf.frame(sig)
   if (P.depth > recursionLimit) return mergeFrames(inf, some(P.sig), sig)
-  return irframe(inf, P, meth.func, meth, ...Ts)
+  const [ir, deps] = trackdeps(() => some(inf.defs.ir(meth)))
+  inf.deps.set([meth, ...Ts], deps)
+  return irframe(inf, P, ir, meth, ...Ts)
 }
 
 function tagFrame(inf: Inference, P: Parent, F: Tag, T: Type): Frame {

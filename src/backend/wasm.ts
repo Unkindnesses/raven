@@ -63,7 +63,7 @@ class WGlobals implements Caching {
     this.types = []
     this.globals = new Cache<Binding, number[]>(b => {
       let T: Anno<Type> | Binding = b
-      while (T instanceof Binding) T = defs.globals.get(T)
+      while (T instanceof Binding) T = defs.global(T)
       const start = this.types.length - 1
       const l = wparts(T)
       this.types.push(...l)
