@@ -2,7 +2,28 @@
 <img width="400px" src=".github/logo.png"/>
 </p>
 
-`test.rv`:
+[Raven](https://mikeinnes.io/posts/raven/) is a small but smart language that compiles to WebAssembly. It combines a simple, functional data model, powerful type inference, and flexible syntax. It's currently in the proof-of-concept stage: you're welcome to play with it, but expect bugs to appear before long!
+
+You'll need [Node.js](https://nodejs.org/en) on your system, then you can install the compiler using `npm install -g @unkindnesses/raven`, which will make `raven` available in your terminal.
+
+You can use it to launch a repl:
+
+```bash
+$ raven
+> 2+2
+4
+```
+
+Or run a hello world program:
+
+```bash
+$ cat hello.rv
+println("Cacaw, World!")
+$ raven hello.rv
+Cacaw, World!
+```
+
+You can explicitly compile and run a wasm binary. `fib.rv`:
 
 ```rust
 fn fib(n) { fib(n-1) + fib(n-2) }
@@ -20,23 +41,133 @@ fn fibSequence(n) {
 show fibSequence(10)
 ```
 
-```julia
-julia> using Raven
-
-julia> Raven.exec("test.rv")
+```bash
+$ raven compile fib.rv
+$ raven fib.wasm
 fibSequence(10) = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
 ```
 
-You can also get to the Raven REPL, from Julia's, with the `=` key.
+It may entertain you to create a self-contained JS file (with the shebang and permissions needed to run like a binary).
 
-```julia
-raven> x = 2+2
-4
+<details>
+<summary>brainfuck interpreter</summary>
 
-raven> fn square(x) { x * x }
+```ruby
+bundle Instr {
+  Left(), Right()
+  Inc(), Dec()
+  Read(), Write()
+  Loop(body: List)
+}
 
-raven> square(x)
-16
+fn parse(code) {
+  stack = []
+  body = []
+  for ch in code {
+    if ch == "<" {
+      append(&body, Left())
+    } else if ch == ">" {
+      append(&body, Right())
+    } else if ch == "+" {
+      append(&body, Inc())
+    } else if ch == "-" {
+      append(&body, Dec())
+    } else if ch == "," {
+      append(&body, Read())
+    } else if ch == "." {
+      append(&body, Write())
+    } else if ch == "[" {
+      append(&stack, body)
+      body = []
+    } else if ch == "]" {
+      loop = Loop(body)
+      body = pop(&stack)
+      append(&body, loop)
+    }
+  }
+  return body
+}
+
+bundle Tape(data: List, i: Int64)
+
+fn Tape() { Tape([0], 1) }
+
+fn Tape(xs, i)[] { xs[i] }
+
+fn left(&tape: Tape(xs, i)) {
+  i = i - 1
+  if i < 1 { abort("Tape error") }
+  tape = Tape(xs, i)
+}
+
+fn right(&tape: Tape(xs, i)) {
+  i = i + 1
+  if i > length(xs) { append(&xs, 0) }
+  tape = Tape(xs, i)
+}
+
+fn inc(&tape: Tape(xs, i)) {
+  xs[i] = xs[i]+1
+  tape = Tape(xs, i)
+}
+
+fn dec(&tape: Tape(xs, i)) {
+  xs[i] = xs[i]-1
+  tape = Tape(xs, i)
+}
+
+fn eval(&tape: Tape, instr: Instr) {
+  match instr {
+    let Left()  { left(&tape) }
+    let Right() { right(&tape) }
+    let Inc()   { inc(&tape) }
+    let Dec()   { dec(&tape) }
+    let Write() { print(js().String.fromCharCode(tape[])) }
+    let Loop(body) {
+      while tape[] != 0 {
+        interpret(&tape, body)
+      }
+    }
+  }
+}
+
+fn interpret(&tape: Tape, code) {
+  for instr in code {
+    eval(&tape, instr)
+  }
+  return tape
+}
+
+fn interpret(code) {
+  interpret(Tape(), code)
+}
+
+{
+  code = parse(readFile(args()[3]))
+  interpret(code)
+}
 ```
 
-See also [complex numbers](common/numbers/complex.rv) or [malloc](common/wasm/malloc.rv).
+</details>
+
+```bash
+$ raven compile brainfuck.rv --js -o bf
+$ cat hello.bf
+++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.
+$ ./bf hello.bf
+Hello World!
+```
+
+For more code samples, see [complex numbers](common/numbers/complex.rv) or [malloc](common/wasm/malloc.rv).
+
+## Local Setup
+
+```
+git clone https://github.com/Unkindnesses/raven
+cd raven
+npm install
+npm run build
+npm i -g .
+```
+
+This will put `raven` on your path, just like the packaged install. You can use `npm run watch` to live-update as you make changes to the source code.
