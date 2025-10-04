@@ -1,5 +1,4 @@
 import { unreachable, IR, expand, Anno, Block, Expr, Branch, asAnno, prune } from '../utils/ir'
-import { globals } from '../frontend/lower'
 import { LoopIR, looped, Path, block, nextpath, nextpathTo, pin, blockargs, loop, unloop } from './loop'
 import { MatchMethods, dispatcher } from './patterns'
 import { Tag, Type, repr, union, asType, issubset as iss, isValue, pack, tag, tagOf } from '../frontend/types'
@@ -21,13 +20,11 @@ function maybe_union(x: Anno<Type>, y: Anno<Type>): Anno<Type> {
 }
 
 type Func = Tag | Method
-// Tuple in the old code is Sig in the new
-// Sig in the old code is Sig | Binding
 type Sig = [Func, ...Type[]]
 type AIR = LoopIR<IRValue, IRType, FuncInfo | undefined>
 
 function prepare_ir(ir: MIR): AIR {
-  return looped(expand(globals(ir)))
+  return looped(expand(ir.clone()))
 }
 
 class Parent { constructor(readonly sig: Sig | null, readonly depth: number) { } }

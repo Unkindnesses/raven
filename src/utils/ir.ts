@@ -1,7 +1,7 @@
 import { asNumber } from "../utils/map"
 import { HashMap, some } from "./map"
 import { WorkQueue } from "./fixpoint"
-import { isEqual } from "lodash"
+import { identity, isEqual } from "lodash"
 
 export {
   Anno, Unreachable, unreachable, asAnno, Source, Slot, slot, Expr, expr,
@@ -183,7 +183,7 @@ class IR<T, A, M> {
     y._blocks.length = 0
     for (const bb of this._blocks)
       y._blocks.push({
-        stmts: bb.stmts.map(([v, st]) => [v, { ...st }]),
+        stmts: bb.stmts.map(([v, st]) => [v, { ...st, expr: st.expr.map(identity) }]),
         args: bb.args.map(([a, t]) => [a, t])
       })
     y._defs.length = 0

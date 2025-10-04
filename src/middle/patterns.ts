@@ -318,7 +318,7 @@ function dispatcher(inf: Inference, func: types.Tag, Ts: types.Type): [MIR, ir.A
   if (isEqual(func, types.tag('common.abort')) && types.issubset(Ts, types.list(types.String())))
     throw new Error("Compiler fault: couldn't guarantee abort method matches")
   if (options().jspanic)
-    call(types.tag('common.abort'), string(code, `No matching method: ${func.toString()}: ${types.repr(Ts)}`))
+    call(types.tag('common.abort'), string(code, `No matching method: ${func}: ${types.repr(Ts)}`))
   code.block().unreachable()
   return [code, ret]
 }

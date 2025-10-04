@@ -1,6 +1,6 @@
 import * as types from '../frontend/types'
 import { Tag, Type } from '../frontend/types'
-import { Method, Definitions, Binding, IRValue, WIntrinsic, MIR } from '../frontend/modules'
+import { Method, Definitions, Binding, IRValue, WIntrinsic, MIR, asBinding } from '../frontend/modules'
 import { IR, unreachable, Branch } from '../utils/ir'
 import { CycleCache } from '../utils/cache'
 import { partial_match } from './patterns'
@@ -39,11 +39,8 @@ function interpret(int: Interpreter, x: Func, ...args: Type[]): Type | undefined
 
 function interpretIR(int: Interpreter, ir: MIR, ...args: Type[]): Type | undefined {
   const env = new Map<number, Type>()
-  const resolve = (x: number | IRValue): IRValue => {
-    if (typeof x === 'number') return some(env.get(x))
-    if (x instanceof Binding) return int.defs.resolve_static(x)
-    return x
-  }
+  const resolve = (x: number | IRValue): IRValue =>
+    typeof x === 'number' ? some(env.get(x)) : x
   for (const [v, x] of ir.block(1).args.map((v, i) => [v, args[i]] as const)) env.set(v, x)
   let bl = 1
   while (true) {
@@ -82,6 +79,8 @@ function interpretIR(int: Interpreter, ir: MIR, ...args: Type[]): Type | undefin
         const T = types.asType(st.type)
         if (!types.isValue(T)) throw new Error('assert isvalue(st.type)')
         env.set(v, T)
+      } else if (st.expr.head === 'global') {
+        env.set(v, types.asType(int.defs.resolve_static(asBinding(xs[0]))))
       } else if (st.expr.head === 'set') {
         return
       } else {

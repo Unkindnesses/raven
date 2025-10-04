@@ -1,8 +1,8 @@
 import isEqual from "lodash/isEqual"
 import * as ast from "./ast"
 import * as ir from "../utils/ir"
-import { fuseblocks, prune, ssa, renumber } from "../utils/ir"
-import { asSymbol, asString, asNumber, Symbol, symbol, gensym, token } from "./ast"
+import { fuseblocks, prune, ssa } from "../utils/ir"
+import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast"
 import * as types from "./types"
 import { Type, Tag, tag, pack, bits, int32, asType } from "./types"
 import { Module, Signature, Binding, FuncInfo, IRValue, WIntrinsic, MIR, WImport } from "./modules"
@@ -631,7 +631,7 @@ function lowerfn(mod: Tag, sig: Signature, body: ast.Tree, resolver: (x: Symbol)
   }
   const out = withResolve(resolver, () => lower(sc, code, body))
   if (code.block().canbranch()) swapreturn(code, out, sig.swap)
-  return renumber(prune(ssa(fuseblocks(code))))
+  return globals(prune(ssa(fuseblocks(code))))
 }
 
 function assignments(code: LIR): Set<string> {
@@ -677,7 +677,7 @@ function lower_toplevel(mod: Module, ex: ast.Tree, resolve: (x: Symbol) => Type,
   withResolve(resolve, () => { lower(sc, code, ex, false) })
   code.return(nil)
   let [code2, defs] = rewriteGlobals(code, mod)
-  return [renumber(prune(ssa(fuseblocks(code2)))), defs]
+  return [globals(prune(ssa(fuseblocks(code2)))), defs]
 }
 
 // Turn global references into explicit load instructions

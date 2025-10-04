@@ -53,9 +53,10 @@ test('lower simple function', () => {
   assert.equal(ir.toString(), `1: (%1)
   %2 = tuple :: 1
   %3 = pack tag"common.List", %1, %2
-  %4 = call tag"".+, %3 # test:1:14 🔴
-  %5 = call Method(tag"common.core.part"), %4, 1 # test:1:14
-  %6 = return %5`)
+  %4 = global tag"".+
+  %5 = call %4, %3 # test:1:14 🔴
+  %6 = call Method(tag"common.core.part"), %5, 1 # test:1:14
+  %7 = return %6`)
 })
 
 test('lower control flow', () => {
@@ -63,27 +64,30 @@ test('lower control flow', () => {
   assert.equal(ir.toString(), `1: (%1)
   %2 = tuple :: 0
   %3 = pack tag"common.List", %1, %2
-  %4 = call tag"".>, %3 # test:1:18 🔴
-  %5 = call Method(tag"common.core.part"), %4, 1 # test:1:18
-  %6 = pack tag"common.List", %5
-  %7 = call tag"common.condition", %6
-  %8 = call Method(tag"common.core.part"), %7, 1
-  %9 = br 2 if %8
-  %10 = br 3
+  %4 = global tag"".>
+  %5 = call %4, %3 # test:1:18 🔴
+  %6 = call Method(tag"common.core.part"), %5, 1 # test:1:18
+  %7 = pack tag"common.List", %6
+  %8 = call tag"common.condition", %7
+  %9 = call Method(tag"common.core.part"), %8, 1
+  %10 = br 2 if %9
+  %11 = br 3
 2:
-  %11 = tuple :: 1
-  %12 = pack tag"common.List", %1, %11
-  %13 = call tag"".+, %12 # test:1:26 🔴
-  %14 = call Method(tag"common.core.part"), %13, 1 # test:1:26
-  %15 = br 4 (%14)
+  %12 = tuple :: 1
+  %13 = pack tag"common.List", %1, %12
+  %14 = global tag"".+
+  %15 = call %14, %13 # test:1:26 🔴
+  %16 = call Method(tag"common.core.part"), %15, 1 # test:1:26
+  %17 = br 4 (%16)
 3:
-  %16 = tuple :: 1
-  %17 = pack tag"common.List", %1, %16
-  %18 = call tag"".-, %17 # test:1:41 🔴
-  %19 = call Method(tag"common.core.part"), %18, 1 # test:1:41
-  %20 = br 4 (%19)
-4: (%21)
-  %22 = return %21`)
+  %18 = tuple :: 1
+  %19 = pack tag"common.List", %1, %18
+  %20 = global tag"".-
+  %21 = call %20, %19 # test:1:41 🔴
+  %22 = call Method(tag"common.core.part"), %21, 1 # test:1:41
+  %23 = br 4 (%22)
+4: (%24)
+  %25 = return %24`)
 })
 
 test('lower if let', () => {
@@ -117,21 +121,24 @@ test('lower while loop', () => {
 2: (%3)
   %4 = tuple :: 0
   %5 = pack tag"common.List", %3, %4
-  %6 = call tag"".>, %5 # test:1:21 🔴
-  %7 = call Method(tag"common.core.part"), %6, 1 # test:1:21
-  %8 = pack tag"common.List", %7 # test:1:14
-  %9 = call tag"common.condition", %8 # test:1:14
-  %10 = call Method(tag"common.core.part"), %9, 1 # test:1:14
-  %11 = br 3 if %10 # test:1:14
-  %12 = br 4 # test:1:14
+  %6 = global tag"".>
+  %7 = call %6, %5 # test:1:21 🔴
+  %8 = call Method(tag"common.core.part"), %7, 1 # test:1:21
+  %9 = pack tag"common.List", %8 # test:1:14
+  %10 = call tag"common.condition", %9 # test:1:14
+  %11 = call Method(tag"common.core.part"), %10, 1 # test:1:14
+  %12 = br 3 if %11 # test:1:14
+  %13 = br 4 # test:1:14
 3:
-  %13 = tuple :: 1
-  %14 = pack tag"common.List", %3, %13
-  %15 = call tag"".-, %14 # test:1:33 🔴
-  %16 = call Method(tag"common.core.part"), %15, 1 # test:1:33
-  %17 = br 2 (%16)
+  %14 = tuple :: 1
+  %15 = pack tag"common.List", %3, %14
+  %16 = global tag"".-
+  %17 = call %16, %15 # test:1:33 🔴
+  %18 = call Method(tag"common.core.part"), %17, 1 # test:1:33
+  %19 = br 2 (%18)
 4:
-  %18 = return tag"common".nil`)
+  %20 = global tag"common".nil
+  %21 = return %20`)
 })
 
 test('lower toplevel expression', () => {
@@ -141,15 +148,20 @@ test('lower toplevel expression', () => {
   const [ir, _] = lower_toplevel(mod, expr, x => { throw new Error('nop') })
   assert.equal(ir.toString(), `1:
   %1 = tuple :: 1
-  %2 = pack tag"common.List", tag"test".x, %1
-  %3 = call tag"test".+, %2 # test:1:8 🔴
-  %4 = call Method(tag"common.core.part"), %3, 1 # test:1:8
-  %5 = tuple :: 1
-  %6 = pack tag"common.List", tag"test".y, %5
-  %7 = call tag"test".+, %6 # test:1:17 🔴
-  %8 = call Method(tag"common.core.part"), %7, 1 # test:1:17
-  %9 = set tag"test".x, %4
-  %10 = return tag"common".nil`)
+  %2 = global tag"test".x
+  %3 = pack tag"common.List", %2, %1
+  %4 = global tag"test".+
+  %5 = call %4, %3 # test:1:8 🔴
+  %6 = call Method(tag"common.core.part"), %5, 1 # test:1:8
+  %7 = tuple :: 1
+  %8 = global tag"test".y
+  %9 = pack tag"common.List", %8, %7
+  %10 = global tag"test".+
+  %11 = call %10, %9 # test:1:17 🔴
+  %12 = call Method(tag"common.core.part"), %11, 1 # test:1:17
+  %13 = set tag"test".x, %6
+  %14 = global tag"common".nil
+  %15 = return %14`)
 })
 
 test('lower function with swap pattern', () => {
@@ -179,8 +191,9 @@ test('lower function with swap pattern', () => {
   %22 = pack tag"common.List", %18, tag"y"
   %23 = call tag"common.getkey", %22
   %24 = call Method(tag"common.core.part"), %23, 1
-  %25 = pack tag"common.List", tag"common".nil, %21, %24
-  %26 = return %25`)
+  %25 = global tag"common".nil
+  %26 = pack tag"common.List", %25, %21, %24
+  %27 = return %26`)
 })
 
 test('lower list construction', () => {
@@ -222,47 +235,52 @@ test('lower for loop', () => {
   %5 = call Method(tag"common.core.part"), %4, 1
   %6 = br 2 (%5)
 2: (%7)
-  %8 = pack tag"common.List", tag"".true
-  %9 = call tag"common.condition", %8
-  %10 = call Method(tag"common.core.part"), %9, 1
-  %11 = br 3 if %10
-  %12 = br 6
+  %8 = global tag"".true
+  %9 = pack tag"common.List", %8
+  %10 = call tag"common.condition", %9
+  %11 = call Method(tag"common.core.part"), %10, 1
+  %12 = br 3 if %11
+  %13 = br 6
 3:
-  %13 = pack tag"common.List", %7
-  %14 = tuple :: tag"common.next"
-  %15 = call %14, %13
-  %16 = call Method(tag"common.core.part"), %15, 1
-  %17 = call Method(tag"common.core.part"), %15, 2
-  %18 = pack tag"common.List", %16
-  %19 = call tag"".nil?, %18
-  %20 = call Method(tag"common.core.part"), %19, 1
-  %21 = pack tag"common.List", %20
-  %22 = call tag"common.condition", %21
-  %23 = call Method(tag"common.core.part"), %22, 1
-  %24 = br 4 if %23
-  %25 = br 5
+  %14 = pack tag"common.List", %7
+  %15 = tuple :: tag"common.next"
+  %16 = call %15, %14
+  %17 = call Method(tag"common.core.part"), %16, 1
+  %18 = call Method(tag"common.core.part"), %16, 2
+  %19 = pack tag"common.List", %17
+  %20 = global tag"".nil?
+  %21 = call %20, %19
+  %22 = call Method(tag"common.core.part"), %21, 1
+  %23 = pack tag"common.List", %22
+  %24 = call tag"common.condition", %23
+  %25 = call Method(tag"common.core.part"), %24, 1
+  %26 = br 4 if %25
+  %27 = br 5
 4:
-  %26 = br 6
+  %28 = br 6
 5:
-  %27 = tuple :: tag"common.Nil"
-  %28 = pack tag"common.List", %27
-  %29 = call tag"".pack, %28
-  %30 = call Method(tag"common.core.part"), %29, 1
-  %31 = pack tag"common.List", %16
-  %32 = tuple :: tag"common.core.notnil"
-  %33 = call %32, %31
-  %34 = call Method(tag"common.core.part"), %33, 1
-  %35 = tuple :: 1
-  %36 = pack tag"common.List", %34, %35
-  %37 = tuple :: tag"common.core.part"
-  %38 = call %37, %36
-  %39 = call Method(tag"common.core.part"), %38, 1
-  %40 = pack tag"common.List", %39 # test:1:36
-  %41 = call tag"".println, %40 # test:1:36 🔴
-  %42 = call Method(tag"common.core.part"), %41, 1 # test:1:36
-  %43 = br 2 (%17)
+  %29 = tuple :: tag"common.Nil"
+  %30 = pack tag"common.List", %29
+  %31 = global tag"".pack
+  %32 = call %31, %30
+  %33 = call Method(tag"common.core.part"), %32, 1
+  %34 = pack tag"common.List", %17
+  %35 = tuple :: tag"common.core.notnil"
+  %36 = call %35, %34
+  %37 = call Method(tag"common.core.part"), %36, 1
+  %38 = tuple :: 1
+  %39 = pack tag"common.List", %37, %38
+  %40 = tuple :: tag"common.core.part"
+  %41 = call %40, %39
+  %42 = call Method(tag"common.core.part"), %41, 1
+  %43 = pack tag"common.List", %42 # test:1:36
+  %44 = global tag"".println
+  %45 = call %44, %43 # test:1:36 🔴
+  %46 = call Method(tag"common.core.part"), %45, 1 # test:1:36
+  %47 = br 2 (%18)
 6:
-  %44 = return tag"common".nil`)
+  %48 = global tag"common".nil
+  %49 = return %48`)
 })
 
 test.run()
