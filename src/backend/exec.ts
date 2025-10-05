@@ -1,4 +1,4 @@
-#!/usr/bin/env node --experimental-wasm-stack-switching
+#!/usr/bin/env -S node --experimental-wasm-stack-switching
 import { loadWasm, table, support } from './support'
 
 let binary: string | undefined

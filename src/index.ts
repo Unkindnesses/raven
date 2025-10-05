@@ -1,4 +1,4 @@
-#!/usr/bin/env node --enable-source-maps --experimental-wasm-stack-switching
+#!/usr/bin/env -S node --enable-source-maps --experimental-wasm-stack-switching
 import * as commander from 'commander'
 import * as nodeRepl from 'node:repl'
 import { compile, compileJS, exec } from './backend/compiler'
