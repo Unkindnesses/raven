@@ -20,8 +20,10 @@ async function awate(ref: number) {
   return createRef(await fromRef(ref))
 }
 
+let strings: string[] = []
+
 function string(i: number) {
-  return createRef(support.strings[i])
+  return createRef(strings[i])
 }
 
 function release(ref: number) {
@@ -103,8 +105,7 @@ function abort(obj: number, cause: number) {
 }
 
 const support = {
-  global, property, call, apply,
-  string, strings: [] as string[],
+  global, property, call, apply, string,
   createRef, fromRef, abort,
   equal, release,
   await: new (WebAssembly as any).Suspending(awate),
@@ -127,43 +128,50 @@ function readVarUint(bytes: Uint8Array, offset: number): [number, number] | null
   return null
 }
 
-function extractStrings(bytes: Uint8Array): string[] | null {
-  if (bytes.length < 8) return null
-  const target = 'raven.strings'
+interface Metadata {
+  strings: string[]
+  jsalloc: boolean
+}
+
+function meta(bytes: Uint8Array): Metadata | undefined {
+  if (bytes.length < 8) return
+  const target = 'raven.meta'
   const decoder = new TextDecoder()
   let offset = 8 // magic + version
   while (offset < bytes.length) {
     const id = bytes[offset]
     offset += 1
     const sizeRead = readVarUint(bytes, offset)
-    if (!sizeRead) return null
+    if (!sizeRead) return
     const [size, sizeEnd] = sizeRead
     offset = sizeEnd
     const sectionEnd = offset + size
-    if (sectionEnd > bytes.length) return null
+    if (sectionEnd > bytes.length) return
     if (id === 0) {
       const nameRead = readVarUint(bytes, offset)
-      if (!nameRead) return null
+      if (!nameRead) return
       const [nameLen, nameEnd] = nameRead
       const nameStop = nameEnd + nameLen
-      if (nameStop > sectionEnd) return null
+      if (nameStop > sectionEnd) return
       const name = decoder.decode(bytes.slice(nameEnd, nameStop))
       if (name === target) {
         const payload = bytes.slice(nameStop, sectionEnd)
-        if (payload.length === 0) return []
+        if (payload.length === 0) return
         const json = decoder.decode(payload)
         return JSON.parse(json)
       }
     }
     offset = sectionEnd
   }
-  return null
+  return
 }
 
-async function loadWasm(buf: string | Uint8Array, imports = { support }) {
+async function loadWasm(buf: string | Uint8Array, imports: any = {}) {
   if (typeof buf === 'string')
     buf = await fs.readFile(buf)
-  support.strings = extractStrings(buf) ?? []
-  let res: any = await WebAssembly.instantiate(buf, imports as any)
-  return res.instance.exports
+  const m = meta(buf)
+  if (m === undefined) throw new Error('Not a Raven wasm module.')
+  imports = { ...imports, support: { ...support, string: (i: number) => createRef(m.strings[i]) } }
+  let res: any = await WebAssembly.instantiate(buf, imports)
+  return [res.instance.exports, m] as const
 }

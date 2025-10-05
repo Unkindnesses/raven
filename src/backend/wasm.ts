@@ -280,8 +280,9 @@ function startfunc(main: string[]): wasm.Func {
     new FuncInfo(tag('common.core.main'), undefined, true))
 }
 
-function stringSection(strings: string[]): wasm.CustomSection {
-  return wasm.CustomSection('raven.strings', new TextEncoder().encode(JSON.stringify(strings)))
+function metaSection(strings: string[]): wasm.CustomSection {
+  const meta = { strings, jsalloc: options().jsalloc }
+  return wasm.CustomSection('raven.meta', new TextEncoder().encode(JSON.stringify(meta)))
 }
 
 function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.Module {
@@ -297,7 +298,7 @@ function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.M
     tables: [wasm.Table(tables.funcs.length)],
     elems: [wasm.Elem(0, tables.funcs)],
     mems: [wasm.Mem(0, undefined, 'cm32p2_memory')],
-    customs: [stringSection(tables.strings)]
+    customs: [metaSection(tables.strings)]
   })
 }
 
@@ -374,7 +375,7 @@ class StreamEmitter implements Emitter {
       tables: [wasm.Table(mod.tables.funcs.length)],
       elems: [wasm.Elem(0, Array.from(mod.tables.funcs))],
       mems: first ? [wasm.Mem(0, undefined, 'memory')] : [],
-      customs: [stringSection(mod.tables.strings)]
+      customs: [metaSection(mod.tables.strings)]
     })
     this.queue.push(wmod)
     this.globals = mod.globals.types.length

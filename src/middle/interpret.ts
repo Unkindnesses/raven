@@ -1,6 +1,6 @@
 import * as types from '../frontend/types'
 import { Tag, Type } from '../frontend/types'
-import { Method, Definitions, Binding, IRValue, WIntrinsic, MIR, asBinding } from '../frontend/modules'
+import { Method, Definitions, IRValue, WIntrinsic, MIR, asBinding } from '../frontend/modules'
 import { IR, unreachable, Branch } from '../utils/ir'
 import { CycleCache } from '../utils/cache'
 import { partial_match } from './patterns'
