@@ -35,7 +35,7 @@ async function main() {
     .description('The Raven Programming Language')
 
   program
-    .command('compile')
+    .command('build')
     .description('Compile a Raven source file')
     .argument('<source>', 'Source file to compile')
     .option('--js', 'Emit JS')

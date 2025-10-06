@@ -42,15 +42,23 @@ show fibSequence(10)
 ```
 
 ```bash
-$ raven compile fib.rv
+$ raven build fib.rv
 $ raven fib.wasm
 fibSequence(10) = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
 ```
 
 It may entertain you to create a self-contained JS file (with the shebang and permissions needed to run like a binary).
 
+```bash
+$ raven build --js hello.rv -o hello
+$ ./hello
+Cacaw, World!
+```
+
+Here's a brainfuck interpreter:
+
 <details>
-<summary>brainfuck interpreter</summary>
+<summary><code>brainfuck.rv</code></summary>
 
 ```ruby
 bundle Instr {
@@ -151,7 +159,7 @@ fn interpret(code) {
 </details>
 
 ```bash
-$ raven compile brainfuck.rv --js -o bf
+$ raven build --js brainfuck.rv -o bf
 $ cat hello.bf
 ++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.
 $ ./bf hello.bf
