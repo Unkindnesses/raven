@@ -285,10 +285,10 @@ function splat(r: Reader, syn = true): ast.Tree {
 // TODO try to avoid as much re-parsing as possible.
 const terminators = new Set(['}', ')', ']', ',', '\n'])
 
-function syntax(r: Reader): ast.Tree | undefined {
+function syntax(r: Reader): ast.Tree {
   const pos = r.cursor()
   const name = splat(r)
-  if (!(name.unwrap() instanceof ast.Symbol)) return
+  if (!(name.unwrap() instanceof ast.Symbol)) return name
   const args: ast.Tree[] = []
   while (!r.eof()) {
     r.skipWhitespace()
@@ -298,15 +298,31 @@ function syntax(r: Reader): ast.Tree | undefined {
     const arg = splat(r, false)
     args.push(arg)
   }
-  if (!args.length) return
+  if (!args.length) return name
   return ast.Syntax(name, ...args).withmeta({ file: path(), loc: pos })
+}
+
+function anno(r: Reader): ast.Tree | undefined {
+  const pos = r.cursor()
+  if (r.read() !== '@') return
+  const name = symbol(r)
+  if (name === undefined) return
+  const args: ast.Tree[] = []
+  while (!r.eof()) {
+    r.skipWhitespace()
+    if (terminators.has(r.peek)) break
+    const arg = splat(r, false)
+    args.push(arg)
+  }
+  r.skip()
+  let body = r.parse(anno, syntax)!
+  return ast.Annotation(name, ...args, body).withmeta({ file: path(), loc: pos })
 }
 
 function statement(r: Reader): ast.Tree | undefined {
   r.skip()
   if (r.eof()) return
-  let ex = r.parse(syntax)
-  if (!ex) ex = splat(r)
+  let ex = r.parse(anno, syntax)!
   r.skipWhitespace()
   if (!r.eof() && !terminators.has(r.peek)) throw new Error(`Expected statement end at ${curstring(r.cursor())}`)
   return ex

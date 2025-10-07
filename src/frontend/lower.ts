@@ -288,6 +288,7 @@ function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): IR
   }
 
   if (x instanceof ast.Expr) {
+    if (x.head === 'Annotation') return lower(sc, code, x.args[x.args.length - 1], value)
     if (x.head === 'Block') return lower(Scope(sc), code, x.args, value)
     if (x.head === 'Group') return lower(sc, code, x.args, value)
     if (x.head === 'Operator') return lowerOperator(sc, code, x, value)

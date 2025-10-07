@@ -7,8 +7,11 @@ patterns:
 - include: '#comments'
 repository:
   macros:
-    match: '((?<=^)|(?<=[\[\(\{]))\s*[_A-Za-z][_A-Za-z\.0-9]*\s+(?=[\{\[\(\"_A-Za-z0-9])'
-    name: keyword.other.raven
+    patterns:
+    - name: keyword.other.raven
+      match: '((?<=^)|(?<=[\[\(\{]))\s*[_A-Za-z][_A-Za-z\.0-9]*\s+(?=[\{\[\(\"_A-Za-z0-9])'
+    - name: support.function.annotation.raven
+      match: '@[_A-Za-z][_A-Za-z0-9!?]*'
   expressions:
     patterns:
     - include: '#keywords'

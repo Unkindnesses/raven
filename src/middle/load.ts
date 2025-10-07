@@ -121,6 +121,7 @@ function load_fn(cx: LoadState, x: ast.Expr): void {
 }
 
 function vload(cx: LoadState, x: ast.Tree): void {
+  if (ast.isExpr(x, 'Annotation')) return vload(cx, x.args[x.args.length - 1])
   if (ast.isExpr(x, 'Syntax')) {
     const first = x.args[0].unwrap()
     if (isEqual(first, ast.symbol('include'))) return load_include(cx, x)

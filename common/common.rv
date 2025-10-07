@@ -22,6 +22,11 @@ export {
 
 fn tag(x) { part(x, 0) }
 
+@doc """
+    identity(x) == x
+
+The identity function.
+"""
 fn identity(x) { x }
 
 fn _ == _ { false }
