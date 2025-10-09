@@ -91,17 +91,10 @@ function load_expr(cx: LoadState, x: ast.Tree): void {
   emit(cx.mod.method(tag('common.core.main'), lowerpattern(ast.List()), ir))
 }
 
-function isfn(x: ast.Tree): boolean {
-  const expr = ast.asExpr(x, 'Syntax')
-  if (expr.args.length < 2) return false
-  const [first, second] = expr.args.map(a => a.unwrap())
-  return isEqual(first, ast.symbol('fn')) ||
-    (isEqual(first, ast.symbol('extend')) && isEqual(second, ast.symbol('fn')))
-}
-
 function load_fn(cx: LoadState, x: ast.Expr): void {
-  const extend = isEqual(x.args[0].unwrap(), ast.symbol('extend'))
-  const [sig, body] = x.args.slice(extend ? 2 : 1)
+  let extend = ast.isExpr(x, 'Annotation') && isEqual(x.args[0].unwrap(), ast.symbol('extend'))
+  x = unwrapAnno(x) as ast.Expr
+  const [sig, body] = x.args.slice(1)
   let signature = sig.ungroup()
   if (ast.isExpr(signature, 'Index')) signature = ast.Call(tag('common.get'), ...signature.args)
   if (!ast.isExpr(signature, 'Call') && !ast.isExpr(signature, 'Operator'))
@@ -120,17 +113,22 @@ function load_fn(cx: LoadState, x: ast.Expr): void {
   cx.mod.method(fnTag, sigPattern, ir)
 }
 
-function vload(cx: LoadState, x: ast.Tree): void {
-  if (ast.isExpr(x, 'Annotation')) return vload(cx, x.args[x.args.length - 1])
-  if (ast.isExpr(x, 'Syntax')) {
-    const first = x.args[0].unwrap()
+function unwrapAnno(x: ast.Tree): ast.Tree {
+  return ast.isExpr(x, 'Annotation') ? unwrapAnno(x.args[x.args.length - 1]) : x
+}
+
+function vload(cx: LoadState, x: ast.Tree, extend = false): void {
+  let ex = unwrapAnno(x)
+  if (ast.isExpr(ex, 'Syntax')) {
+    x = x as ast.Expr
+    const first = ex.args[0].unwrap()
     if (isEqual(first, ast.symbol('include'))) return load_include(cx, x)
     if (isEqual(first, ast.symbol('export'))) return load_export(cx, x)
     if (isEqual(first, ast.symbol('import'))) return load_import(cx, x)
     if (isEqual(first, ast.symbol('clear'))) return load_clear(cx, x)
     if (isEqual(first, ast.symbol('bundle'))) return vload(cx, bundlemacro(x))
-    if (!isfn(x)) return load_expr(cx, x)
-    return load_fn(cx, x)
+    if (isEqual(first, ast.symbol('fn'))) return load_fn(cx, x)
+    return load_expr(cx, x)
   }
   if (ast.isExpr(x, 'Group')) {
     for (const item of x.args) vload(cx, item)

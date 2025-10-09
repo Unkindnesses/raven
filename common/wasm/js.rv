@@ -128,13 +128,15 @@ fn js(x: Float64) {
 
 fn js(x: Float32) { js(Float64(x)) }
 
-extend fn Float64(obj: JSObject) {
+@extend
+fn Float64(obj: JSObject) {
   x = wasm { call(support.fromRef, jsref(obj): i32): f64 }
   hold(obj)
   return x
 }
 
-extend fn Int32(obj: JSObject) {
+@extend
+fn Int32(obj: JSObject) {
   x = wasm { call(support.fromRef, jsref(obj): i32): i32 }
   hold(obj)
   return Int32(x)

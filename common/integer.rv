@@ -104,7 +104,8 @@ fn typemax(n: Int) {
 
 fn Bool(x: Int) { not(zero?(x)) }
 
-extend fn Float64(Int(x)) {
+@extend
+fn Float64(Int(x)) {
   x = bitcast_s(bits 64, x)
   wasm { f64.convert_i64_s(x: i64): f64 }
 }

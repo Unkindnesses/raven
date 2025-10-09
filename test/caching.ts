@@ -87,7 +87,7 @@ test('match method', () => {
   assert.ok(Array.isArray(matchResult))
 
   compiler.reload(source('', `
-    extend fn matchTrait(tag"Lit", x: pack(tag"Lit", val)) { Some(x) }
+    @extend, fn matchTrait(tag"Lit", x: pack(tag"Lit", val)) { Some(x) }
   `))
 
   assert.ok(compiler.pipe.inferred.results.iscached(sig))

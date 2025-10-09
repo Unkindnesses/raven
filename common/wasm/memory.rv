@@ -53,7 +53,8 @@ fn Function(f, I, O) {
 
 bundle Function(f: Int32, I, O)
 
-extend fn invoke(f: Function, xs...) {
+@extend
+fn invoke(f: Function, xs...) {
   Function(f, I, O) = f
   invoke(f, I, O, xs...)
 }
