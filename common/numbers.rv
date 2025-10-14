@@ -21,7 +21,7 @@ fn x ^ (n: Int) {
 fn show(x: Bits) {
   print("bits\"")
   N = bitsize(x)
-  for i in range(1, N) {
+  for i = range(1, N) {
     print(Int64(bitand(bitshr_u(x, bitcast(x, bits(N-i))), bitcast(x, bits(1)))))
   }
   print("\"")

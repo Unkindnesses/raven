@@ -8,7 +8,7 @@ bundle Instr {
 fn parse(code) {
   stack = []
   body = []
-  for ch in code {
+  for ch = code {
     # TODO cleaner dictionary lookup
     if ch == "<" {
       append(&body, Left())
@@ -78,7 +78,7 @@ fn eval(&tape: Tape, instr: Instr) {
 }
 
 fn interpret(&tape: Tape, code) {
-  for instr in code {
+  for instr = code {
     eval(&tape, instr)
   }
   return tape

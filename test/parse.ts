@@ -227,7 +227,7 @@ test('lower template bits', () => {
 })
 
 test('lower for loop', () => {
-  const ir = lower('fn iter(xs) { for x in xs { println(x) } }')
+  const ir = lower('fn iter(xs) { for x = xs { println(x) } }')
   assert.equal(ir.toString(), `1: (%1)
   %2 = pack tag"common.List", %1
   %3 = tuple :: tag"common.iterator"
@@ -273,10 +273,10 @@ test('lower for loop', () => {
   %40 = tuple :: tag"common.core.part"
   %41 = call %40, %39
   %42 = call Method(tag"common.core.part"), %41, 1
-  %43 = pack tag"common.List", %42 # test:1:36
+  %43 = pack tag"common.List", %42 # test:1:35
   %44 = global tag"".println
-  %45 = call %44, %43 # test:1:36 🔴
-  %46 = call Method(tag"common.core.part"), %45, 1 # test:1:36
+  %45 = call %44, %43 # test:1:35 🔴
+  %46 = call Method(tag"common.core.part"), %45, 1 # test:1:35
   %47 = br 2 (%18)
 6:
   %48 = global tag"common".nil

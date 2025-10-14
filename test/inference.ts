@@ -79,7 +79,7 @@ test('infer fib sequence', () => {
 
     fn fibSequence(n) {
       xs = []
-      for i in range(1, n) {
+      for i = range(1, n) {
         append(&xs, fib(i))
       }
       return xs

@@ -84,7 +84,10 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
 }
 
 function formacro(ex: ast.Expr): ast.Expr {
-  const [x, xs, body] = [ex.args[1], ex.args[3], ex.args[4]]
+  const assign = ast.asExpr(ex.args[1], 'Operator')
+  if (!isEqual(assign.args[0].unwrap(), symbol('=')))
+    throw new Error('for syntax expects `=` assignment')
+  const [x, xs, body] = [assign.args[1], assign.args[2], ex.args[2]]
   const [itr, val] = [gensym("itr"), gensym("val")]
   return ast.Block(
     ast.Operator(s("="), itr, ast.Call(tag("common.iterator"), xs)),

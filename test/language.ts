@@ -197,7 +197,7 @@ test('vpack allocation', async () => {
   await rv(`
     fn myrange(n) {
       xs = []
-      for i in range(1, n) {
+      for i = range(1, n) {
         append(&xs, i)
       }
       return xs
@@ -219,7 +219,7 @@ test('vpack print', async () => {
   await rv(`
     fn myrange(n) {
       xs = []
-      for i in range(1, n) {
+      for i = range(1, n) {
         append(&xs, i)
       }
       return xs
@@ -546,7 +546,7 @@ test('tag union', async () => {
 test('prime sieve', async () => {
   await rv(`
     fn isPrime(n, primes) {
-      for prime in primes {
+      for prime = primes {
         if rem(n, prime) == 0 {
           return false
         }
@@ -556,7 +556,7 @@ test('prime sieve', async () => {
 
     fn sieve(n) {
       primes = []
-      for i in range(2, n) {
+      for i = range(2, n) {
         if isPrime(i, primes) {
           append(&primes, i)
         }
@@ -670,7 +670,7 @@ test('unwrap err', async () => {
 
 test('program args', async () => {
   await rv(`
-    for arg in args() {
+    for arg = args() {
       println(arg)
     }
   `, { output: 'node' })
@@ -785,7 +785,7 @@ test('array values', async () => {
     fn group(n) {
       xs = []
       result = []
-      for i in range(1, n) {
+      for i = range(1, n) {
         append(&xs, i)
         append(&result, xs)
       }

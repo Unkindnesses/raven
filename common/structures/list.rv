@@ -15,7 +15,7 @@ fn (xs: List)[i] {
 # TODO: sane implementation
 fn set(&xs: List, x, i: Int) {
   ys = []
-  for j in range(1, length(xs)) {
+  for j = range(1, length(xs)) {
     append(&ys, if i == j { x } else { xs[j] })
   }
   xs = ys
@@ -33,7 +33,7 @@ fn append(&xs: List, x) {
 fn pop(&xs: List) {
   last = xs[length(xs)]
   ys = []
-  for i in range(1, length(xs)-1) { append(&ys, xs[i]) }
+  for i = range(1, length(xs)-1) { append(&ys, xs[i]) }
   xs = ys
   return last
 }
@@ -43,7 +43,7 @@ fn iterator(xs: List) { IndexIterator(xs) }
 fn rest(xs: List) {
   if empty?(xs) { abort("List is empty")  }
   result = []
-  for i in range(2, length(xs)) {
+  for i = range(2, length(xs)) {
     append(&result, xs[i])
   }
   return result
@@ -51,7 +51,7 @@ fn rest(xs: List) {
 
 fn show(x: List) {
   print("[")
-  for i in range(1, nparts(x)) {
+  for i = range(1, nparts(x)) {
     if i != 1 {
       print(", ")
     }
@@ -63,7 +63,7 @@ fn show(x: List) {
 
 fn map(f, xs) {
   ys = []
-  for x in xs {
+  for x = xs {
     append(&ys, f(x))
   }
   return ys
@@ -73,6 +73,6 @@ fn collect(xs) { map(identity, xs) }
 
 fn js(xs: List) {
   ys = js().Array.of()
-  for x in xs { ys.push(x) }
+  for x = xs { ys.push(x) }
   return ys
 }
