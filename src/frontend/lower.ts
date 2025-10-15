@@ -275,6 +275,9 @@ function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): IR
       if (val.toString() === 'break') {
         code.branch(-1)
         return nil
+      } else if (val.toString() === 'continue') {
+        code.branch(-2)
+        return nil
       } else if (val.toString() === 'return') {
         const result = nil
         // TODO debug info
@@ -541,9 +544,13 @@ function lowerWhile(sc: Scope, code: LIR, ex: ast.Expr, value = true): IRValue |
   // Rewrite continue/break to the right block number
   for (let i = condBlock.id; i <= bodyEnd.id; i++) {
     const block = code.block(i + 1)
-    for (const [v, st] of block)
-      if (st.expr instanceof ir.Branch && st.expr.target === -1)
-        code.setStmt(v, { ...st, expr: new ir.Branch(after.id + 1, st.expr.args, st.expr.when) })
+    for (const [v, st] of block) {
+      if (!(st.expr instanceof ir.Branch)) continue
+      if (st.expr.target === -1)
+        code.setStmt(v, { ...st, expr: new ir.Branch(after.id + 1, [], st.expr.when) })
+      else if (st.expr.target === -2)
+        code.setStmt(v, { ...st, expr: new ir.Branch(header.id + 1, value ? [out] : [], st.expr.when) })
+    }
   }
   condBlock.branch(bodyStart, [], { when: condResult, src: ex.meta && source(ex.meta) })
   condBlock.branch(after, [], { src: ex.args[0].meta && source(ex.args[0].meta) })

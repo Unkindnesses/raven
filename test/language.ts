@@ -90,6 +90,24 @@ test('pow', async () => {
   `)
 })
 
+test('loop continue', async () => {
+  await rv(`
+    total = 0
+    i = 0
+    while true {
+      i = i + 1
+      if i == 6 {
+        break
+      }
+      if i == 3 {
+        continue
+      }
+      total = total + i
+    }
+    test total == 12
+  `)
+})
+
 test('complex arithmetic', async () => {
   await rv(`
     z = Complex(widen(5), widen(6))
