@@ -527,27 +527,28 @@ function parseIf(ex: ast.Expr): IfStmt {
 function lowerWhile(sc: Scope, code: LIR, ex: ast.Expr, value = true): IRValue | number {
   const prevBlock = code.block()
   const header = code.newBlock()
-  prevBlock.branch(header)
+  prevBlock.branch(header, value ? [types.list()] : [])
+  let out = value ? header.argument(ir.unreachable) : nil
+  let ret = out
   const cond = lower(sc, code, ex.args[1])
   const condResult = rcall(code, tag('common.condition'), [cond], { src: ex.meta })
   const condBlock = code.block()
   const bodyStart = code.newBlock()
-  lower(sc, code, ast.asExpr(ex.args[2], 'Block'), false)
+  const val = lower(sc, code, ast.asExpr(ex.args[2], 'Block'), value)
+  if (value) out = rcall(code, tag('common.append'), [out, val])
   const bodyEnd = code.block()
   const after = code.newBlock()
   // Rewrite continue/break to the right block number
   for (let i = condBlock.id; i <= bodyEnd.id; i++) {
     const block = code.block(i + 1)
-    for (const [v, st] of block) {
-      if (st.expr instanceof ir.Branch && st.expr.target === -1) {
+    for (const [v, st] of block)
+      if (st.expr instanceof ir.Branch && st.expr.target === -1)
         code.setStmt(v, { ...st, expr: new ir.Branch(after.id + 1, st.expr.args, st.expr.when) })
-      }
-    }
   }
   condBlock.branch(bodyStart, [], { when: condResult, src: ex.meta && source(ex.meta) })
   condBlock.branch(after, [], { src: ex.args[0].meta && source(ex.args[0].meta) })
-  if (bodyEnd.canbranch()) bodyEnd.branch(header)
-  return nil
+  if (bodyEnd.canbranch()) bodyEnd.branch(header, value ? [out] : [])
+  return ret
 }
 
 // TODO support pattern matching

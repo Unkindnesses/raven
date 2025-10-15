@@ -75,6 +75,7 @@ fn eval(&tape: Tape, instr: Instr) {
       }
     }
   }
+  return
 }
 
 fn interpret(&tape: Tape, code) {

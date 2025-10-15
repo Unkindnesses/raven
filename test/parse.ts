@@ -115,7 +115,7 @@ test('lower if let', () => {
 })
 
 test('lower while loop', () => {
-  const ir = lower('fn loop(x) { while x > 0 { x = x - 1 } }')
+  const ir = lower('fn loop(x) { while x > 0 { x = x - 1 }, return }')
   assert.equal(ir.toString(), `1: (%1)
   %2 = br 2 (%1)
 2: (%3)
@@ -227,7 +227,7 @@ test('lower template bits', () => {
 })
 
 test('lower for loop', () => {
-  const ir = lower('fn iter(xs) { for x = xs { println(x) } }')
+  const ir = lower('fn iter(xs) { for x = xs { println(x) }, return }')
   assert.equal(ir.toString(), `1: (%1)
   %2 = pack tag"common.List", %1
   %3 = tuple :: tag"common.iterator"

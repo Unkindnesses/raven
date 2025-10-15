@@ -366,6 +366,13 @@ test('collect range', async () => {
   `)
 })
 
+test('for expression collects values', async () => {
+  await rv(`
+    ys = (for x = range(1, 5) { x })
+    println(ys)
+  `, { output: '[1, 2, 3, 4, 5]' })
+})
+
 test('swap method', async () => {
   await rv(`
     fn swap(&x, &y) {
