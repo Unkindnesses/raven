@@ -330,7 +330,7 @@ inlinePrimitive.set(packcat_method, (code, st) => {
   const x = st.expr.body[1]
   const S = asType(code.type(x))
   const T = asType(st.type)
-  if (types.isValue(T)) return code.push({ ...st, expr: xtuple() })
+  if (types.isValue(T)) return T
   if ((S.kind === 'pack' && types.isAtom(T)) || T.kind === 'pack') {
     if (!isEqual(layout(S), layout(T))) throw new Error('packcat: layout mismatch')
     return code.push({ ...st, expr: xtuple(x) })
@@ -351,7 +351,7 @@ function nparts(code: Fragment<MIR>, T: Type, x: Val<MIR>): Val<MIR> {
     return call(code, types.tag('common.Int64'), [sz], types.int64())
   } else {
     code.push(stmt(expr('release', x)))
-    return code.push(stmt(xtuple(), { type: types.int64(types.nparts(T)) }))
+    return types.int64(types.nparts(T))
   }
 }
 
@@ -402,7 +402,7 @@ inlinePrimitive.set(widen_method, (code, st) => {
   return x
 })
 
-inlinePrimitive.set(bitsize_method, (code, st) => code.push({ ...st, expr: xtuple() }))
+inlinePrimitive.set(bitsize_method, (code, st) => asType(st.type))
 
 type BitsType = Type & { kind: 'bits' }
 
@@ -422,7 +422,7 @@ function extend(code: Fragment<MIR>, T: BitsType, x: Val<MIR>): Val<MIR> {
 }
 
 inlinePrimitive.set(bitcast_method, (code, st) => {
-  if (types.isValue(asType(st.type))) return code.push({ ...st, expr: xtuple() })
+  if (types.isValue(asType(st.type))) return asType(st.type)
   let x = st.expr.body[2]
   const F = asType(code.type(x), 'bits')
   const T = asType(st.type, 'bits')
@@ -438,8 +438,7 @@ inlinePrimitive.set(bitcast_method, (code, st) => {
 })
 
 inlinePrimitive.set(bitcast_s_method, (code, st) => {
-  if (types.isValue(asType(st.type)))
-    return code.push({ ...st, expr: xtuple() })
+  if (types.isValue(asType(st.type))) return asType(st.type)
   let x = st.expr.body[2]
   const F = asType(code.type(x), 'bits')
   const T = asType(st.type, 'bits')
@@ -453,8 +452,7 @@ inlinePrimitive.set(bitcast_s_method, (code, st) => {
 for (const [op, method] of bitop_methods)
   inlinePrimitive.set(method, (code, st) => {
     const T = asType(st.type, 'bits')
-    if (types.isValue(T))
-      return code.push({ ...st, expr: xtuple() })
+    if (types.isValue(T)) return T
     let x = st.expr.body[1]
     let y = st.expr.body[2]
     const sz = sizeof(T) * 8
@@ -469,7 +467,7 @@ for (const [op, method] of bitop_methods)
 
 for (const [op, method] of bitcmp_methods)
   inlinePrimitive.set(method, (code, st) => {
-    if (types.isValue(asType(st.type))) return code.push({ ...st, expr: xtuple() })
+    if (types.isValue(asType(st.type))) return asType(st.type)
     let x = st.expr.body[1]
     let y = st.expr.body[2]
     const T = asType(types.union(asType(code.type(x)), asType(code.type(y))), 'bits')
@@ -484,7 +482,7 @@ for (const [op, method] of bitcmp_methods)
 inlinePrimitive.set(biteqz_method, (code, st) => {
   const x = st.expr.body[1]
   const T = asType(code.type(x))
-  if (types.isValue(asType(st.type))) return code.push({ ...st, expr: xtuple() })
+  if (types.isValue(asType(st.type))) return asType(st.type)
   if (sizeof(T) * 8 === 64) return code.push({ ...st, expr: xcall(new WIntrinsic('i64.eqz'), x) })
   if (sizeof(T) * 8 === 32) return code.push({ ...st, expr: xcall(new WIntrinsic('i32.eqz'), x) })
   throw new Error('unimplemented')
@@ -497,8 +495,7 @@ function symOverlap(x: Type, y: Type): number[] {
 }
 
 inlinePrimitive.set(shortcutEquals_method, (code, st) => {
-  if (types.isValue(asType(st.type)))
-    return code.push({ ...st, expr: xtuple() })
+  if (types.isValue(asType(st.type))) return asType(st.type)
   let a = st.expr.body[1]
   let b = st.expr.body[2]
   let A = asType(code.type(a))
@@ -512,8 +509,7 @@ inlinePrimitive.set(shortcutEquals_method, (code, st) => {
 inlinePrimitive.set(isnil_method, (code, st) => {
   const x = st.expr.body[1]
   const T = asType(code.type(x))
-  if (types.isValue(asType(st.type)))
-    return code.push({ ...st, expr: xtuple() })
+  if (types.isValue(asType(st.type))) return asType(st.type)
   if (T.kind !== 'union') throw new Error('unimplemented')
   const i = T.options.findIndex(opt => isEqual(opt, types.nil)) + 1
   const j = code.push(stmt(expr('ref', x, i64(1)), { type: bits(32) }))
@@ -586,7 +582,7 @@ inlinePrimitive.set(invoke_method, (code, st) => {
   return code.push({ ...st, expr: expr('call_indirect', f, args) })
 })
 
-inlinePrimitive.set(jsalloc_method, (code, st) => code.push({ ...st, expr: xtuple() }))
+inlinePrimitive.set(jsalloc_method, (code, st) => asType(st.type))
 
 // Core module
 

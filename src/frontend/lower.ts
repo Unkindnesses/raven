@@ -4,7 +4,7 @@ import * as ir from "../utils/ir"
 import { fuseblocks, prune, ssa } from "../utils/ir"
 import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast"
 import * as types from "./types"
-import { Type, Tag, tag, pack, bits, int32, asType } from "./types"
+import { Type, Tag, tag, pack, bits, int32, asType, nil } from "./types"
 import { Module, Signature, Binding, FuncInfo, IRValue, WIntrinsic, MIR, WImport, xstring } from "./modules"
 import { asBigInt, some } from "../utils/map"
 import { binding } from "../utils/options"
@@ -160,8 +160,6 @@ const macros = new Map<string, (ex: ast.Expr) => ast.Tree>([
 
 type LIR = MIR
 
-const nil = new Binding(tag('common'), 'nil')
-
 function source(m: ast.Meta): ir.Source {
   return { file: m.file, line: m.loc.line, col: m.loc.column }
 }
@@ -262,8 +260,7 @@ function string(sc: Scope, code: LIR, x: string) {
 function lowermatch(sc: Scope, code: LIR, val: IRValue | number, pat: ast.Tree): IRValue | number {
   const sig = lowerpattern(pat, sc.mod(), resolve_static)
   const pattern = patternType(sig.pattern)
-  const patternTuple = _push(code, xtuple(), { type: pattern })
-  const m = rcall(code, tag('common.match'), [val, patternTuple])
+  const m = rcall(code, tag('common.match'), [val, pattern])
   const isnil = _push(code, xcall(isnil_method, m))
   code.branch(code._blocks.length + 1, [], { when: isnil })
   code.branch(code._blocks.length + 2)
@@ -304,7 +301,7 @@ function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): IR
     } else if (typeof val === 'string') {
       return string(sc, code, val)
     } else {
-      return _push(code, xtuple(), { type: Type(val) })
+      return Type(val)
     }
   }
 

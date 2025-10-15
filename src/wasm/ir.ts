@@ -2,9 +2,10 @@ import isEqual from 'lodash/isEqual'
 import { Const as IRConst, IRValue, type MIR, asConst } from '../frontend/modules'
 import * as wasm from './wasm'
 import { Func } from './wasm'
-import { Pipe, liveness, Branch, Expr, expr, stmt, Source, CFG, Component, components, entry } from '../utils/ir'
+import { Pipe, liveness, Branch, Expr, expr, stmt, Source, CFG, Component, components, entry, showVar, Val } from '../utils/ir'
 import { asArray, HashSet, HashMap, some, asNumber } from '../utils/map'
 import { LineInfo } from '../dwarf'
+import { instructionToString } from './wat'
 
 export { Locals, stackshuffle, locals, shiftbps, irfunc, Instr, setdiff, union, intersect }
 
@@ -16,6 +17,9 @@ class Instr<T> extends Expr<T> {
   }
   map(f: (x: T | number) => T | number): Instr<T> {
     return new Instr(this.instr, this.body.map(f))
+  }
+  show(pr: (x: T) => string): string {
+    return `(${instructionToString(this.instr)} ${this.body.map(x => showVar(x, pr)).join(' ')})`
   }
 }
 
@@ -146,8 +150,10 @@ function stack(ir: MIR): [MIR, wasm.Type[]] {
   type Part = Const | [number, number]
   let ret: wasm.Type[] = []
   const env = new Map<number, Part[]>()
-  const parts = (x: number | IRConst): Part[] =>
-    typeof x === 'number' ? some(env.get(x)) : [toWasmConst(x)]
+  const parts = (x: Val<MIR>): Part[] =>
+    typeof x === 'number' ? some(env.get(x)) :
+      x instanceof IRConst ? [toWasmConst(x)] :
+        []
   const partsSet = (x: number, Ts: wasm.Type[]) => env.set(x, Array.from(Ts, (_, i) => [x, i + 1]))
   const lv = liveness(ir)
   const live = (v: number) => {
@@ -180,7 +186,7 @@ function stack(ir: MIR): [MIR, wasm.Type[]] {
         stack = [...state.stack.slice(0, state.stack.length - args.length), ...parts(v)]
       } else if (ex instanceof Branch) {
         if (ex.isreturn()) {
-          const result = asValue(ex.args[0])
+          const result = ex.args[0]
           const parttype = (p: Part): wasm.Type => {
             if (isConst(p)) return p.type
             const [x, i] = p

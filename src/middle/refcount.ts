@@ -36,7 +36,7 @@ import isEqual from 'lodash/isEqual'
 import { HashMap, asNumber, some, setdiff, filter as filter } from '../utils/map'
 import { layout, call, indexer, load, sizeof, union_cases, unbox } from './expand'
 import { unreachable } from '../utils/ir'
-import { xcall } from '../frontend/lower'
+import { xcall, xtuple } from '../frontend/lower'
 import { Accessor } from '../utils/fixpoint'
 
 export { isrefobj, isreftype, CountMode, retain_method, release_method, refcounts }
@@ -148,7 +148,7 @@ function union_count_inline(code: ir.Fragment<MIR>, T: Type & { kind: 'union' },
   if (!(code instanceof ir.IR)) throw new Error('nope')
   union_cases(code, T, x, (S, val) => {
     if (isreftype(S)) count(code, S, val, mode)
-    return code.push(ir.stmt(ir.expr('tuple'), { type: types.nil }))
+    return types.nil
   })
 }
 
@@ -174,7 +174,7 @@ function count_ir(T: Type, mode: CountMode): MIR {
   const code = MIR(new FuncInfo(tag(`common.core.${mode}`)))
   const x = code.argument(T)
   count_inline(code, T, x, mode)
-  code.return(code.push(ir.stmt(ir.expr('tuple'), { type: types.nil })))
+  code.return(types.nil)
   return code
 }
 

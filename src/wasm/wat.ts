@@ -1,6 +1,6 @@
 import * as wasm from './wasm'
 
-export { moduleToString }
+export { moduleToString, instructionToString }
 
 function basename(p: string): string {
   if (p.length === 0) return ''
@@ -17,7 +17,7 @@ function lineToString(li: wasm.LineInfo): string {
   return s
 }
 
-function instructionToString(i: wasm.Instruction, level: number): string {
+function instructionToString(i: wasm.Instruction, level: number = 0): string {
   switch (i.kind) {
     case 'nop': return 'nop'
     case 'const': return `${i.type}.const ${i.val}`

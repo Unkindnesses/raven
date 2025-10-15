@@ -8,7 +8,7 @@ export {
   Statement, stmt, IR, Block, Pipe, Branch, CFG, Component, components, entry, rename,
   getIndent, withIndent, Val, Fragment, asIR,
   liveness_after, liveness,
-  predecessors, fuseblocks, expand, prune, ssa, renumber
+  predecessors, fuseblocks, expand, prune, ssa, renumber, showVar
 }
 
 type Unreachable = '⊥'

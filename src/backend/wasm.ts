@@ -6,14 +6,14 @@ import { writeFile } from 'fs/promises'
 import * as path from 'path'
 import { options } from '../utils/options'
 import { irfunc, Instr, setdiff } from '../wasm/ir'
-import { unreachable, Anno, Pipe, expr, stmt, Val, asAnno } from '../utils/ir'
+import { unreachable, Anno, Pipe, expr, stmt, Val, asAnno, Branch } from '../utils/ir'
 import isEqual from 'lodash/isEqual'
 import { layout } from '../middle/expand'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe } from '../utils/cache'
 import { Binding, Definitions, MIR, WImport, WIntrinsic, Method, Const, asFunc, asBinding, FuncInfo, StringRef } from '../frontend/modules'
 import { Redirect, type Sig } from '../middle/abstract'
 import { Accessor } from '../utils/fixpoint'
-import { dirname } from '../dirname'
+import { xtuple } from '../frontend/lower'
 
 export { wasmPartials, Wasm, BatchEmitter, StreamEmitter, Emitter, emitwasm, emitwasmBinary, lowerwasm, lowerwasm_globals }
 
@@ -102,7 +102,7 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
     } else if (st.expr.head === 'func') {
       const [f, I, O] = st.expr.body
       const name = names.get([types.asTag(f), types.asType(I)])
-      pr.set(v, expr('tuple', Const.i32(tables.func(name))))
+      pr.set(v, xtuple(Const.i32(tables.func(name))))
     } else if (['tuple', 'ref'].includes(st.expr.head)) {
     } else if (st.expr.head === 'cast') { // TODO just use `tuple` instead
       const arg = st.expr.body[0]
@@ -116,7 +116,7 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
       for (let i = 0; i < ids.length; i++)
         ps.push(pr.insert(v, stmt(instr(wasm.GetGlobal(ids[i])), { type: [parts[i]] })))
       if (ps.length === 1) pr.replace(v, ps[0])
-      else pr.set(v, expr('tuple', ...ps))
+      else pr.set(v, xtuple(...ps))
     } else if (st.expr.head === 'call' && (st.expr.body[0] instanceof WIntrinsic || st.expr.body[0] instanceof WImport)) {
       const [callee, ...args] = st.expr.body
       if (callee instanceof WImport) {
@@ -134,14 +134,15 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
       const Ts = st.expr.body.map(a => ir.type(a))
       if (Ts.some(t => t === unreachable)) throw new Error('unreachable arg in call')
       const sig: Sig = [asFunc(Ts[0]), ...Ts.slice(1).map(t => types.asType(t))]
-      const expr = instr(wasm.Call(names.get(sig)), ...st.expr.body.slice(1))
+      const args = st.expr.body.slice(1).filter(x => !types.isValue(types.asType(ir.type(x))))
+      const expr = instr(wasm.Call(names.get(sig)), ...args)
       pr.setStmt(v, { ...st, expr, type: wparts(asAnno(types.asType, st.type)) })
     } else if (st.expr.head === 'call_indirect') {
       const [f, args] = st.expr.body
       const I = layout(types.asType(ir.type(args)))
       const O = layout(types.asType(st.type))
       pr.setStmt(v, { ...st, expr: instr(wasm.CallIndirect(wasm.Signature(I, O), 0), args, f), type: O })
-    } else if (st.expr.head === 'branch') {
+    } else if (st.expr instanceof Branch) {
     } else if (st.expr.head === 'set' && st.expr.body[0] instanceof Binding) {
     } else throw new Error(`unrecognised ${st.expr.head} expression`)
   }

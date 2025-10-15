@@ -75,7 +75,7 @@ function union_downcast(pr: Fragment<MIR>, T: Type, i: number, x: Val<MIR>): num
   const regs = layout(U.options[i - 1]).length
   const parts: Val<MIR>[] = []
   for (let j = 1; j <= regs; j++) parts.push(pr.push(stmt(expr('ref', x, i64(offset + j)))))
-  return pr.push(stmt(expr('tuple', ...parts), { type: U.options[i - 1] }))
+  return pr.push(stmt(xtuple(...parts), { type: U.options[i - 1] }))
 }
 
 // `f` is reponsible for freeing its argument value, but not for freeing `x`
@@ -190,7 +190,7 @@ function partir(x: Type, i: Type): MIR {
     const range = sublayout(x, idx)
     const caseT = partial_part(x, types.int64(idx))
     if (caseT === unreachable) throw new Error('partir: unreachable case')
-    let y = code.push(stmt(expr('tuple', ...range.map(part)), { type: caseT }))
+    let y = code.push(stmt(xtuple(...range.map(part)), { type: caseT }))
     code.return(cast(code, caseT, T, y))
     const after = code.newBlock()
     before.branch(body, [], { when: cond })
@@ -204,7 +204,7 @@ function partir(x: Type, i: Type): MIR {
 function vpack_indexer(pr: Fragment<MIR>, Ts: Type, I: Type, x: Val<MIR>, i: Val<MIR>): Val<MIR> {
   const T = some(types.partial_eltype(Ts))
   const idx = getIntValue(I)
-  if (idx === 0 || layout(T).length === 0) return pr.push(stmt(expr('tuple')))
+  if (idx === 0 || layout(T).length === 0) return T
   if (idx !== undefined)
     i = i32((idx - 1) * sizeof(T))
   else {
@@ -224,7 +224,7 @@ function indexer(pr: Fragment<MIR>, T: Type, I: Type, x: Val<MIR>, i: Val<MIR>):
     if (idx > 1)
       return abort(pr, `Invalid index ${idx} for ${types.repr(T)}`)
     if (types.isValue(types.part(T, idx)))
-      return pr.push(stmt(expr('tuple')))
+      return types.part(T, idx)
     if (isEqual(T, types.float64()))
       return pr.push(stmt(xcall(new WIntrinsic('i64.reinterpret_f64'), x), { type: types.bits(64) }))
     if (isEqual(T, types.float32()))
@@ -238,7 +238,7 @@ function indexer(pr: Fragment<MIR>, T: Type, I: Type, x: Val<MIR>, i: Val<MIR>):
     const P = types.part(T, idx)
     const range = sublayout(T, idx)
     const _part = (k: number): Val<MIR> => pr.push(stmt(expr('ref', x, i64(k)), { type: [layout(T)[k - 1]] }))
-    return pr.push(stmt(expr('tuple', ...range.map(_part)), { type: P }))
+    return pr.push(stmt(xtuple(...range.map(_part)), { type: P }))
   } else {
     throw new Error('unimplemented')
   }
@@ -336,14 +336,13 @@ function lowerdata(code: MIR): MIR {
   for (const [v, st] of pr) {
     const ex = st.expr
     if (ex.head === 'pack') {
-      // remove constants, which have zero width
-      const args = ex.body.filter(x => typeof x === 'number')
-      pr.set(v, xtuple(...args))
+      const args = ex.body.filter(x => !types.isValue(asType(code.type(x))))
+      args.length ? pr.set(v, xtuple(...args)) : pr.replace(v, asType(st.type))
     } else if (ex.head === 'call') {
       const callee = ex.body[0]
       if (callee instanceof WIntrinsic) {
         if (wasmPartials.has(callee.name) && types.isValue(asType(st.type)))
-          pr.set(v, expr('tuple'))
+          pr.replace(v, asType(st.type))
       } else {
         const F = pr.type(callee)
         if (F instanceof Method && inlinePrimitive.has(F)) {
@@ -385,7 +384,7 @@ function load(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, { count = true }: { cou
     if (i + 1 < regs.length)
       ptr = pr.push(stmt(xcall(new WIntrinsic('i32.add'), ptr, i32(wsizeof(regs[i]))), { type: types.int32() }))
   }
-  const result = pr.push(stmt(expr('tuple', ...parts), { type: T })) as Val<MIR>
+  const result = pr.push(stmt(xtuple(...parts), { type: T })) as Val<MIR>
   if (count && isreftype(T)) pr.push(stmt(expr('retain', result)))
   return result
 }
@@ -421,7 +420,7 @@ function cast(pr: Fragment<MIR>, from: Anno<Type>, to: Anno<Type>, x: Val<MIR>):
       p = cast(pr, types.part(from, i), types.part(to, i), p)
       parts.push(p)
     }
-    return pr.push(stmt(expr('tuple', ...parts), { type: to }))
+    return pr.push(stmt(xtuple(...parts), { type: to }))
   }
   if (from.kind === 'pack' && to.kind === 'vpack') {
     if (!(types.tagOf(to).kind === 'tag')) throw new Error('nope')
@@ -450,7 +449,7 @@ function cast(pr: Fragment<MIR>, from: Anno<Type>, to: Anno<Type>, x: Val<MIR>):
       else for (let k = 1; k <= regs; k++)
         parts.push(Const.from(layout(to.options[j - 1])[k - 1], 0))
     }
-    return pr.push(stmt(expr('tuple', ...parts), { type: to }))
+    return pr.push(stmt(xtuple(...parts), { type: to }))
   }
   if (from.kind === 'pack' && to.kind === 'recursive') {
     const U = types.unroll(to)
@@ -491,8 +490,7 @@ function casts(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
           const casted = cast(pr, S, ret, val)
           pr.set(v, Branch.return(casted))
         } else if (typeof val !== 'number') {
-          const tmp = pr.push(stmt(expr('tuple'), { type: S })) as Val<MIR>
-          pr.set(v, Branch.return(tmp))
+          pr.set(v, Branch.return(S))
         }
       } else {
         const args: Val<MIR>[] = []
@@ -500,7 +498,7 @@ function casts(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
           let a = br.args[i - 1]
           const S = asType(pr.type(a))
           const T = blockargtype(code.block(br.target), i)
-          if (typeof a !== 'number') a = pr.push(stmt(expr('tuple'), { type: S }))
+          if (typeof a !== 'number') a = S
           if (!isEqual(S, T)) a = cast(pr, S, T, a)
           args.push(a)
         }
