@@ -10,11 +10,10 @@ export { Locals, stackshuffle, locals, shiftbps, irfunc, Instr, setdiff, union, 
 
 type Const = wasm.Instruction & { kind: 'const' }
 
-// The original IR uses generic `call` expressions with an instruction as the callee.
-// We replace this with a dedicated `instr` to avoid ambiguities.
-class Instr<T> implements Expr<T> {
-  readonly head = 'instr' as const
-  constructor(public instr: wasm.Instruction, readonly body: (T | number)[]) { }
+class Instr<T> extends Expr<T> {
+  constructor(public instr: wasm.Instruction, body: (T | number)[] = []) {
+    super('instr', body)
+  }
   map(f: (x: T | number) => T | number): Instr<T> {
     return new Instr(this.instr, this.body.map(f))
   }

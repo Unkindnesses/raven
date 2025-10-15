@@ -28,13 +28,15 @@ function showLoop<T, A, M>(l: LoopIR<T, A, M>, args: (T | number)[], pr: (x: T) 
   return s
 }
 
-function loopexpr<T, A, M>(l: LoopIR<T, A, M>, ...args: (T | number)[]): Expr<T> & { loop: LoopIR<T, A, M> } {
-  return {
-    head: 'loop',
-    body: args as (T | number)[],
-    loop: l,
-    map(f: (x: T | number) => T | number) { return loopexpr(l, ...(this.body.map(f) as (T | number)[])) },
-    show(pr: (x: T) => string) { return showLoop(l, args, pr) }
+class Loop<T, A, M> extends Expr<T> {
+  constructor(readonly loop: LoopIR<T, A, M>, args: (T | number)[]) {
+    super('loop', args)
+  }
+  map(f: (x: T | number) => T | number): Loop<T, A, M> {
+    return new Loop(this.loop, this.body.map(f))
+  }
+  show(pr: (x: T) => string): string {
+    return showLoop(this.loop, this.body, pr)
   }
 }
 
@@ -60,7 +62,7 @@ function looped<T, A, M>(ir: IR<T, A, M>, cs?: Component): LoopIR<T, A, M> {
       blocks.push(entry(ch))
       const argts = ir.block(entry(ch)).argtypes
       const args = argts.map(T => bl.argument(T))
-      bl.push(stmt(loopexpr(looped(ir, ch), ...args)))
+      bl.push(stmt(new Loop(looped(ir, ch), args)))
     }
   })
   return new LoopIR(out, blocks, [out.clone()], 8)

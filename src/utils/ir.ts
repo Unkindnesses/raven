@@ -33,25 +33,25 @@ class Slot {
 
 const slot = (name: string) => new Slot(name)
 
-interface Expr<T> {
-  readonly head: string
-  readonly body: (T | number)[]
-  map(f: (x: T | number) => T | number): Expr<T>
-  readonly show?: (pr: (x: T) => string) => string
-}
-
-function expr<T>(head: string, ...body: (T | number)[]): Expr<T> {
-  return {
-    head, body,
-    map(f: (x: T | number) => T | number): Expr<T> {
-      return { ...this, body: this.body.map(f) }
-    }
+class Expr<T> {
+  constructor(readonly head: string, private readonly _body: (T | number)[] = []) { }
+  get body(): (T | number)[] { return this._body }
+  map(f: (x: T | number) => T | number): Expr<T> {
+    return new Expr(this.head, this.body.map(f))
+  }
+  show(pr: (x: T) => string): string {
+    return this.body.length ? `${this.head} ${this.body.map(x => showVar(x, pr)).join(', ')}` : this.head
   }
 }
 
-class Branch<T> implements Expr<T> {
-  readonly head = 'branch' as const
-  constructor(readonly target: number, readonly args: (T | number)[] = [], readonly when?: number) { }
+function expr<T>(head: string, ...body: (T | number)[]): Expr<T> {
+  return new Expr(head, body)
+}
+
+class Branch<T> extends Expr<T> {
+  constructor(readonly target: number, readonly args: (T | number)[] = [], readonly when?: number) {
+    super('branch')
+  }
   get body() {
     return this.when === undefined
       ? this.args
@@ -63,7 +63,8 @@ class Branch<T> implements Expr<T> {
   isreturn() { return this.target === 0 && this.args.length === 1 }
   isunreachable() { return this.target === 0 && this.args.length === 0 }
   map(f: (x: T | number) => T | number): Branch<T> {
-    return new Branch(this.target, this.args.map(f), this.when ? f(this.when) as number : undefined)
+    const when = this.when === undefined ? undefined : asNumber(f(this.when))
+    return new Branch(this.target, this.args.map(f), when)
   }
   show(pr: (x: T) => string): string {
     if (this.isunreachable()) return "unreachable"
@@ -309,10 +310,6 @@ function showBlock<T, A, M>(block: Block<IR<T, A, M>>): string {
     if (bp) result += " 🔴"
     return result
   }
-  function showExpr(expr: Expr<T>): string {
-    if (expr.show !== undefined) return expr.show(block.ir.show)
-    return expr.body.length ? `${expr.head} ${expr.body.map(show).join(', ')}` : expr.head
-  }
   const tab = "  ".repeat(__indent + 1)
   let result = `${"  ".repeat(__indent)}${block.id + 1}:`
   if (block.args.length > 0)
@@ -321,7 +318,7 @@ function showBlock<T, A, M>(block: Block<IR<T, A, M>>): string {
   for (const [x, st] of block) {
     result += '\n' + tab
     if (x > 0) result += `%${x} = `
-    result += showExpr(st.expr)
+    result += st.expr.show(block.ir.show)
     if (!(st.expr instanceof Branch) && st.type !== unreachable) result += ` :: ${show(st.type)}`
     if (st.src) result += showLine(st.src, st.bp)
   }
