@@ -8,7 +8,11 @@ import * as ir from "../utils/ir"
 import isEqual from 'lodash/isEqual'
 import { Pattern } from "./patterns"
 
-export { Module, Method, Signature, Binding, asBinding, asFunc, asConst, Modules, FuncInfo, Definitions, Const, MIR, IRValue, IRType, WIntrinsic, WImport, showIRValue }
+export {
+  Module, Method, Signature, Binding, asBinding, asFunc, asConst, Modules,
+  FuncInfo, Definitions, Const, MIR, IRValue, IRType, WIntrinsic, WImport, showIRValue,
+  StringRef, xstring
+}
 
 class WIntrinsic {
   constructor(readonly name: string) { }
@@ -65,7 +69,7 @@ function asConst(x: unknown): Const {
   throw new Error(`Expected Const, got ${typeof x}`)
 }
 
-type IRValue = Type | Const | Method | ir.Slot | Binding | string | WIntrinsic | WImport
+type IRValue = Type | Const | Method | ir.Slot | Binding | WIntrinsic | WImport
 type IRType = Type | WType[]
 type MIR = ir.IR<IRValue, IRType, FuncInfo | undefined>
 
@@ -80,7 +84,6 @@ function irTypeOf(x: IRValue): IRValue | IRType {
 }
 
 function showIRValue(x: IRValue | IRType): string {
-  if (typeof x === 'string') return JSON.stringify(x)
   if (x instanceof ir.Slot) return x.toString()
   if (x instanceof Binding) return `${x.mod}.${x.name}`
   if (x instanceof WIntrinsic) return x.name
@@ -94,6 +97,14 @@ function showIRValue(x: IRValue | IRType): string {
 function MIR(meta: FuncInfo | undefined): MIR {
   return new ir.IR<IRValue, IRType, FuncInfo | undefined>(meta, showIRValue, irTypeOf)
 }
+
+class StringRef<T> extends ir.Expr<T> {
+  constructor(readonly value: string) { super('string') }
+  map(_: (x: T | number) => T | number): StringRef<T> { return new StringRef(this.value) }
+  show(_: (x: T) => string): string { return JSON.stringify(this.value) }
+}
+
+function xstring<T>(s: string): StringRef<T> { return new StringRef<T>(s) }
 
 interface Signature {
   pattern: Pattern

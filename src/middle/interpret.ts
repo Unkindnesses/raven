@@ -46,7 +46,6 @@ function interpretIR(int: Interpreter, ir: MIR, ...args: Type[]): Type | undefin
   while (true) {
     for (const [v, st] of ir.block(bl)) {
       const xs = st.expr.body.map(resolve)
-      if (xs.includes(unreachable)) return
       if (st.expr.head === 'call') {
         const op = xs[0]
         if (op instanceof WIntrinsic) {

@@ -1,9 +1,9 @@
 import * as types from '../frontend/types'
 import { Type, tagOf, tag, asType, bits } from '../frontend/types'
-import { unreachable, Anno, Pipe, stmt, expr, asAnno, IR, Val, Fragment } from '../utils/ir'
+import { unreachable, Anno, Pipe, stmt, expr, asAnno, Val, Fragment } from '../utils/ir'
 import { HashSet, only } from '../utils/map'
 import isEqual from 'lodash/isEqual'
-import { Method, MIR, Module, WIntrinsic, FuncInfo, Const } from '../frontend/modules'
+import { Method, MIR, Module, WIntrinsic, FuncInfo, Const, xstring } from '../frontend/modules'
 import { xtuple, xcall } from '../frontend/lower'
 import { lowerpattern } from '../frontend/patterns'
 import * as parse from '../frontend/parse'
@@ -584,7 +584,7 @@ inlinePrimitive.set(tagcast_method, (pr, ir, v) => {
 })
 
 function string(pr: MIR | Pipe<MIR>, s: string): number {
-  const id = pr.push(stmt(expr('ref', s), { type: types.list(types.int32()) }))
+  const id = pr.push(stmt(xstring(s), { type: types.list(types.int32()) }))
   return pr.push(stmt(xcall(tag('common.JSObject'), id), { type: types.String() }))
 }
 

@@ -176,7 +176,7 @@ test('lower function with swap pattern', () => {
   %9 = br 2 if %8
   %10 = br 3
 2:
-  %11 = ref "match failed: [x, y]" :: [int 32]
+  %11 = "match failed: [x, y]" :: [int 32]
   %12 = call tag"common.JSObject", %11
   %13 = call tag"common.String", %12
   %14 = call Method(tag"common.core.part"), %13, 1

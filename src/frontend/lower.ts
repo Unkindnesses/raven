@@ -5,7 +5,7 @@ import { fuseblocks, prune, ssa } from "../utils/ir"
 import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast"
 import * as types from "./types"
 import { Type, Tag, tag, pack, bits, int32, asType } from "./types"
-import { Module, Signature, Binding, FuncInfo, IRValue, WIntrinsic, MIR, WImport } from "./modules"
+import { Module, Signature, Binding, FuncInfo, IRValue, WIntrinsic, MIR, WImport, xstring } from "./modules"
 import { asBigInt, some } from "../utils/map"
 import { binding } from "../utils/options"
 import * as parse from "./parse"
@@ -253,7 +253,7 @@ function swapreturn(code: LIR, val: IRValue | number, swaps?: Map<number, string
 }
 
 function string(sc: Scope, code: LIR, x: string) {
-  const id = code.push(ir.stmt(ir.expr('ref', x), { type: types.list(int32()) }))
+  const id = code.push(ir.stmt(xstring(x), { type: types.list(int32()) }))
   const obj = code.push(ir.stmt(xcall(tag('common.JSObject'), id)))
   const s = code.push(ir.stmt(xcall(tag('common.String'), obj)))
   return code.push(ir.stmt(xpart(s, Type(1n))))

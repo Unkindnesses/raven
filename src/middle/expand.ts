@@ -21,13 +21,13 @@ import * as ir from '../utils/ir'
 import * as types from '../frontend/types'
 import { Type, asType } from '../frontend/types'
 import { Type as WType, sizeof as wsizeof } from '../wasm/wasm'
-import { MIR, WImport, WIntrinsic, Method, FuncInfo, Const, asBinding, asFunc } from '../frontend/modules'
+import { MIR, WImport, WIntrinsic, Method, FuncInfo, Const, asBinding, asFunc, xstring } from '../frontend/modules'
 import { Inferred, Redirect, type Sig, sig as resolveSig } from './abstract'
 import { wasmPartials } from '../backend/wasm'
 import isEqual from 'lodash/isEqual'
 import { Pipe, Block, Fragment, stmt, expr, Branch, Val, Anno, unreachable } from '../utils/ir'
 import { some } from '../utils/map'
-import { xcall, xlist, xtuple } from '../frontend/lower'
+import { xcall, xtuple } from '../frontend/lower'
 import { isreftype } from './refcount'
 import { partial_part, getIntValue, nparts, constValue } from './primitives'
 import { inlinePrimitive, outlinePrimitive } from './prim_map'
@@ -100,7 +100,7 @@ function union_cases(code: MIR, T: Type & { kind: 'union' }, x: Val<MIR>, f: (S:
 // Panic
 
 function abort(code: Fragment<MIR>, s: string): number {
-  const id = code.push(ir.stmt(ir.expr('ref', s), { type: types.bits(32) }))
+  const id = code.push(ir.stmt(xstring(s), { type: types.bits(32) }))
   return code.push(ir.stmt(xcall(new WImport('support', 'abort'), id)))
 }
 

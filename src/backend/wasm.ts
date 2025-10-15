@@ -10,7 +10,7 @@ import { unreachable, Anno, Pipe, expr, stmt, Val, asAnno } from '../utils/ir'
 import isEqual from 'lodash/isEqual'
 import { layout } from '../middle/expand'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe } from '../utils/cache'
-import { Binding, Definitions, MIR, WImport, WIntrinsic, Method, Const, asFunc, asBinding, FuncInfo } from '../frontend/modules'
+import { Binding, Definitions, MIR, WImport, WIntrinsic, Method, Const, asFunc, asBinding, FuncInfo, StringRef } from '../frontend/modules'
 import { Redirect, type Sig } from '../middle/abstract'
 import { Accessor } from '../utils/fixpoint'
 import { dirname } from '../dirname'
@@ -95,10 +95,9 @@ function instr<T>(instr: wasm.Instruction, ...args: (T | number)[]): Instr<T> {
 function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlobals, tables: Tables): MIR {
   const pr = new Pipe(ir)
   for (let [v, st] of pr) {
-    if (st.expr.head === 'ref' && typeof st.expr.body[0] === 'string') {
-      const s = st.expr.body[0]
+    if (st.expr instanceof StringRef) {
       const name = names.get([new WImport('support', 'string'), [wasm.Type.i32], [wasm.Type.i32]])
-      pr.set(v, instr(wasm.Call(name), Const.i32(tables.string(s))))
+      pr.set(v, instr(wasm.Call(name), Const.i32(tables.string(st.expr.value))))
       pr.setType(v, [wasm.Type.i32])
     } else if (st.expr.head === 'func') {
       const [f, I, O] = st.expr.body

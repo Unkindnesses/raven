@@ -3,7 +3,7 @@ import { LoopIR, looped, Path, block, nextpath, nextpathTo, pin, blockargs, loop
 import { MatchMethods, dispatcher } from './patterns'
 import { Tag, Type, repr, union, asType, issubset as iss, isValue, pack, tag, tagOf } from '../frontend/types'
 import { wasmPartials } from '../backend/wasm'
-import { MIR, IRValue, IRType, Binding, Method, Definitions, FuncInfo, WIntrinsic, WImport } from '../frontend/modules'
+import { MIR, IRValue, IRType, Binding, Method, Definitions, FuncInfo, WIntrinsic, WImport, StringRef } from '../frontend/modules'
 import { WorkQueue } from '../utils/fixpoint'
 import { HashMap, HashSet, some } from '../utils/map'
 import { trackdeps, Map as CacheMap, fingerprint, Caching, time } from '../utils/cache'
@@ -288,7 +288,7 @@ function update(inf: Inference, sig: Sig): void {
         }
       } else if (ex.head === 'tuple') {
         if (!isValue(asType(st.type))) throw new Error('tuple without type')
-      } else if (ex.head === 'ref' && typeof ex.body[0] === 'string') {
+      } else if (ex instanceof StringRef) {
         asType(st.type)
       } else throw new Error(`Unknown expr type ${ex.head}`)
     }
