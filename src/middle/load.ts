@@ -2,7 +2,7 @@ import { Type, Tag, tag, asTag } from "../frontend/types"
 import { Module, Modules, Binding, FuncInfo } from "../frontend/modules"
 import { Anno, unreachable } from "../utils/ir"
 import { modtag } from "../frontend/patterns"
-import { lower_toplevel, bundlemacro, lowerfn, source } from "../frontend/lower"
+import { lower_toplevel, bundlemacro, lowerfn, source, unwrapAnno } from "../frontend/lower"
 import { lowerpattern } from "../frontend/patterns"
 import { symbolValues, core } from "./primitives"
 import * as ast from "../frontend/ast"
@@ -111,10 +111,6 @@ function load_fn(cx: LoadState, x: ast.Expr): void {
   const meta = new FuncInfo(fnTag, x.meta && source(x.meta))
   const ir = lowerfn(cx.mod.name, sigPattern, body, resolve, meta)
   cx.mod.method(fnTag, sigPattern, ir)
-}
-
-function unwrapAnno(x: ast.Tree): ast.Tree {
-  return ast.isExpr(x, 'Annotation') ? unwrapAnno(x.args[x.args.length - 1]) : x
 }
 
 function vload(cx: LoadState, x: ast.Tree, extend = false): void {

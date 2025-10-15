@@ -108,6 +108,25 @@ test('loop continue', async () => {
   `)
 })
 
+test('labeled loop control', async () => {
+  await rv(`
+    sum = 0
+    i = 0
+    @label outer
+    while true {
+      i = i + 1
+      @label inner
+      while true {
+        if i == 5 { break outer }
+        if i == 2 { continue outer }
+        break
+      }
+      sum = sum + i
+    }
+    test sum == 8
+  `)
+})
+
 test('complex arithmetic', async () => {
   await rv(`
     z = Complex(widen(5), widen(6))
