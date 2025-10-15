@@ -51,7 +51,7 @@ function loop<T, A, M>(b: Block<IR<T, A, M>>): LoopIR<T, A, M> | null {
 function looped<T, A, M>(ir: IR<T, A, M>, cs?: Component): LoopIR<T, A, M> {
   cs ??= components(new CFG(ir))
   if (!Array.isArray(cs)) cs = [cs]
-  const out = new IR<T, A, M>(ir.meta, ir.show, ir.typeOf)
+  const out = ir.empty()
   const blocks: number[] = []
   cs.forEach((ch, i) => {
     const bl = i === 0 ? out.block(1) : out.newBlock()
@@ -92,7 +92,7 @@ function blockmap<T, A, M>(l: LoopIR<T, A, M>, offset = 1): Map<number, number> 
 }
 
 function unloop<T, A, M>(l: LoopIR<T, A, M>): IR<T, A, M> {
-  const out = new IR<T, A, M>(l.ir.meta, l.ir.show, l.ir.typeOf)
+  const out = l.ir.empty()
   out.deleteBlock(1)
   const unloopRec = (l: LoopIR<T, A, M>, bs: Map<number, number>) => {
     for (let iter = 0; iter < l.body.length; iter++) {

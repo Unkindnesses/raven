@@ -128,7 +128,7 @@ function methodFrame(inf: Inference, P: Parent, meth: Method, ...Ts: Type[]): Fr
 function tagFrame(inf: Inference, P: Parent, F: Tag, T: Type): Frame {
   const sig: Sig = [F, T]
   if (inf.frames.has(sig)) return inf.frame(sig)
-  inf.frames.set(sig, new Frame(P, looped(new IR(undefined))))
+  inf.frames.set(sig, new Frame(P, looped(MIR(undefined))))
   update(inf, sig)
   return inf.frame(sig)
 }

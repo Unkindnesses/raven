@@ -70,7 +70,7 @@ function asConst(x: unknown): Const {
 }
 
 type IRValue = Type | Const | Method | ir.Slot | Binding | WIntrinsic | WImport
-type IRType = Type | WType[]
+type IRType = IRValue | WType[]
 type MIR = ir.IR<IRValue, IRType, FuncInfo | undefined>
 
 function irTypeOf(x: IRValue): IRValue | IRType {
@@ -95,7 +95,7 @@ function showIRValue(x: IRValue | IRType): string {
 }
 
 function MIR(meta: FuncInfo | undefined): MIR {
-  return new ir.IR<IRValue, IRType, FuncInfo | undefined>(meta, showIRValue, irTypeOf)
+  return new ir.IR<IRValue, IRType, FuncInfo | undefined>(meta, irTypeOf, showIRValue)
 }
 
 class StringRef<T> extends ir.Expr<T> {

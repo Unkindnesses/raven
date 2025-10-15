@@ -107,10 +107,12 @@ class IR<T, A, M> {
   readonly _defs: [number, number][] = []
   readonly _blocks: BasicBlock<T, A>[] = [{ stmts: [], args: [] }]
   constructor(readonly meta: M,
-    readonly show: (x: any) => string = (x: any) => `${x} `,
-    readonly typeOf: (x: T) => T | Anno<A> = (x: T) => x) { }
+    readonly typeOf: (x: T) => Anno<A>,
+    readonly show: (x: any) => string = (x: any) => `${x}`) { }
 
   get length() { return this._defs.reduce((acc, [_, i]) => acc + (i > 0 ? 1 : 0), 0) }
+
+  empty() { return new IR(this.meta, this.typeOf, this.show) }
 
   blockIdx(v: number): [number, number] {
     const [b, i] = this._defs[v - 1]
@@ -180,7 +182,7 @@ class IR<T, A, M> {
   toString(): string { return showIR(this) }
   get blockCount(): number { return this._blocks.length }
   clone(): IR<T, A, M> {
-    const y = new IR<T, A, M>(this.meta, this.show, this.typeOf)
+    const y = new IR<T, A, M>(this.meta, this.typeOf, this.show)
     y._blocks.length = 0
     for (const bb of this._blocks)
       y._blocks.push({
@@ -378,7 +380,7 @@ function rename<T, A>(env: Map<number, number | T>, stmt: Statement<T, A>, { fal
 
 function fuseblocks<T, A, M>(ir: IR<T, A, M>): IR<T, A, M> {
   const blocks = Array.from(ir.blocks())
-  const newIR = new IR<T, A, M>(ir.meta, ir.show, ir.typeOf)
+  const newIR = new IR<T, A, M>(ir.meta, ir.typeOf, ir.show)
   const skip = new Set<number>()
   for (let i = 1; i < blocks.length; i++) if (fuseable(blocks[i])) skip.add(blocks[i].id + 1)
   const blockEnv = new Map<number, number>()
@@ -587,7 +589,7 @@ class Pipe<I extends IR<any, any, any>> {
 
   constructor(ir: I) {
     this.from = ir
-    this.to = new IR(ir.meta, ir.show, ir.typeOf) as I
+    this.to = new IR(ir.meta, ir.typeOf, ir.show) as I
     this.map = new Map()
     this.id = 0
   }
