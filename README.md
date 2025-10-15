@@ -2,7 +2,7 @@
 <img width="400px" src=".github/logo.png"/>
 </p>
 
-[Raven](https://mikeinnes.io/posts/raven/) is a small but smart language that compiles to WebAssembly. It combines a simple, functional data model, powerful type inference, and flexible syntax. It's currently in the proof-of-concept stage: you're welcome to play with it, but expect bugs to appear before long!
+[Raven](https://mikeinnes.io/posts/raven/) is a small but smart language that compiles to WebAssembly. It combines a simple, functional data model, powerful type inference, and flexible syntax. It's currently in the proof-of-concept stage: you're welcome to play with it, but expect bugs to appear before long! Check out the [docs](DOCS.md) (such as they are) for more detail.
 
 You'll need [Node.js](https://nodejs.org/en) on your system, then you can install the compiler using `npm install -g @unkindnesses/raven`, which will make `raven` available in your terminal.
 
@@ -32,7 +32,7 @@ fn fib(0) { 0 }
 
 fn fibSequence(n) {
   xs = []
-  for i in range(1, n) {
+  for i = range(1, n) {
     append(&xs, fib(i))
   }
   return xs
@@ -71,7 +71,7 @@ bundle Instr {
 fn parse(code) {
   stack = []
   body = []
-  for ch in code {
+  for ch = code {
     if ch == "<" {
       append(&body, Left())
     } else if ch == ">" {
@@ -137,10 +137,11 @@ fn eval(&tape: Tape, instr: Instr) {
       }
     }
   }
+  return
 }
 
 fn interpret(&tape: Tape, code) {
-  for instr in code {
+  for instr = code {
     eval(&tape, instr)
   }
   return tape
