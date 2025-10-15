@@ -86,19 +86,29 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
   return ast.Group(...body)
 }
 
+// TODO more declarative anno tools
+function applyAnnotations(source: ast.Tree, target: ast.Tree): ast.Tree {
+  if (!ast.isExpr(source, 'Annotation')) return target
+  const inner = source.args[source.args.length - 1]
+  const wrapped = applyAnnotations(inner, target)
+  const args = [...source.args.slice(0, -1), wrapped]
+  return new ast.Expr('Annotation', args, source.meta)
+}
+
 function formacro(ex: ast.Expr): ast.Expr {
-  const assign = ast.asExpr(ex.args[1], 'Operator')
+  const forExpr = ast.asExpr(unwrapAnno(ex), 'Syntax')
+  const assign = ast.asExpr(forExpr.args[1], 'Operator')
   if (!isEqual(assign.args[0].unwrap(), symbol('=')))
     throw new Error('for syntax expects `=` assignment')
-  const [x, xs, body] = [assign.args[1], assign.args[2], ex.args[2]]
+  const [x, xs, body] = [assign.args[1], assign.args[2], forExpr.args[2]]
   const [itr, val] = [gensym("itr"), gensym("val")]
   return ast.Block(
     ast.Operator(s("="), itr, ast.Call(tag("common.iterator"), xs)),
-    ast.Syntax(s("while"), s("true"), ast.Block(
+    applyAnnotations(ex, ast.Syntax(s("while"), s("true"), ast.Block(
       ast.Operator(s("="), val, ast.Call(tag("common.next"), ast.Swap(itr))),
       ast.Syntax(s("if"), ast.Call(symbol("nil?"), val), ast.Block(s("break"))),
       ast.Operator(s("="), x, ast.Call(tag("common.core.part"), ast.Call(tag("common.core.notnil"), val), 1n)),
-      body)))
+      body))))
 }
 
 function matchmacro(ex: ast.Expr): ast.Expr {

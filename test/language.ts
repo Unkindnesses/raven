@@ -127,6 +127,19 @@ test('labeled loop control', async () => {
   `)
 })
 
+test('for loop labels', async () => {
+  await rv(`
+    total = 0
+    @label outer
+    for x = range(1, 5) {
+      if x == 2 { continue outer }
+      total = total + x
+      if x == 4 { break outer }
+    }
+    test total == 8
+  `)
+})
+
 test('complex arithmetic', async () => {
   await rv(`
     z = Complex(widen(5), widen(6))
