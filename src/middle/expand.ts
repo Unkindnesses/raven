@@ -69,7 +69,7 @@ function trim_unreachable(code: MIR): MIR {
   return pr.finish()
 }
 
-function union_downcast(pr: MIR | Pipe<MIR>, T: Type, i: number, x: Val<MIR>): number {
+function union_downcast(pr: Fragment<MIR>, T: Type, i: number, x: Val<MIR>): number {
   const U = asType(T, 'union')
   const offset = 1 + U.options.slice(0, i - 1).reduce((n, t) => n + layout(t).length, 0)
   const regs = layout(U.options[i - 1]).length
@@ -346,9 +346,10 @@ function lowerdata(code: MIR): MIR {
           pr.set(v, expr('tuple'))
       } else {
         const F = pr.type(callee)
-        if (F instanceof Method && inlinePrimitive.has(F))
-          // TODO deletion/replacement here rather than within each primitive
-          inlinePrimitive.get(F)!(pr, code, v)
+        if (F instanceof Method && inlinePrimitive.has(F)) {
+          pr.delete(v)
+          pr.replace(v, inlinePrimitive.get(F)!(pr, st))
+        }
       }
     } else if (ex.head === 'global' && st.type === ir.unreachable) {
       pr.delete(v)

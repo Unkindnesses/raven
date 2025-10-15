@@ -1,6 +1,6 @@
 import * as types from '../frontend/types'
 import { Type, tagOf, tag, asType, bits } from '../frontend/types'
-import { unreachable, Anno, Pipe, stmt, expr, asAnno, Val, Fragment } from '../utils/ir'
+import { unreachable, Anno, stmt, expr, asAnno, Val, Fragment } from '../utils/ir'
 import { HashSet, only } from '../utils/map'
 import isEqual from 'lodash/isEqual'
 import { Method, MIR, Module, WIntrinsic, FuncInfo, Const, xstring } from '../frontend/modules'
@@ -288,57 +288,54 @@ function primitives(): Method[] {
 // definition. `outline` ones return an expanded IR fragment, to be called as a
 // normal function.
 
-inlinePrimitive.set(pack_method, (pr, ir, v) => {
-  const T = asType(ir.get(v).type)
+inlinePrimitive.set(pack_method, (code, st) => {
+  const T = asType(st.type)
   if (isEqual(T, types.float64())) {
-    const arg = ir.get(v).expr.body[1]
-    const x = pr.insert(v, stmt(expr('ref', arg, i64(1)), { type: bits(64) }))
-    pr.set(v, xcall(new WIntrinsic('f64.reinterpret_i64'), x))
+    const arg = st.expr.body[1]
+    const ref = code.push(stmt(expr('ref', arg, i64(1)), { type: bits(64) }))
+    return code.push({ ...st, expr: xcall(new WIntrinsic('f64.reinterpret_i64'), ref) })
   } else if (isEqual(T, types.float32())) {
-    const arg = ir.get(v).expr.body[1]
-    const x = pr.insert(v, stmt(expr('ref', arg, i64(1)), { type: bits(32) }))
-    pr.set(v, xcall(new WIntrinsic('f32.reinterpret_i32'), x))
+    const arg = st.expr.body[1]
+    const ref = code.push(stmt(expr('ref', arg, i64(1)), { type: bits(32) }))
+    return code.push({ ...st, expr: xcall(new WIntrinsic('f32.reinterpret_i32'), ref) })
   } else {
     // Arguments are turned into a tuple when calling any function, so this
     // is just a cast.
-    const x = ir.get(v).expr.body[1]
-    if (!isEqual(layout(T), layout(asType(pr.type(x))))) throw new Error('pack: layout mismatch')
-    pr.replace(v, x)
+    const x = st.expr.body[1]
+    if (!isEqual(layout(T), layout(asType(code.type(x))))) throw new Error('pack: layout mismatch')
+    return x
   }
 })
 
-inlinePrimitive.set(part_method, (pr, ir, v) => {
-  let [x, i] = ir.get(v).expr.body.slice(1)
-  let [T, I] = [x, i].map(x => asType(pr.type(x)))
-  pr.delete(v)
+inlinePrimitive.set(part_method, (code, st) => {
+  let [x, i] = st.expr.body.slice(1)
+  let [T, I] = [x, i].map(x => asType(code.type(x)))
   if (T.kind === 'recursive') {
     T = types.unroll(T)
-    x = unbox(pr, T, x)
+    x = unbox(code, T, x)
   }
-  if ((T.kind === 'pack' && !types.isValue(I)) || T.kind === 'union') {
-    const y = pr.push(stmt(xcall(part_method, x, i), { type: partial_part(T, I) }))
-    pr.replace(v, y)
-  } else {
-    const y = indexer(pr, T, I, x, i) as Val<MIR>
-    pr.replace(v, y)
-    if (partial_part(T, I) === unreachable) return
-    if (isreftype(asType(partial_part(T, I)))) pr.push(stmt(expr('retain', y)))
-    if (isreftype(T)) pr.push(stmt(expr('release', x)))
+  if ((T.kind === 'pack' && !types.isValue(I)) || T.kind === 'union')
+    return code.push({ ...st, expr: xcall(part_method, x, i) })
+  const y = indexer(code, T, I, x, i) as Val<MIR>
+  if (partial_part(T, I) !== unreachable) {
+    if (isreftype(asType(partial_part(T, I)))) code.push(stmt(expr('retain', y)))
+    if (isreftype(T)) code.push(stmt(expr('release', x)))
   }
+  return y
 })
 
 outlinePrimitive.set(part_method, partir)
 
-inlinePrimitive.set(packcat_method, (pr, ir, v) => {
-  const x = ir.get(v).expr.body[1]
-  const S = asType(pr.type(x))
-  const T = asType(ir.get(v).type)
-  if (types.isValue(T)) {
-    pr.set(v, xtuple())
-  } else if ((S.kind === 'pack' && types.isAtom(T)) || T.kind === 'pack') {
+inlinePrimitive.set(packcat_method, (code, st) => {
+  const x = st.expr.body[1]
+  const S = asType(code.type(x))
+  const T = asType(st.type)
+  if (types.isValue(T)) return code.push({ ...st, expr: xtuple() })
+  if ((S.kind === 'pack' && types.isAtom(T)) || T.kind === 'pack') {
     if (!isEqual(layout(S), layout(T))) throw new Error('packcat: layout mismatch')
-    pr.set(v, xtuple(x))
+    return code.push({ ...st, expr: xtuple(x) })
   }
+  return code.push(st)
 })
 
 outlinePrimitive.set(packcat_method, packir)
@@ -358,21 +355,18 @@ function nparts(code: Fragment<MIR>, T: Type, x: Val<MIR>): Val<MIR> {
   }
 }
 
-inlinePrimitive.set(nparts_method, (pr, ir, v) => {
-  let x = ir.get(v).expr.body[1]
-  let T = asType(pr.type(x))
-  pr.delete(v)
+inlinePrimitive.set(nparts_method, (code, st) => {
+  let x = st.expr.body[1]
+  let T = asType(code.type(x))
   if (T.kind === 'recursive') {
     T = types.unroll(T)
-    x = unbox(pr, T, x)
+    x = unbox(code, T, x)
   }
-  if (T.kind === 'union') {
-    const y = pr.push(stmt(xcall(nparts_method, x), { type: types.int64() }))
-    pr.replace(v, y)
-  } else {
-    pr.replace(v, nparts(pr, T, x))
-    if (isreftype(T)) pr.push(stmt(expr('release', x)))
-  }
+  if (T.kind === 'union')
+    return code.push({ ...st, expr: xcall(nparts_method, x) })
+  const y = nparts(code, T, x)
+  if (isreftype(T)) code.push(stmt(expr('release', x)))
+  return y
 })
 
 outlinePrimitive.set(nparts_method, (x: Type): MIR => {
@@ -399,112 +393,101 @@ function constValue(T: Type): Const | undefined {
     return Const.f64(T.value)
 }
 
-inlinePrimitive.set(widen_method, (pr, ir, v) => {
-  const x = ir.get(v).expr.body[1]
-  const T = asType(pr.type(x))
-  if (types.isAtom(T) && types.isValue(T))
-    pr.replace(v, constValue(T) ?? T)
-  else if (isEqual(tagOf(T), tag('common.Int')) || isEqual(tagOf(T), tag('common.Bool')))
-    pr.replace(v, constValue(types.part(T, 1)) ?? types.part(T, 1))
-  else
-    pr.replace(v, x)
+inlinePrimitive.set(widen_method, (code, st) => {
+  const x = st.expr.body[1]
+  const T = asType(code.type(x))
+  if (types.isAtom(T) && types.isValue(T)) return constValue(T) ?? T
+  if (isEqual(tagOf(T), tag('common.Int')) || isEqual(tagOf(T), tag('common.Bool')))
+    return constValue(types.part(T, 1)) ?? types.part(T, 1)
+  return x
 })
 
-inlinePrimitive.set(bitsize_method, (pr, ir, v) => { pr.set(v, xtuple()) })
+inlinePrimitive.set(bitsize_method, (code, st) => code.push({ ...st, expr: xtuple() }))
 
 type BitsType = Type & { kind: 'bits' }
 
 // TODO use Const rather than BitsType in the output?
-function mask(T: BitsType, x: Val<MIR>) {
+function mask(code: Fragment<MIR>, T: BitsType, x: Val<MIR>): Val<MIR> {
   const m = bits(sizeof(T) * 8, (1n << BigInt(T.size)) - 1n)
-  return stmt(xcall(new WIntrinsic(`${only(layout(T))}.and`), x, m), { type: layout(T) })
-}
-
-function extend(pr: Pipe<MIR>, v: number, T: BitsType, x: Val<MIR>): number {
-  const n = sizeof(T) * 8
-  const shift = bits(n, BigInt(n - T.size))
-  x = pr.insert(v, stmt(xcall(new WIntrinsic(`${only(layout(T))}.shl`), x, shift), { type: bits(n) }))
-  x = pr.insert(v, stmt(xcall(new WIntrinsic(`${only(layout(T))}.shr_s`), x, shift), { type: bits(n) }))
+  x = code.push(stmt(xcall(new WIntrinsic(`${only(layout(T))}.and`), x, m), { type: layout(T) }))
   return x
 }
 
-inlinePrimitive.set(bitcast_method, (pr, ir, v) => {
-  if (types.isValue(asType(ir.get(v).type))) {
-    pr.set(v, xtuple())
-    return
-  }
-  let x = ir.get(v).expr.body[2]
-  const F = asType(pr.type(x), 'bits')
-  const T = asType(pr.type(v), 'bits')
+function extend(code: Fragment<MIR>, T: BitsType, x: Val<MIR>): Val<MIR> {
+  const n = sizeof(T) * 8
+  const shift = bits(n, BigInt(n - T.size))
+  x = code.push(stmt(xcall(new WIntrinsic(`${only(layout(T))}.shl`), x, shift), { type: bits(n) }))
+  x = code.push(stmt(xcall(new WIntrinsic(`${only(layout(T))}.shr_s`), x, shift), { type: bits(n) }))
+  return x
+}
+
+inlinePrimitive.set(bitcast_method, (code, st) => {
+  if (types.isValue(asType(st.type))) return code.push({ ...st, expr: xtuple() })
+  let x = st.expr.body[2]
+  const F = asType(code.type(x), 'bits')
+  const T = asType(st.type, 'bits')
   const lT = only(layout(T))
   const lF = only(layout(F))
   if (lT === 'i32' && lF === 'i64')
-    x = pr.insert(v, stmt(xcall(new WIntrinsic('i32.wrap_i64'), x), { type: bits(32) }))
+    x = code.push(stmt(xcall(new WIntrinsic('i32.wrap_i64'), x), { type: bits(32) }))
   else if (lT === 'i64' && lF === 'i32')
-    x = pr.insert(v, stmt(xcall(new WIntrinsic('i64.extend_i32_u'), x), { type: bits(64) }))
+    x = code.push(stmt(xcall(new WIntrinsic('i64.extend_i32_u'), x), { type: bits(64) }))
   if (T.size < F.size && T.size < sizeof(T) * 8)
-    x = pr.insert(v, mask(T, x))
-  pr.replace(v, x)
+    x = mask(code, T, x)
+  return x
 })
 
-inlinePrimitive.set(bitcast_s_method, (pr, ir, v) => {
-  if (types.isValue(asType(ir.get(v).type))) {
-    pr.set(v, xtuple())
-    return
-  }
-  let x = ir.get(v).expr.body[2]
-  const F = asType(pr.type(x), 'bits')
-  const T = asType(pr.type(v), 'bits')
-  if (T.size <= F.size) return inlinePrimitive.get(bitcast_method)!(pr, ir, v)
-  if (F.size < sizeof(F) * 8) x = extend(pr, v, F, x)
-  if (isEqual([sizeof(T), sizeof(F)], [8, 4]))
-    x = pr.insert(v, stmt(xcall(new WIntrinsic('i64.extend_i32_s'), x), { type: bits(64) }))
-  if (T.size < sizeof(T) * 8) x = pr.insert(v, mask(T, x))
-  pr.replace(v, x)
+inlinePrimitive.set(bitcast_s_method, (code, st) => {
+  if (types.isValue(asType(st.type)))
+    return code.push({ ...st, expr: xtuple() })
+  let x = st.expr.body[2]
+  const F = asType(code.type(x), 'bits')
+  const T = asType(st.type, 'bits')
+  if (T.size <= F.size) return inlinePrimitive.get(bitcast_method)!(code, st)
+  if (F.size < sizeof(F) * 8) x = extend(code, F, x)
+  if (isEqual([sizeof(T), sizeof(F)], [8, 4])) x = code.push(stmt(xcall(new WIntrinsic('i64.extend_i32_s'), x), { type: bits(64) }))
+  if (T.size < sizeof(T) * 8) x = mask(code, T, x)
+  return x
 })
 
 for (const [op, method] of bitop_methods)
-  inlinePrimitive.set(method, (pr, ir, v) => {
-    const T = asType(ir.get(v).type, 'bits')
-    if (types.isValue(T)) {
-      pr.set(v, xtuple())
-      return
-    }
-    let x = ir.get(v).expr.body[1]
-    let y = ir.get(v).expr.body[2]
+  inlinePrimitive.set(method, (code, st) => {
+    const T = asType(st.type, 'bits')
+    if (types.isValue(T))
+      return code.push({ ...st, expr: xtuple() })
+    let x = st.expr.body[1]
+    let y = st.expr.body[2]
     const sz = sizeof(T) * 8
     if (op.endsWith('_s') && T.size < sz) {
-      x = extend(pr, v, T, x)
-      y = extend(pr, v, T, y)
+      x = extend(code, T, x)
+      y = extend(code, T, y)
     }
-    let r = pr.insert(v, stmt(xcall(new WIntrinsic(`${only(layout(T))}.${op}`), x, y), { type: T }))
-    if (T.size < sz) r = pr.insert(v, mask(T, r))
-    pr.replace(v, r)
+    let result: Val<MIR> = code.push({ ...st, expr: xcall(new WIntrinsic(`${only(layout(T))}.${op}`), x, y) })
+    if (T.size < sz) result = mask(code, T, result)
+    return result
   })
 
 for (const [op, method] of bitcmp_methods)
-  inlinePrimitive.set(method, (pr, ir, v) => {
-    if (types.isValue(asType(ir.get(v).type))) {
-      pr.set(v, xtuple())
-      return
-    }
-    let x = ir.get(v).expr.body[1]
-    let y = ir.get(v).expr.body[2]
-    const T = asType(types.union(asType(ir.type(x)), asType(ir.type(y))), 'bits')
+  inlinePrimitive.set(method, (code, st) => {
+    if (types.isValue(asType(st.type))) return code.push({ ...st, expr: xtuple() })
+    let x = st.expr.body[1]
+    let y = st.expr.body[2]
+    const T = asType(types.union(asType(code.type(x)), asType(code.type(y))), 'bits')
     const sz = sizeof(T) * 8
     if (op.endsWith('_s') && T.size < sz) {
-      x = extend(pr, v, T, x)
-      y = extend(pr, v, T, y)
+      x = extend(code, T, x)
+      y = extend(code, T, y)
     }
-    pr.set(v, xcall(new WIntrinsic(`${only(layout(T))}.${op}`), x, y))
+    return code.push({ ...st, expr: xcall(new WIntrinsic(`${only(layout(T))}.${op}`), x, y) })
   })
 
-inlinePrimitive.set(biteqz_method, (pr, ir, v) => {
-  const x = ir.get(v).expr.body[1]
-  const T = asType(pr.type(x))
-  if (types.isValue(asType(ir.get(v).type))) pr.set(v, xtuple())
-  else if (sizeof(T) * 8 === 64) pr.set(v, xcall(new WIntrinsic('i64.eqz'), x))
-  else if (sizeof(T) * 8 === 32) pr.set(v, xcall(new WIntrinsic('i32.eqz'), x))
+inlinePrimitive.set(biteqz_method, (code, st) => {
+  const x = st.expr.body[1]
+  const T = asType(code.type(x))
+  if (types.isValue(asType(st.type))) return code.push({ ...st, expr: xtuple() })
+  if (sizeof(T) * 8 === 64) return code.push({ ...st, expr: xcall(new WIntrinsic('i64.eqz'), x) })
+  if (sizeof(T) * 8 === 32) return code.push({ ...st, expr: xcall(new WIntrinsic('i32.eqz'), x) })
+  throw new Error('unimplemented')
 })
 
 function symOverlap(x: Type, y: Type): number[] {
@@ -513,88 +496,69 @@ function symOverlap(x: Type, y: Type): number[] {
   throw new Error('unimplemented')
 }
 
-inlinePrimitive.set(shortcutEquals_method, (pr, ir, v) => {
-  if (types.isValue(asType(ir.get(v).type))) {
-    pr.set(v, xtuple())
-    return
-  }
-  // symbol case
-  let a = ir.get(v).expr.body[1]
-  let b = ir.get(v).expr.body[2]
-  let A = asType(pr.type(a))
-  let B = asType(pr.type(b))
+inlinePrimitive.set(shortcutEquals_method, (code, st) => {
+  if (types.isValue(asType(st.type)))
+    return code.push({ ...st, expr: xtuple() })
+  let a = st.expr.body[1]
+  let b = st.expr.body[2]
+  let A = asType(code.type(a))
+  let B = asType(code.type(b))
   if (B.kind === 'union') [a, b, A, B] = [b, a, B, A]
   const ov = symOverlap(A, B)
-  const i = pr.insert(v, stmt(expr('ref', a, i64(1)), { type: bits(32) }))
-  pr.set(v, xcall(new WIntrinsic('i32.eq'), i, bits(32, only(ov))))
+  const i = code.push(stmt(expr('ref', a, i64(1)), { type: bits(32) }))
+  return code.push({ ...st, expr: xcall(new WIntrinsic('i32.eq'), i, bits(32, only(ov))) })
 })
 
-inlinePrimitive.set(isnil_method, (pr, ir, v) => {
-  const x = ir.get(v).expr.body[1]
-  const T = asType(pr.type(x))
-  if (types.isValue(asType(ir.get(v).type))) {
-    pr.set(v, xtuple())
-  } else {
-    if (T.kind !== 'union') throw new Error('unimplemented')
-    const i = T.options.findIndex(opt => isEqual(opt, types.nil)) + 1
-    const j = pr.insert(v, stmt(expr('ref', x, i64(1)), { type: bits(32) }))
-    pr.set(v, xcall(new WIntrinsic('i32.eq'), j, bits(32, i)))
-  }
-  if (isreftype(T)) pr.insert(v, stmt(expr('release', x)))
+inlinePrimitive.set(isnil_method, (code, st) => {
+  const x = st.expr.body[1]
+  const T = asType(code.type(x))
+  if (types.isValue(asType(st.type)))
+    return code.push({ ...st, expr: xtuple() })
+  if (T.kind !== 'union') throw new Error('unimplemented')
+  const i = T.options.findIndex(opt => isEqual(opt, types.nil)) + 1
+  const j = code.push(stmt(expr('ref', x, i64(1)), { type: bits(32) }))
+  const result = code.push({ ...st, expr: xcall(new WIntrinsic('i32.eq'), j, bits(32, i)) })
+  if (isreftype(T)) code.push(stmt(expr('release', x)))
+  return result
 })
 
-inlinePrimitive.set(notnil_method, (pr, ir, v) => {
-  const x = ir.get(v).expr.body[1]
-  const T = asType(pr.type(x))
-  const V = asAnno(asType, ir.get(v).type)
-  if (isEqual(T, V)) {
-    pr.replace(v, x)
-  } else if (V === unreachable) {
+inlinePrimitive.set(notnil_method, (code, st) => {
+  const x = st.expr.body[1]
+  const T = asType(code.type(x))
+  const V = asAnno(asType, st.type)
+  if (isEqual(T, V)) return x
+  if (V === unreachable)
     // TODO make sure `not` in dispatcher infers
-    pr.delete(v)
-    pr.replace(v, abort(pr.to, 'notnil(nil)'))
-  } else {
-    if (!(T.kind === 'union' && V.kind !== 'union')) throw new Error('unimplemented')
-    const i = T.options.findIndex(opt => !isEqual(opt, types.nil)) + 1
-    pr.delete(v)
-    const down = union_downcast(pr, T, i, x)
-    pr.replace(v, down)
-  }
+    return abort(code, 'notnil(nil)')
+  if (!(T.kind === 'union' && V.kind !== 'union')) throw new Error('unimplemented')
+  const i = T.options.findIndex(opt => !isEqual(opt, types.nil)) + 1
+  return union_downcast(code, T, i, x)
 })
 
-inlinePrimitive.set(tagcast_method, (pr, ir, v) => {
-  let x = ir.get(v).expr.body[1]
-  let T = asType(pr.type(x))
-  const V = asAnno(asType, ir.get(v).type)
-  let tg = asType(pr.type(ir.get(v).expr.body[2]), 'tag')
-  if (isEqual(T, V))
-    pr.replace(v, x)
-  else if (V === unreachable) {
-    pr.delete(v)
-    pr.replace(v, abort(pr.to, 'tagcast'))
-  } else {
-    pr.delete(v)
-    if (T.kind === 'recursive') {
-      T = types.unroll(T)
-      x = unbox(pr, T, x)
-    }
-    const i = asType(T, 'union').options.findIndex(opt => isEqual(tagOf(opt), tg)) + 1
-    pr.replace(v, union_downcast(pr, T, i, x))
+inlinePrimitive.set(tagcast_method, (code, st) => {
+  let x = st.expr.body[1]
+  let T = asType(code.type(x))
+  const V = asAnno(asType, st.type)
+  const tg = asType(code.type(st.expr.body[2]), 'tag')
+  if (isEqual(T, V)) return x
+  if (V === unreachable) return abort(code, 'tagcast')
+  if (T.kind === 'recursive') {
+    T = types.unroll(T)
+    x = unbox(code, T, x)
   }
+  const i = asType(T, 'union').options.findIndex(opt => isEqual(tagOf(opt), tg)) + 1
+  return union_downcast(code, T, i, x)
 })
 
-function string(pr: MIR | Pipe<MIR>, s: string): number {
+function string(pr: Fragment<MIR>, s: string): number {
   const id = pr.push(stmt(xstring(s), { type: types.list(types.int32()) }))
   return pr.push(stmt(xcall(tag('common.JSObject'), id), { type: types.String() }))
 }
 
-inlinePrimitive.set(tagstring_method, (pr, ir, v) => {
-  const T = asType(pr.type(ir.get(v).expr.body[1]))
-  if (T.kind === 'tag') {
-    pr.delete(v)
-    const s = string(pr, types.asTag(T).path)
-    pr.replace(v, s)
-  }
+inlinePrimitive.set(tagstring_method, (code, st) => {
+  const T = asType(code.type(st.expr.body[1]))
+  if (T.kind === 'tag') return string(code, types.asTag(T).path)
+  return code.push(st)
 })
 
 outlinePrimitive.set(tagstring_method, (T: Type): MIR => {
@@ -607,24 +571,22 @@ outlinePrimitive.set(tagstring_method, (T: Type): MIR => {
 
 // UB if inferred output type is not `O`
 // TODO wrap with a type check / conversion
-inlinePrimitive.set(function_method, (pr, ir, v) => {
-  const [f, I, O] = ir.get(v).expr.body.slice(1, 4).map(x => asType(pr.type(x)))
+inlinePrimitive.set(function_method, (code, st) => {
+  const [f, I, O] = st.expr.body.slice(1, 4).map(x => asType(code.type(x)))
   if (![f, I, O].every(types.isValue)) throw new Error('nope')
-  pr.set(v, expr('func', f, rvtype(I), rvtype(O)))
+  return code.push({ ...st, expr: expr('func', f, rvtype(I), rvtype(O)) })
 })
 
-inlinePrimitive.set(invoke_method, (pr, ir, v) => {
-  const [f, I0, O0, args0] = ir.get(v).expr.body.slice(1, 5)
-  const [I, O] = [I0, O0].map(x => rvtype(asType(pr.type(x))))
+inlinePrimitive.set(invoke_method, (code, st) => {
+  const [f, I0, O0, args0] = st.expr.body.slice(1, 5)
+  const [I, O] = [I0, O0].map(x => rvtype(asType(code.type(x))))
   // TODO conversion
-  if (!types.issubset(asType(pr.type(args0)), I)) throw new Error('invoke: argument type mismatch')
-  pr.delete(v)
-  const args = cast(pr, asType(pr.type(args0)), I, args0)
-  const v2 = pr.push({ ...ir.get(v), expr: expr('call_indirect', f, args) })
-  pr.replace(v, v2)
+  if (!types.issubset(asType(code.type(args0)), I)) throw new Error('invoke: argument type mismatch')
+  const args = cast(code, asType(code.type(args0)), I, args0)
+  return code.push({ ...st, expr: expr('call_indirect', f, args) })
 })
 
-inlinePrimitive.set(jsalloc_method, (pr, ir, v) => { pr.set(v, xtuple()) })
+inlinePrimitive.set(jsalloc_method, (code, st) => code.push({ ...st, expr: xtuple() }))
 
 // Core module
 

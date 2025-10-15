@@ -1,9 +1,8 @@
 import { Type } from '../frontend/types'
-import { MIR, Method } from '../frontend/modules'
-import { Pipe } from '../utils/ir'
+import { IRType, IRValue, MIR, Method } from '../frontend/modules'
+import { Fragment, Statement, Val } from '../utils/ir'
 
 export { inlinePrimitive, outlinePrimitive }
 
-// TODO remove code arg
-const inlinePrimitive = new Map<Method, (pipe: Pipe<MIR>, code: MIR, v: number) => void>()
+const inlinePrimitive = new Map<Method, (code: Fragment<MIR>, st: Statement<IRValue, IRType>) => Val<MIR>>()
 const outlinePrimitive = new Map<Method, (...Ts: Type[]) => MIR>()
