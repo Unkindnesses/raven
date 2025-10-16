@@ -431,7 +431,7 @@ function emitDwarf(cx: BinaryContext, info: Debug): void {
   custom(cx, '.debug_line', buf => dwarf.debug_line(buf.buffer, info.lines))
 }
 
-function binary(m: wasm.Module): Uint8Array {
+function binary(m: wasm.Module, strip = false): Uint8Array {
   const buf: number[] = []
   const cx = BinaryContext.fromModule(buf, m)
   header(cx)
@@ -446,6 +446,6 @@ function binary(m: wasm.Module): Uint8Array {
   customSections(cx, m.customs)
   const dbg = code(cx, m.funcs)
   names(cx, m)
-  emitDwarf(cx, dbg)
+  if (!strip) emitDwarf(cx, dbg)
   return new Uint8Array(buf)
 }

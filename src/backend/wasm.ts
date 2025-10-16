@@ -302,16 +302,16 @@ function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.M
   })
 }
 
-async function binary(m: wasm.Module, file: string): Promise<void> {
-  await writeFile(file, wasmBinary(m))
+async function binary(m: wasm.Module, file: string, strip = false): Promise<void> {
+  await writeFile(file, wasmBinary(m, strip))
 }
 
-async function emitwasm(em: BatchEmitter, mod: Wasm, out: string): Promise<void> {
-  await binary(wasmmodule(em, mod.globals, mod.tables), out)
+async function emitwasm(em: BatchEmitter, mod: Wasm, out: string, strip = false): Promise<void> {
+  await binary(wasmmodule(em, mod.globals, mod.tables), out, strip)
 }
 
-function emitwasmBinary(em: BatchEmitter, mod: Wasm): Uint8Array {
-  return wasmBinary(wasmmodule(em, mod.globals, mod.tables))
+function emitwasmBinary(em: BatchEmitter, mod: Wasm, strip = false): Uint8Array {
+  return wasmBinary(wasmmodule(em, mod.globals, mod.tables), strip)
 }
 
 // Stream emitter, for REPL
