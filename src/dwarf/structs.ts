@@ -1,9 +1,14 @@
-import { Source } from '../utils/ir'
 import { HashSet } from '../utils/map'
 import { Tag, Attr, Form } from './enums'
 
 export {
-  LineInfo, Value, DIE, Abbrev, LineTable, offset, abbrev, abbrevs
+  Source, LineInfo, Value, DIE, Abbrev, LineTable, offset, abbrev, abbrevs
+}
+
+interface Source {
+  readonly file: string
+  readonly line: number
+  readonly col: number
 }
 
 class LineInfo {

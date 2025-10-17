@@ -1,5 +1,5 @@
-#!/usr/bin/env -S node --experimental-wasm-stack-switching
-import { loadWasm, table, support } from './support'
+#!/usr/bin/env -S node --enable-source-maps --experimental-wasm-stack-switching
+import { loadWasm, table } from './support'
 
 let binary: string | undefined
 

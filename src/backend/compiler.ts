@@ -168,5 +168,5 @@ const execPath = path.join(dirname, '../build/backend/exec.js')
 
 async function exec(file: string, args: string[] = [], config?: CompileConfig): Promise<void> {
   if (path.extname(file).toLowerCase() !== '.wasm') file = await compile(file, config)
-  await run('node', ['--experimental-wasm-stack-switching', execPath, file, ...args], { stdio: 'inherit' })
+  await run('node', ['--enable-source-maps', '--experimental-wasm-stack-switching', execPath, file, ...args], { stdio: 'inherit' })
 }

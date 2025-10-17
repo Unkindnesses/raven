@@ -4,6 +4,7 @@ import { compile } from '../src/backend/compiler'
 import { spawnSync } from 'node:child_process'
 import * as path from 'node:path'
 import { only, some } from '../src/utils/map'
+import { test as ravenTest } from '../src/test'
 
 type LineInfo = {
   file: string
@@ -100,6 +101,20 @@ test('Line info', async () => {
   assert.ok(info.file.endsWith('test/language/pow.rv'))
   assert.equal(info.line, 10)
   assert.equal(info.column, 18)
+})
+
+test('Stack trace', async () => {
+  await ravenTest(`
+fn foo(x) {
+  abort("something's wrong!")
+}
+
+foo(1)
+`, {
+    error: true,
+    output: /^Error: something's wrong!\n    at foo \(.+\/test\.rv:3:8\)\n    at .+\/test\.rv:6:4\n?$/,
+    options: { inline: false },
+  })
 })
 
 _test.run()

@@ -1,4 +1,5 @@
 import * as fs from 'fs/promises'
+import { DebugModule, locate, sections, Source } from '../dwarf/parse'
 
 export { loadWasm, support, table }
 
@@ -113,58 +114,53 @@ const support = {
   debugger: () => { debugger }
 }
 
-function readVarUint(bytes: Uint8Array, offset: number): [number, number] | null {
-  let result = 0
-  let shift = 0
-  let pos = offset
-  while (pos < bytes.length) {
-    const byte = bytes[pos]
-    pos += 1
-    result |= (byte & 0x7f) << shift
-    if ((byte & 0x80) === 0) return [result >>> 0, pos]
-    shift += 7
-    if (shift > 35) break
-  }
-  return null
-}
-
 interface Metadata {
   strings: string[]
   jsalloc: boolean
 }
 
 function meta(bytes: Uint8Array): Metadata | undefined {
-  if (bytes.length < 8) return
-  const target = 'raven.meta'
-  const decoder = new TextDecoder()
-  let offset = 8 // magic + version
-  while (offset < bytes.length) {
-    const id = bytes[offset]
-    offset += 1
-    const sizeRead = readVarUint(bytes, offset)
-    if (!sizeRead) return
-    const [size, sizeEnd] = sizeRead
-    offset = sizeEnd
-    const sectionEnd = offset + size
-    if (sectionEnd > bytes.length) return
-    if (id === 0) {
-      const nameRead = readVarUint(bytes, offset)
-      if (!nameRead) return
-      const [nameLen, nameEnd] = nameRead
-      const nameStop = nameEnd + nameLen
-      if (nameStop > sectionEnd) return
-      const name = decoder.decode(bytes.slice(nameEnd, nameStop))
-      if (name === target) {
-        const payload = bytes.slice(nameStop, sectionEnd)
-        if (payload.length === 0) return
-        const json = decoder.decode(payload)
-        return JSON.parse(json)
+  const bs = sections(bytes)[1].get('raven.meta')
+  if (!bs) return
+  return JSON.parse(new TextDecoder().decode(bs)) as Metadata
+}
+
+const debugModules = new Map<WebAssembly.Instance, DebugModule>()
+
+function formatLocation(loc: Source): string {
+  return `${loc.file}:${loc.line}:${loc.col}`
+}
+
+function formatStack(err: Error, frames: NodeJS.CallSite[]): string {
+  let lines: string[] = []
+  for (const frame of frames) {
+    if (typeof frame.getPosition !== 'function') continue
+    const position = frame.getPosition()
+    if (typeof position !== 'number') continue
+    const script = frame.getScriptNameOrSourceURL?.()
+    if (typeof script === 'string' && script.startsWith('wasm://')) {
+      let debug = debugModules.get(frame.getThis() as WebAssembly.Instance)
+      if (debug) {
+        const located = locate(position, debug)
+        if (!located || located.fn.trampoline) continue
+        if (!located.line)
+          lines.push(located.fn.name)
+        else if (located.fn.name === 'common.core.main')
+          lines.push(formatLocation(located.line.source))
+        else
+          lines.push(`${located.fn.name} (${formatLocation(located.line.source)})`)
+        continue
       }
     }
-    offset = sectionEnd
+    lines.push(frame.toString())
   }
-  return
+  lines = lines.filter(l => !l.match(/backend\/(exec|worker)/))
+  while (lines[0]?.match(/common\.abort.*wasm\/js\.rv/)) lines.shift()
+  const header = err.toString()
+  return [header, ...lines.map(x => `    at ${x}`)].join('\n')
 }
+
+Error.prepareStackTrace = (err, frames) => formatStack(err, frames)
 
 async function loadWasm(buf: string | Uint8Array, imports: any = {}) {
   if (typeof buf === 'string')
@@ -172,6 +168,8 @@ async function loadWasm(buf: string | Uint8Array, imports: any = {}) {
   const m = meta(buf)
   if (m === undefined) throw new Error('Not a Raven wasm module.')
   imports = { ...imports, support: { ...support, string: (i: number) => createRef(m.strings[i]) } }
-  let res: any = await WebAssembly.instantiate(buf, imports)
+  const res = await WebAssembly.instantiate(new Uint8Array(buf), imports)
+  const debug = DebugModule(buf)
+  if (debug) debugModules.set(res.instance, debug)
   return [res.instance.exports, m] as const
 }

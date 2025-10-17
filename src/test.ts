@@ -46,7 +46,7 @@ async function run(code: string, options?: Partial<Options>): Promise<Result> {
 
 interface TestOptions {
   error?: boolean
-  output?: string | string[]
+  output?: string | string[] | RegExp
   options?: Partial<Options>
 }
 
@@ -55,6 +55,10 @@ async function test(code: string, opts: TestOptions = {}): Promise<void> {
   const { code: exitCode, output: out } = await run(code, options)
   if (!error && exitCode !== 0) throw new Error(out.trim() || `Process exited with status ${exitCode}`)
   assert.strictEqual(exitCode !== 0, error, `expected ${error ? '' : 'no '}error, got status ${exitCode}\n${out}`)
+  if (output instanceof RegExp) {
+    assert.ok(output.test(out), `expected output to match ${output.source}\n${out}`)
+    return
+  }
   if (typeof output === 'string') {
     assert.ok(out.includes(output), `expected output to contain ${JSON.stringify(output)}\n${out}`)
     return

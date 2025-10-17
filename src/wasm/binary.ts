@@ -388,7 +388,7 @@ function code(cx: BinaryContext, funcs: wasm.Func[]): Debug {
       const tlt = lt || new dwarf.LineTable([])
       table.lines.push(...dwarf.offset(tlt, -low_pc).lines)
       const attrs: [dwarf.Attr, [dwarf.Form, any]][] = [
-        [dwarf.Attr.name, [dwarf.Form.string, some(f.meta).name]],
+        [dwarf.Attr.name, [dwarf.Form.string, some(f.meta).name.path]],
         [dwarf.Attr.low_pc, [dwarf.Form.addr, low_pc]],
         [dwarf.Attr.high_pc, [dwarf.Form.addr, high_pc]]
       ]

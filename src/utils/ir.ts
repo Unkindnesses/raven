@@ -1,5 +1,6 @@
 import { asNumber } from "../utils/map"
 import { HashMap, some } from "./map"
+import { Source } from "../dwarf/structs"
 import { WorkQueue } from "./fixpoint"
 import { identity, isEqual } from "lodash"
 
@@ -18,12 +19,6 @@ type Anno<T> = T | Unreachable
 
 function asAnno<T>(asT: (x: any) => T, x: any): Anno<T> {
   return x === unreachable ? unreachable : asT(x)
-}
-
-interface Source {
-  readonly file: string
-  readonly line: number
-  readonly col: number
 }
 
 class Slot {
