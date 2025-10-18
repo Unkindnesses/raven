@@ -24,7 +24,8 @@
 
 import * as types from '../frontend/types'
 import * as ir from '../utils/ir'
-import { MIR, IRValue, Method, Definitions, FuncInfo } from '../frontend/modules'
+import { MIR, IRValue, Method, Definitions } from '../frontend/modules'
+import { Def } from '../dwarf'
 import { xlist, xpart, xcall } from '../frontend/lower'
 import { Pattern, patternType, pattern } from '../frontend/patterns'
 import { Inference, Sig, inferexpr, infercall, issubset, maybe_union } from './abstract'
@@ -269,7 +270,7 @@ function icall(inf: Inference, code: MIR, sig: Sig, f: IRValue, ...args: (IRValu
 }
 
 function dispatcher(inf: Inference, func: types.Tag, Ts: types.Type): [MIR, ir.Anno<types.Type>] {
-  const code = MIR(new FuncInfo(func, undefined, true))
+  const code = MIR(Def(func.path, undefined, true))
   const args = code.argument(Ts)
   let ret: ir.Anno<types.Type> = ir.unreachable
   let arms = dispatch_arms(Ts)

@@ -388,11 +388,11 @@ function code(cx: BinaryContext, funcs: wasm.Func[]): Debug {
       const tlt = lt || new dwarf.LineTable([])
       table.lines.push(...dwarf.offset(tlt, -low_pc).lines)
       const attrs: [dwarf.Attr, [dwarf.Form, any]][] = [
-        [dwarf.Attr.name, [dwarf.Form.string, some(f.meta).name.path]],
+        [dwarf.Attr.name, [dwarf.Form.string, f.meta.name]],
         [dwarf.Attr.low_pc, [dwarf.Form.addr, low_pc]],
         [dwarf.Attr.high_pc, [dwarf.Form.addr, high_pc]]
       ]
-      if (f.meta?.trampoline) attrs.push([dwarf.Attr.trampoline, [dwarf.Form.flag, true]])
+      if (f.meta.trampoline) attrs.push([dwarf.Attr.trampoline, [dwarf.Form.flag, true]])
       dies.push(new dwarf.DIE(dwarf.Tag.subprogram, attrs as any, []))
     }
   })

@@ -5,7 +5,7 @@ import { IR, Block, stmt, Branch, CFG, Component, components, entry, rename, Exp
 
 export { LoopIR, loop, looped, unloop, Path, tail, block, nextpath, nextpathTo, pin, reroll, blockargs }
 
-function copyblock<T, A, M>(to: Block<IR<T, A, M>>, from: Block<IR<T, A, M>>) {
+function copyblock<T, A>(to: Block<IR<T, A>>, from: Block<IR<T, A>>) {
   const env = new Map<number, number>()
   for (let i = 0; i < from.args.length; i++)
     env.set(from.args[i], to.argument(from.argtypes[i]))
@@ -13,26 +13,26 @@ function copyblock<T, A, M>(to: Block<IR<T, A, M>>, from: Block<IR<T, A, M>>) {
     env.set(v, to.push(rename(env, st)))
 }
 
-class LoopIR<T, A, M> {
-  constructor(readonly ir: IR<T, A, M>, readonly bls: number[], readonly body: IR<T, A, M>[], public max: number) { }
+class LoopIR<T, A> {
+  constructor(readonly ir: IR<T, A>, readonly bls: number[], readonly body: IR<T, A>[], public max: number) { }
 }
 
-function showLoop<T, A, M>(l: LoopIR<T, A, M>, args: (T | number)[], pr: (x: T) => string): string {
+function showLoop<T, A>(l: LoopIR<T, A>, args: (T | number)[], pr: (x: T) => string): string {
   const show = (x: T | number) => typeof x === 'number' ? `%${x}` : pr(x)
   let s = args.length ? `loop ${args.map(show).join(', ')}:` : 'loop:'
   l.body.forEach((b, i) => {
     const head = '  '.repeat(getIndent() + 2) + `#${i + 1}:`
-    const body = withIndent(3, () => b.toString())
+    const body = withIndent(3, () => b.toString(false))
     s += `\n${head}\n${body}`
   })
   return s
 }
 
-class Loop<T, A, M> extends Expr<T> {
-  constructor(readonly loop: LoopIR<T, A, M>, args: (T | number)[]) {
+class Loop<T, A> extends Expr<T> {
+  constructor(readonly loop: LoopIR<T, A>, args: (T | number)[]) {
     super('loop', args)
   }
-  map(f: (x: T | number) => T | number): Loop<T, A, M> {
+  map(f: (x: T | number) => T | number): Loop<T, A> {
     return new Loop(this.loop, this.body.map(f))
   }
   show(pr: (x: T) => string): string {
@@ -40,15 +40,15 @@ class Loop<T, A, M> extends Expr<T> {
   }
 }
 
-function loop<T, A, M>(b: Block<IR<T, A, M>>): LoopIR<T, A, M> | null {
+function loop<T, A>(b: Block<IR<T, A>>): LoopIR<T, A> | null {
   if (b.length === 0) return null
   const [, first] = [...b][0]
   if (first.expr.head !== 'loop') return null
-  const e = first.expr as { head: 'loop', loop?: LoopIR<T, A, M> }
+  const e = first.expr as { head: 'loop', loop?: LoopIR<T, A> }
   return e.loop ?? null
 }
 
-function looped<T, A, M>(ir: IR<T, A, M>, cs?: Component): LoopIR<T, A, M> {
+function looped<T, A>(ir: IR<T, A>, cs?: Component): LoopIR<T, A> {
   cs ??= components(new CFG(ir))
   if (!Array.isArray(cs)) cs = [cs]
   const out = ir.empty()
@@ -68,20 +68,20 @@ function looped<T, A, M>(ir: IR<T, A, M>, cs?: Component): LoopIR<T, A, M> {
   return new LoopIR(out, blocks, [out.clone()], 8)
 }
 
-function nblocksBlock<T, A, M>(b: Block<IR<T, A, M>>): number {
+function nblocksBlock<T, A>(b: Block<IR<T, A>>): number {
   const l = loop(b)
   return l ? nblocksLoop(l) : 1
 }
 
-function nblocksIR<T, A, M>(ir: IR<T, A, M>): number {
+function nblocksIR<T, A>(ir: IR<T, A>): number {
   return Array.from(ir.blocks()).reduce((a, b) => a + nblocksBlock(b), 0)
 }
 
-function nblocksLoop<T, A, M>(l: LoopIR<T, A, M>): number {
+function nblocksLoop<T, A>(l: LoopIR<T, A>): number {
   return l.body.reduce((acc, x) => acc + nblocksIR(x), 0)
 }
 
-function blockmap<T, A, M>(l: LoopIR<T, A, M>, offset = 1): Map<number, number> {
+function blockmap<T, A>(l: LoopIR<T, A>, offset = 1): Map<number, number> {
   const map = new Map<number, number>()
   for (const b of l.ir.blocks()) {
     map.set(l.bls[b.id], offset)
@@ -91,10 +91,10 @@ function blockmap<T, A, M>(l: LoopIR<T, A, M>, offset = 1): Map<number, number> 
   return map
 }
 
-function unloop<T, A, M>(l: LoopIR<T, A, M>): IR<T, A, M> {
+function unloop<T, A>(l: LoopIR<T, A>): IR<T, A> {
   const out = l.ir.empty()
   out.deleteBlock(1)
-  const unloopRec = (l: LoopIR<T, A, M>, bs: Map<number, number>) => {
+  const unloopRec = (l: LoopIR<T, A>, bs: Map<number, number>) => {
     for (let iter = 0; iter < l.body.length; iter++) {
       const lir = l.body[iter]
       const entryId = out.blockCount + 1
@@ -136,7 +136,7 @@ class Path {
 
 function tail(p: Path): Path { return new Path(p.parts.slice(1)) }
 
-function block<T, A, M>(ir: LoopIR<T, A, M>, p: Path): Block<IR<T, A, M>> {
+function block<T, A>(ir: LoopIR<T, A>, p: Path): Block<IR<T, A>> {
   for (let i = 0; i < p.parts.length - 1; i++) {
     const [itr, b] = p.parts[i]
     const l = loop(ir.body[itr - 1].block(b))
@@ -158,7 +158,7 @@ function blockargs(x: MIR | Block<MIR>, args: Type[]): boolean {
   return changed
 }
 
-function reroll(ir: LoopIR<IRValue, any, any>): boolean {
+function reroll(ir: LoopIR<IRValue, any>): boolean {
   ir.max = 1
   if (ir.body.length === 1) return false
   let changed = false
@@ -170,7 +170,7 @@ function reroll(ir: LoopIR<IRValue, any, any>): boolean {
   return changed
 }
 
-function nextpath<T, A, M>(ir: LoopIR<T, A, M>, p: Path): Path | null {
+function nextpath<T, A>(ir: LoopIR<T, A>, p: Path): Path | null {
   const [itr, bl] = p.parts[0]
   const inner = loop(ir.body[itr - 1].block(bl))
   const next = p.parts.length === 1 || !inner ? null : nextpath(inner, tail(p))
@@ -179,7 +179,7 @@ function nextpath<T, A, M>(ir: LoopIR<T, A, M>, p: Path): Path | null {
     itr < ir.body.length ? new Path([[itr + 1, 1]]) : null
 }
 
-function nextpathTo(ir: LoopIR<IRValue, unknown, unknown>, p: Path, target: number): [Path, boolean] {
+function nextpathTo(ir: LoopIR<IRValue, unknown>, p: Path, target: number): [Path, boolean] {
   const q: [number, number][] = []
   for (const [itr, b] of p.parts) {
     const c = ir.bls.indexOf(target) + 1
@@ -205,7 +205,7 @@ function nextpathTo(ir: LoopIR<IRValue, unknown, unknown>, p: Path, target: numb
 }
 
 // If a loop iteration breaks out, don't unroll it further.
-function pin(ir: LoopIR<IRValue, unknown, unknown>, p: Path, depth: number): boolean {
+function pin(ir: LoopIR<IRValue, unknown>, p: Path, depth: number): boolean {
   let rr = false
   for (let i = 0; i < p.parts.length; i++) {
     const [itr, b] = p.parts[i]

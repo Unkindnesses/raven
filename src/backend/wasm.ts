@@ -3,14 +3,14 @@ import { Type, Bits, asBits, bits, tag } from '../frontend/types'
 import * as wasm from '../wasm/wasm'
 import { binary as wasmBinary } from '../wasm/binary'
 import { writeFile } from 'fs/promises'
-import * as path from 'path'
 import { options } from '../utils/options'
 import { irfunc, Instr, setdiff } from '../wasm/ir'
 import { unreachable, Anno, Pipe, expr, stmt, Val, asAnno, Branch } from '../utils/ir'
 import isEqual from 'lodash/isEqual'
 import { layout } from '../middle/expand'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe } from '../utils/cache'
-import { Binding, Definitions, MIR, WImport, WIntrinsic, Method, Const, asFunc, asBinding, FuncInfo, StringRef } from '../frontend/modules'
+import { Binding, Definitions, MIR, WImport, WIntrinsic, Method, Const, asFunc, asBinding, StringRef } from '../frontend/modules'
+import { Def } from '../dwarf'
 import { Redirect, type Sig } from '../middle/abstract'
 import { Accessor } from '../utils/fixpoint'
 import { xtuple } from '../frontend/lower'
@@ -277,7 +277,7 @@ class BatchEmitter implements Emitter {
 function startfunc(main: string[]): wasm.Func {
   const body = wasm.Block([...main.map(m => wasm.Call(m)), wasm.Const(wasm.Type.i32, 0)])
   return wasm.Func('_start', wasm.Signature([], [wasm.Type.i32]), [], body,
-    new FuncInfo(tag('common.core.main'), undefined, true))
+    Def('common.core.main', undefined, true))
 }
 
 function metaSection(strings: string[]): wasm.CustomSection {

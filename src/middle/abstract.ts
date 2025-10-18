@@ -3,7 +3,8 @@ import { LoopIR, looped, Path, block, nextpath, nextpathTo, pin, blockargs, loop
 import { MatchMethods, dispatcher } from './patterns'
 import { Tag, Type, repr, union, asType, issubset as iss, isValue, pack, tag, tagOf } from '../frontend/types'
 import { wasmPartials } from '../backend/wasm'
-import { MIR, IRValue, IRType, Binding, Method, Definitions, FuncInfo, WIntrinsic, WImport, StringRef } from '../frontend/modules'
+import { MIR, IRValue, IRType, Binding, Method, Definitions, WIntrinsic, WImport, StringRef } from '../frontend/modules'
+import { Def } from '../dwarf'
 import { WorkQueue } from '../utils/fixpoint'
 import { HashMap, HashSet, some } from '../utils/map'
 import { trackdeps, Map as CacheMap, fingerprint, Caching, time } from '../utils/cache'
@@ -21,7 +22,7 @@ function maybe_union(x: Anno<Type>, y: Anno<Type>): Anno<Type> {
 
 type Func = Tag | Method
 type Sig = [Func, ...Type[]]
-type AIR = LoopIR<IRValue, IRType, FuncInfo | undefined>
+type AIR = LoopIR<IRValue, IRType>
 
 function prepare_ir(ir: MIR): AIR {
   return looped(expand(ir.clone()))
@@ -128,7 +129,7 @@ function methodFrame(inf: Inference, P: Parent, meth: Method, ...Ts: Type[]): Fr
 function tagFrame(inf: Inference, P: Parent, F: Tag, T: Type): Frame {
   const sig: Sig = [F, T]
   if (inf.frames.has(sig)) return inf.frame(sig)
-  inf.frames.set(sig, new Frame(P, looped(MIR(undefined))))
+  inf.frames.set(sig, new Frame(P, looped(MIR(Def(F.path)))))
   update(inf, sig)
   return inf.frame(sig)
 }

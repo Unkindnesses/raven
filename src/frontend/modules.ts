@@ -1,5 +1,5 @@
 import { HashMap, some } from "../utils/map"
-import { Source, Anno, unreachable } from "../utils/ir"
+import { Anno, unreachable } from "../utils/ir"
 import { Type, Tag, tag, repr } from "./types"
 import * as types from "./types"
 import { Type as WType } from "../wasm/wasm"
@@ -7,10 +7,11 @@ import * as cache from "../utils/cache"
 import * as ir from "../utils/ir"
 import isEqual from 'lodash/isEqual'
 import { Pattern } from "./patterns"
+import { Def } from "../dwarf"
 
 export {
   Module, Method, Signature, Binding, asBinding, asFunc, asConst, Modules,
-  FuncInfo, Definitions, Const, MIR, IRValue, IRType, WIntrinsic, WImport, showIRValue,
+  Definitions, Const, MIR, IRValue, IRType, WIntrinsic, WImport, showIRValue,
   StringRef, xstring
 }
 
@@ -20,17 +21,6 @@ class WIntrinsic {
 
 class WImport {
   constructor(readonly mod: string, readonly name: string) { }
-}
-
-class FuncInfo {
-  constructor(
-    readonly name: Tag,
-    readonly source: Source | undefined = undefined,
-    readonly trampoline: boolean = false
-  ) { }
-  toString() {
-    return `Function ${this.name} at ${JSON.stringify(this.source)}`
-  }
 }
 
 class Binding {
@@ -71,7 +61,7 @@ function asConst(x: unknown): Const {
 
 type IRValue = Type | Const | Method | ir.Slot | Binding | WIntrinsic | WImport
 type IRType = IRValue | WType[]
-type MIR = ir.IR<IRValue, IRType, FuncInfo | undefined>
+type MIR = ir.IR<IRValue, IRType>
 
 function irTypeOf(x: IRValue): IRValue | IRType {
   if (x instanceof Const) {
@@ -94,8 +84,8 @@ function showIRValue(x: IRValue | IRType): string {
   return repr(x)
 }
 
-function MIR(meta: FuncInfo | undefined): MIR {
-  return new ir.IR<IRValue, IRType, FuncInfo | undefined>(meta, irTypeOf, showIRValue)
+function MIR(meta: Def): MIR {
+  return new ir.IR<IRValue, IRType>(meta, irTypeOf, showIRValue)
 }
 
 class StringRef<T> extends ir.Expr<T> {

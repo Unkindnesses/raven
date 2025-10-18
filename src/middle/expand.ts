@@ -21,7 +21,8 @@ import * as ir from '../utils/ir'
 import * as types from '../frontend/types'
 import { Type, asType } from '../frontend/types'
 import { Type as WType, sizeof as wsizeof } from '../wasm/wasm'
-import { MIR, WImport, WIntrinsic, Method, FuncInfo, Const, asBinding, asFunc, xstring } from '../frontend/modules'
+import { MIR, WImport, WIntrinsic, Method, Const, asBinding, asFunc, xstring } from '../frontend/modules'
+import { Def } from '../dwarf'
 import { Inferred, Redirect, type Sig, sig as resolveSig } from './abstract'
 import { wasmPartials } from '../backend/wasm'
 import isEqual from 'lodash/isEqual'
@@ -154,7 +155,7 @@ function sizeof(T: Type): number {
 // ====
 
 function partir_union(x: Type & { kind: 'union' }, i: Type): MIR {
-  const code = MIR(new FuncInfo(types.tag('common.core.part')))
+  const code = MIR(Def('common.core.part'))
   const retT = partial_part(x, i)
   const vx = code.argument(x)
   const vi = code.argument(i)
@@ -176,7 +177,7 @@ function partir(x: Type, i: Type): MIR {
   if (x.kind === 'union') return partir_union(x, i)
   if (!isEqual(types.tagOf(i), types.tag('common.Int'))) throw new Error('partir: expected Int index')
   const T = partial_part(x, i)
-  const code = MIR(new FuncInfo(types.tag('common.core.part')))
+  const code = MIR(Def('common.core.part'))
   const vx = code.argument(x)
   const vi = code.argument(i)
   const xlayout = layout(x)
@@ -253,7 +254,7 @@ function packir(Ts: Type): MIR {
   const U = types.unroll(T)
   if (!(U.kind === 'vpack') || !(types.tagOf(T).kind === 'tag')) throw new Error('nope')
   const E = some(types.partial_eltype(U))
-  const code = MIR(new FuncInfo(types.tag('common.core.packcat')))
+  const code = MIR(Def('common.core.packcat'))
   const xs = code.argument(Ts)
   const ps: Val<MIR>[] = []
   for (let i = 1; i <= types.nparts(Ts); i++)

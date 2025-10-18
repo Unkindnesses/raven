@@ -5,7 +5,8 @@ import { fuseblocks, prune, ssa } from "../utils/ir"
 import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast"
 import * as types from "./types"
 import { Type, Tag, tag, pack, bits, int32, asType, nil } from "./types"
-import { Module, Signature, Binding, FuncInfo, IRValue, WIntrinsic, MIR, WImport, xstring } from "./modules"
+import { Module, Signature, Binding, IRValue, WIntrinsic, MIR, WImport, xstring } from "./modules"
+import { Def } from "../dwarf"
 import { asBigInt, some } from "../utils/map"
 import { binding } from "../utils/options"
 import * as parse from "./parse"
@@ -227,7 +228,7 @@ function Scope(parent: Scope, swap?: Map<number, string>): Scope {
 
 // don't continue lowering after return
 // e.g. `f(return 1)`
-function _push<T, A, M>(code: ir.IR<T, A, M>, x: ir.Expr<T>, { type, src, bp }: { type?: ir.Anno<A>, src?: ast.Meta, bp?: boolean } = {}): number {
+function _push<T, A>(code: ir.IR<T, A>, x: ir.Expr<T>, { type, src, bp }: { type?: ir.Anno<A>, src?: ast.Meta, bp?: boolean } = {}): number {
   if (!code.block().canbranch()) throw new Error("Pushing into finished block")
   return code.push(ir.stmt(x, { type, src: src && source(src), bp }))
 }
@@ -664,7 +665,7 @@ function lowerIf(sc: Scope, code: LIR, ex: IfStmt, value = true): IRValue | numb
 const [withResolve, getResolve] = binding<(x: Symbol) => Type>('resolve')
 const resolve_static = (x: Symbol): Type => getResolve()(x)
 
-function lowerfn(mod: Tag, sig: Signature, body: ast.Tree, resolver: (x: Symbol) => Type, meta?: FuncInfo): LIR {
+function lowerfn(mod: Tag, sig: Signature, body: ast.Tree, resolver: (x: Symbol) => Type, meta: Def): LIR {
   const sc = Scope(GlobalScope(mod), sig.swap)
   const code = MIR(meta)
   for (const arg of sig.args) {
@@ -714,7 +715,7 @@ function assigned_globals(code: MIR): Map<Binding, Type> {
   return out
 }
 
-function lower_toplevel(mod: Module, ex: ast.Tree, resolve: (x: Symbol) => Type, meta?: FuncInfo): [LIR, Set<string>] {
+function lower_toplevel(mod: Module, ex: ast.Tree, resolve: (x: Symbol) => Type, meta: Def): [LIR, Set<string>] {
   const sc = GlobalScope(mod.name)
   const code = MIR(meta)
   withResolve(resolve, () => { lower(sc, code, ex, false) })

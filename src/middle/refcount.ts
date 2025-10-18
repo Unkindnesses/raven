@@ -28,7 +28,8 @@
 import * as ir from '../utils/ir'
 import * as types from '../frontend/types'
 import { Type, tag, tagOf, asType } from '../frontend/types'
-import { MIR, Const, FuncInfo, IRValue, Method, asConst } from '../frontend/modules'
+import { MIR, Const, IRValue, Method, asConst } from '../frontend/modules'
+import { Def } from '../dwarf'
 import { Redirect, type Sig } from './abstract'
 import { Cache } from '../utils/cache'
 import { primitive } from './primitives'
@@ -171,7 +172,7 @@ function recursive_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>,
 }
 
 function count_ir(T: Type, mode: CountMode): MIR {
-  const code = MIR(new FuncInfo(tag(`common.core.${mode}`)))
+  const code = MIR(Def(`common.core.${mode}`))
   const x = code.argument(T)
   count_inline(code, T, x, mode)
   code.return(types.nil)

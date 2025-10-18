@@ -7,6 +7,7 @@ import { tag, Type } from '../src/frontend/types'
 import { asSymbol } from '../src/frontend/ast'
 import * as ast from '../src/frontend/ast'
 import { Module } from '../src/frontend/modules'
+import { Def } from '../src/dwarf'
 
 test('parse simple function definition', () => {
   const tree = parse('test', 'def foo(x) { while (true) { println(1 + 2) } }')
@@ -45,12 +46,13 @@ function lower(def: string, resolver: (x: ast.Symbol) => Type = x => { throw new
   const params = ast.asExpr(ex.args[1], 'Call').args.slice(1)
   const body = ex.args[2]
   const sig = lowerpattern(ast.List(...params))
-  return lowerfn(tag(''), sig, body, resolver)
+  return lowerfn(tag(''), sig, body, resolver, Def('test'))
 }
 
 test('lower simple function', () => {
   const ir = lower('fn foo(x) { x + 1 }')
-  assert.equal(ir.toString(), `1: (%1)
+  assert.equal(ir.toString(), `Function test at undefined
+1: (%1)
   %2 = pack tag"common.List", %1, 1
   %3 = global tag"".+
   %4 = call %3, %2 # test:1:14 🔴
@@ -60,7 +62,8 @@ test('lower simple function', () => {
 
 test('lower control flow', () => {
   const ir = lower('fn test(x) { if x > 0 { x + 1 } else { x - 1 } }')
-  assert.equal(ir.toString(), `1: (%1)
+  assert.equal(ir.toString(), `Function test at undefined
+1: (%1)
   %2 = pack tag"common.List", %1, 0
   %3 = global tag"".>
   %4 = call %3, %2 # test:1:18 🔴
@@ -91,7 +94,8 @@ test('lower if let', () => {
     if (sym.toString() === 'Some') return tag('common.Some')
     throw new Error('undefined')
   })
-  assert.equal(ir.toString(), `1: (%1)
+  assert.equal(ir.toString(), `Function test at undefined
+1: (%1)
   %2 = pack tag"common.List", %1, pack(tag"common.Constructor", tag"common.Some", pack(tag"common.Bind", tag"y", pack(tag"common.Hole")))
   %3 = call tag"common.match", %2
   %4 = call Method(tag"common.core.part"), %3, 1
@@ -111,7 +115,8 @@ test('lower if let', () => {
 
 test('lower while loop', () => {
   const ir = lower('fn loop(x) { while x > 0 { x = x - 1 }, return }')
-  assert.equal(ir.toString(), `1: (%1)
+  assert.equal(ir.toString(), `Function test at undefined
+1: (%1)
   %2 = br 2 (%1)
 2: (%3)
   %4 = pack tag"common.List", %3, 0
@@ -137,8 +142,9 @@ test('lower toplevel expression', () => {
   const mod = new Module(tag('test'))
   mod.set('x', Type(42))
   const expr = parse('test', '{ x = x+1, y = y+1 }')[0]
-  const [ir, _] = lower_toplevel(mod, expr, x => { throw new Error('nop') })
-  assert.equal(ir.toString(), `1:
+  const [ir, _] = lower_toplevel(mod, expr, x => { throw new Error('nop') }, Def('common.core.main'))
+  assert.equal(ir.toString(), `Function common.core.main at undefined
+1:
   %1 = global tag"test".x
   %2 = pack tag"common.List", %1, 1
   %3 = global tag"test".+
@@ -155,7 +161,8 @@ test('lower toplevel expression', () => {
 
 test('lower function with swap pattern', () => {
   const ir = lower('fn swap(&x, &y) { [x, y] = [y, x], return }')
-  assert.equal(ir.toString(), `1: (%1, %2)
+  assert.equal(ir.toString(), `Function test at undefined
+1: (%1, %2)
   %3 = pack tag"common.List", %2, %1 # test:1:28
   %4 = pack tag"common.List", %3, pack(tag"common.Pack", pack(tag"common.Literal", tag"common.List"), pack(tag"common.Bind", tag"x", pack(tag"common.Hole")), pack(tag"common.Bind", tag"y", pack(tag"common.Hole")))
   %5 = call tag"common.match", %4
@@ -185,14 +192,16 @@ test('lower function with swap pattern', () => {
 
 test('lower list construction', () => {
   const ir = lower('fn test(x, y) { [x, y, 1] }')
-  assert.equal(ir.toString(), `1: (%1, %2)
+  assert.equal(ir.toString(), `Function test at undefined
+1: (%1, %2)
   %3 = pack tag"common.List", %1, %2, 1 # test:1:17
   %4 = return %3`)
 })
 
 test('lower array indexing', () => {
   const ir = lower('fn test(arr, i) { arr[i] }')
-  assert.equal(ir.toString(), `1: (%1, %2)
+  assert.equal(ir.toString(), `Function test at undefined
+1: (%1, %2)
   %3 = pack tag"common.List", %1, %2 # test:1:22
   %4 = call tag"common.get", %3 # test:1:22 🔴
   %5 = call Method(tag"common.core.part"), %4, 1 # test:1:22
@@ -201,19 +210,22 @@ test('lower array indexing', () => {
 
 test('lower template tag', () => {
   const ir = lower('fn test() { tag"hello.world" }')
-  assert.equal(ir.toString(), `1:
+  assert.equal(ir.toString(), `Function test at undefined
+1:
   %1 = return tag"hello.world"`)
 })
 
 test('lower template bits', () => {
   const ir = lower('fn test() { bits"101" }')
-  assert.equal(ir.toString(), `1:
+  assert.equal(ir.toString(), `Function test at undefined
+1:
   %1 = return bits"101"`)
 })
 
 test('lower for loop', () => {
   const ir = lower('fn iter(xs) { for x = xs { println(x) }, return }')
-  assert.equal(ir.toString(), `1: (%1)
+  assert.equal(ir.toString(), `Function test at undefined
+1: (%1)
   %2 = pack tag"common.List", %1
   %3 = call tag"common.iterator", %2
   %4 = call Method(tag"common.core.part"), %3, 1

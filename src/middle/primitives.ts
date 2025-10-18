@@ -3,7 +3,8 @@ import { Type, tagOf, tag, asType, bits } from '../frontend/types'
 import { unreachable, Anno, stmt, expr, asAnno, Val, Fragment } from '../utils/ir'
 import { HashSet, only } from '../utils/map'
 import isEqual from 'lodash/isEqual'
-import { Method, MIR, Module, WIntrinsic, FuncInfo, Const, xstring } from '../frontend/modules'
+import { Method, MIR, Module, WIntrinsic, Const, xstring } from '../frontend/modules'
+import { Def } from '../dwarf'
 import { xtuple, xcall } from '../frontend/lower'
 import { lowerpattern } from '../frontend/patterns'
 import * as parse from '../frontend/parse'
@@ -371,7 +372,7 @@ inlinePrimitive.set(nparts_method, (code, st) => {
 
 outlinePrimitive.set(nparts_method, (x: Type): MIR => {
   if (x.kind !== 'union') throw new Error('expected union type')
-  const code = MIR(new FuncInfo(tag('common.core.nparts')))
+  const code = MIR(Def('common.core.nparts'))
   const retT = partial_nparts(x)
   const vx = code.argument(x)
   union_cases(code, x, vx, (T, val) => {
@@ -559,7 +560,7 @@ inlinePrimitive.set(tagstring_method, (code, st) => {
 
 outlinePrimitive.set(tagstring_method, (T: Type): MIR => {
   if (T.kind !== 'union') throw new Error('expected union type')
-  const code = MIR(new FuncInfo(tag('common.core.tagstring')))
+  const code = MIR(Def('common.core.tagstring'))
   const x = code.argument(T)
   union_cases(code, T, x, S => string(code, types.asTag(S).path))
   return code

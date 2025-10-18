@@ -1,6 +1,6 @@
 import { asNumber } from "../utils/map"
 import { HashMap, some } from "./map"
-import { Source } from "../dwarf/structs"
+import { Def, Source } from "../dwarf/structs"
 import { WorkQueue } from "./fixpoint"
 import { identity, isEqual } from "lodash"
 
@@ -89,19 +89,18 @@ interface BasicBlock<T, A> {
   readonly args: [number, Anno<A>][]
 }
 
-type T<I> = I extends IR<infer T, any, any> ? T : never
-type A<I> = I extends IR<any, infer A, any> ? A : never
-type M<I> = I extends IR<any, any, infer M> ? M : never
+type T<I> = I extends IR<infer T, any> ? T : never
+type A<I> = I extends IR<any, infer A> ? A : never
 
-type Val<I extends IR<any, any, any>> = T<I> | number
+type Val<I extends IR<any, any>> = T<I> | number
 
 // TODO perhaps better to define an interface
-type Fragment<I extends IR<any, any, any>> = I | Block<I> | Pipe<I>
+type Fragment<I extends IR<any, any>> = I | Block<I> | Pipe<I>
 
-class IR<T, A, M> {
+class IR<T, A> {
   readonly _defs: [number, number][] = []
   readonly _blocks: BasicBlock<T, A>[] = [{ stmts: [], args: [] }]
-  constructor(readonly meta: M,
+  constructor(readonly meta: Def,
     readonly typeOf: (x: T) => Anno<A>,
     readonly show: (x: any) => string = (x: any) => `${x}`) { }
 
@@ -114,7 +113,7 @@ class IR<T, A, M> {
     if (b < 0) throw new Error(`Variable ${v} not found`)
     return [b, i]
   }
-  blockOf(v: number): Block<IR<T, A, M>> {
+  blockOf(v: number): Block<IR<T, A>> {
     return this.block(this.blockIdx(v)[0] + 1)
   }
   get(v: number): Statement<T, A> {
@@ -144,11 +143,11 @@ class IR<T, A, M> {
     const [_, i] = this._defs[x - 1]
     return i >= 0
   }
-  block(i: number = this._blocks.length): Block<IR<T, A, M>> {
+  block(i: number = this._blocks.length): Block<IR<T, A>> {
     if (i < 1 || i > this._blocks.length) throw new Error(`Block index out of bounds: ${i} `)
     return new Block(this, i - 1)
   }
-  *blocks(): Generator<Block<IR<T, A, M>>> {
+  *blocks(): Generator<Block<IR<T, A>>> {
     for (let i = 1; i <= this._blocks.length; i++) yield this.block(i)
   }
   *[Symbol.iterator](): Generator<[number, Statement<T, A>]> {
@@ -156,7 +155,7 @@ class IR<T, A, M> {
       if (this.has(v)) yield [v, this.get(v)]
     }
   }
-  newBlock(): Block<IR<T, A, M>> {
+  newBlock(): Block<IR<T, A>> {
     this._blocks.push({ stmts: [], args: [] })
     return this.block()
   }
@@ -166,7 +165,7 @@ class IR<T, A, M> {
   push(x: Statement<T, A>): number {
     return this.block().push(x)
   }
-  branch(target: number | Block<IR<T, A, M>>, args: (T | number)[] = [],
+  branch(target: number | Block<IR<T, A>>, args: (T | number)[] = [],
     { when, src, bp }: { when?: number, src?: Source, bp?: boolean } = {}): number {
     return this.block().branch(target, args, { when, src, bp })
   }
@@ -174,10 +173,10 @@ class IR<T, A, M> {
   delete(v: number) {
     this._defs[v - 1] = [-1, -1]
   }
-  toString(): string { return showIR(this) }
+  toString(meta = true): string { return showIR(this, meta) }
   get blockCount(): number { return this._blocks.length }
-  clone(): IR<T, A, M> {
-    const y = new IR<T, A, M>(this.meta, this.typeOf, this.show)
+  clone(): IR<T, A> {
+    const y = new IR<T, A>(this.meta, this.typeOf, this.show)
     y._blocks.length = 0
     for (const bb of this._blocks)
       y._blocks.push({
@@ -205,12 +204,12 @@ class IR<T, A, M> {
   }
 }
 
-function asIR(x: any): IR<any, any, any> {
+function asIR(x: any): IR<any, any> {
   if (x instanceof IR) return x
   throw new Error(`Expected IR, got ${typeof x}`)
 }
 
-class Block<I extends IR<any, any, any>> {
+class Block<I extends IR<any, any>> {
   constructor(readonly ir: I, readonly id: number) { }
   get bb() { return this.ir._blocks[this.id] }
   get args() { return this.bb.args.map(([arg, _]) => arg) }
@@ -298,7 +297,7 @@ function showVar<T>(x: Anno<T> | number, show: (x: T) => string): string {
   return show(x)
 }
 
-function showBlock<T, A, M>(block: Block<IR<T, A, M>>): string {
+function showBlock<T, A, M>(block: Block<IR<T, A>>): string {
   let show = (x: T | Anno<A> | number) => showVar(x, block.ir.show)
   function showLine(src: Source, bp: boolean): string {
     let result = " # "
@@ -322,8 +321,8 @@ function showBlock<T, A, M>(block: Block<IR<T, A, M>>): string {
   return result
 }
 
-function showIR<T, A, M>(ir: IR<T, A, M>): string {
-  let result = ir.meta ? `${ir.meta}\n` : ''
+function showIR<T, A>(ir: IR<T, A>, meta = true): string {
+  let result = meta ? `Function ${ir.meta.name} at ${JSON.stringify(ir.meta.source)}\n` : ''
   result += ir.block(1).toString()
   for (let i = 2; i <= ir._blocks.length; i++) {
     result += '\n' + ir.block(i).toString()
@@ -337,22 +336,22 @@ function zip<T, U>(a: T[], b: U[]): [T, U][] {
   return a.map((x, i) => [x, b[i]])
 }
 
-function successors<T, A, M>(block: Block<IR<T, A, M>>): Block<IR<T, A, M>>[] {
+function successors<T, A, M>(block: Block<IR<T, A>>): Block<IR<T, A>>[] {
   return block.branches().map(br => br.target).filter(target => target > 0).map(id => block.ir.block(id))
 }
 
-function predecessors<T, A, M>(block: Block<IR<T, A, M>>): Block<IR<T, A, M>>[] {
+function predecessors<T, A, M>(block: Block<IR<T, A>>): Block<IR<T, A>>[] {
   return Array.from(block.ir.blocks()).filter(b => successors(b).some(s => s.id === block.id))
 }
 
-function definitions<T, A, M>(b: Block<IR<T, A, M>>): number[] {
+function definitions<T, A, M>(b: Block<IR<T, A>>): number[] {
   const out: number[] = []
   for (let i = 1; i <= b.ir._defs.length; i++)
     if (b.ir._defs[i - 1][0] === b.id) out.push(i)
   return out
 }
 
-function usages<T, A, M>(b: Block<IR<T, A, M>>): Set<number> {
+function usages<T, A, M>(b: Block<IR<T, A>>): Set<number> {
   const used = new Set<number>()
   for (const [_, st] of b)
     for (const x of st.expr.body)
@@ -360,7 +359,7 @@ function usages<T, A, M>(b: Block<IR<T, A, M>>): Set<number> {
   return used
 }
 
-function fuseable<T, A, M>(block: Block<IR<T, A, M>>): boolean {
+function fuseable<T, A, M>(block: Block<IR<T, A>>): boolean {
   const preds = predecessors(block)
   return preds.length === 0 || (preds.length === 1 && successors(preds[0]).length === 1)
 }
@@ -373,9 +372,9 @@ function rename<T, A>(env: Map<number, number | T>, stmt: Statement<T, A>, { fal
   return { ...stmt, expr: stmt.expr.map(f) }
 }
 
-function fuseblocks<T, A, M>(ir: IR<T, A, M>): IR<T, A, M> {
+function fuseblocks<T, A, M>(ir: IR<T, A>): IR<T, A> {
   const blocks = Array.from(ir.blocks())
-  const newIR = new IR<T, A, M>(ir.meta, ir.typeOf, ir.show)
+  const newIR = new IR<T, A>(ir.meta, ir.typeOf, ir.show)
   const skip = new Set<number>()
   for (let i = 1; i < blocks.length; i++) if (fuseable(blocks[i])) skip.add(blocks[i].id + 1)
   const blockEnv = new Map<number, number>()
@@ -390,7 +389,7 @@ function fuseblocks<T, A, M>(ir: IR<T, A, M>): IR<T, A, M> {
       const newArg = newIR.block().argument(type)
       varEnv.set(arg, newArg)
     }
-    const inlineBlock = (targetBlock: Block<IR<T, A, M>>) => {
+    const inlineBlock = (targetBlock: Block<IR<T, A>>) => {
       for (const [v, stmt] of targetBlock) {
         if (stmt.expr instanceof Branch && stmt.expr.target > 0 && skip.has(stmt.expr.target)) {
           const targetBlockToInline = blocks[stmt.expr.target - 1]
@@ -410,7 +409,7 @@ function fuseblocks<T, A, M>(ir: IR<T, A, M>): IR<T, A, M> {
   return newIR
 }
 
-function usecounts<T, A, M>(ir: IR<T, A, M>): Map<number, number> {
+function usecounts<T, A, M>(ir: IR<T, A>): Map<number, number> {
   const counts = new Map<number, number>()
   for (const [_, stmt] of ir)
     for (const x of stmt.expr.body)
@@ -418,7 +417,7 @@ function usecounts<T, A, M>(ir: IR<T, A, M>): Map<number, number> {
   return counts
 }
 
-function deletearg<T, A, M>(b: Block<IR<T, A, M>>, indices: number[]): void {
+function deletearg<T, A, M>(b: Block<IR<T, A>>, indices: number[]): void {
   for (const i of indices.sort((a, b) => b - a)) {
     const arg = b.args[i]
     b.bb.args.splice(i, 1)
@@ -433,11 +432,11 @@ function deletearg<T, A, M>(b: Block<IR<T, A, M>>, indices: number[]): void {
   }
 }
 
-function branches<T, A, M>(from: Block<IR<T, A, M>>, to: Block<IR<T, A, M>>): Branch<T>[] {
+function branches<T, A, M>(from: Block<IR<T, A>>, to: Block<IR<T, A>>): Branch<T>[] {
   return from.branches().filter(br => br.target === to.id + 1)
 }
 
-function expand<T, A, M>(ir: IR<T, A, M>): IR<T, A, M> {
+function expand<T, A, M>(ir: IR<T, A>): IR<T, A> {
   const worklist = Array.from(ir.blocks()).map(b => b.id + 1)
   const spats = new Map<number, Map<number, number>>()
   for (const b of ir.blocks()) spats.set(b.id + 1, new Map())
@@ -460,7 +459,7 @@ function expand<T, A, M>(ir: IR<T, A, M>): IR<T, A, M> {
   return ir
 }
 
-function prune<T, A, M>(ir: IR<T, A, M>): IR<T, A, M> {
+function prune<T, A, M>(ir: IR<T, A>): IR<T, A> {
   const usages = usecounts(ir)
   const worklist = Array.from(ir.blocks()).map(b => b.id + 1)
   const queue = (blockId: number) => { if (!worklist.includes(blockId)) worklist.push(blockId) }
@@ -507,7 +506,7 @@ function prune<T, A, M>(ir: IR<T, A, M>): IR<T, A, M> {
   return ir
 }
 
-function ssa<T, A, M>(ir: IR<T, A, M>): IR<T, A, M> {
+function ssa<T, A, M>(ir: IR<T, A>): IR<T, A> {
   let current = 1
   const defs = new Map<number, HashMap<Slot, number | T>>()
   const todo = new Map<number, Map<number, Slot[]>>()
@@ -515,7 +514,7 @@ function ssa<T, A, M>(ir: IR<T, A, M>): IR<T, A, M> {
     defs.set(b.id + 1, new HashMap())
     todo.set(b.id + 1, new Map())
   })
-  function reaching(block: Block<IR<T, A, M>>, slot: Slot): number | T {
+  function reaching(block: Block<IR<T, A>>, slot: Slot): number | T {
     const blockId = block.id + 1
     if (defs.get(blockId)!.has(slot)) return some(defs.get(blockId)!.get(slot))
     if (blockId === 1) throw new Error(`undefined ${slot.name}`)
@@ -534,9 +533,9 @@ function ssa<T, A, M>(ir: IR<T, A, M>): IR<T, A, M> {
     }
     return arg
   }
-  let resolve = (block: Block<IR<T, A, M>>, x: number | T) =>
+  let resolve = (block: Block<IR<T, A>>, x: number | T) =>
     x instanceof Slot ? reaching(block, x) : x
-  let rename = (block: Block<IR<T, A, M>>, expr: Expr<T>) =>
+  let rename = (block: Block<IR<T, A>>, expr: Expr<T>) =>
     expr.map(x => resolve(block, x))
   for (const block of ir.blocks()) {
     current = block.id + 1
@@ -558,7 +557,7 @@ function ssa<T, A, M>(ir: IR<T, A, M>): IR<T, A, M> {
   return ir
 }
 
-class PipeBlock<I extends IR<any, any, any>> {
+class PipeBlock<I extends IR<any, any>> {
   constructor(readonly pipe: Pipe<I>, readonly id: number) {
     if (id > 1) pipe.to.newBlock()
     const block = pipe.from.block(id)
@@ -576,7 +575,7 @@ class PipeBlock<I extends IR<any, any, any>> {
   }
 }
 
-class Pipe<I extends IR<any, any, any>> {
+class Pipe<I extends IR<any, any>> {
   from: I
   to: I
   map: Map<number, number | T<I>>
@@ -678,7 +677,7 @@ class Pipe<I extends IR<any, any, any>> {
   finish(): I { return this.to }
 }
 
-function renumber<T, A, M>(ir: IR<T, A, M>): IR<T, A, M> {
+function renumber<T, A, M>(ir: IR<T, A>): IR<T, A> {
   const p = new Pipe(ir)
   for (const _ of p) { }
   return p.finish()
@@ -687,7 +686,7 @@ function renumber<T, A, M>(ir: IR<T, A, M>): IR<T, A, M> {
 class CFG {
   edges: Map<number, number[]>
   readonly length: number
-  constructor(ir: IR<any, any, any>) {
+  constructor(ir: IR<any, any>) {
     this.length = ir._blocks.length
     this.edges = new Map()
     for (const b of ir.blocks()) this.edges.set(b.id + 1, successors(b).map(s => s.id + 1))
@@ -747,7 +746,7 @@ function components<T, A, M>(cfg: CFG, blocks?: number[]): Component {
 
 // Liveness
 
-function liveness_after<T, A, M>(block: Block<IR<T, A, M>>, lv: Map<number, Set<number>>): Set<number> {
+function liveness_after<T, A, M>(block: Block<IR<T, A>>, lv: Map<number, Set<number>>): Set<number> {
   const live = new Set<number>()
   for (const b of successors(block))
     for (const x of some(lv.get(b.id + 1)))
@@ -757,7 +756,7 @@ function liveness_after<T, A, M>(block: Block<IR<T, A, M>>, lv: Map<number, Set<
 
 // Variables needed before each block is run, and after each statement is run.
 // Block variables include their arguments.
-function liveness<T, A, M>(ir: IR<T, A, M>): { stmts: Map<number, Set<number>>, blocks: Map<number, Set<number>> } {
+function liveness<T, A, M>(ir: IR<T, A>): { stmts: Map<number, Set<number>>, blocks: Map<number, Set<number>> } {
   const stmts = new Map<number, Set<number>>()
   for (const [v, _] of ir) stmts.set(v, new Set())
   const blocks = new Map<number, Set<number>>()

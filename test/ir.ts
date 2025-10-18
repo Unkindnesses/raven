@@ -3,9 +3,10 @@ import * as assert from 'assert'
 import { IR, CFG, components, expand, prune, expr, stmt, unreachable, renumber, Val } from '../src/utils/ir'
 import { looped, unloop } from '../src/middle/loop'
 import { MIR } from '../src/frontend/modules'
+import { Def } from '../src/dwarf'
 
 test('components: acyclic chain', () => {
-  const ir = MIR(undefined)
+  const ir = MIR(Def('test'))
   const b1 = ir.block()
   const b2 = ir.newBlock()
   const b3 = ir.newBlock()
@@ -17,7 +18,7 @@ test('components: acyclic chain', () => {
 })
 
 test('components: self-loop singleton', () => {
-  const ir = MIR(undefined)
+  const ir = MIR(Def('test'))
   const b1 = ir.block()
   const b2 = ir.newBlock()
   const b3 = ir.newBlock()
@@ -30,7 +31,7 @@ test('components: self-loop singleton', () => {
 })
 
 test('components: two-block cycle', () => {
-  const ir = MIR(undefined)
+  const ir = MIR(Def('test'))
   const b1 = ir.block()
   const b2 = ir.newBlock()
   const b3 = ir.newBlock()
@@ -42,7 +43,7 @@ test('components: two-block cycle', () => {
 })
 
 test('expand/prune', () => {
-  const ir = MIR(undefined)
+  const ir = MIR(Def('test'))
   const b1 = ir.block()
   const v = b1.push(stmt(expr('val')))
   b1.branch(2)
@@ -50,14 +51,16 @@ test('expand/prune', () => {
   b2.push(stmt(expr('use', v as Val<MIR>)))
   b2.unreachable()
   const expanded = expand(ir)
-  assert.equal(expanded.toString(), `1:
+  assert.equal(expanded.toString(), `Function test at undefined
+1:
   %1 = val
   %2 = br 2 (%1)
 2: (%5)
   %3 = use %5
   %4 = unreachable`)
   const pruned = prune(expand(ir))
-  assert.equal(pruned.toString(), `1:
+  assert.equal(pruned.toString(), `Function test at undefined
+1:
   %1 = val
   %2 = br 2
 2:
@@ -66,7 +69,7 @@ test('expand/prune', () => {
 })
 
 test('looped/unloop', () => {
-  const ir = MIR(undefined)
+  const ir = MIR(Def('test'))
   const b1 = ir.block()
   const input = ir.argument(unreachable)
   b1.branch(2, [input])
@@ -81,7 +84,8 @@ test('looped/unloop', () => {
   const b4 = ir.newBlock()
   b4.return(x)
 
-  const original = `1: (%1)
+  const original = `Function test at undefined
+1: (%1)
   %2 = br 2 (%1)
 2: (%3)
   %4 = check %3
@@ -95,7 +99,8 @@ test('looped/unloop', () => {
   assert.equal(ir.toString(), original)
 
   const l = looped(expand(ir))
-  assert.equal(l.ir.toString(), `1: (%1)
+  assert.equal(l.ir.toString(), `Function test at undefined
+1: (%1)
   %2 = br 2 (%1)
 2: (%3)
   %4 = loop %3:

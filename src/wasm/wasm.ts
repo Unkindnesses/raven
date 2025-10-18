@@ -1,5 +1,5 @@
 import { HashSet } from '../utils/map'
-import { LineInfo } from '../dwarf'
+import { Def, LineInfo } from '../dwarf'
 
 export {
   Type, sizeof,
@@ -153,10 +153,10 @@ interface Func {
   sig: Signature
   locals: Type[]
   body: Block
-  meta?: any
+  meta: Def
 }
 
-function Func(name: string, sig: Signature, locals: Type[], body: Block, meta?: any): Func {
+function Func(name: string, sig: Signature, locals: Type[], body: Block, meta: Def): Func {
   return { kind: 'func', name, sig, locals, body, meta }
 }
 
