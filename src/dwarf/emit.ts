@@ -1,7 +1,7 @@
 import { Form } from './enums'
 import * as path from 'node:path'
 import { HashMap, some } from '../utils/map'
-import { LineInfo, DIE, Abbrev, LineTable, abbrev, Value } from './structs'
+import { DIE, Abbrev, LineTable, abbrev, Value } from './structs'
 
 export {
   leb128U, leb128S, withSize as withSizeU32, putStringZ,
@@ -132,7 +132,10 @@ function ln_end_sequence(out: number[]) {
 
 function debug_line(out: number[], lt: LineTable) {
   const files: string[] = []
-  for (const [_, s] of lt.lines) if (s && !files.includes(s.src.file)) files.push(s.src.file)
+  for (const [_, li] of lt.lines) {
+    const src = li.src[li.src.length - 1][1]
+    if (src && !files.includes(src.file)) files.push(src.file)
+  }
   withSize(out, buf => {
     writeU16(buf, 4) // version
     withSize(buf, hdr => {
@@ -155,33 +158,43 @@ function debug_line(out: number[], lt: LineTable) {
       }
       writeU8(hdr, 0x00)
     })
-    const lines: [number, LineInfo | null][] = [[0, null], ...lt.lines]
-    // TODO track offset separately, so the loop can `continue` without getting confused
-    for (let i = 1; i < lines.length; i++) {
-      let [o, s] = lines[i - 1]
-      const [o2, s2] = lines[i]
-      if (!s) [o, s] = [0, new LineInfo({ file: files[0], line: 1, col: 0 }, false)]
-      writeU8(buf, 0x02) // advance_pc
-      leb128U(o2 - o, buf)
-      if (!s2) {
-        ln_end_sequence(buf)
-      } else {
-        if (s2.src.line !== s.src.line) {
-          writeU8(buf, 0x03) // advance_line
-          leb128S(s2.src.line - s.src.line, buf)
-        }
-        if (s2.src.file !== s.src.file) {
-          writeU8(buf, 0x04) // set_file
-          leb128U(files.indexOf(s2.src.file) + 1, buf)
-        }
-        if (s2.src.col !== s.src.col) {
-          writeU8(buf, 0x05) // set_column
-          leb128U(s2.src.col, buf)
-        }
-        if (s2.bp !== s.bp) writeU8(buf, 0x06) // negate_stmt
-        writeU8(buf, 0x01) // copy
-      }
+    let [offset, line, col, file, bp, open] = [0, 1, 0, files.length > 0 ? files[0] : '', false, false]
+    const reset = () => {
+      [offset, line, col, file, bp, open] = [0, 1, 0, files.length > 0 ? files[0] : '', false, false]
     }
-    if (lines[lines.length - 1][1]) ln_end_sequence(buf)
+    reset()
+    for (const [o, info] of lt.lines) {
+      const src = info.src[info.src.length - 1][1]
+      writeU8(buf, 0x02) // advance_pc
+      leb128U(o - offset, buf)
+      offset = o
+      if (!src) {
+        ln_end_sequence(buf)
+        reset()
+        continue
+      }
+      if (src.line !== line) {
+        writeU8(buf, 0x03) // advance_line
+        leb128S(src.line - line, buf)
+        line = src.line
+      }
+      if (src.file !== file) {
+        writeU8(buf, 0x04) // set_file
+        leb128U(files.indexOf(src.file) + 1, buf)
+        file = src.file
+      }
+      if (src.col !== col) {
+        writeU8(buf, 0x05) // set_column
+        leb128U(src.col, buf)
+        col = src.col
+      }
+      if (info.bp !== bp) {
+        writeU8(buf, 0x06) // negate_stmt
+        bp = info.bp
+      }
+      writeU8(buf, 0x01) // copy
+      open = true
+    }
+    if (open) ln_end_sequence(buf)
   })
 }

@@ -57,8 +57,8 @@ type Instruction =
   | { kind: 'call_indirect'; sig: Signature; table: number }
   | { kind: 'return' }
   | { kind: 'unreachable' }
-  | { kind: 'block'; body: Instruction[]; srcs: (LineInfo | null)[] }
-  | { kind: 'loop'; body: Instruction[]; srcs: (LineInfo | null)[] }
+  | { kind: 'block'; body: Instruction[]; srcs: LineInfo[] }
+  | { kind: 'loop'; body: Instruction[]; srcs: LineInfo[] }
 
 function Const(type: Numeric, val: number | bigint): Instruction & { kind: 'const' } {
   if (type === Type.i32 || type === Type.i64) {
@@ -126,23 +126,19 @@ const unreachable: Instruction = { kind: 'unreachable' }
 
 type Block = Instruction & { kind: 'block' }
 
-function Block(body: Instruction[] = [], srcs?: (LineInfo | null)[]): Block {
-  return {
-    kind: 'block', body,
-    srcs: srcs || body.map(() => null)
-  }
+function Block(body: Instruction[] = [], srcs: LineInfo[] = []): Block {
+  if (body.length !== srcs.length) throw new Error('Block body and srcs length mismatch')
+  return { kind: 'block', body, srcs }
 }
 
 type Loop = Instruction & { kind: 'loop' }
 
-function Loop(body: Instruction[] = [], srcs?: (LineInfo | null)[]): Loop {
-  return {
-    kind: 'loop', body,
-    srcs: srcs || body.map(() => null)
-  }
+function Loop(body: Instruction[] = [], srcs: LineInfo[] = []): Loop {
+  if (body.length !== srcs.length) throw new Error('Loop body and srcs length mismatch')
+  return { kind: 'loop', body, srcs }
 }
 
-function instr(b: Block | Loop, it: Instruction, src: LineInfo | null = null) {
+function instr(b: Block | Loop, it: Instruction, src: LineInfo) {
   b.body.push(it)
   b.srcs.push(src)
 }

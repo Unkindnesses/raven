@@ -2,7 +2,7 @@ import isEqual from 'lodash/isEqual'
 import { Const as IRConst, IRValue, type MIR, asConst } from '../frontend/modules'
 import * as wasm from './wasm'
 import { Func } from './wasm'
-import { Pipe, liveness, Branch, Expr, expr, stmt, Source, CFG, Component, components, entry, showVar, Val } from '../utils/ir'
+import { Pipe, liveness, Branch, Expr, expr, Source, CFG, Component, components, entry, showVar, Val } from '../utils/ir'
 import { asArray, HashSet, HashMap, some, asNumber } from '../utils/map'
 import { LineInfo } from '../dwarf'
 import { instructionToString } from './wat'
@@ -181,7 +181,7 @@ function stack(ir: MIR): [MIR, wasm.Type[]] {
         partsSet(v, asArray(st.type))
         const args = ex.body.map(asValue).flatMap(parts)
         const [ops, state] = stackshuffle(Locals(stack), Locals(args, intersect(live(v), stack)))
-        ops.forEach(op => pr.insert(v, stmt(opExpr(op), { src })))
+        ops.forEach(op => pr.insert(v, pr.stmt(opExpr(op), { src })))
         pr.set(v, new Instr(ex.instr, []))
         stack = [...state.stack.slice(0, state.stack.length - args.length), ...parts(v)]
       } else if (ex instanceof Branch) {
@@ -194,7 +194,7 @@ function stack(ir: MIR): [MIR, wasm.Type[]] {
           }
           ret = parts(result).map(parttype)
           const [ops, _] = stackshuffle(Locals(stack), Locals(parts(result)))
-          ops.forEach(op => pr.insert(v, stmt(opExpr(op), { src })))
+          ops.forEach(op => pr.insert(v, pr.stmt(opExpr(op), { src })))
           pr.set(v, new Instr(wasm.Return(), []))
           stack = []
         } else if (ex.isunreachable()) {
@@ -203,16 +203,16 @@ function stack(ir: MIR): [MIR, wasm.Type[]] {
           const bargs = ex.args.map(asValue).flatMap(parts)
           // TODO in this case the args could be in any order
           let [ops, state] = stackshuffle(Locals(stack), Locals(bargs, intersect(live(v), stack)))
-          ops.forEach(op => pr.insert(v, stmt(opExpr(op), { src })))
+          ops.forEach(op => pr.insert(v, pr.stmt(opExpr(op), { src })))
           const sets = ir.block(ex.target).args.flatMap(a => parts(a)).reverse()
           for (const x of sets)
-            pr.insert(v, stmt(opExpr({ kind: 'set', x: asArray(x) }), { src }))
+            pr.insert(v, pr.stmt(opExpr({ kind: 'set', x: asArray(x) }), { src }))
           stack = state.stack.slice(0, state.stack.length - sets.length)
           const cond = ex.isconditional() ? parts(ex.when) : [];
           // We are allowed to leave dead values on the stack when branching, but
           // anything live must be stored in a local.
           [ops, state] = stackshuffle(Locals(stack), Locals(cond, intersect(live(v), stack)), { store: true })
-          ops.forEach(op => pr.insert(v, stmt(opExpr(op), { src })))
+          ops.forEach(op => pr.insert(v, pr.stmt(opExpr(op), { src })))
           pr.set(v, new Instr(wasm.Branch(ex.target, ex.isconditional()), []))
           stack = state.stack.slice(0, state.stack.length - cond.length)
         }
@@ -270,9 +270,10 @@ function shiftbps(ir: MIR): MIR {
     let ip: number | undefined = undefined
     let src: Source | undefined = undefined
     for (const [v, st] of bl) {
-      if (st.src !== src) {
-        [ip, src] = [v, st.src]
-      } else if (src !== undefined && st.bp) {
+      const loc = st.src[st.src.length - 1][1]
+      if (loc !== src) {
+        [ip, src] = [v, loc]
+      } else if (src && st.bp) {
         const idx = some(ip)
         ir.setStmt(idx, { ...ir.get(idx), bp: true })
         ir.setStmt(v, { ...st, bp: false })
@@ -280,10 +281,6 @@ function shiftbps(ir: MIR): MIR {
     }
   }
   return ir
-}
-
-function lineinfo(st: { src?: Source, bp: boolean }): LineInfo | null {
-  return st.src === undefined ? null : new LineInfo(st.src, st.bp)
 }
 
 class Relooping {
@@ -294,7 +291,7 @@ class Relooping {
     this.targets = []
   }
   pushscope(bl: wasm.Block | wasm.Loop, target: number) {
-    wasm.instr(this.scopes[this.scopes.length - 1], bl)
+    wasm.instr(this.scopes[this.scopes.length - 1], bl, LineInfo([[this.ir.meta, undefined]]))
     this.scopes.push(bl)
     this.targets.push(target)
   }
@@ -311,9 +308,9 @@ class Relooping {
       if (instr.kind === 'branch') {
         const idx = this.targets.slice().reverse().findIndex(b => b === instr.level)
         if (idx < 0) throw new Error(`Branch target ${instr.level} not found in scopes`)
-        wasm.instr(this.scopes[this.scopes.length - 1], wasm.Branch(idx, instr.cond), lineinfo(st))
+        wasm.instr(this.scopes[this.scopes.length - 1], wasm.Branch(idx, instr.cond), LineInfo(st.src, st.bp))
       } else {
-        wasm.instr(this.scopes[this.scopes.length - 1], instr, lineinfo(st))
+        wasm.instr(this.scopes[this.scopes.length - 1], instr, LineInfo(st.src, st.bp))
       }
     }
   }

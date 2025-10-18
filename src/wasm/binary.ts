@@ -358,7 +358,7 @@ function elems(cx: BinaryContext, es: wasm.Elem[]): void {
 
 function func(cx: BinaryContext, f: wasm.Func): dwarf.LineTable {
   const lt = new dwarf.LineTable([])
-  lt.lines.push([cx.position, f.meta.source ? new dwarf.LineInfo(f.meta.source) : null])
+  lt.lines.push([cx.position, dwarf.LineInfo([[f.meta, f.meta.source]])])
   cx.leb128(f.locals.length)
   for (const t of f.locals) {
     cx.leb128(1)

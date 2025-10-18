@@ -8,6 +8,7 @@ import { layout } from './expand'
 import isEqual from 'lodash/isEqual'
 import { some, only } from '../utils/map'
 import { Accessor } from '../utils/fixpoint'
+import { Stack } from '../dwarf'
 
 export { Inlined, opcount }
 
@@ -32,7 +33,7 @@ function inlineable(cache: Accessor<Sig, Redirect | MIR>, sig: Sig): boolean {
   return ir.blockCount === 1 && opcount(ir) <= 3
 }
 
-function inlineHere(pr: ir.Pipe<MIR>, callee: MIR, args: ir.Val<MIR>[]): ir.Val<MIR> | undefined {
+function inlineHere(pr: ir.Pipe<MIR>, callee: MIR, src: Stack, args: ir.Val<MIR>[]): ir.Val<MIR> | undefined {
   if (callee.blockCount !== 1) throw new Error('inlineHere: expected single-block IR')
   const bl = callee.block(1)
   if (bl.args.length !== args.length) throw new Error('argument length mismatch')
@@ -41,7 +42,7 @@ function inlineHere(pr: ir.Pipe<MIR>, callee: MIR, args: ir.Val<MIR>[]): ir.Val<
   bl.args.forEach((a, i) => env.set(a, args[i]))
   for (const [v, st] of bl) {
     if (st.expr.head === 'branch') continue
-    env.set(v, pr.push({ ...st, expr: st.expr.map(rename) }))
+    env.set(v, pr.push({ ...st, expr: st.expr.map(rename), src: [...src, ...st.src] }))
   }
   const br = only(bl.branches())
   if (br.isunreachable()) return undefined
@@ -55,7 +56,7 @@ function inline(code: MIR, inlined: Accessor<Sig, Redirect | MIR>): MIR {
     const sig: Sig = [asFunc(pr.type(st.expr.body[0])), ...st.expr.body.slice(1).map(x => types.asType(pr.type(x)))]
     if (!inlineable(inlined, sig)) continue
     pr.delete(v)
-    const ret = inlineHere(pr, ir.asIR(inlined.get(sig)), st.expr.body.slice(1))
+    const ret = inlineHere(pr, ir.asIR(inlined.get(sig)), st.src, st.expr.body.slice(1))
     if (ret === undefined && st.type !== ir.unreachable) throw new Error('nope')
     if (ret !== undefined) pr.replace(v, ret)
   }

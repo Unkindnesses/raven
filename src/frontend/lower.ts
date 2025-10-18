@@ -230,7 +230,7 @@ function Scope(parent: Scope, swap?: Map<number, string>): Scope {
 // e.g. `f(return 1)`
 function _push<T, A>(code: ir.IR<T, A>, x: ir.Expr<T>, { type, src, bp }: { type?: ir.Anno<A>, src?: ast.Meta, bp?: boolean } = {}): number {
   if (!code.block().canbranch()) throw new Error("Pushing into finished block")
-  return code.push(ir.stmt(x, { type, src: src && source(src), bp }))
+  return code.push(code.stmt(x, { type, src: src && source(src), bp }))
 }
 
 function swapreturn(code: LIR, val: IRValue | number, swaps?: Map<number, string>, { src, bp }: { src?: ast.Meta, bp?: boolean } = {}): void {
@@ -252,10 +252,10 @@ function swapreturn(code: LIR, val: IRValue | number, swaps?: Map<number, string
 }
 
 function string(sc: Scope, code: LIR, x: string) {
-  const id = code.push(ir.stmt(xstring(x), { type: types.list(int32()) }))
-  const obj = code.push(ir.stmt(xcall(tag('common.JSObject'), id)))
-  const s = code.push(ir.stmt(xcall(tag('common.String'), obj)))
-  return code.push(ir.stmt(xpart(s, Type(1n))))
+  const id = code.push(code.stmt(xstring(x), { type: types.list(int32()) }))
+  const obj = code.push(code.stmt(xcall(tag('common.JSObject'), id)))
+  const s = code.push(code.stmt(xcall(tag('common.String'), obj)))
+  return code.push(code.stmt(xpart(s, Type(1n))))
 }
 
 function lowermatch(sc: Scope, code: LIR, val: IRValue | number, pat: ast.Tree): IRValue | number {
@@ -692,7 +692,7 @@ function rewriteGlobals(code: LIR, cx: Module): [LIR, Set<string>] {
   const globals = new Set<string>()
   const locals = Array.from(assignments(code)).filter(x => cx.has(x))
   const pr = new ir.Pipe(code)
-  locals.forEach(x => pr.push(ir.stmt(ir.expr('set', ir.slot(x), new Binding(cx.name, x)))))
+  locals.forEach(x => pr.push(pr.stmt(ir.expr('set', ir.slot(x), new Binding(cx.name, x)))))
   for (const [v, st] of pr) {
     // Global loads use the new slot
     let ex = st.expr.map((x: IRValue | number) => x instanceof Binding && (locals.includes(x.name) || globals.has(x.name)) ? ir.slot(x.name) : x)
@@ -703,7 +703,7 @@ function rewriteGlobals(code: LIR, cx: Module): [LIR, Set<string>] {
     }
     pr.set(v, ex)
   }
-  [...locals, ...globals].forEach(x => pr.push(ir.stmt(ir.expr('set', new Binding(cx.name, x), ir.slot(x)))))
+  [...locals, ...globals].forEach(x => pr.push(pr.stmt(ir.expr('set', new Binding(cx.name, x), ir.slot(x)))))
   return [pr.finish(), globals]
 }
 
@@ -728,7 +728,7 @@ function lower_toplevel(mod: Module, ex: ast.Tree, resolve: (x: Symbol) => Type,
 function globals(code: LIR): LIR {
   const pr = new ir.Pipe(code)
   const transform = (x: IRValue | number): IRValue | number =>
-    x instanceof Binding ? pr.push(ir.stmt(ir.expr('global', x))) : x
+    x instanceof Binding ? pr.push(pr.stmt(ir.expr('global', x))) : x
   for (const [v, st] of pr) {
     const ex = st.expr
     if (ex.head === 'global') continue

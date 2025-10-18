@@ -69,7 +69,7 @@ const release_method = primitive('common.core.release', 'args', (_: Type) => unr
 
 function count(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode): void {
   if (T.kind === 'pack' && !isrefobj(T)) return count_inline(code, T, x, mode)
-  code.push(ir.stmt(xcall(mode === 'retain' ? retain_method : release_method, x), { type: types.nil }))
+  code.push(code.stmt(xcall(mode === 'retain' ? retain_method : release_method, x), { type: types.nil }))
 }
 
 function retain(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>): void {
@@ -116,8 +116,8 @@ function pack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode
 function vpack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode): void {
   if (!(code instanceof ir.IR)) throw new Error('nope')
   if (!isreftype(T)) return
-  let len = code.push(ir.stmt(ir.expr('ref', x, Const.i64(1)), { type: types.int32() }))
-  const ptr = code.push(ir.stmt(ir.expr('ref', x, Const.i64(2)), { type: types.Ptr() }))
+  let len = code.push(code.stmt(ir.expr('ref', x, Const.i64(1)), { type: types.int32() }))
+  const ptr = code.push(code.stmt(ir.expr('ref', x, Const.i64(2)), { type: types.Ptr() }))
   let pos: ir.Val<MIR> = ptr
   const elT = some(types.partial_eltype(T))
   if (mode === 'release' && isreftype(elT)) {
@@ -155,7 +155,7 @@ function union_count_inline(code: ir.Fragment<MIR>, T: Type & { kind: 'union' },
 
 function recursive_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode): void {
   if (!(code instanceof ir.IR)) throw new Error('nope')
-  const ptr = code.push(ir.stmt(ir.expr('ref', x, Const.i64(1)), { type: types.Ptr() }))
+  const ptr = code.push(code.stmt(ir.expr('ref', x, Const.i64(1)), { type: types.Ptr() }))
   if (mode === 'release') {
     const before = code.block()
     const body = code.newBlock()

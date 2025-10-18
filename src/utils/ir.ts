@@ -6,7 +6,7 @@ import { identity, isEqual } from "lodash"
 
 export {
   Anno, Unreachable, unreachable, asAnno, Source, Slot, slot, Expr, expr,
-  Statement, stmt, IR, Block, Pipe, Branch, CFG, Component, components, entry, rename,
+  Statement, IR, Block, Pipe, Branch, CFG, Component, components, entry, rename,
   getIndent, withIndent, Val, Fragment, asIR,
   liveness_after, liveness,
   predecessors, fuseblocks, expand, prune, ssa, renumber, showVar
@@ -74,15 +74,11 @@ class Branch<T> extends Expr<T> {
 interface Statement<T, A> {
   readonly expr: Expr<T>
   readonly type: Anno<A>
-  readonly src: Source | undefined
+  readonly src: [Def, Source | undefined][]
   readonly bp: boolean
 }
 
-function stmt<T, A>(expr: Expr<T>, { type, src, bp }: { type?: Anno<A>, src?: Source, bp?: boolean } = {}): Statement<T, A> {
-  bp ??= false
-  type ??= unreachable
-  return { expr, type, src, bp }
-}
+type StmtOpts<A> = { type?: Anno<A>, src?: Source | [Def, Source | undefined][], bp?: boolean }
 
 interface BasicBlock<T, A> {
   readonly stmts: [number, Statement<T, A>][]
@@ -126,6 +122,12 @@ class IR<T, A> {
     const [b, i] = this.blockIdx(x)
     if (i >= 0) return this._blocks[b].stmts[i][1].type
     return this._blocks[b].args[-i - 1][1]
+  }
+  stmt<T, A>(expr: Expr<T>, { type, src, bp }: StmtOpts<A> = {}): Statement<T, A> {
+    bp ??= false
+    type ??= unreachable
+    if (!Array.isArray(src)) src = [[this.meta, src]]
+    return { expr, type, src, bp }
   }
   setStmt(v: number, stmt: Statement<T, A>) {
     const [b, i] = this.blockIdx(v)
@@ -217,6 +219,10 @@ class Block<I extends IR<any, any>> {
   get length() { let n = 0; for (const _ of this) n++; return n }
   type(x: T<I> | number): T<I> | Anno<A<I>> { return this.ir.type(x) }
 
+  stmt(expr: Expr<T<I>>, opts: StmtOpts<A<I>> = {}): Statement<T<I>, A<I>> {
+    return this.ir.stmt(expr, opts)
+  }
+
   branchStart(): number {
     let i = this.bb.stmts.length
     while (i > 0 && this.bb.stmts[i - 1][1].expr.head === 'branch') i--
@@ -268,7 +274,7 @@ class Block<I extends IR<any, any>> {
   branch(target: number | Block<I>, args: (T<I> | number)[] = [],
     { when, src, bp }: { when?: number, src?: Source, bp?: boolean } = {}): number {
     const targetId = typeof target === 'number' ? target : target.id + 1
-    return this.push(stmt<T<I>, A<I>>(new Branch(targetId, args, when), { src, bp }))
+    return this.push(this.stmt(new Branch(targetId, args, when), { src, bp }))
   }
   return(arg: T<I> | number, opts: { src?: Source, bp?: boolean } = {}) { this.branch(0, [arg], opts) }
   unreachable(opts: { src?: Source, bp?: boolean } = {}) { this.branch(0, [], opts) }
@@ -316,7 +322,8 @@ function showBlock<T, A, M>(block: Block<IR<T, A>>): string {
     if (x > 0) result += `%${x} = `
     result += st.expr.show(block.ir.show)
     if (!(st.expr instanceof Branch) && st.type !== unreachable) result += ` :: ${show(st.type)}`
-    if (st.src) result += showLine(st.src, st.bp)
+    const src = st.src[st.src.length - 1][1]
+    if (src) result += showLine(src, st.bp)
   }
   return result
 }
@@ -596,6 +603,10 @@ class Pipe<I extends IR<any, any>> {
 
   substituteStmt(stmt: Statement<T<I>, A<I>>): Statement<T<I>, A<I>> {
     return { ...stmt, expr: stmt.expr.map(x => this.substitute(x)) }
+  }
+
+  stmt(expr: Expr<T<I>>, opts: StmtOpts<A<I>> = {}): Statement<T<I>, A<I>> {
+    return this.to.stmt(expr, opts)
   }
 
   push(stmt: Statement<T<I>, A<I>>): number {

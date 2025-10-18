@@ -1,7 +1,7 @@
 import { some } from '../utils/map'
 import { Type, issubset, union, asType } from '../frontend/types'
 import { IRValue, MIR } from '../frontend/modules'
-import { IR, Block, stmt, Branch, CFG, Component, components, entry, rename, Expr, unreachable, getIndent, withIndent } from '../utils/ir'
+import { IR, Block, Branch, CFG, Component, components, entry, rename, Expr, unreachable, getIndent, withIndent } from '../utils/ir'
 
 export { LoopIR, loop, looped, unloop, Path, tail, block, nextpath, nextpathTo, pin, reroll, blockargs }
 
@@ -62,7 +62,7 @@ function looped<T, A>(ir: IR<T, A>, cs?: Component): LoopIR<T, A> {
       blocks.push(entry(ch))
       const argts = ir.block(entry(ch)).argtypes
       const args = argts.map(T => bl.argument(T))
-      bl.push(stmt(new Loop(looped(ir, ch), args)))
+      bl.push(bl.stmt(new Loop(looped(ir, ch), args)))
     }
   })
   return new LoopIR(out, blocks, [out.clone()], 8)

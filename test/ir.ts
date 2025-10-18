@@ -1,6 +1,6 @@
 import { test } from 'uvu'
 import * as assert from 'assert'
-import { IR, CFG, components, expand, prune, expr, stmt, unreachable, renumber, Val } from '../src/utils/ir'
+import { CFG, components, expand, prune, expr, unreachable, renumber, Val } from '../src/utils/ir'
 import { looped, unloop } from '../src/middle/loop'
 import { MIR } from '../src/frontend/modules'
 import { Def } from '../src/dwarf'
@@ -45,10 +45,10 @@ test('components: two-block cycle', () => {
 test('expand/prune', () => {
   const ir = MIR(Def('test'))
   const b1 = ir.block()
-  const v = b1.push(stmt(expr('val')))
+  const v = b1.push(ir.stmt(expr('val')))
   b1.branch(2)
   const b2 = ir.newBlock()
-  b2.push(stmt(expr('use', v as Val<MIR>)))
+  b2.push(ir.stmt(expr('use', v as Val<MIR>)))
   b2.unreachable()
   const expanded = expand(ir)
   assert.equal(expanded.toString(), `Function test at undefined
@@ -75,11 +75,11 @@ test('looped/unloop', () => {
   b1.branch(2, [input])
   const b2 = ir.newBlock()
   const x = b2.argument(unreachable)
-  const cond = b2.push(stmt(expr('check', x as Val<MIR>)))
+  const cond = b2.push(ir.stmt(expr('check', x as Val<MIR>)))
   b2.branch(3, [], { when: cond })
   b2.branch(4)
   const b3 = ir.newBlock()
-  const next = b3.push(stmt(expr('step', x as Val<MIR>)))
+  const next = b3.push(ir.stmt(expr('step', x as Val<MIR>)))
   b3.branch(2, [next])
   const b4 = ir.newBlock()
   b4.return(x)

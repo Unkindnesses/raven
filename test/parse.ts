@@ -22,7 +22,6 @@ test('precedence table transitivity', () => {
   function transitive(t: PrecTable): boolean {
     let trans = true
     const N = t.ops.size
-    const ops = t.ops
     for (let i = 0; i < N; i++) {
       for (let j = 0; j < N; j++) {
         if (i !== j) trans &&= (t.table[i][j]) === inverse(t.table[j][i])

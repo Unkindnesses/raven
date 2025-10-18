@@ -2,7 +2,7 @@ import { HashSet } from '../utils/map'
 import { Tag, Attr, Form } from './enums'
 
 export {
-  Source, Def, LineInfo, Value, DIE, Abbrev, LineTable, offset, abbrev, abbrevs
+  Source, Def, Frame, Stack, LineInfo, Value, DIE, Abbrev, LineTable, offset, abbrev, abbrevs
 }
 
 interface Source {
@@ -21,8 +21,16 @@ function Def(name: string, source?: Source, trampoline: boolean = false): Def {
   return { name, source, trampoline }
 }
 
-class LineInfo {
-  constructor(readonly src: Source, readonly bp: boolean = false) { }
+type Frame = [Def, Source | undefined]
+type Stack = Frame[]
+
+interface LineInfo {
+  readonly src: Stack
+  readonly bp: boolean
+}
+
+function LineInfo(src: Stack, bp: boolean = false): LineInfo {
+  return { src, bp }
 }
 
 type Value =
@@ -44,7 +52,7 @@ class Abbrev {
 }
 
 class LineTable {
-  constructor(readonly lines: [number, LineInfo | null][]) { }
+  constructor(readonly lines: [number, LineInfo][]) { }
 }
 
 function offset(lt: LineTable, δ: number): LineTable {

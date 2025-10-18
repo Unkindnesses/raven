@@ -5,7 +5,7 @@ import { binary as wasmBinary } from '../wasm/binary'
 import { writeFile } from 'fs/promises'
 import { options } from '../utils/options'
 import { irfunc, Instr, setdiff } from '../wasm/ir'
-import { unreachable, Anno, Pipe, expr, stmt, Val, asAnno, Branch } from '../utils/ir'
+import { unreachable, Anno, Pipe, expr, Val, asAnno, Branch } from '../utils/ir'
 import isEqual from 'lodash/isEqual'
 import { layout } from '../middle/expand'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe } from '../utils/cache'
@@ -114,7 +114,7 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
       const parts = layout(types.asType(st.type))
       const ps: Val<MIR>[] = []
       for (let i = 0; i < ids.length; i++)
-        ps.push(pr.insert(v, stmt(instr(wasm.GetGlobal(ids[i])), { type: [parts[i]] })))
+        ps.push(pr.insert(v, pr.stmt(instr(wasm.GetGlobal(ids[i])), { type: [parts[i]] })))
       if (ps.length === 1) pr.replace(v, ps[0])
       else pr.set(v, xtuple(...ps))
     } else if (st.expr.head === 'call' && (st.expr.body[0] instanceof WIntrinsic || st.expr.body[0] instanceof WImport)) {
@@ -129,7 +129,7 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
       }
       // TODO deprecate array types
       pr.setStmt(v, { ...st, type: st.type === unreachable ? [] : Array.isArray(st.type) ? st.type : layout(types.asType(st.type)) })
-      if (st.type === unreachable) pr.push(stmt(instr(wasm.unreachable), { type: [] }))
+      if (st.type === unreachable) pr.push(pr.stmt(instr(wasm.unreachable), { type: [] }))
     } else if (st.expr.head === 'call') {
       const Ts = st.expr.body.map(a => ir.type(a))
       if (Ts.some(t => t === unreachable)) throw new Error('unreachable arg in call')
@@ -162,8 +162,8 @@ function lowerwasm_globals(ir: MIR, globals: WGlobals): MIR {
     for (let i = 0; i < ids.length; i++) {
       let p = st.expr.body[1]
       if (wparts(asAnno(types.asType, st.type)).length > 1)
-        p = pr.push(stmt(expr('ref', p, Const.i64(i + 1))))
-      pr.push(stmt(instr(wasm.SetGlobal(ids[i]), p), { type: [] }))
+        p = pr.push(pr.stmt(expr('ref', p, Const.i64(i + 1))))
+      pr.push(pr.stmt(instr(wasm.SetGlobal(ids[i]), p), { type: [] }))
     }
   }
   return pr.finish()
@@ -275,9 +275,10 @@ class BatchEmitter implements Emitter {
 }
 
 function startfunc(main: string[]): wasm.Func {
-  const body = wasm.Block([...main.map(m => wasm.Call(m)), wasm.Const(wasm.Type.i32, 0)])
-  return wasm.Func('_start', wasm.Signature([], [wasm.Type.i32]), [], body,
-    Def('common.core.main', undefined, true))
+  const meta = Def('common.core.main', undefined, true)
+  const instrs = [...main.map(m => wasm.Call(m)), wasm.Const(wasm.Type.i32, 0)]
+  const body = wasm.Block(instrs, instrs.map(() => wasm.LineInfo([[meta, meta.source]])))
+  return wasm.Func('_start', wasm.Signature([], [wasm.Type.i32]), [], body, meta)
 }
 
 function metaSection(strings: string[]): wasm.CustomSection {

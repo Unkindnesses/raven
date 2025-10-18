@@ -250,23 +250,23 @@ function indexer(code: MIR, T: types.Type, arg: number, path: Path): number {
   if (typeof p !== 'number') {
     const ps: number[] = []
     for (let i = p.start; i <= p.end; i++)
-      ps.push(code.push(ir.stmt(xpart(arg, types.Type(BigInt(i))), { type: types.part(T, i) })))
+      ps.push(code.push(code.stmt(xpart(arg, types.Type(BigInt(i))), { type: types.part(T, i) })))
     const L = types.list(...ps.map(v => code.type(v) as types.Type))
-    arg = code.push(ir.stmt(xlist(...ps), { type: L }))
+    arg = code.push(code.stmt(xlist(...ps), { type: L }))
   } else {
     T = types.part(T, p)
-    arg = code.push(ir.stmt(xpart(arg, types.Type(BigInt(p))), { type: T }))
+    arg = code.push(code.stmt(xpart(arg, types.Type(BigInt(p))), { type: T }))
   }
   return indexer(code, T, arg, rest)
 }
 
 function icall(inf: Inference, code: MIR, sig: Sig, f: IRValue, ...args: (IRValue | number)[]): number {
   if (!(f instanceof Method))
-    args = [code.push(ir.stmt(xlist(...args),
+    args = [code.push(code.stmt(xlist(...args),
       { type: types.list(...args.map(a => types.asType(code.type(a)))) }))]
   const ex = xcall(f, ...args)
   const T = inferexpr(inf, sig, code, ex)
-  return code.push(ir.stmt(ex, { type: T }))
+  return code.push(code.stmt(ex, { type: T }))
 }
 
 function dispatcher(inf: Inference, func: types.Tag, Ts: types.Type): [MIR, ir.Anno<types.Type>] {
@@ -284,7 +284,7 @@ function dispatcher(inf: Inference, func: types.Tag, Ts: types.Type): [MIR, ir.A
       if (code.type(m) === ir.unreachable) { code.block().unreachable(); return [code, ret] }
       m = call(part_method, m, types.Type(1n))
       // TODO use call?
-      const cond = code.push(ir.stmt(xcall(isnil_method, m), { type: partial_isnil(types.asType(code.type(m))) }))
+      const cond = code.push(code.stmt(xcall(isnil_method, m), { type: partial_isnil(types.asType(code.type(m))) }))
       code.branch(code.blockCount + 2, [], { when: cond })
       code.branch(code.blockCount + 1)
       code.newBlock()
@@ -294,7 +294,7 @@ function dispatcher(inf: Inference, func: types.Tag, Ts: types.Type): [MIR, ir.A
         as.push(call(part_method, call(types.tag('common.getkey'), m, types.tag(arg)), types.Type(1n)))
       let result = call(meth, ...as)
       if (meth.sig.swap.size === 0 && code.type(result) !== ir.unreachable)
-        result = code.push(ir.stmt(xlist(result), { type: types.list(types.asType(code.type(result))) }))
+        result = code.push(code.stmt(xlist(result), { type: types.list(types.asType(code.type(result))) }))
       code.return(result)
       ret = maybe_union(ret, ir.asAnno(types.asType, code.type(result)))
       code.newBlock()
@@ -306,7 +306,7 @@ function dispatcher(inf: Inference, func: types.Tag, Ts: types.Type): [MIR, ir.A
         return [code, ret]
       }
       if (meth.sig.swap.size === 0)
-        result = code.push(ir.stmt(xlist(result), { type: types.list(types.asType(code.type(result))) }))
+        result = code.push(code.stmt(xlist(result), { type: types.list(types.asType(code.type(result))) }))
       code.return(result)
       ret = maybe_union(ret, ir.asAnno(types.asType, code.type(result)))
       return [code, ret]

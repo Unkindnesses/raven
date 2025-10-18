@@ -47,6 +47,10 @@ function compiled_wat(m: wasm.Module): string {
   return res.stdout
 }
 
+function Block(instrs: wasm.Instruction[]): wasm.Block {
+  return wasm.Block(instrs, instrs.map(_ => wasm.LineInfo([[Def('test'), undefined]])))
+}
+
 test('binary', () => {
   let m = wasm.Module({ mems: [wasm.Mem(0)] })
   assert.ok(compiled_wat(m).includes('(memory'))
@@ -54,12 +58,12 @@ test('binary', () => {
   m = wasm.Module({ globals: [wasm.Global(wasm.Type.i64)] })
   assert.ok(compiled_wat(m).includes('(global (;0;) (mut i64) i64.const 0)'))
 
-  m = wasm.Module({ funcs: [wasm.Func('add', wasm.Signature([], [wasm.Type.i32]), [], wasm.Block([wasm.Const(wasm.Type.i32, 5n)]), Def('add'))] })
+  m = wasm.Module({ funcs: [wasm.Func('add', wasm.Signature([], [wasm.Type.i32]), [], Block([wasm.Const(wasm.Type.i32, 5n)]), Def('add'))] })
   let s = compiled_wat(m)
   assert.ok(s.includes('func $add (;0;) (type 0) (result i32)'))
   assert.ok(s.includes('i32.const 5'))
 
-  m = wasm.Module({ funcs: [wasm.Func('add', wasm.Signature([], [wasm.Type.f64]), [], wasm.Block([wasm.Const(wasm.Type.f64, 1.0)]), Def('add'))] })
+  m = wasm.Module({ funcs: [wasm.Func('add', wasm.Signature([], [wasm.Type.f64]), [], Block([wasm.Const(wasm.Type.f64, 1.0)]), Def('add'))] })
   assert.ok(compiled_wat(m).includes('f64.const 0x1p+0'))
 
   m = wasm.Module({ imports: [wasm.Import('support', 'global', 'jsglobal', wasm.Signature([wasm.Type.f32], [wasm.Type.i32]))] })
@@ -67,7 +71,7 @@ test('binary', () => {
   assert.ok(s.includes('import "support" "global"'))
   assert.ok(s.includes('(param f32) (result i32)'))
 
-  m = wasm.Module({ exports: [wasm.Export('add', 'wasmAdd')], funcs: [wasm.Func('add', wasm.Signature([wasm.Type.i32], [wasm.Type.i32]), [], wasm.Block([wasm.Const(wasm.Type.i32, 5n)]), Def('add'))] })
+  m = wasm.Module({ exports: [wasm.Export('add', 'wasmAdd')], funcs: [wasm.Func('add', wasm.Signature([wasm.Type.i32], [wasm.Type.i32]), [], Block([wasm.Const(wasm.Type.i32, 5n)]), Def('add'))] })
   assert.ok(compiled_wat(m).includes('(export "wasmAdd" (func $add))'))
 })
 

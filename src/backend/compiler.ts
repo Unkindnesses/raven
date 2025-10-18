@@ -127,11 +127,12 @@ interface CompileConfig {
 }
 
 async function compile(file: string, config: CompileConfig = {}): Promise<string> {
-  let { dir = path.dirname(file), compiler = new Compiler(), options = {}, output, strip = false } = config
+  let { dir = path.dirname(file), compiler, options = {}, output, strip = false } = config
   const base = path.basename(file, path.extname(file))
   const wasmPath = output ?? path.join(dir, `${base}.wasm`)
   await mkdir(path.dirname(wasmPath), { recursive: true })
   await withOptions(options, async () => {
+    compiler ??= new Compiler()
     const em = compiler.reload(file)
     if (!(em instanceof wasm.BatchEmitter)) throw new Error('nope')
     await wasm.emitwasm(em, compiler.pipe.wasm, wasmPath, strip)
@@ -140,11 +141,12 @@ async function compile(file: string, config: CompileConfig = {}): Promise<string
 }
 
 async function compileJS(file: string, config: CompileConfig = {}): Promise<string> {
-  let { dir = path.dirname(file), compiler = new Compiler(), options = {}, output, strip = false } = config
+  let { dir = path.dirname(file), compiler, options = {}, output, strip = false } = config
   const base = path.basename(file, path.extname(file))
   const jsPath = output ?? path.join(dir, `${base}.js`)
   await mkdir(path.dirname(jsPath), { recursive: true })
   await withOptions(options, async () => {
+    compiler ??= new Compiler()
     const em = compiler.reload(file)
     if (!(em instanceof wasm.BatchEmitter)) throw new Error('nope')
     const bytes = wasm.emitwasmBinary(em, compiler.pipe.wasm, strip)

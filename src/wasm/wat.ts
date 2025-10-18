@@ -11,8 +11,10 @@ function basename(p: string): string {
 }
 
 function lineToString(li: wasm.LineInfo): string {
-  const file = basename(li.src.file)
-  let s = ` ;; ${file}:${li.src.line}:${li.src.col}`
+  const src = li.src[li.src.length - 1][1]
+  if (!src) return ''
+  const file = basename(src.file)
+  let s = ` ;; ${file}:${src.line}:${src.col}`
   if (li.bp) s += ' 🔴'
   return s
 }
@@ -50,14 +52,14 @@ function instructionToString(i: wasm.Instruction, level: number = 0): string {
   }
 }
 
-function bodyToString(xs: wasm.Instruction[], ss: (wasm.LineInfo | null)[], level: number): string {
+function bodyToString(xs: wasm.Instruction[], ss: wasm.LineInfo[], level: number): string {
   let result = ''
   for (let i = 0; i < xs.length; i++) {
     result += '\n' + '  '.repeat(level)
     result += '('
     result += instructionToString(xs[i], level)
     result += ')'
-    if (ss[i]) result += lineToString(ss[i] as wasm.LineInfo)
+    result += lineToString(ss[i])
   }
   return result
 }
