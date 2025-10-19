@@ -437,13 +437,14 @@ function findLineRow(lines: LineRow[], pc: number): LineRow | undefined {
   while (lo <= hi) {
     const mid = Math.floor((lo + hi) / 2)
     const row = lines[mid]
+    if (pc === row.address) return row
     if (pc < row.address) hi = mid - 1
     else {
       candidate = row
       lo = mid + 1
     }
   }
-  return candidate
+  return
 }
 
 function locate(pc: number, m: DebugModule): { fn: FunctionRange, line?: LineRow } | undefined {
