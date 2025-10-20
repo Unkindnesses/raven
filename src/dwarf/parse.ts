@@ -1,5 +1,6 @@
 import { Attr, Tag, Form } from '../dwarf/enums'
-import { Source, Abbrev } from '../dwarf/structs'
+import { Source, Abbrev, DIE, Value } from '../dwarf/structs'
+import { asBool, asNumber, asString, some } from '../utils/map'
 
 export { DebugModule, Source, sections, locate }
 
@@ -50,7 +51,7 @@ class Reader {
   }
 
   peek(): number | undefined {
-    if (this.done) return
+    this.ensure(1)
     return this.bytes[this.offset]
   }
 
@@ -201,71 +202,72 @@ function parseDebugAbbrev(section: Uint8Array): Map<number, Abbrev> {
   return table
 }
 
-function readFormValue(reader: Reader, form: Form, addressSize: number): number | bigint | string | boolean {
+function readValue(reader: Reader, form: Form): Value {
   switch (form) {
     case Form.addr:
-      return addressSize === 8 ? Number(reader.u64()) : reader.u32()
+      return [form, reader.u32()]
     case Form.sec_offset:
     case Form.data4:
-      return reader.u32()
+      return [form, reader.u32()]
     case Form.data1:
-      return reader.u8()
+      return [form, reader.u8()]
     case Form.data2:
-      return reader.u16()
+      return [form, reader.u16()]
     case Form.data8:
-      return reader.u64()
+      return [form, reader.u64()]
     case Form.string:
-      return reader.cstring()
+      return [form, reader.cstring()]
     case Form.flag:
-      return reader.u8() !== 0
+      return [form, reader.u8() !== 0]
     default:
       throw new Error(`Unsupported DWARF form ${form}`)
   }
 }
 
-function parseDebugInfo(section: Uint8Array, abbrevs: Map<number, Abbrev>): FunctionRange[] {
-  const functions: FunctionRange[] = []
-  const reader = new Reader(section)
-  while (reader.remaining() >= 11) {
-    const unitLength = reader.u32()
-    const unit = reader.fork(unitLength)
-    unit.skip(2)
-    unit.skip(4)
-    const addressSizeByte = unit.u8()
-    const addressSize = bytesPerAddress(addressSizeByte)
-    const stack: Tag[] = []
-    while (!unit.done) {
-      const code = unit.uleb()
-      if (code === 0) {
-        if (stack.length === 0) break
-        stack.pop()
-        continue
-      }
-      const abbrev = abbrevs.get(code)
-      if (!abbrev) throw new Error(`Missing DWARF abbrev ${code}`)
-      const values = new Map<Attr, number | bigint | string | boolean>()
-      for (const [name, form] of abbrev.attrs)
-        values.set(name, readFormValue(unit, form, addressSize))
-      if (abbrev.tag === Tag.subprogram) {
-        const low = values.get(Attr.low_pc)
-        const high = values.get(Attr.high_pc)
-        if (typeof low === 'number' && typeof high === 'number') {
-          const rawName = values.get(Attr.name)
-          const trampoline = values.get(Attr.trampoline) === true
-          const name = typeof rawName === 'string' ? rawName : ''
-          functions.push({ name, low, high, trampoline })
-        }
-      }
-      if (abbrev.children) stack.push(abbrev.tag)
+function parseDIE(unit: Reader, abbrevs: Map<number, Abbrev>): DIE | undefined {
+  const code = unit.uleb()
+  if (code === 0) return
+  const abbrev = some(abbrevs.get(code))
+  const attrs: [Attr, Value][] = []
+  for (const [name, form] of abbrev.attrs)
+    attrs.push([name, readValue(unit, form)])
+  const children: DIE[] = []
+  if (abbrev.children) {
+    while (true) {
+      const child = parseDIE(unit, abbrevs)
+      if (!child) break
+      children.push(child)
     }
   }
-  functions.sort((a, b) => a.low - b.low)
-  return functions
+  return new DIE(abbrev.tag, attrs, children)
 }
 
-function bytesPerAddress(size: number): number {
-  if (size === 0) return 4
-  return size
+function parseDebugInfo(section: Uint8Array, abbrevs: Map<number, Abbrev>): DIE {
+  const reader = new Reader(section)
+  const unitLength = reader.u32()
+  const unit = reader.fork(unitLength)
+  unit.u16() // DWARF version
+  unit.skip(4) // debug_abbrev_offset
+  unit.u8() // address_size
+  return some(parseDIE(unit, abbrevs))
+}
+
+function attrValue(attrs: [Attr, Value][], attr: Attr): Value[1] | undefined {
+  for (const [name, value] of attrs)
+    if (name === attr) return value[1]
+}
+
+function functionRanges(root: DIE): FunctionRange[] {
+  const functions: FunctionRange[] = []
+  for (const die of root.children) {
+    if (die.tag !== Tag.subprogram) continue
+    const low = asNumber(attrValue(die.attrs, Attr.low_pc))
+    const high = asNumber(attrValue(die.attrs, Attr.high_pc))
+    const name = asString(attrValue(die.attrs, Attr.name))
+    const trampoline = asBool(attrValue(die.attrs, Attr.trampoline) ?? false)
+    functions.push({ name, low, high, trampoline })
+  }
+  return functions.sort((a, b) => a.low - b.low)
 }
 
 function parseDebugLine(section: Uint8Array): LineRow[] {
@@ -274,104 +276,57 @@ function parseDebugLine(section: Uint8Array): LineRow[] {
   while (reader.remaining() >= 10) {
     const unitLength = reader.u32()
     const unit = reader.fork(unitLength)
-    const version = unit.u16()
-    if (version !== 4) {
-      unit.offset = unit.limit
-      continue
-    }
+    unit.u16() // version
     const headerLength = unit.u32()
     const header = unit.fork(headerLength)
-    const minimumInstructionLength = header.u8()
-    header.skip(1)
-    const defaultIsStmtByte = header.u8()
-    const lineBase = header.i8()
-    const lineRange = header.u8()
+    header.u8() // minimum_instruction_length
+    header.u8() // maximum_operations_per_instruction
+    header.u8() // default_is_stmt
+    header.i8() // line_base
+    header.u8() // line_range
     const opcodeBase = header.u8()
-    header.skip(opcodeBase - 1)
-    while (!header.done) {
-      const next = header.peek()
-      if (next === undefined) break
-      if (next === 0) {
-        header.skip(1)
-        break
-      }
-      header.cstring()
-    }
+    header.skip(opcodeBase - 1) // standard_opcode_lengths
+    while (!header.done)
+      if (header.cstring() === '') break
     const files: string[] = []
     while (!header.done) {
-      const next = header.peek()
-      if (next === undefined) break
-      if (next === 0) {
-        header.skip(1)
-        break
-      }
       const name = header.cstring()
-      header.uleb()
-      header.uleb()
-      header.uleb()
+      if (name === '') break
+      header.uleb() // dir
+      header.uleb() // last_modified
+      header.uleb() // file size
       files.push(name)
     }
-    let [address, line, column, file, isStmt] = [0, 1, 0, 1, defaultIsStmtByte !== 0]
-    const reset = () => {
-      [address, line, column, file, isStmt] = [0, 1, 0, 1, defaultIsStmtByte !== 0]
-    }
+    let [address, line, column, file, isStmt] = [0, 1, 0, 1, false]
+    const reset = () =>
+      [address, line, column, file, isStmt] = [0, 1, 0, 1, false]
     while (!unit.done) {
       const opcode = unit.u8()
-      if (opcode === 0) {
-        const length = unit.uleb()
-        if (length === 0) continue
-        const subopcode = unit.u8()
-        const payloadLength = length - 1
-        if (payloadLength < 0) throw new Error('Invalid DWARF line payload length')
-        const payload = unit.chunk(payloadLength)
-        switch (subopcode) {
-          case 0x01:
-            reset()
-            break
-          case 0x02:
-            if (payloadLength === 4) {
-              const payloadView = new DataView(payload.buffer, payload.byteOffset, payload.byteLength)
-              address = payloadView.getUint32(0, true)
-            }
-            break
-          default:
-            break
-        }
-        continue
-      }
-      if (opcode < opcodeBase) {
-        switch (opcode) {
-          case 0x01:
-            if (file >= 1 && file <= files.length)
-              rows.push({ address, source: { file: files[file - 1], line, col: column }, isStmt })
-            break
-          case 0x02:
-            address += unit.uleb() * minimumInstructionLength
-            continue
-          case 0x03:
-            line += unit.sleb()
-            continue
-          case 0x04:
-            file = unit.uleb()
-            continue
-          case 0x05:
-            column = unit.uleb()
-            continue
-          case 0x06:
-            isStmt = !isStmt
-            continue
-          default:
-            break
-        }
-      } else {
-        const adjusted = opcode - opcodeBase
-        const opAdvance = lineRange === 0 ? 0 : Math.floor(adjusted / lineRange)
-        const lineAdvance = lineRange === 0 ? lineBase : lineBase + (adjusted % lineRange)
-        address += opAdvance * minimumInstructionLength
-        line += lineAdvance
-        if (file >= 1 && file <= files.length)
-          rows.push({ address, source: { file: files[file - 1], line, col: column }, isStmt })
-        continue
+      if (opcode >= opcodeBase) throw new Error('unsupported opcode')
+      switch (opcode) {
+        case 0x00:
+          if (unit.uleb() !== 1 || unit.u8() !== 1) throw new Error('Unsupported extended opcode')
+          reset()
+          break
+        case 0x01:
+          if (file >= 1 && file <= files.length)
+            rows.push({ address, source: { file: files[file - 1], line, col: column }, isStmt })
+          break
+        case 0x02:
+          address += unit.uleb()
+          break
+        case 0x03:
+          line += unit.sleb()
+          break
+        case 0x04:
+          file = unit.uleb()
+          break
+        case 0x05:
+          column = unit.uleb()
+          break
+        case 0x06:
+          isStmt = !isStmt
+          break
       }
     }
   }
@@ -407,9 +362,8 @@ function DebugModule(bytes: Uint8Array): DebugModule | undefined {
   const abbrevSection = table.get('.debug_abbrev')
   if (!lineSection || !infoSection || !abbrevSection) return
   const abbrevs = parseDebugAbbrev(abbrevSection)
-  const functions = parseDebugInfo(infoSection, abbrevs)
+  const functions = functionRanges(parseDebugInfo(infoSection, abbrevs))
   const lines = parseDebugLine(lineSection)
-  if (functions.length === 0 && lines.length === 0) return
   return { base, lines, functions }
 }
 
@@ -433,14 +387,12 @@ function findFunctionRange(functions: FunctionRange[], pc: number): FunctionRang
 function findLineRow(lines: LineRow[], pc: number): LineRow | undefined {
   let lo = 0
   let hi = lines.length - 1
-  let candidate: LineRow | undefined
   while (lo <= hi) {
     const mid = Math.floor((lo + hi) / 2)
     const row = lines[mid]
     if (pc === row.address) return row
     if (pc < row.address) hi = mid - 1
     else {
-      candidate = row
       lo = mid + 1
     }
   }

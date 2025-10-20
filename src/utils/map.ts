@@ -1,4 +1,4 @@
-export { HashMap, HashSet, HashFn, some, asNumber, asBigInt, asString, asArray, first, only, setdiff, filter }
+export { HashMap, HashSet, HashFn, some, asNumber, asBool, asBigInt, asString, asArray, first, only, setdiff, filter }
 
 function some<T>(value: T | null | undefined, message?: string): T {
   if (value === null || value === undefined)
@@ -23,6 +23,11 @@ function only<T>(xs: Iterable<T>): T {
 function asNumber(value: unknown): number {
   if (typeof value === 'number') return value
   throw new Error(`Expected number, got ${typeof value}`)
+}
+
+function asBool(value: unknown): boolean {
+  if (typeof value === 'boolean') return value
+  throw new Error(`Expected boolean, got ${typeof value}`)
 }
 
 function asBigInt(value: unknown): bigint {

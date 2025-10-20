@@ -134,14 +134,11 @@ function formatLocation(loc: Source): string {
 function formatStack(err: Error, frames: NodeJS.CallSite[]): string {
   let lines: string[] = []
   for (const frame of frames) {
-    if (typeof frame.getPosition !== 'function') continue
-    const position = frame.getPosition()
-    if (typeof position !== 'number') continue
     const script = frame.getScriptNameOrSourceURL?.()
     if (typeof script === 'string' && script.startsWith('wasm://')) {
       let debug = debugModules.get(frame.getThis() as WebAssembly.Instance)
       if (debug) {
-        const located = locate(position, debug)
+        const located = locate(frame.getPosition(), debug)
         if (!located || located.fn.trampoline) continue
         if (!located.line)
           lines.push(located.fn.name)
