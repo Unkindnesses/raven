@@ -2,7 +2,7 @@ import { Form } from './enums'
 import * as path from 'node:path'
 import { HashMap, some } from '../utils/map'
 import { Attr, Tag } from './enums'
-import { DIE, Abbrev, LineTable, abbrev, Value, Source, Def, Function, LineInfo, Frame } from './structs'
+import { DIE, Abbrev, LineTable, abbrev, Value, Source, Def, Function, LineInfo } from './structs'
 import { isEqual } from 'lodash'
 
 export {
@@ -69,7 +69,6 @@ function inlineDie(fn: Function, call: Source | undefined, files: string[]): DIE
     [Attr.low_pc, [Form.addr, fn.range[0]]],
     [Attr.high_pc, [Form.addr, fn.range[1]]]
   ]
-  if (fn.def.trampoline) attrs.push([Attr.trampoline, [Form.flag, true]])
   attrs.push(...callAttrs(call, files))
   const children = fn.inlines.map(child => inlineDie(...child, files))
   return new DIE(Tag.inlined_subroutine, attrs, children)
@@ -81,7 +80,6 @@ function functionDie(fn: Function, files: string[]): DIE {
     [Attr.low_pc, [Form.addr, fn.range[0]]],
     [Attr.high_pc, [Form.addr, fn.range[1]]]
   ]
-  if (fn.def.trampoline) attrs.push([Attr.trampoline, [Form.flag, true]])
   const children = fn.inlines.map(child => inlineDie(...child, files))
   return new DIE(Tag.subprogram, attrs, children)
 }

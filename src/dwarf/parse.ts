@@ -263,8 +263,7 @@ function dieFunction(die: DIE, files: string[]): Function {
   const name = asString(attrValue(die.attrs, Attr.name))
   const low = asNumber(attrValue(die.attrs, Attr.low_pc))
   const high = asNumber(attrValue(die.attrs, Attr.high_pc))
-  const trampoline = asBool(attrValue(die.attrs, Attr.trampoline) ?? false)
-  const def = Def(name, undefined, trampoline)
+  const def = Def(name, undefined)
   const inlines = die.children
     .filter(child => child.tag === Tag.inlined_subroutine)
     .map(child => [dieFunction(child, files), callSite(child.attrs, files)] as [Function, Source | undefined])

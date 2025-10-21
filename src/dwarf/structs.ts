@@ -14,11 +14,10 @@ interface Source {
 interface Def {
   readonly name: string
   readonly source: Source | undefined
-  readonly trampoline: boolean
 }
 
-function Def(name: string, source?: Source, trampoline: boolean = false): Def {
-  return { name, source, trampoline }
+function Def(name: string, source?: Source): Def {
+  return { name, source }
 }
 
 type Frame = [Def, Source | undefined]
