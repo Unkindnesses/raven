@@ -1,6 +1,8 @@
 #!/usr/bin/env -S node --enable-source-maps --experimental-wasm-stack-switching
 import * as commander from 'commander'
 import * as nodeRepl from 'node:repl'
+import * as os from 'os'
+import * as path from 'path'
 import { compile, compileJS, exec } from './backend/compiler'
 import { REPL } from './backend/repl'
 
@@ -22,6 +24,11 @@ async function startRepl() {
         )
       }
     })
+    const historyPath = path.join(os.homedir(), '.raven_history')
+    await new Promise(resolve => server.setupHistory(historyPath, err => {
+      if (err) console.warn('Unable to load REPL history', err)
+      resolve(undefined)
+    }))
     await new Promise(resolve => server.on('exit', resolve))
   } finally {
     await raven.close()
