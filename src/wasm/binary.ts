@@ -10,7 +10,7 @@ const { i32, i64, f32, f64, externref } = wasm.Type
 interface Debug {
   size: number
   lines: dwarf.LineTable
-  dies: dwarf.DIE[]
+  functions: dwarf.Function[]
 }
 
 class BinaryContext {
@@ -375,28 +375,21 @@ function func(cx: BinaryContext, f: wasm.Func): dwarf.LineTable {
 
 function code(cx: BinaryContext, funcs: wasm.Func[]): Debug {
   const table = new dwarf.LineTable([])
-  const dies: dwarf.DIE[] = []
-  if (funcs.length === 0) return { size: 0, lines: table, dies }
+  const functions: dwarf.Function[] = []
+  if (funcs.length === 0) return { size: 0, lines: table, functions }
   cx.write(0x0a) // section id
   const size = withsize(cx, cx => {
     cx.leb128(funcs.length)
     for (const f of funcs) {
-      let lt: dwarf.LineTable | null = null
+      let lt: dwarf.LineTable
       const bodySize = withsize(cx, cx => { lt = func(cx, f) })
-      const low_pc = cx.position - bodySize
-      const high_pc = cx.position
-      const tlt = lt || new dwarf.LineTable([])
-      table.lines.push(...dwarf.offset(tlt, -low_pc).lines)
-      const attrs: [dwarf.Attr, [dwarf.Form, any]][] = [
-        [dwarf.Attr.name, [dwarf.Form.string, f.meta.name]],
-        [dwarf.Attr.low_pc, [dwarf.Form.addr, low_pc]],
-        [dwarf.Attr.high_pc, [dwarf.Form.addr, high_pc]]
-      ]
-      if (f.meta.trampoline) attrs.push([dwarf.Attr.trampoline, [dwarf.Form.flag, true]])
-      dies.push(new dwarf.DIE(dwarf.Tag.subprogram, attrs as any, []))
+      const range: [number, number] = [cx.position - bodySize, cx.position]
+      table.lines.push(...dwarf.offset(lt!, -range[0]).lines)
+      const inlines = dwarf.buildInlineTree(lt!.lines, bodySize, range[0], f.meta)
+      functions.push({ def: f.meta, range, inlines })
     }
   })
-  return { size, lines: table, dies }
+  return { size, lines: table, functions }
 }
 
 function names(cx: BinaryContext, m: wasm.Module): void {
@@ -414,6 +407,8 @@ function names(cx: BinaryContext, m: wasm.Module): void {
 }
 
 function emitDwarf(cx: BinaryContext, info: Debug): void {
+  const files = dwarf.lineFiles(info.lines)
+  const dies = info.functions.map(fn => dwarf.functionDie(fn, files))
   const root = new dwarf.DIE(dwarf.Tag.compile_unit,
     [
       [dwarf.Attr.producer, [dwarf.Form.string, 'raven version 0.0.0']],
@@ -422,12 +417,12 @@ function emitDwarf(cx: BinaryContext, info: Debug): void {
       [dwarf.Attr.low_pc, [dwarf.Form.addr, 0]],
       [dwarf.Attr.high_pc, [dwarf.Form.addr, info.size]]
     ],
-    info.dies
+    dies
   )
   const as = dwarf.abbrevs(root)
   custom(cx, '.debug_info', buf => dwarf.debug_info(buf.buffer, root, as))
   custom(cx, '.debug_abbrev', buf => dwarf.debug_abbrev(buf.buffer, as))
-  if (info.lines.lines.every(p => p[1] === null)) return
+  if (info.lines.lines.length === 0) return
   custom(cx, '.debug_line', buf => dwarf.debug_line(buf.buffer, info.lines))
 }
 

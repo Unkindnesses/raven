@@ -275,7 +275,7 @@ class BatchEmitter implements Emitter {
 }
 
 function startfunc(main: string[]): wasm.Func {
-  const meta = Def('common.core.main', undefined, true)
+  const meta = Def('_start', undefined, true)
   const instrs = [...main.map(m => wasm.Call(m)), wasm.Const(wasm.Type.i32, 0)]
   const body = wasm.Block(instrs, instrs.map(() => wasm.LineInfo([[meta, meta.source]])))
   return wasm.Func('_start', wasm.Signature([], [wasm.Type.i32]), [], body, meta)

@@ -103,7 +103,7 @@ test('Line info', async () => {
   assert.equal(info.column, 18)
 })
 
-test('Stack trace', async () => {
+test('Stack trace inlined', async () => {
   await ravenTest(`
 fn foo(x) {
   abort("something's wrong!")
@@ -114,6 +114,19 @@ foo(1)
     error: true,
     output: /^Error: something's wrong!\n    at foo \(.+\/test\.rv:3:8\)\n    at .+\/test\.rv:6:4\n?$/,
     options: { inline: false },
+  })
+})
+
+test('Stack trace', async () => {
+  await ravenTest(`
+fn foo(x) {
+  abort("something's wrong!")
+}
+
+foo(1)
+`, {
+    error: true,
+    output: /^Error: something's wrong!\n    at foo \(.+\/test\.rv:3:8\)\n    at .+\/test\.rv:6:4\n?$/
   })
 })
 

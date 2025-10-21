@@ -2,7 +2,7 @@ import { HashSet } from '../utils/map'
 import { Tag, Attr, Form } from './enums'
 
 export {
-  Source, Def, Frame, Stack, LineInfo, Value, DIE, Abbrev, LineTable, offset, abbrev, abbrevs
+  Source, Def, Frame, Stack, LineInfo, Function, Value, DIE, Abbrev, LineTable, offset, abbrev, abbrevs
 }
 
 interface Source {
@@ -31,6 +31,12 @@ interface LineInfo {
 
 function LineInfo(src: Stack, bp: boolean = false): LineInfo {
   return { src, bp }
+}
+
+interface Function {
+  def: Def
+  range: [number, number]
+  inlines: [Function, Source | undefined][]
 }
 
 type Value =

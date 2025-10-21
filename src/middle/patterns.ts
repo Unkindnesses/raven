@@ -270,7 +270,7 @@ function icall(inf: Inference, code: MIR, sig: Sig, f: IRValue, ...args: (IRValu
 }
 
 function dispatcher(inf: Inference, func: types.Tag, Ts: types.Type): [MIR, ir.Anno<types.Type>] {
-  const code = MIR(Def(func.path, undefined, true))
+  const code = MIR(Def(`${func.path}*`, undefined, true))
   const args = code.argument(Ts)
   let ret: ir.Anno<types.Type> = ir.unreachable
   let arms = dispatch_arms(Ts)

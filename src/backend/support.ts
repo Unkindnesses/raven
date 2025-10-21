@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises'
 import { DebugModule, locate, sections, Source } from '../dwarf/parse'
+import { Def } from '../dwarf'
 
 export { loadWasm, support, table }
 
@@ -127,8 +128,10 @@ function meta(bytes: Uint8Array): Metadata | undefined {
 
 const debugModules = new Map<WebAssembly.Instance, DebugModule>()
 
-function formatLocation(loc: Source): string {
-  return `${loc.file}:${loc.line}:${loc.col}`
+function formatFrame(def: Def, loc: Source): string {
+  const src = `${loc.file}:${loc.line}:${loc.col}`
+  if (def.name === '(global)') return src
+  return `${def.name} (${src})`
 }
 
 function formatStack(err: Error, frames: NodeJS.CallSite[]): string {
@@ -139,20 +142,17 @@ function formatStack(err: Error, frames: NodeJS.CallSite[]): string {
       let debug = debugModules.get(frame.getThis() as WebAssembly.Instance)
       if (debug) {
         const located = locate(frame.getPosition(), debug)
-        if (!located || located.fn.trampoline) continue
-        if (!located.line)
-          lines.push(located.fn.name)
-        else if (located.fn.name === 'common.core.main')
-          lines.push(formatLocation(located.line.source))
-        else
-          lines.push(`${located.fn.name} (${formatLocation(located.line.source)})`)
-        continue
+        if (located) {
+          for (const [def, src] of located.reverse())
+            if (src) lines.push(formatFrame(def, src))
+          continue
+        }
       }
     }
     lines.push(frame.toString())
   }
-  lines = lines.filter(l => !l.match(/backend\/(exec|worker)/))
-  while (lines[0]?.match(/common\.abort.*wasm\/js\.rv/)) lines.shift()
+  lines = lines.filter(l => !/backend\/(exec|worker)/.test(l))
+  while (lines.length && /common\.abort.*wasm\/js\.rv/.test(lines[0])) lines.shift()
   const header = err.toString()
   return [header, ...lines.map(x => `    at ${x}`)].join('\n')
 }

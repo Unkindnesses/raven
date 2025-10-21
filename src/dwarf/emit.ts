@@ -1,12 +1,89 @@
 import { Form } from './enums'
 import * as path from 'node:path'
 import { HashMap, some } from '../utils/map'
-import { DIE, Abbrev, LineTable, abbrev, Value } from './structs'
+import { Attr, Tag } from './enums'
+import { DIE, Abbrev, LineTable, abbrev, Value, Source, Def, Function, LineInfo, Frame } from './structs'
+import { isEqual } from 'lodash'
 
 export {
+  buildInlineTree, functionDie,
   leb128U, leb128S, withSize as withSizeU32, putStringZ,
   writeU8, writeI8, writeU16, writeU32,
-  writeValue, emitDIE, debug_abbrev, debug_info, debug_line
+  writeValue, emitDIE, debug_abbrev, debug_info, debug_line,
+  lineFiles
+}
+
+// Collect inline frames
+
+type Inlined = [Function, Source | undefined]
+
+function buildInlineTree(lines: [number, LineInfo][], bodySize: number, base: number, root: Def): Inlined[] {
+  const active: Inlined[] = []
+  const children: Inlined[] = []
+  const closeFrom = (depth: number, pos: number) => {
+    for (let i = active.length - 1; i >= depth; i--) {
+      active[i][0].range[1] = base + pos
+      active.pop()
+    }
+  }
+  for (const [pos, li] of lines) {
+    const frames = li.src.slice(1)
+    let common = 0
+    while (common < active.length && common < frames.length) {
+      const node = active[common]
+      const frame = frames[common]
+      const callSite = li.src[common][1]
+      if (isEqual(node[0].def, frame[0]) && isEqual(node[1], callSite)) common++
+      else break
+    }
+    closeFrom(common, pos)
+    for (let depth = common; depth < frames.length; depth++) {
+      const frame = frames[depth]
+      const callSite = li.src[depth][1]
+      const fn: Function = { def: frame[0], range: [base + pos, base + pos], inlines: [] }
+      const node: Inlined = [fn, callSite]
+      const parent = depth === 0 ? children : active[depth - 1][0].inlines
+      parent.push(node)
+      active[depth] = node
+    }
+  }
+  closeFrom(0, bodySize)
+  return children
+}
+
+function callAttrs(call: Source | undefined, files: string[]): [Attr, Value][] {
+  if (!call || call.line <= 0) return []
+  const idx = files.indexOf(call.file)
+  if (idx === -1) return []
+  const attrs: [Attr, Value][] = [
+    [Attr.call_file, [Form.data4, idx + 1]],
+    [Attr.call_line, [Form.data4, call.line]]
+  ]
+  if (call.col > 0) attrs.push([Attr.call_column, [Form.data4, call.col]])
+  return attrs
+}
+
+function inlineDie(fn: Function, call: Source | undefined, files: string[]): DIE {
+  const attrs: [Attr, Value][] = [
+    [Attr.name, [Form.string, fn.def.name]],
+    [Attr.low_pc, [Form.addr, fn.range[0]]],
+    [Attr.high_pc, [Form.addr, fn.range[1]]]
+  ]
+  if (fn.def.trampoline) attrs.push([Attr.trampoline, [Form.flag, true]])
+  attrs.push(...callAttrs(call, files))
+  const children = fn.inlines.map(child => inlineDie(...child, files))
+  return new DIE(Tag.inlined_subroutine, attrs, children)
+}
+
+function functionDie(fn: Function, files: string[]): DIE {
+  const attrs: [Attr, Value][] = [
+    [Attr.name, [Form.string, fn.def.name]],
+    [Attr.low_pc, [Form.addr, fn.range[0]]],
+    [Attr.high_pc, [Form.addr, fn.range[1]]]
+  ]
+  if (fn.def.trampoline) attrs.push([Attr.trampoline, [Form.flag, true]])
+  const children = fn.inlines.map(child => inlineDie(...child, files))
+  return new DIE(Tag.subprogram, attrs, children)
 }
 
 // Values
@@ -124,18 +201,24 @@ function debug_info(out: number[], info: DIE, as: Abbrev[]) {
   })
 }
 
+// Line table
+
 function ln_end_sequence(out: number[]) {
   writeU8(out, 0x00)
   leb128U(0x01, out)
   writeU8(out, 0x01)
 }
 
-function debug_line(out: number[], lt: LineTable) {
+function lineFiles(lt: LineTable): string[] {
   const files: string[] = []
-  for (const [_, li] of lt.lines) {
-    const src = li.src[li.src.length - 1][1]
-    if (src && !files.includes(src.file)) files.push(src.file)
-  }
+  for (const [_, info] of lt.lines)
+    for (const [__, src] of info.src)
+      if (src && !files.includes(src.file)) files.push(src.file)
+  return files
+}
+
+function debug_line(out: number[], lt: LineTable) {
+  const files = lineFiles(lt)
   withSize(out, buf => {
     writeU16(buf, 4) // version
     withSize(buf, hdr => {

@@ -1,5 +1,5 @@
 import { Attr, Tag, Form } from '../dwarf/enums'
-import { Source, Abbrev, DIE, Value } from '../dwarf/structs'
+import { Source, Abbrev, DIE, Value, Def, Function, Stack } from '../dwarf/structs'
 import { asBool, asNumber, asString, some } from '../utils/map'
 
 export { DebugModule, Source, sections, locate }
@@ -169,17 +169,10 @@ interface LineRow {
   isStmt: boolean
 }
 
-interface FunctionRange {
-  name: string
-  low: number
-  high: number
-  trampoline: boolean
-}
-
 interface DebugModule {
   base: number
   lines: LineRow[]
-  functions: FunctionRange[]
+  functions: Function[]
 }
 
 function parseDebugAbbrev(section: Uint8Array): Map<number, Abbrev> {
@@ -257,21 +250,39 @@ function attrValue(attrs: [Attr, Value][], attr: Attr): Value[1] | undefined {
     if (name === attr) return value[1]
 }
 
-function functionRanges(root: DIE): FunctionRange[] {
-  const functions: FunctionRange[] = []
-  for (const die of root.children) {
-    if (die.tag !== Tag.subprogram) continue
-    const low = asNumber(attrValue(die.attrs, Attr.low_pc))
-    const high = asNumber(attrValue(die.attrs, Attr.high_pc))
-    const name = asString(attrValue(die.attrs, Attr.name))
-    const trampoline = asBool(attrValue(die.attrs, Attr.trampoline) ?? false)
-    functions.push({ name, low, high, trampoline })
-  }
-  return functions.sort((a, b) => a.low - b.low)
+function callSite(attrs: [Attr, Value][], files: string[]): Source | undefined {
+  const fileIdx = attrValue(attrs, Attr.call_file)
+  const line = attrValue(attrs, Attr.call_line)
+  if (fileIdx === undefined || line === undefined) return
+  const file = some(files[asNumber(fileIdx) - 1])
+  const column = asNumber(attrValue(attrs, Attr.call_column))
+  return { file, line: asNumber(line), col: asNumber(column) }
 }
 
-function parseDebugLine(section: Uint8Array): LineRow[] {
+function dieFunction(die: DIE, files: string[]): Function {
+  const name = asString(attrValue(die.attrs, Attr.name))
+  const low = asNumber(attrValue(die.attrs, Attr.low_pc))
+  const high = asNumber(attrValue(die.attrs, Attr.high_pc))
+  const trampoline = asBool(attrValue(die.attrs, Attr.trampoline) ?? false)
+  const def = Def(name, undefined, trampoline)
+  const inlines = die.children
+    .filter(child => child.tag === Tag.inlined_subroutine)
+    .map(child => [dieFunction(child, files), callSite(child.attrs, files)] as [Function, Source | undefined])
+  return { def, range: [low, high], inlines }
+}
+
+function functionsFrom(root: DIE, files: string[]): Function[] {
+  const fs: Function[] = []
+  for (const die of root.children) {
+    if (die.tag !== Tag.subprogram) continue
+    fs.push(dieFunction(die, files))
+  }
+  return fs
+}
+
+function parseDebugLine(section: Uint8Array): { rows: LineRow[], files: string[] } {
   const rows: LineRow[] = []
+  const files: string[] = []
   const reader = new Reader(section)
   while (reader.remaining() >= 10) {
     const unitLength = reader.u32()
@@ -288,7 +299,7 @@ function parseDebugLine(section: Uint8Array): LineRow[] {
     header.skip(opcodeBase - 1) // standard_opcode_lengths
     while (!header.done)
       if (header.cstring() === '') break
-    const files: string[] = []
+    files.length = 0
     while (!header.done) {
       const name = header.cstring()
       if (name === '') break
@@ -331,7 +342,7 @@ function parseDebugLine(section: Uint8Array): LineRow[] {
     }
   }
   rows.sort((a, b) => a.address - b.address)
-  return rows
+  return { rows, files }
 }
 
 function sections(bytes: Uint8Array): [number, Map<string, Uint8Array>] {
@@ -362,48 +373,57 @@ function DebugModule(bytes: Uint8Array): DebugModule | undefined {
   const abbrevSection = table.get('.debug_abbrev')
   if (!lineSection || !infoSection || !abbrevSection) return
   const abbrevs = parseDebugAbbrev(abbrevSection)
-  const functions = functionRanges(parseDebugInfo(infoSection, abbrevs))
-  const lines = parseDebugLine(lineSection)
+  const { rows: lines, files } = parseDebugLine(lineSection)
+  const functions = functionsFrom(parseDebugInfo(infoSection, abbrevs), files)
   return { base, lines, functions }
 }
 
-function findFunctionRange(functions: FunctionRange[], pc: number): FunctionRange | undefined {
+function search<T>(items: T[], cmp: (item: T) => -1 | 0 | 1): T | undefined {
+  if (!items.length) return
   let lo = 0
-  let hi = functions.length - 1
-  let candidate: FunctionRange | undefined
+  let hi = items.length - 1
   while (lo <= hi) {
     const mid = Math.floor((lo + hi) / 2)
-    const f = functions[mid]
-    if (pc < f.low) hi = mid - 1
-    else {
-      candidate = f
-      lo = mid + 1
-    }
+    const item = items[mid]
+    const res = cmp(item)
+    if (res === 0) return item
+    if (res < 0) hi = mid - 1
+    else lo = mid + 1
   }
-  if (candidate && pc >= candidate.low && pc < candidate.high) return candidate
-  return
+}
+
+function findByRange<T>(items: T[], pc: number, getRange: (item: T) => [number, number]): T | undefined {
+  return search(items, (item) => {
+    const [lo, hi] = getRange(item)
+    if (pc < lo) return -1
+    if (pc >= hi) return 1
+    return 0
+  })
 }
 
 function findLineRow(lines: LineRow[], pc: number): LineRow | undefined {
-  let lo = 0
-  let hi = lines.length - 1
-  while (lo <= hi) {
-    const mid = Math.floor((lo + hi) / 2)
-    const row = lines[mid]
-    if (pc === row.address) return row
-    if (pc < row.address) hi = mid - 1
-    else {
-      lo = mid + 1
-    }
-  }
-  return
+  return search(lines, row => {
+    if (pc === row.address) return 0
+    return pc < row.address ? -1 : 1
+  })
 }
 
-function locate(pc: number, m: DebugModule): { fn: FunctionRange, line?: LineRow } | undefined {
+function locate(pc: number, m: DebugModule): Stack | undefined {
   const relative = pc - m.base
   if (relative < 0) return
-  const fn = findFunctionRange(m.functions, relative)
+  const fn = findByRange(m.functions, relative, fn => fn.range)
   if (!fn) return
   const line = findLineRow(m.lines, relative)
-  return { fn, line }
+  const frames: Stack = [[fn.def, undefined]]
+  let current = fn
+  while (true) {
+    const next = findByRange(current.inlines, relative, inline => inline[0].range)
+    if (!next) break
+    const [child, call] = next
+    frames[frames.length - 1][1] = call
+    frames.push([child.def, undefined])
+    current = child
+  }
+  frames[frames.length - 1][1] = line?.source
+  return frames
 }
