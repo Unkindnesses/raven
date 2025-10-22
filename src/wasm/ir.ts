@@ -175,7 +175,7 @@ function stack(ir: MIR): [MIR, wasm.Type[]] {
         env.set(v, ex.body.map(asValue).flatMap(parts))
         pr.delete(v)
       } else if (ex.head === 'ref') {
-        env.set(v, [parts(asValue(ex.body[0]))[Number(asConst(ex.body[1]).value) - 1]])
+        env.set(v, [some(parts(asValue(ex.body[0]))[Number(asConst(ex.body[1]).value) - 1])])
         pr.delete(v)
       } else if (ex instanceof Instr) {
         partsSet(v, asArray(st.type))

@@ -30,11 +30,11 @@ import { Pipe, Block, Fragment, expr, Branch, Val, Anno, unreachable } from '../
 import { some } from '../utils/map'
 import { xcall, xtuple } from '../frontend/lower'
 import { isreftype } from './refcount'
-import { partial_part, getIntValue, nparts, constValue } from './primitives'
+import { partial_part, getIntValue, nparts, constValue, partial_set } from './primitives'
 import { inlinePrimitive, outlinePrimitive } from './prim_map'
 import { Cache } from '../utils/cache'
 
-export { abort, call, layout, sizeof, store, load, box, unbox, union_downcast, union_cases, cast, partir, packir, indexer, Expanded }
+export { abort, call, layout, sizeof, store, load, box, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir, Expanded }
 
 const i32 = Const.i32
 const i64 = Const.i64
@@ -248,6 +248,32 @@ function indexer(pr: Fragment<MIR>, T: Type, I: Type, x: Val<MIR>, i: Val<MIR>):
 // packcat
 // =======
 
+// TODO memcpy when possible
+// TODO make this a primitive
+function copy(code: MIR, S: Type, D: Type, src: Val<MIR>, dst: Val<MIR>, len: Val<MIR>): Val<MIR> {
+  const before = code.block()
+  const header = code.newBlock()
+  const body = code.newBlock()
+  const after = code.newBlock()
+
+  before.branch(header, [src, dst, len])
+  src = header.argument(types.int32())
+  dst = header.argument(types.int32())
+  len = header.argument(types.int32())
+  const done = call(header, types.tag('common.=='), [len, i32(0)], types.int32())
+  header.branch(after, [], { when: done })
+  header.branch(body)
+
+  let x = load(body, S, src)
+  x = cast(body, S, D, x)
+  store(body, D, dst, x)
+  const src2 = call(body, types.tag('common.+'), [src, i32(sizeof(S))], types.int32())
+  const dst2 = call(body, types.tag('common.+'), [dst, i32(sizeof(D))], types.int32())
+  const len2 = call(body, types.tag('common.-'), [len, i32(1)], types.int32())
+  body.branch(header, [src2, dst2, len2])
+  return dst
+}
+
 function packir(Ts: Type): MIR {
   if (!(Ts.kind === 'pack')) throw new Error('nope')
   const T = types.packcat(...types.parts(Ts))
@@ -291,35 +317,11 @@ function packir(Ts: Type): MIR {
         pos = call(code, types.tag('common.+'), [pos, i32(sizeof(E))], types.int32())
       }
     } else if (P.kind === 'vpack') {
-      // TODO memcpy when possible
-      if (sizeof(some(types.partial_eltype(P))) === 0) throw new Error('nope')
       let len = code.push(code.stmt(expr('ref', ps[i - 1], i64(1)), { type: types.int32() }))
       let src = code.push(code.stmt(expr('ref', ps[i - 1], i64(2)), { type: types.int32() }))
-
-      const before = code.block()
-      const header = code.newBlock()
-      const body = code.newBlock()
-      const after = code.newBlock()
-
-      before.branch(header, [pos, src, len])
-      pos = header.argument(types.int32())
-      src = header.argument(types.int32())
-      len = header.argument(types.int32())
-      const done = call(header, types.tag('common.=='), [len, i32(0)], types.int32())
-      header.branch(after, [], { when: done })
-      header.branch(body)
-
-      let x = load(body, some(types.partial_eltype(P)), src)
-      x = cast(body, some(types.partial_eltype(P)), E, x)
-      store(body, E, pos, x)
-      const pos2 = call(body, types.tag('common.+'), [pos, i32(sizeof(E))], types.int32())
-      const src2 = call(body, types.tag('common.+'), [src, i32(sizeof(E))], types.int32())
-      const len2 = call(body, types.tag('common.-'), [len, i32(1)], types.int32())
-      body.branch(header, [pos2, src2, len2])
-
+      pos = copy(code, types.partial_eltype(P), E, src, pos, len)
       code.push(code.stmt(expr('release', ps[i - 1])))
-    } else
-      throw new Error('unsupported')
+    } else throw new Error('unsupported')
   }
   let result = code.push(code.stmt(xtuple(size, ptr), { type: U }))
   if (T.kind === 'recursive') {
@@ -328,6 +330,54 @@ function packir(Ts: Type): MIR {
   }
   code.return(result)
   return code
+}
+
+// set
+// ===
+
+function set_pack(code: Fragment<MIR>, xs: Val<MIR>, i: Val<MIR>, x: Val<MIR>): Val<MIR> {
+  let T = asType(partial_set(asType(code.type(xs)), asType(code.type(i)), asType(code.type(x))))
+  let idx = some(getIntValue(asType(code.type(i))))
+  const parts: Val<MIR>[] = []
+  for (let i = 0; i <= types.nparts(T); i++)
+    parts.push(i === idx ? x : indexer(code, T, types.int64(i), xs, types.int64(i)))
+  return code.push(code.stmt(xtuple(...parts), { type: T }))
+}
+
+function set_vpack(T: Type & { kind: 'vpack' }, I: Type, X: Type): MIR {
+  let code = MIR(Def('common.core.set'))
+  let xs = code.argument(T) as Val<MIR>
+  let i = code.argument(I) as Val<MIR>
+  let x = code.argument(X) as Val<MIR>
+  let E = some(types.partial_eltype(asType(partial_set(T, I, X))))
+  if (layout(E).length == 0) {
+    code.return(xs)
+    return code
+  }
+  let size = code.push(code.stmt(expr('ref', xs, i64(1)), { type: types.int32() }))
+  let src = code.push(code.stmt(expr('ref', xs, i64(2)), { type: types.int32() }))
+  let bytes = call(code, types.tag('common.*'), [size, i32(sizeof(E))], types.int32())
+  let ptr = call(code, types.tag('common.malloc!'), [bytes], types.int32())
+  let result = code.push(code.stmt(xtuple(size, ptr), { type: T }))
+
+  i = getIntValue(I) ? i32(getIntValue(I)!) : call(code, types.tag('common.Int32'), [i], types.int32())
+  let len = call(code, types.tag('common.-'), [i, i32(1)], types.int32())
+  let pos = copy(code, types.partial_eltype(T), E, src, ptr, len)
+  x = cast(code, X, E, x)
+  store(code, E, pos, x)
+  pos = call(code, types.tag('common.+'), [pos, i32(sizeof(E))], types.int32())
+  src = call(code, types.tag('common.+'), [src, call(code, types.tag('common.*'), [i, i32(sizeof(E))], types.int32())], types.int32())
+  len = call(code, types.tag('common.-'), [size, i], types.int32())
+  pos = copy(code, types.partial_eltype(T), E, src, pos, len)
+
+  code.push(code.stmt(expr('release', xs)))
+  code.return(result)
+  return code
+}
+
+function setir(xs: Type, I: Type, X: Type): MIR {
+  if (xs.kind === 'vpack') return set_vpack(xs, I, X)
+  throw new Error('set: unsupported type')
 }
 
 // Expansion pass

@@ -11,7 +11,7 @@ Float64 = tag".Float64"
 # TODO: could add a `fn { foo }` syntax to declare a function with no methods.
 
 export {
-  pack, part, nparts, packcat, widen, shortcutEquals
+  pack, part, nparts, packcat, set, widen, shortcutEquals
   bitsize, bitcast, bitcast_s
   bitshl, bitshr_u, bitshr_s, bitand, bitor, bitxor, bitadd, bitsub, bitmul, bitdiv_u, bitdiv_s, bitrem_u, bitrem_s
   biteq, biteqz, bitne, bitgt_u, bitge_u, bitlt_u, bitle_u, bitgt_s, bitge_s, bitlt_s, bitle_s
@@ -22,6 +22,7 @@ pack   = tag".pack"
 part   = tag".part"
 nparts = tag".nparts"
 packcat = tag".packcat"
+set = tag".set"
 widen   = tag".widen"
 shortcutEquals = tag".shortcutEquals"
 

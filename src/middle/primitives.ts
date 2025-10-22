@@ -1,7 +1,7 @@
 import * as types from '../frontend/types'
 import { Type, tagOf, tag, asType, bits } from '../frontend/types'
 import { unreachable, Anno, expr, asAnno, Val, Fragment } from '../utils/ir'
-import { HashSet, only } from '../utils/map'
+import { HashSet, only, some } from '../utils/map'
 import isEqual from 'lodash/isEqual'
 import { Method, MIR, Module, WIntrinsic, Const, xstring } from '../frontend/modules'
 import { Def } from '../dwarf'
@@ -9,12 +9,12 @@ import { xtuple, xcall } from '../frontend/lower'
 import { lowerpattern } from '../frontend/patterns'
 import * as parse from '../frontend/parse'
 import { inlinePrimitive, outlinePrimitive } from './prim_map'
-import { abort, call, layout, sizeof, unbox, union_downcast, union_cases, cast, partir, packir, indexer } from './expand'
+import { abort, call, layout, sizeof, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir } from './expand'
 import { isreftype } from './refcount'
 import { options } from '../utils/options'
 import { maybe_union } from './abstract'
 
-export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, partial_isnil, partial_part, getIntValue, nparts, primitive, constValue }
+export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue }
 
 const i64 = Const.i64
 
@@ -94,6 +94,25 @@ function partial_part(data: Type, i: Type): Anno<Type> {
     return (0 <= idx && idx <= types.nparts(data)) ? types.part(data, idx) : unreachable
   if (data.kind === 'vpack')
     return idx === 0 ? tagOf(data) : partial_eltype(data)
+  throw new Error('unimplemented')
+}
+
+function partial_set(xs: Type, i: Type, x: Type): Anno<Type> {
+  if (xs.kind === 'pack') {
+    const idx = some(getIntValue(i))
+    const part = partial_part(xs, i)
+    if (part === unreachable) return unreachable
+    if (idx < 0 || idx >= xs.parts.length) return unreachable
+    const parts = xs.parts.slice()
+    parts[idx] = x
+    return types.pack(...parts)
+  } else if (xs.kind === 'vpack') {
+    const part = partial_part(xs, i)
+    if (part === unreachable) return unreachable
+    const idx = getIntValue(i)
+    if (idx !== undefined && idx <= 0) return unreachable
+    return types.vpack(xs.tag, types.union(xs.parts, x))
+  }
   throw new Error('unimplemented')
 }
 
@@ -223,6 +242,7 @@ const pack_method = primitive('common.core.pack', 'args', (args: Type) => types.
 const part_method = primitive('common.core.part', '[data, i]', partial_part)
 const nparts_method = primitive('common.core.nparts', '[x]', partial_nparts)
 const packcat_method = primitive('common.core.packcat', 'args', (args: Type) => { const parts = types.parts(args); return parts.length === 0 ? unreachable : parts.reduce((x, y) => types.packcat(x, y)) })
+const set_method = primitive('common.core.set', '[xs, i, x]', partial_set)
 const widen_method = primitive('common.core.widen', '[x]', partial_widen)
 const shortcutEquals_method = primitive('common.core.shortcutEquals', '[a, b]', partial_shortcutEquals)
 
@@ -266,6 +286,7 @@ function primitives(): Method[] {
     part_method,
     nparts_method,
     packcat_method,
+    set_method,
     widen_method,
     shortcutEquals_method,
     bitsize_method,
@@ -340,6 +361,16 @@ inlinePrimitive.set(packcat_method, (code, st) => {
 })
 
 outlinePrimitive.set(packcat_method, packir)
+
+inlinePrimitive.set(set_method, (code, st) => {
+  if (asType(st.type).kind === 'pack') {
+    const [xs, i, x] = st.expr.body.slice(1)
+    return set_pack(code, xs, i, x)
+  }
+  return code.push(st)
+})
+
+outlinePrimitive.set(set_method, setir)
 
 function nparts(code: Fragment<MIR>, T: Type, x: Val<MIR>): Val<MIR> {
   if (T.kind === 'recursive') {

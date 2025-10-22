@@ -12,13 +12,8 @@ fn (xs: List)[i] {
   part(xs, i)
 }
 
-# TODO: sane implementation
-fn set(&xs: List, x, i: Int) {
-  ys = []
-  for j = range(1, length(xs)) {
-    append(&ys, if i == j { x } else { xs[j] })
-  }
-  xs = ys
+fn set(&xs: List, x, i: Int64) {
+  xs = tag"common.core.set"(xs, i, x)
 }
 
 fn empty?(xs: List) {
