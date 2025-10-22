@@ -4,5 +4,5 @@ import { Fragment, Statement, Val } from '../utils/ir'
 
 export { inlinePrimitive, outlinePrimitive }
 
-const inlinePrimitive = new Map<Method, (code: Fragment<MIR>, st: Statement<IRValue, IRType>) => Val<MIR>>()
-const outlinePrimitive = new Map<Method, (...Ts: Type[]) => MIR>()
+const inlinePrimitive = new Map<bigint, (code: Fragment<MIR>, st: Statement<IRValue, IRType>) => Val<MIR>>()
+const outlinePrimitive = new Map<bigint, (...Ts: Type[]) => MIR>()

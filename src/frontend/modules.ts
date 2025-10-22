@@ -103,14 +103,18 @@ interface Signature {
 }
 
 class Method {
-  readonly nft = cache.nft()
   constructor(
     readonly mod: Tag,
     readonly name: Tag,
     readonly sig: Signature,
-    readonly func?: (...args: Type[]) => Anno<Type>
+    readonly func?: (...args: Type[]) => Anno<Type>,
+    readonly params: Type[] = [],
+    readonly id = cache.nft()
   ) { }
   toString() { return `Method(${this.name})` }
+  param(...Ts: Type[]) {
+    return new Method(this.mod, this.name, this.sig, this.func, Ts, this.id)
+  }
 }
 
 class Methods implements cache.Caching {

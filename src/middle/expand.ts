@@ -30,11 +30,11 @@ import { Pipe, Block, Fragment, expr, Branch, Val, Anno, unreachable } from '../
 import { some } from '../utils/map'
 import { xcall, xtuple } from '../frontend/lower'
 import { isreftype } from './refcount'
-import { partial_part, getIntValue, nparts, constValue, partial_set } from './primitives'
+import { partial_part, getIntValue, nparts, constValue, partial_set, copy_method } from './primitives'
 import { inlinePrimitive, outlinePrimitive } from './prim_map'
 import { Cache } from '../utils/cache'
 
-export { abort, call, layout, sizeof, store, load, box, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir, Expanded }
+export { abort, call, layout, sizeof, store, load, box, unbox, union_downcast, union_cases, cast, copyir, partir, packir, set_pack, indexer, setir, Expanded }
 
 const i32 = Const.i32
 const i64 = Const.i64
@@ -249,12 +249,17 @@ function indexer(pr: Fragment<MIR>, T: Type, I: Type, x: Val<MIR>, i: Val<MIR>):
 // =======
 
 // TODO memcpy when possible
-// TODO make this a primitive
-function copy(code: MIR, S: Type, D: Type, src: Val<MIR>, dst: Val<MIR>, len: Val<MIR>): Val<MIR> {
-  const before = code.block()
-  const header = code.newBlock()
-  const body = code.newBlock()
-  const after = code.newBlock()
+function copyir(S: Type, D: Type): MIR {
+  let code = MIR(Def('common.core.copy'))
+  let src = code.argument(types.int32())
+  let dst = code.argument(types.int32())
+  let len = code.argument(types.int32())
+  call(code, types.tag('common.debugger'), [], types.nil)
+
+  let before = code.block()
+  let header = code.newBlock()
+  let body = code.newBlock()
+  let after = code.newBlock()
 
   before.branch(header, [src, dst, len])
   src = header.argument(types.int32())
@@ -271,7 +276,12 @@ function copy(code: MIR, S: Type, D: Type, src: Val<MIR>, dst: Val<MIR>, len: Va
   const dst2 = call(body, types.tag('common.+'), [dst, i32(sizeof(D))], types.int32())
   const len2 = call(body, types.tag('common.-'), [len, i32(1)], types.int32())
   body.branch(header, [src2, dst2, len2])
-  return dst
+  code.return(dst)
+  return code
+}
+
+function copy(code: MIR, S: Type, D: Type, src: Val<MIR>, dst: Val<MIR>, len: Val<MIR>) {
+  return call(code, copy_method.param(S, D), [src, dst, len], types.int32())
 }
 
 function packir(Ts: Type): MIR {
@@ -396,9 +406,9 @@ function lowerdata(code: MIR): MIR {
           pr.replace(v, asType(st.type))
       } else {
         const F = pr.type(callee)
-        if (F instanceof Method && inlinePrimitive.has(F)) {
+        if (F instanceof Method && inlinePrimitive.has(F.id)) {
           pr.delete(v)
-          pr.replace(v, inlinePrimitive.get(F)!(pr, st))
+          pr.replace(v, inlinePrimitive.get(F.id)!(pr, st))
         }
       }
     } else if (ex.head === 'global' && st.type === ir.unreachable) {
@@ -571,8 +581,8 @@ function expand(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
 function Expanded(inf: Inferred): Cache<Sig, Redirect | MIR> {
   return new Cache<Sig, Redirect | MIR>((sig: Sig) => {
     const [F, ...Ts] = sig
-    if (F instanceof Method && outlinePrimitive.has(F))
-      return outlinePrimitive.get(F)!(...Ts)
+    if (F instanceof Method && outlinePrimitive.has(F.id))
+      return outlinePrimitive.get(F.id)!(...F.params, ...Ts)
     const res = inf.get(sig)
     if (res instanceof Redirect) return res
     return expand(inf, ...res)
