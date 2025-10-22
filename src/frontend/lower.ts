@@ -1,7 +1,7 @@
 import isEqual from "lodash/isEqual"
 import * as ast from "./ast"
 import * as ir from "../utils/ir"
-import { fuseblocks, prune, ssa } from "../utils/ir"
+import { Val, fuseblocks, prune, ssa } from "../utils/ir"
 import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast"
 import * as types from "./types"
 import { Type, Tag, tag, pack, bits, int32, asType, nil } from "./types"
@@ -165,23 +165,23 @@ function source(m: ast.Meta): ir.Source {
   return { file: m.file, line: m.loc.line, col: m.loc.column }
 }
 
-function xcall(...args: (IRValue | number)[]): ir.Expr<IRValue> {
+function xcall(...args: Val<LIR>[]): ir.Expr<IRValue> {
   return ir.expr("call", ...args)
 }
-function xtuple(...args: (IRValue | number)[]): ir.Expr<IRValue> {
+function xtuple(...args: Val<LIR>[]): ir.Expr<IRValue> {
   return ir.expr("tuple", ...args)
 }
-function xpack(...args: (IRValue | number)[]): ir.Expr<IRValue> {
+function xpack(...args: Val<LIR>[]): ir.Expr<IRValue> {
   return ir.expr("pack", ...args)
 }
-function xlist(...args: (IRValue | number)[]): ir.Expr<IRValue> {
+function xlist(...args: Val<LIR>[]): ir.Expr<IRValue> {
   return xpack(tag("common.List"), ...args)
 }
-function xpart(x: IRValue | number, i: IRValue | number): ir.Expr<IRValue> {
+function xpart(x: Val<LIR>, i: Val<LIR>): ir.Expr<IRValue> {
   return xcall(part_method, x, i)
 }
 
-function rcall(code: LIR, f: IRValue | number, args: (IRValue | number)[], { src, bp }: { src?: ast.Meta, bp?: boolean } = {}): number {
+function rcall(code: LIR, f: Val<LIR>, args: Val<LIR>[], { src, bp }: { src?: ast.Meta, bp?: boolean } = {}): Val<MIR> {
   const arglist = _push(code, xlist(...args), { src })
   const result = _push(code, xcall(f, arglist), { src, bp })
   return _push(code, xpart(result, Type(1n)), { src })
@@ -228,15 +228,15 @@ function Scope(parent: Scope, swap?: Map<number, string>): Scope {
 
 // don't continue lowering after return
 // e.g. `f(return 1)`
-function _push<T, A>(code: ir.IR<T, A>, x: ir.Expr<T>, { type, src, bp }: { type?: ir.Anno<A>, src?: ast.Meta, bp?: boolean } = {}): number {
+function _push<T, A>(code: ir.IR<T, A>, x: ir.Expr<T>, { type, src, bp }: { type?: ir.Anno<A>, src?: ast.Meta, bp?: boolean } = {}): T | number {
   if (!code.block().canbranch()) throw new Error("Pushing into finished block")
   return code.push(code.stmt(x, { type, src: src && source(src), bp }))
 }
 
-function swapreturn(code: LIR, val: IRValue | number, swaps?: Map<number, string>, { src, bp }: { src?: ast.Meta, bp?: boolean } = {}): void {
+function swapreturn(code: LIR, val: Val<LIR>, swaps?: Map<number, string>, { src, bp }: { src?: ast.Meta, bp?: boolean } = {}): void {
   if (swaps && swaps.size > 0) {
     const maxArgs = Math.max(...swaps.keys())
-    const args: (IRValue | number)[] = [val]
+    const args: Val<LIR>[] = [val]
     for (let i = 1; i <= maxArgs; i++) {
       if (swaps.has(i)) {
         args.push(ir.slot(swaps.get(i)!))
@@ -258,7 +258,7 @@ function string(sc: Scope, code: LIR, x: string) {
   return code.push(code.stmt(xpart(s, Type(1n))))
 }
 
-function lowermatch(sc: Scope, code: LIR, val: IRValue | number, pat: ast.Tree): IRValue | number {
+function lowermatch(sc: Scope, code: LIR, val: Val<LIR>, pat: ast.Tree): Val<LIR> {
   const sig = lowerpattern(pat, sc.mod(), resolve_static)
   const pattern = patternType(sig.pattern)
   const m = rcall(code, tag('common.match'), [val, pattern])
@@ -279,7 +279,7 @@ function unwrapAnno(x: ast.Tree): ast.Tree {
   return ast.isExpr(x, 'Annotation') ? unwrapAnno(x.args[x.args.length - 1]) : x
 }
 
-function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): IRValue | number {
+function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): Val<LIR> {
   if (Array.isArray(x)) {
     if (x.length === 0) return nil
     x.slice(0, -1).forEach(item => lower(sc, code, item, false))
@@ -323,7 +323,7 @@ function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): IR
   throw new Error(`Unimplemented lowering for: ${x}`)
 }
 
-function lowerOperator(sc: Scope, code: LIR, ex: ast.Expr, value = true): IRValue | number {
+function lowerOperator(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
   const op = asSymbol(ex.args[0].unwrap()).toString()
   if (op === '=' && ex.args[1] instanceof ast.Token && ex.args[1].unwrap() instanceof Symbol) {
     // Simple assignment: x = value
@@ -359,9 +359,9 @@ function lowerOperator(sc: Scope, code: LIR, ex: ast.Expr, value = true): IRValu
   }
 }
 
-function argtuple(sc: Scope, code: LIR, args: ast.Tree[], src?: ast.Meta): [IRValue | number, Map<string, number>] {
+function argtuple(sc: Scope, code: LIR, args: ast.Tree[], src?: ast.Meta): [Val<LIR>, Map<string, number>] {
   const swaps = new Map<string, number>()
-  const parts: (IRValue | number)[] = []
+  const parts: Val<LIR>[] = []
   let idx = 1
   let splat = false
   const argQueue = [...args]
@@ -371,7 +371,7 @@ function argtuple(sc: Scope, code: LIR, args: ast.Tree[], src?: ast.Meta): [IRVa
       parts.push(lower(sc, code, splatArg.args[0]))
       splat = true
     } else {
-      const as: (IRValue | number)[] = []
+      const as: Val<LIR>[] = []
       while (argQueue.length > 0 && !ast.isExpr(argQueue[0], 'Splat')) {
         let arg = argQueue.shift()!
         if (ast.isExpr(arg, 'Swap') && !splat) {
@@ -392,7 +392,7 @@ function argtuple(sc: Scope, code: LIR, args: ast.Tree[], src?: ast.Meta): [IRVa
   return [result, swaps]
 }
 
-function lowerCall(sc: Scope, code: LIR, ex: ast.Expr): IRValue | number {
+function lowerCall(sc: Scope, code: LIR, ex: ast.Expr): Val<LIR> {
   // Handle Field calls: obj.method(...) -> common.method(obj, tag, ...)
   if (ast.isExpr(ex.args[0], 'Field')) {
     const [obj, methodName] = ex.args[0].args
@@ -410,24 +410,24 @@ function lowerCall(sc: Scope, code: LIR, ex: ast.Expr): IRValue | number {
   return val
 }
 
-function lowerIndex(sc: Scope, code: LIR, ex: ast.Expr): IRValue | number {
+function lowerIndex(sc: Scope, code: LIR, ex: ast.Expr): Val<LIR> {
   const callExpr = ast.Call(tag('common.get'), ...ex.args)
   return lower(sc, code, callExpr.withmeta(ex.meta))
 }
 
-function lowerField(sc: Scope, code: LIR, ex: ast.Expr): IRValue | number {
+function lowerField(sc: Scope, code: LIR, ex: ast.Expr): Val<LIR> {
   const [obj, fieldName] = ex.args
   const callExpr = ast.Call(tag('common.field'), obj, tag(asSymbol(fieldName.unwrap()).toString()))
   return lower(sc, code, callExpr.withmeta(ex.meta))
 }
 
-function lowerList(sc: Scope, code: LIR, ex: ast.Expr): IRValue | number {
+function lowerList(sc: Scope, code: LIR, ex: ast.Expr): Val<LIR> {
   // TODO: should use the `list` function, but this puts off the need for special argument inference
   const [args] = argtuple(sc, code, ex.args, ex.meta)
   return args
 }
 
-function lowerTemplate(sc: Scope, code: LIR, ex: ast.Expr): IRValue | number {
+function lowerTemplate(sc: Scope, code: LIR, ex: ast.Expr): Val<LIR> {
   const templateType = asSymbol(ex.args[0]).toString()
   if (templateType === 'tag') {
     const tagName = asString(ex.args[1])
@@ -477,7 +477,7 @@ function intrinsic_args(ex: ast.Tree): ast.Tree[] {
   return args.map(x => x.args[1])
 }
 
-function lowerSyntax(sc: Scope, code: LIR, ex: ast.Expr, value = true): IRValue | number {
+function lowerSyntax(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
   const syntax = asSymbol(ast.asExpr(unwrapAnno(ex)).args[0]).toString()
   if (syntax === 'bits') {
     const size = Number(asBigInt(ex.args[1].unwrap()))
@@ -546,7 +546,7 @@ function sentinel(id: number) {
   return [-(id * 2 + 1), -(id * 2 + 2)]
 }
 
-function loopbranch(sc: Scope, code: LIR, kind: string, label?: string, meta?: ast.Meta): IRValue | number {
+function loopbranch(sc: Scope, code: LIR, kind: string, label?: string, meta?: ast.Meta): Val<LIR> {
   const id = label ? sc.loops.findIndex(l => l === label) : sc.loops.length - 1
   if (id < 0) throw new Error('no loop in scope')
   const [brk, cnt] = sentinel(id)
@@ -554,13 +554,13 @@ function loopbranch(sc: Scope, code: LIR, kind: string, label?: string, meta?: a
   return nil
 }
 
-function lowerWhile(sc: Scope, code: LIR, ex: ast.Expr, value = true): IRValue | number {
+function lowerWhile(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
   const label = ast.isExpr(ex, 'Annotation') && isEqual(ex.args[0].unwrap(), symbol('label')) ? ex.args[1].toString() : undefined
   ex = ast.asExpr(unwrapAnno(ex))
   const prevBlock = code.block()
   const header = code.newBlock()
   prevBlock.branch(header, value ? [types.list()] : [])
-  let out = value ? header.argument(ir.unreachable) : nil
+  let out = value ? header.argument(ir.unreachable) : nil as Val<LIR>
   let ret = out
   const cond = lower(sc, code, ex.args[1])
   const condResult = rcall(code, tag('common.condition'), [cond], { src: ex.meta })
@@ -591,7 +591,7 @@ function lowerWhile(sc: Scope, code: LIR, ex: ast.Expr, value = true): IRValue |
 }
 
 // TODO support pattern matching
-function lowerLet(sc: Scope, code: LIR, ex: ast.Expr, value = true): IRValue | number {
+function lowerLet(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
   const assignments = ex.args.slice(1, -1)
   if (!assignments.every(x => ast.isExpr(x, 'Operator') && asSymbol(x.args[0].unwrap()).toString() === '='))
     throw new Error('let statement: all assignments must be of the form (= var val)')
@@ -604,10 +604,10 @@ function lowerLet(sc: Scope, code: LIR, ex: ast.Expr, value = true): IRValue | n
   return lower(sc, code, ex.args[ex.args.length - 1], value)
 }
 
-function lowerIf(sc: Scope, code: LIR, ex: IfStmt, value = true): IRValue | number {
+function lowerIf(sc: Scope, code: LIR, ex: IfStmt, value = true): Val<LIR> {
   sc = Scope(sc)
   const ts: ir.Block<MIR>[] = []
-  const vs: (IRValue | number)[] = []
+  const vs: Val<LIR>[] = []
   const body = (ir: LIR, ex: ast.Tree): void => {
     if (value) vs.push(lower(sc, ir, ex))
     else lower(sc, ir, ex, false)
@@ -695,7 +695,7 @@ function rewriteGlobals(code: LIR, cx: Module): [LIR, Set<string>] {
   locals.forEach(x => pr.push(pr.stmt(ir.expr('set', ir.slot(x), new Binding(cx.name, x)))))
   for (const [v, st] of pr) {
     // Global loads use the new slot
-    let ex = st.expr.map((x: IRValue | number) => x instanceof Binding && (locals.includes(x.name) || globals.has(x.name)) ? ir.slot(x.name) : x)
+    let ex = st.expr.map((x: Val<LIR>) => x instanceof Binding && (locals.includes(x.name) || globals.has(x.name)) ? ir.slot(x.name) : x)
     // Global stores use the new slot
     if (ex.head === 'set' && ex.body[0] instanceof Binding) {
       globals.add(ex.body[0].name)
@@ -727,7 +727,7 @@ function lower_toplevel(mod: Module, ex: ast.Tree, resolve: (x: Symbol) => Type,
 // Turn global references into explicit load instructions
 function globals(code: LIR): LIR {
   const pr = new ir.Pipe(code)
-  const transform = (x: IRValue | number): IRValue | number =>
+  const transform = (x: Val<LIR>): Val<LIR> =>
     x instanceof Binding ? pr.push(pr.stmt(ir.expr('global', x))) : x
   for (const [v, st] of pr) {
     const ex = st.expr

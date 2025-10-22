@@ -70,7 +70,7 @@ function trim_unreachable(code: MIR): MIR {
   return pr.finish()
 }
 
-function union_downcast(pr: Fragment<MIR>, T: Type, i: number, x: Val<MIR>): number {
+function union_downcast(pr: Fragment<MIR>, T: Type, i: number, x: Val<MIR>): Val<MIR> {
   const U = asType(T, 'union')
   const offset = 1 + U.options.slice(0, i - 1).reduce((n, t) => n + layout(t).length, 0)
   const regs = layout(U.options[i - 1]).length
@@ -100,14 +100,14 @@ function union_cases(code: MIR, T: Type & { kind: 'union' }, x: Val<MIR>, f: (S:
 
 // Panic
 
-function abort(code: Fragment<MIR>, s: string): number {
+function abort(code: Fragment<MIR>, s: string): Val<MIR> {
   const id = code.push(code.stmt(xstring(s), { type: types.bits(32) }))
   return code.push(code.stmt(xcall(new WImport('support', 'abort'), id)))
 }
 
 // We're a bit fast and loose with types here, because `T` and `[T]` have the
 // same representation (for now).
-function call(code: Fragment<MIR>, f: Val<MIR>, args: Val<MIR>[], type: Anno<Type>): number {
+function call(code: Fragment<MIR>, f: Val<MIR>, args: Val<MIR>[], type: Anno<Type>): Val<MIR> {
   const Ts = args.map(a => types.asType(code.type(a)))
   const arglist = code.push(code.stmt(xtuple(...args), { type: types.list(...Ts) }))
   return code.push(code.stmt(xcall(f, arglist), { type }))
@@ -445,12 +445,12 @@ function load(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, { count = true }: { cou
     if (i + 1 < regs.length)
       ptr = pr.push(pr.stmt(xcall(new WIntrinsic('i32.add'), ptr, i32(wsizeof(regs[i]))), { type: types.int32() }))
   }
-  const result = pr.push(pr.stmt(xtuple(...parts), { type: T })) as Val<MIR>
+  const result = pr.push(pr.stmt(xtuple(...parts), { type: T }))
   if (count && isreftype(T)) pr.push(pr.stmt(expr('retain', result)))
   return result
 }
 
-function box(pr: Fragment<MIR>, T: Type, x: Val<MIR>): number {
+function box(pr: Fragment<MIR>, T: Type, x: Val<MIR>): Val<MIR> {
   const ptr = call(pr, types.tag('common.malloc!'), [i32(sizeof(T))], types.int32())
   store(pr, T, ptr, x)
   return ptr

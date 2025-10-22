@@ -48,7 +48,7 @@ test('expand/prune', () => {
   const v = b1.push(ir.stmt(expr('val')))
   b1.branch(2)
   const b2 = ir.newBlock()
-  b2.push(ir.stmt(expr('use', v as Val<MIR>)))
+  b2.push(ir.stmt(expr('use', v)))
   b2.unreachable()
   const expanded = expand(ir)
   assert.equal(expanded.toString(), `Function test at undefined

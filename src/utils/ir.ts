@@ -44,7 +44,7 @@ function expr<T>(head: string, ...body: (T | number)[]): Expr<T> {
 }
 
 class Branch<T> extends Expr<T> {
-  constructor(readonly target: number, readonly args: (T | number)[] = [], readonly when?: number) {
+  constructor(readonly target: number, readonly args: (T | number)[] = [], readonly when?: T | number) {
     super('branch')
   }
   get body() {
@@ -58,7 +58,7 @@ class Branch<T> extends Expr<T> {
   isreturn() { return this.target === 0 && this.args.length === 1 }
   isunreachable() { return this.target === 0 && this.args.length === 0 }
   map(f: (x: T | number) => T | number): Branch<T> {
-    const when = this.when === undefined ? undefined : asNumber(f(this.when))
+    const when = this.when === undefined ? undefined : f(this.when)
     return new Branch(this.target, this.args.map(f), when)
   }
   show(pr: (x: T) => string): string {
@@ -90,10 +90,13 @@ type A<I> = I extends IR<any, infer A> ? A : never
 
 type Val<I extends IR<any, any>> = T<I> | number
 
-// TODO perhaps better to define an interface
-type Fragment<I extends IR<any, any>> = I | Block<I> | Pipe<I>
+interface Fragment<I extends IR<any, any>> {
+  type(v: Val<I>): Anno<A<I>>
+  stmt(expr: Expr<T<I>>, opts?: StmtOpts<A<I>>): Statement<T<I>, A<I>>
+  push(stmt: Statement<T<I>, A<I>>): Val<I>
+}
 
-class IR<T, A> {
+class IR<T, A> implements Fragment<IR<T, A>> {
   readonly _defs: [number, number][] = []
   readonly _blocks: BasicBlock<T, A>[] = [{ stmts: [], args: [] }]
   constructor(readonly meta: Def,
@@ -117,7 +120,7 @@ class IR<T, A> {
     if (i < 0) throw new Error(`Variable ${v} is an argument`)
     return this._blocks[b].stmts[i][1]
   }
-  type(x: T | number): T | Anno<A> {
+  type(x: T | number): Anno<A> {
     if (typeof x !== 'number') return this.typeOf(x)
     const [b, i] = this.blockIdx(x)
     if (i >= 0) return this._blocks[b].stmts[i][1].type
@@ -164,11 +167,11 @@ class IR<T, A> {
   argument(type: Anno<A>): number {
     return this.block(1).argument(type)
   }
-  push(x: Statement<T, A>): number {
+  push(x: Statement<T, A>): T | number {
     return this.block().push(x)
   }
   branch(target: number | Block<IR<T, A>>, args: (T | number)[] = [],
-    { when, src, bp }: { when?: number, src?: Source, bp?: boolean } = {}): number {
+    { when, src, bp }: { when?: T | number, src?: Source, bp?: boolean } = {}): number {
     return this.block().branch(target, args, { when, src, bp })
   }
   return(arg: T | number, opts: { src?: Source, bp?: boolean } = {}) { this.block().return(arg, opts) }
@@ -211,7 +214,7 @@ function asIR(x: any): IR<any, any> {
   throw new Error(`Expected IR, got ${typeof x}`)
 }
 
-class Block<I extends IR<any, any>> {
+class Block<I extends IR<any, any>> implements Fragment<I> {
   constructor(readonly ir: I, readonly id: number) { }
   get bb() { return this.ir._blocks[this.id] }
   get args() { return this.bb.args.map(([arg, _]) => arg) }
@@ -240,7 +243,7 @@ class Block<I extends IR<any, any>> {
     return v
   }
 
-  push(x: Statement<T<I>, A<I>>): number {
+  push(x: Statement<T<I>, A<I>>): Val<I> {
     if (!(x.expr instanceof Branch)) {
       const bs = this.branchStart()
       if (bs < this.bb.stmts.length) return this.insert(bs, x)
@@ -271,8 +274,8 @@ class Block<I extends IR<any, any>> {
     return arg
   }
 
-  branch(target: number | Block<I>, args: (T<I> | number)[] = [],
-    { when, src, bp }: { when?: number, src?: Source, bp?: boolean } = {}): number {
+  branch(target: number | Block<I>, args: Val<I>[] = [],
+    { when, src, bp }: { when?: Val<I>, src?: Source, bp?: boolean } = {}): number {
     const targetId = typeof target === 'number' ? target : target.id + 1
     return this.push(this.stmt(new Branch(targetId, args, when), { src, bp }))
   }
@@ -582,7 +585,7 @@ class PipeBlock<I extends IR<any, any>> {
   }
 }
 
-class Pipe<I extends IR<any, any>> {
+class Pipe<I extends IR<any, any>> implements Fragment<I> {
   from: I
   to: I
   map: Map<number, number | T<I>>
@@ -609,7 +612,7 @@ class Pipe<I extends IR<any, any>> {
     return this.to.stmt(expr, opts)
   }
 
-  push(stmt: Statement<T<I>, A<I>>): number {
+  push(stmt: Statement<T<I>, A<I>>): Val<I> {
     const v = this.var()
     this.map.set(v, this.to.push(this.substituteStmt(stmt)))
     return v

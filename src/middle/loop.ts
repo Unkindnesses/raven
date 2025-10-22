@@ -6,7 +6,7 @@ import { IR, Block, Branch, CFG, Component, components, entry, rename, Expr, unr
 export { LoopIR, loop, looped, unloop, Path, tail, block, nextpath, nextpathTo, pin, reroll, blockargs }
 
 function copyblock<T, A>(to: Block<IR<T, A>>, from: Block<IR<T, A>>) {
-  const env = new Map<number, number>()
+  const env = new Map<number, T | number>()
   for (let i = 0; i < from.args.length; i++)
     env.set(from.args[i], to.argument(from.argtypes[i]))
   for (const [v, st] of from)

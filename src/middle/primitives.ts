@@ -338,7 +338,7 @@ inlinePrimitive.set(part_method.id, (code, st) => {
   }
   if ((T.kind === 'pack' && !types.isValue(I)) || T.kind === 'union')
     return code.push({ ...st, expr: xcall(part_method, x, i) })
-  const y = indexer(code, T, I, x, i) as Val<MIR>
+  const y = indexer(code, T, I, x, i)
   if (partial_part(T, I) !== unreachable) {
     if (isreftype(asType(partial_part(T, I)))) code.push(code.stmt(expr('retain', y)))
     if (isreftype(T)) code.push(code.stmt(expr('release', x)))
@@ -581,7 +581,7 @@ inlinePrimitive.set(tagcast_method.id, (code, st) => {
   return union_downcast(code, T, i, x)
 })
 
-function string(pr: Fragment<MIR>, s: string): number {
+function string(pr: Fragment<MIR>, s: string) {
   const id = pr.push(pr.stmt(xstring(s), { type: types.list(types.int32()) }))
   return pr.push(pr.stmt(xcall(tag('common.JSObject'), id), { type: types.String() }))
 }

@@ -244,11 +244,11 @@ function dispatch_arms(T: types.Type): types.Type[] {
   return [T]
 }
 
-function indexer(code: MIR, T: types.Type, arg: number, path: Path): number {
+function indexer(code: MIR, T: types.Type, arg: ir.Val<MIR>, path: Path): ir.Val<MIR> {
   if (path.length === 0) return arg
   const [p, ...rest] = path
   if (typeof p !== 'number') {
-    const ps: number[] = []
+    const ps: ir.Val<MIR>[] = []
     for (let i = p.start; i <= p.end; i++)
       ps.push(code.push(code.stmt(xpart(arg, types.Type(BigInt(i))), { type: types.part(T, i) })))
     const L = types.list(...ps.map(v => code.type(v) as types.Type))
@@ -260,7 +260,7 @@ function indexer(code: MIR, T: types.Type, arg: number, path: Path): number {
   return indexer(code, T, arg, rest)
 }
 
-function icall(inf: Inference, code: MIR, sig: Sig, f: IRValue, ...args: (IRValue | number)[]): number {
+function icall(inf: Inference, code: MIR, sig: Sig, f: IRValue, ...args: (IRValue | number)[]): ir.Val<MIR> {
   if (!(f instanceof Method))
     args = [code.push(code.stmt(xlist(...args),
       { type: types.list(...args.map(a => types.asType(code.type(a)))) }))]
@@ -289,7 +289,7 @@ function dispatcher(inf: Inference, func: types.Tag, Ts: types.Type): [MIR, ir.A
       code.branch(code.blockCount + 1)
       code.newBlock()
       m = call(notnil_method, m)
-      const as: number[] = []
+      const as: ir.Val<MIR>[] = []
       for (const arg of meth.sig.args)
         as.push(call(part_method, call(types.tag('common.getkey'), m, types.tag(arg)), types.Type(1n)))
       let result = call(meth, ...as)
