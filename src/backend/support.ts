@@ -138,7 +138,7 @@ function formatFrame(def: Def, loc: Source): string {
 function formatStack(err: Error, frames: NodeJS.CallSite[]): string {
   let lines: string[] = []
   for (const frame of frames) {
-    const script = frame.getScriptNameOrSourceURL?.()
+    const script = frame.getScriptNameOrSourceURL()
     if (typeof script === 'string' && script.startsWith('wasm://')) {
       let debug = debugModules.get(frame.getThis() as WebAssembly.Instance)
       if (debug) {

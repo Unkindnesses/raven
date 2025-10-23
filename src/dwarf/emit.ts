@@ -3,7 +3,7 @@ import * as path from 'node:path'
 import { HashMap, some } from '../utils/map'
 import { Attr, Tag } from './enums'
 import { DIE, Abbrev, LineTable, abbrev, Value, Source, Def, Function, LineInfo } from './structs'
-import { isEqual } from 'lodash'
+import isEqual from 'lodash/isEqual'
 
 export {
   buildInlineTree, functionDie,

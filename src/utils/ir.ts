@@ -2,7 +2,7 @@ import { asNumber } from "../utils/map"
 import { HashMap, some } from "./map"
 import { Def, Source } from "../dwarf/structs"
 import { WorkQueue } from "./fixpoint"
-import { identity, isEqual } from "lodash"
+import isEqual from "lodash/isEqual"
 
 export {
   Anno, Unreachable, unreachable, asAnno, Source, Slot, slot, Expr, expr,
@@ -185,7 +185,7 @@ class IR<T, A> implements Fragment<IR<T, A>> {
     y._blocks.length = 0
     for (const bb of this._blocks)
       y._blocks.push({
-        stmts: bb.stmts.map(([v, st]) => [v, { ...st, expr: st.expr.map(identity) }]),
+        stmts: bb.stmts.map(([v, st]) => [v, { ...st, expr: st.expr.map(x => x) }]),
         args: bb.args.map(([a, t]) => [a, t])
       })
     y._defs.length = 0
