@@ -867,4 +867,8 @@ test('wasi', async () => {
   assert.strictEqual(result.stdout, 'hello!\n')
 })
 
+test('show gc', async () => {
+  await rv('show 2+2', { output: '(2 + 2) = 4', options: { gc: true } })
+})
+
 test.run()

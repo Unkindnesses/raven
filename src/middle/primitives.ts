@@ -582,8 +582,12 @@ inlinePrimitive.set(tagcast_method.id, (code, st) => {
 })
 
 function string(pr: Fragment<MIR>, s: string) {
-  const id = pr.push(pr.stmt(xstring(s), { type: types.list(types.int32()) }))
-  return pr.push(pr.stmt(xcall(tag('common.JSObject'), id), { type: types.String() }))
+  if (options().gc) {
+    return pr.push(pr.stmt(xstring(s), { type: types.String() }))
+  } else {
+    const id = pr.push(pr.stmt(xstring(s), { type: types.list(types.int32()) }))
+    return pr.push(pr.stmt(xcall(tag('common.JSObject'), id), { type: types.String() }))
+  }
 }
 
 inlinePrimitive.set(tagstring_method.id, (code, st) => {

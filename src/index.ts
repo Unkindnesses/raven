@@ -48,20 +48,22 @@ async function main() {
     .option('--js', 'Emit JS')
     .option('-o, --output <file>', 'Rename output file')
     .action(async (source, { output, js }) => {
-      let { inline, memcheck, strip } = program.optsWithGlobals()
-      if (js) await compileJS(source, { options: { inline, memcheck }, output, strip })
-      else await compile(source, { options: { inline, memcheck }, output, strip })
+      let { inline, memcheck, gc = false, strip
+      } = program.optsWithGlobals()
+      if (js) await compileJS(source, { options: { inline, memcheck, gc }, output, strip })
+      else await compile(source, { options: { inline, memcheck, gc }, output, strip })
     })
 
   program
     .argument('[source] [args...]', 'Source file to execute')
     .option('--no-inline', 'Disable function inlining')
     .option('--no-memcheck', 'Disable allocation checks')
+    .option('--gc', 'Enable Wasm GC')
     .option('--strip', 'Remove debug metadata from the binary')
     .action(async (xs) => {
-      let { inline, memcheck, strip } = program.optsWithGlobals()
+      let { inline, memcheck, gc = false, strip } = program.optsWithGlobals()
       let [source, ...args] = xs
-      if (source) await exec(source, args, { options: { inline, memcheck }, strip })
+      if (source) await exec(source, args, { options: { inline, memcheck, gc }, strip })
       else await startRepl()
     })
 

@@ -96,9 +96,10 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
   const pr = new Pipe(ir)
   for (let [v, st] of pr) {
     if (st.expr instanceof StringRef) {
-      const name = names.get([new WImport('support', 'string'), [wasm.Type.i32], [wasm.Type.i32]])
+      const ref = options().gc ? wasm.Type.externref : wasm.Type.i32
+      const name = names.get([new WImport('support', 'string'), [wasm.Type.i32], [ref]])
       pr.set(v, instr(wasm.Call(name), Const.i32(tables.string(st.expr.value))))
-      pr.setType(v, [wasm.Type.i32])
+      pr.setType(v, [ref])
     } else if (st.expr.head === 'func') {
       const [f, I, O] = st.expr.body
       const name = names.get([types.asTag(f), types.asType(I)])
@@ -282,7 +283,7 @@ function startfunc(main: string[]): wasm.Func {
 }
 
 function metaSection(strings: string[]): wasm.CustomSection {
-  const meta = { strings, jsalloc: options().jsalloc }
+  const meta = { strings, jsalloc: options().jsalloc, gc: options().gc }
   return wasm.CustomSection('raven.meta', new TextEncoder().encode(JSON.stringify(meta)))
 }
 

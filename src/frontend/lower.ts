@@ -8,7 +8,7 @@ import { Type, Tag, tag, pack, bits, int32, asType, nil } from "./types"
 import { Module, Signature, Binding, IRValue, WIntrinsic, MIR, WImport, xstring } from "./modules"
 import { Def } from "../dwarf"
 import { asBigInt, some } from "../utils/map"
-import { binding } from "../utils/options"
+import { binding, options } from "../utils/options"
 import * as parse from "./parse"
 import { isnil_method, notnil_method, part_method, packcat_method } from "../middle/primitives"
 import { lowerpattern, modtag, patternType } from "./patterns"
@@ -252,10 +252,14 @@ function swapreturn(code: LIR, val: Val<LIR>, swaps?: Map<number, string>, { src
 }
 
 function string(sc: Scope, code: LIR, x: string) {
-  const id = code.push(code.stmt(xstring(x), { type: types.list(int32()) }))
-  const obj = code.push(code.stmt(xcall(tag('common.JSObject'), id)))
-  const s = code.push(code.stmt(xcall(tag('common.String'), obj)))
-  return code.push(code.stmt(xpart(s, Type(1n))))
+  if (options().gc) {
+    return code.push(code.stmt(xstring(x), { type: types.String() }))
+  } else {
+    const id = code.push(code.stmt(xstring(x), { type: types.list(types.int32()) }))
+    const obj = code.push(code.stmt(xcall(tag('common.JSObject'), id)))
+    const s = code.push(code.stmt(xcall(tag('common.String'), obj)))
+    return code.push(code.stmt(xpart(s, Type(1n))))
+  }
 }
 
 function lowermatch(sc: Scope, code: LIR, val: Val<LIR>, pat: ast.Tree): Val<LIR> {
@@ -444,7 +448,13 @@ const wtypes = new Map<string, Type>([
   ['i32', types.bits(32)],
   ['i64', types.bits(64)],
   ['f32', types.float32()],
-  ['f64', types.float64()]])
+  ['f64', types.float64()],
+  ['externref', types.Ref]])
+
+function wtype(name: string): Type {
+  if (name === 'ref') return options().gc ? types.Ref : types.int32()
+  return some(wtypes.get(name))
+}
 
 function intrinsic(ex: ast.Tree): [WIntrinsic | WImport, ir.Anno<Type>] {
   let T: ir.Anno<Type> = types.nil
@@ -452,8 +462,8 @@ function intrinsic(ex: ast.Tree): [WIntrinsic | WImport, ir.Anno<Type>] {
     const type = ex.args[2]
     if (isEqual(type.unwrap(), ast.symbol('unreachable'))) T = ir.unreachable
     else if (ast.isExpr(type, 'Group'))
-      T = types.list(...type.args.map(t => some(wtypes.get(ast.asSymbol(t).name))))
-    else T = some(wtypes.get(ast.asSymbol(type).name))
+      T = types.list(...type.args.map(t => some(wtype(ast.asSymbol(t).name))))
+    else T = some(wtype(ast.asSymbol(type).name))
     ex = ex.args[1]
   }
   let op = ast.asExpr(ex).args[0].ungroup()

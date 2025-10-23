@@ -5,9 +5,11 @@ import { Def } from '../dwarf'
 export { loadWasm, support, table }
 
 let idcounter = 0
+let gc = false
 const table: any = {}
 
 function createRef(obj: unknown) {
+  if (gc) return obj
   if (idcounter >= 4294967295) throw new Error("too many JSRefs")
   const ref = idcounter++
   table[ref] = obj
@@ -15,17 +17,12 @@ function createRef(obj: unknown) {
 }
 
 function fromRef(ref: number) {
+  if (gc) return ref
   return table[ref]
 }
 
 async function awate(ref: number) {
   return createRef(await fromRef(ref))
-}
-
-let strings: string[] = []
-
-function string(i: number) {
-  return createRef(strings[i])
 }
 
 function release(ref: number) {
@@ -106,18 +103,22 @@ function abort(obj: number, cause: number) {
   throw new Error('dummy error')
 }
 
-const support = {
-  global, property, call, apply, string,
-  createRef, fromRef, abort,
-  equal, release,
-  await: new (WebAssembly as any).Suspending(awate),
-  errcall: new (WebAssembly as any).Suspending(errcall),
-  debugger: () => { debugger }
+function support(strings: string[]) {
+  return {
+    global, property, call, apply,
+    createRef, fromRef, abort,
+    equal, release,
+    await: new (WebAssembly as any).Suspending(awate),
+    errcall: new (WebAssembly as any).Suspending(errcall),
+    debugger: () => { debugger },
+    string: (i: number) => createRef(strings[i])
+  }
 }
 
 interface Metadata {
   strings: string[]
   jsalloc: boolean
+  gc: boolean
 }
 
 function meta(bytes: Uint8Array): Metadata | undefined {
@@ -158,13 +159,15 @@ function formatStack(err: Error, frames: NodeJS.CallSite[]): string {
 }
 
 Error.prepareStackTrace = (err, frames) => formatStack(err, frames)
+Error.stackTraceLimit = 100
 
 async function loadWasm(buf: string | Uint8Array, imports: any = {}) {
   if (typeof buf === 'string')
     buf = await fs.readFile(buf)
   const m = meta(buf)
   if (m === undefined) throw new Error('Not a Raven wasm module.')
-  imports = { ...imports, support: { ...support, string: (i: number) => createRef(m.strings[i]) } }
+  gc = m.gc
+  imports = { ...imports, support: support(m.strings) }
   const res = await WebAssembly.instantiate(new Uint8Array(buf), imports)
   const debug = DebugModule(buf)
   if (debug) debugModules.set(res.instance, debug)

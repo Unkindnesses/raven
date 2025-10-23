@@ -22,6 +22,7 @@ import * as types from '../frontend/types'
 import { Type, asType } from '../frontend/types'
 import { Type as WType, sizeof as wsizeof } from '../wasm/wasm'
 import { MIR, WImport, WIntrinsic, Method, Const, asBinding, asFunc, xstring } from '../frontend/modules'
+import { options } from '../utils/options'
 import { Def } from '../dwarf'
 import { Inferred, Redirect, type Sig, sig as resolveSig } from './abstract'
 import { wasmPartials } from '../backend/wasm'
@@ -101,7 +102,8 @@ function union_cases(code: MIR, T: Type & { kind: 'union' }, x: Val<MIR>, f: (S:
 // Panic
 
 function abort(code: Fragment<MIR>, s: string): Val<MIR> {
-  const id = code.push(code.stmt(xstring(s), { type: types.bits(32) }))
+  const ref = options().gc ? types.Ref : types.bits(32)
+  const id = code.push(code.stmt(xstring(s), { type: ref }))
   return code.push(code.stmt(xcall(new WImport('support', 'abort'), id)))
 }
 
@@ -120,6 +122,7 @@ function layout(T: Type): WType[] {
   switch (T.kind) {
     case 'float32': return [WType.f32]
     case 'float64': return [WType.f64]
+    case 'ref': return [WType.externref]
     case 'bits': {
       if (T.size <= 32) return [WType.i32]
       if (T.size <= 64) return [WType.i64]

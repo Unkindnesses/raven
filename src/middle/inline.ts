@@ -27,7 +27,7 @@ function opcount(code: MIR): number {
 }
 
 function inlineable(cache: Accessor<Sig, Redirect | MIR>, sig: Sig): boolean {
-  if (isEqual(sig[0], types.tag('common.hold'))) return false
+  if (!options().gc && isEqual(sig[0], types.tag('common.hold'))) return false
   const ir = cache.get(sig)
   if (ir instanceof Redirect) return inlineable(cache, ir.to)
   return ir.blockCount === 1 && opcount(ir) <= 3

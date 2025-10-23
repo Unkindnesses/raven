@@ -8,7 +8,7 @@ export {
   Tag, Bits, Type,
   tag, asTag, asType, bits, pack, packcat, vpack, onion, float32, float64, int32, int64, bool, recursive, recurrence,
   repr, issubset, isdisjoint, union, unroll, recur, finite, tagOf, part, parts,
-  nil, isValue, isAtom, nparts, allparts, abstract, partial_eltype, String, Ptr, list, asBits, simplify, Any
+  nil, isValue, isAtom, nparts, allparts, abstract, partial_eltype, Ref, String, Ptr, list, asBits, simplify, Any
 }
 
 // Tags
@@ -56,6 +56,7 @@ type Type =
   | { kind: 'bits'; size: number; value?: bigint }
   | { kind: 'float32'; value?: number }
   | { kind: 'float64'; value?: number }
+  | { kind: 'ref' }
   | { kind: 'pack'; parts: Type[] }
   | { kind: 'vpack'; tag: Type; parts: Type }
   | { kind: 'union'; options: Type[] }
@@ -67,7 +68,7 @@ function asType(x: unknown): Type
 function asType<K extends Type['kind']>(x: unknown, kind: K): Type & { kind: K }
 function asType(x: unknown, kind?: Type['kind']): Type {
   if (typeof x === 'object' && x !== null && 'kind' in x) {
-    const validKinds: Type['kind'][] = ['tag', 'bits', 'float32', 'float64', 'pack', 'vpack', 'union', 'recurrence', 'recursive', 'any']
+    const validKinds: Type['kind'][] = ['tag', 'bits', 'float32', 'float64', 'ref', 'pack', 'vpack', 'union', 'recurrence', 'recursive', 'any']
     const actual = (x as any).kind
     if (!validKinds.includes(actual)) throw new Error(`Expected Type, got invalid kind ${'' + actual}`)
     if (kind !== undefined && actual !== kind) throw new Error(`Expected ${kind} type, got ${actual}`)
@@ -89,6 +90,8 @@ function repr(x: Type): string {
       return x.value === undefined ? 'Float32' : `Float32(${x.value})`
     case 'float64':
       return x.value === undefined ? 'Float64' : `Float64(${x.value})`
+    case 'ref':
+      return 'ref'
     case 'pack': {
       if (x.parts.length === 2 &&
         x.parts[0].kind === 'tag' && x.parts[0].path === 'common.Int' &&
@@ -191,6 +194,8 @@ function vpack(t: TypeLike, x: TypeLike): Type {
 
 const recurrence: Type = { kind: 'recurrence' }
 
+const Ref: Type = { kind: 'ref' }
+
 const Any: Type = { kind: 'any' }
 
 function recursive(x: Type): Type {
@@ -223,6 +228,8 @@ function Ptr(): Type {
 }
 
 function JSObject(): Type {
+  if (options().gc)
+    return pack(tag('common.JSObject'), Ref)
   return options().jsalloc ?
     pack(tag('common.JSObject'), pack(tag('common.Ref'), Ptr())) :
     pack(tag('common.JSObject'), int32())
@@ -245,7 +252,8 @@ function isAtom(x: Type) {
   return x.kind === 'tag' ||
     x.kind === 'bits' ||
     x.kind === 'float32' ||
-    x.kind === 'float64'
+    x.kind === 'float64' ||
+    x.kind === 'ref'
 }
 
 function isValue(x: Type): boolean {
@@ -263,6 +271,7 @@ function abstract(x: Type): Type {
   if (x.kind === 'bits') return bits(x.size)
   if (x.kind === 'float32') return float32()
   if (x.kind === 'float64') return float64()
+  if (x.kind === 'ref') return Ref
   throw new Error(`not an atom type: ${repr(x)}`)
 }
 
@@ -271,6 +280,7 @@ function tagOf(x: Type): Type {
   if (x.kind === 'bits') return Type(tag('common.core.Bits'))
   if (x.kind === 'float32') return Type(tag('common.core.Float32'))
   if (x.kind === 'float64') return Type(tag('common.core.Float64'))
+  if (x.kind === 'ref') return Type(tag('common.core.Ref'))
   if (x.kind === 'pack') return x.parts[0]
   if (x.kind === 'vpack') return x.tag
   if (x.kind === 'recursive') return tagOf(x.inner)
@@ -285,8 +295,8 @@ function astag(x: Type): Tag {
 
 function allparts(x: Type): Type[] {
   if (x.kind === 'tag' || x.kind === 'bits') return [tagOf(x), x]
-  // TODO internal bits
   if (x.kind === 'float32' || x.kind === 'float64') return [tagOf(x), floatToBits(x)]
+  if (x.kind === 'ref') return [tagOf(x), x]
   if (x.kind === 'pack') return x.parts
   throw new Error(`No fixed parts for ${repr(x)} type`)
 }

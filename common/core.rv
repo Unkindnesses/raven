@@ -1,11 +1,12 @@
 # Tags for core types. Objects with these tags are only produced by builtins.
 
-export { Tag, Bits, Float32, Float64 }
+export { Tag, Bits, Float32, Float64, Ref }
 
 Tag     = tag".Tag"
 Bits    = tag".Bits"
 Float32 = tag".Float32"
 Float64 = tag".Float64"
+Ref     = tag".Ref"
 
 # These functions have built-in methods attached.
 # TODO: could add a `fn { foo }` syntax to declare a function with no methods.
