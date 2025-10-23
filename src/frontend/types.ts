@@ -8,7 +8,7 @@ export {
   Tag, Bits, Type,
   tag, asTag, asType, bits, pack, packcat, vpack, onion, float32, float64, int32, int64, bool, recursive, recurrence,
   repr, issubset, isdisjoint, union, unroll, recur, finite, tagOf, part, parts,
-  nil, isValue, isAtom, nparts, allparts, abstract, partial_eltype, String, Ptr, list, asBits
+  nil, isValue, isAtom, nparts, allparts, abstract, partial_eltype, String, Ptr, list, asBits, simplify, Any
 }
 
 // Tags
@@ -61,12 +61,13 @@ type Type =
   | { kind: 'union'; options: Type[] }
   | { kind: 'recurrence' }
   | { kind: 'recursive'; inner: Type }
+  | { kind: 'any' }
 
 function asType(x: unknown): Type
 function asType<K extends Type['kind']>(x: unknown, kind: K): Type & { kind: K }
 function asType(x: unknown, kind?: Type['kind']): Type {
   if (typeof x === 'object' && x !== null && 'kind' in x) {
-    const validKinds: Type['kind'][] = ['tag', 'bits', 'float32', 'float64', 'pack', 'vpack', 'union', 'recurrence', 'recursive']
+    const validKinds: Type['kind'][] = ['tag', 'bits', 'float32', 'float64', 'pack', 'vpack', 'union', 'recurrence', 'recursive', 'any']
     const actual = (x as any).kind
     if (!validKinds.includes(actual)) throw new Error(`Expected Type, got invalid kind ${'' + actual}`)
     if (kind !== undefined && actual !== kind) throw new Error(`Expected ${kind} type, got ${actual}`)
@@ -110,6 +111,8 @@ function repr(x: Type): string {
       return 'T'
     case 'recursive':
       return `(T = ${repr(x.inner)})`
+    case 'any':
+      return 'Any'
     default: let _: never = x
   }
   throw new Error('unreachable')
@@ -187,6 +190,8 @@ function vpack(t: TypeLike, x: TypeLike): Type {
 }
 
 const recurrence: Type = { kind: 'recurrence' }
+
+const Any: Type = { kind: 'any' }
 
 function recursive(x: Type): Type {
   return { kind: 'recursive', inner: x }
@@ -269,6 +274,7 @@ function tagOf(x: Type): Type {
   if (x.kind === 'pack') return x.parts[0]
   if (x.kind === 'vpack') return x.tag
   if (x.kind === 'recursive') return tagOf(x.inner)
+  if (x.kind === 'any') return x
   throw new Error(`No fixed tag for ${repr(x)} type`)
 }
 
@@ -310,6 +316,7 @@ function sortkey(x: Type): string {
   if (x.kind === 'bits') return [astag(tagOf(x)).path, x.size.toString()].join(':')
   if (x.kind === 'union') return sortkey(x.options[0])
   if (x.kind === 'recursive') return sortkey(x.inner)
+  if (x.kind === 'any') return 'any:'
   let key = tagOf(x)
   return key.kind === 'tag' ? key.path : ""
 }
@@ -344,7 +351,7 @@ function overlapping(x: Type, y: Type): boolean {
 function postwalk<T extends Type | null>(f: (x: Type) => T, x: Type): T {
   const inner = (x: Type): Type | null => postwalk(f, x)
   let y: Type | null
-  if (isAtom(x) || x.kind === 'recurrence' || x.kind === 'recursive') {
+  if (isAtom(x) || x.kind === 'recurrence' || x.kind === 'recursive' || x.kind === 'any') {
     y = x
   } else if (x.kind === 'pack') {
     const parts = x.parts.map(inner)
@@ -401,6 +408,8 @@ function _issubset(self: Accessor<[Type, Type], boolean>, x: Type, y: Type): boo
       x.parts.slice(1).every(t => iss(t, y.parts))
   if (x.kind === 'vpack' && y.kind === 'vpack')
     return iss(tagOf(x), tagOf(y)) && iss(x.parts, y.parts)
+  if (isEqual(x, Any) && isEqual(y, Any))
+    return true
   return false
 }
 
@@ -438,6 +447,8 @@ function _isdisjoint(self: Accessor<[Type, Type], boolean>, x: Type, y: Type): b
     return isd(y, x)
   if (x.kind === 'vpack' && y.kind === 'vpack')
     return isd(tagOf(x), tagOf(y))
+  if (isEqual(x, Any) && isEqual(y, Any))
+    return false
   return true
 }
 
@@ -531,6 +542,7 @@ function splitby<T>(f: (x: T) => boolean, xs: T[]): [T[], T[]] {
 
 function _union(x: Type, y: Type): Type {
   [x, y] = [x, y].map(x => finite(x))
+  if (isEqual(x, Any) && isEqual(y, Any)) return x
   if (x.kind === 'union' || y.kind === 'union') {
     let ys: Type[] = []
     for (let term of [...disjuncts(y), ...disjuncts(x)]) {
@@ -738,6 +750,22 @@ function recurser() {
 
 function recur(T: Type): Type {
   return recurser()(T)
+}
+
+// Strip ⊤ types
+function simplify(T: Type): Type {
+  if (T.kind === 'union') {
+    const xs = T.options.map(simplify)
+    if (xs.some(x => isEqual(x, Any))) return Any
+    return onion(...xs)
+  }
+  if (T.kind === 'recursive') {
+    const r = simplify(T.inner)
+    if (isEqual(r, Any)) return Any
+    return occursin(recurrence, r) ? recursive(r) : r
+  }
+  const [children, f] = reconstruct(T)
+  return f(children.map(simplify))
 }
 
 function union(x: Type, y: Type): Type {

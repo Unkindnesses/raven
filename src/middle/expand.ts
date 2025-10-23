@@ -133,6 +133,7 @@ function layout(T: Type): WType[] {
     case 'recursive': return [WType.i32]
     case 'union': return [WType.i32, ...T.options.flatMap(layout)]
     case 'tag': return []
+    case 'any':
     case 'recurrence': throw new Error('unimplemented')
     default: { const _: never = T; throw new Error('unreachable') }
   }

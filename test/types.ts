@@ -2,7 +2,7 @@ import { test } from 'uvu'
 import * as assert from 'assert'
 import {
   Type, tag, pack, vpack, bits, float64, float32, recursive,
-  recurrence, onion, issubset, union, recur, unroll, finite, repr
+  recurrence, onion, issubset, union, recur, unroll, finite, simplify, Any
 } from '../src/frontend/types'
 import * as types from '../src/frontend/types'
 
@@ -258,6 +258,31 @@ test('', () => {
 test('', () => {
   const T = pack(tag('List'), vpack(tag('List'), vpack(tag('List'), float64())))
   assert.deepEqual(recur(T), T)
+})
+
+// `Any` types
+
+test('', () => {
+  const List = (T: Type) => recursive(onion(pack(tag('Empty')), pack(tag('Prepend'), recurrence, T)))
+  assert.deepEqual(simplify(recur(finite(List(Any)))), List(Any))
+})
+
+test('', () => {
+  const A = vpack(tag('c'), vpack(tag('c'), float64(3.0)))
+  const B = vpack(tag('c'), Any)
+  const C = float64()
+  const U = union(union(A, B), C)
+  assert.deepEqual(U, union(A, union(B, C)))
+  assert.deepEqual(simplify(U), onion(vpack(tag('c'), Any), float64()))
+})
+
+test('', () => {
+  const A = pack(tag('b'), vpack(tag('b'), float64()))
+  const B = vpack(tag('b'), float64())
+  const C = vpack(tag('b'), Any)
+  const U = union(union(A, B), C)
+  assert.deepEqual(U, union(A, union(B, C)))
+  assert.deepEqual(simplify(U), Any)
 })
 
 test.run()
