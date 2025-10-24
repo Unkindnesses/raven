@@ -7,7 +7,7 @@ import { tag } from '../src/frontend/types'
 import { source } from '../src/middle/load'
 import { fingerprint, reset } from '../src/utils/cache'
 import { asArray } from '../src/utils/map'
-import { Sig } from '../src/middle/abstract'
+import { key, Sig } from '../src/middle/abstract'
 
 test('globals', () => {
   const compiler = new Compiler(source('', 'foo = 1, bar = 1'))
@@ -56,13 +56,13 @@ test('inference', () => {
   assert.deepEqual(fooType, types.list(types.int64(6)))
 
   inf.get([tag('common.+'), types.list(types.int64(), types.int64())])
-  const plusId = inf.results.id([tag('common.+'), types.list(types.int64(), types.int64())])
+  const plusId = inf.results.id(key([tag('common.+'), types.list(types.int64(), types.int64())]))
 
   compiler.reload(source('', 'n = 2, fn foo(x) { x+n }, foo(5)'));
 
   [, fooType] = asArray(inf.get([tag('foo'), types.list(types.int64(5))]))
   assert.deepEqual(fooType, types.list(types.int64(7)))
-  assert.equal(plusId, inf.results.id([tag('common.+'), types.list(types.int64(), types.int64())]))
+  assert.equal(plusId, inf.results.id(key([tag('common.+'), types.list(types.int64(), types.int64())])))
 })
 
 test('compiler', () => {
@@ -82,7 +82,7 @@ test('match method', () => {
   const compiler = new Compiler()
   const sig: Sig = [tag('common.matchTrait'), types.list(tag('common.Int64'), types.int64())]
 
-  assert.ok(!compiler.pipe.inferred.results.iscached(sig))
+  assert.ok(!compiler.pipe.inferred.results.iscached(key(sig)))
   const matchResult = compiler.pipe.inferred.get(sig)
   assert.ok(Array.isArray(matchResult))
 
@@ -90,7 +90,7 @@ test('match method', () => {
     @extend, fn matchTrait(tag"Lit", x: pack(tag"Lit", val)) { Some(x) }
   `))
 
-  assert.ok(compiler.pipe.inferred.results.iscached(sig))
+  assert.ok(compiler.pipe.inferred.results.iscached(key(sig)))
 })
 
 test.run()
