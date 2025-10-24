@@ -1,4 +1,7 @@
-export { HashMap, HashSet, HashFn, some, asNumber, asBool, asBigInt, asString, asArray, first, only, setdiff, filter }
+export {
+  HashMap, HashSet, HashFn, hash, stable, some, asNumber, asBool, asBigInt, asString,
+  asArray, first, only, setdiff, filter
+}
 
 function some<T>(value: T | null | undefined, message?: string): T {
   if (value === null || value === undefined)
@@ -49,9 +52,12 @@ function asArray<T>(x: T): ArrayLikeOf<T> {
 
 type HashFn<K> = (k: K) => string
 
+const hash = Symbol('hash')
+
 const stable = (x: any): string => {
   if (!x || typeof x !== 'object')
     return String(x)
+  if (hash in x) return x[hash]
   if (Array.isArray(x))
     return '[' + x.map(stable).join(',') + ']'
   if (x instanceof Map)

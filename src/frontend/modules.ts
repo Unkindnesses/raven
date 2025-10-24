@@ -1,4 +1,4 @@
-import { HashMap, some } from "../utils/map"
+import { hash, HashMap, some } from "../utils/map"
 import { Anno, unreachable } from "../utils/ir"
 import { Type, Tag, tag, repr } from "./types"
 import * as types from "./types"
@@ -25,6 +25,7 @@ class WImport {
 
 class Binding {
   constructor(readonly mod: Tag, readonly name: string) { }
+  get [hash]() { return `${this.mod.path}.${this.name}` }
 }
 
 function asBinding(x: unknown): Binding {
@@ -111,6 +112,7 @@ class Method {
     readonly params: Type[] = [],
     readonly id = cache.nft()
   ) { }
+  get [hash]() { return `${this.id}${this.params.map(x => types.repr(x)).join()}` }
   toString() { return `Method(${this.name})` }
   param(...Ts: Type[]) {
     return new Method(this.mod, this.name, this.sig, this.func, Ts, this.id)

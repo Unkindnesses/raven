@@ -1,5 +1,5 @@
 import isEqual from 'lodash/isEqual'
-import { HashMap, HashSet } from '../utils/map'
+import { hash, HashSet } from '../utils/map'
 import { Fixpoint, Accessor } from '../utils/fixpoint'
 import { Symbol } from './ast'
 import { options } from '../utils/options'
@@ -16,12 +16,14 @@ export {
 class Tag {
   readonly kind = 'tag' as const
   readonly parts: readonly string[]
+  readonly path: string
   constructor(...parts: (Tag | string | Symbol)[]) {
     const flatten = (p: Tag | string | Symbol): readonly string[] =>
       p instanceof Tag ? p.parts : p.toString().split('.').filter(Boolean)
     this.parts = parts.flatMap(flatten)
+    this.path = this.parts.join('.')
   }
-  get path(): string { return this.parts.join('.') }
+  get [hash](): string { return this.path }
   toString(): string { return 'tag\"' + this.path + '\"' }
 }
 

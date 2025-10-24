@@ -60,7 +60,7 @@ function load_export(cx: LoadState, x: ast.Expr): void {
 
 function load_import(cx: LoadState, x: ast.Expr): void {
   const pathStr = ast.asString(x.args[3])
-  const modTag = new Tag('common', ...pathtag(pathStr).parts)
+  const modTag = new Tag('common', pathtag(pathStr))
   const mod = cx.comp.module(modTag)
   const names = ast.asExpr(x.args[1], 'Block').args.map(name => ast.asSymbol(name.unwrap()).toString())
   cx.mod.import(mod, names)
