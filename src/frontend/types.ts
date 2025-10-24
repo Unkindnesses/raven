@@ -1,5 +1,5 @@
 import isEqual from 'lodash/isEqual'
-import { hash, HashSet } from '../utils/map'
+import { hash } from '../utils/map'
 import { Fixpoint, Accessor } from '../utils/fixpoint'
 import { Symbol } from './ast'
 import { options } from '../utils/options'
@@ -79,7 +79,7 @@ function asType(x: unknown, kind?: Type['kind']): Type {
   throw new Error(`Expected Type, got ${typeof x}`)
 }
 
-function repr(x: Type): string {
+function _repr(x: Type): string {
   switch (x.kind) {
     case 'tag':
       return x.toString()
@@ -121,6 +121,16 @@ function repr(x: Type): string {
     default: let _: never = x
   }
   throw new Error('unreachable')
+}
+
+const reprCache = new WeakMap<Type, string>()
+
+function repr(x: Type): string {
+  const cached = reprCache.get(x)
+  if (cached !== undefined) return cached
+  const r = _repr(x)
+  reprCache.set(x, r)
+  return r
 }
 
 type TypeLike = Type | Tag | Bits | bigint | number | boolean
@@ -428,7 +438,8 @@ function _issubset(self: Accessor<[Type, Type], boolean>, x: Type, y: Type): boo
 function subsetter() {
   const fp = new Fixpoint<[Type, Type], boolean>(
     (self, [a, b]) => _issubset(self, a, b),
-    () => true
+    () => true,
+    ([a, b]) => repr(a) + repr(b)
   )
   return (a: Type, b: Type) => fp.get([a, b])
 }
@@ -467,7 +478,8 @@ function _isdisjoint(self: Accessor<[Type, Type], boolean>, x: Type, y: Type): b
 function disjointer() {
   const fp = new Fixpoint<[Type, Type], boolean>(
     (self, [x, y]) => _isdisjoint(self, x, y),
-    () => false
+    () => false,
+    ([a, b]) => repr(a) + repr(b)
   )
   return (x: Type, y: Type) => fp.get([x, y])
 }
@@ -512,7 +524,8 @@ function distincter() {
   const isd = disjointer()
   const fp = new Fixpoint<[Type, Type], boolean>(
     (self, [a, b]) => _isdistinct(self, a, b, isd),
-    () => false
+    () => false,
+    ([a, b]) => repr(a) + repr(b)
   )
   return (a: Type, b: Type) => fp.get([a, b])
 }
@@ -628,10 +641,10 @@ function isrecur(x: Type, T: Type): boolean {
   return !isdistinct(x, T) && issubset(rfinite(x), T)
 }
 
-function reroll_inner(T: Type, x: Type, seen: HashSet<Type>, self = _reroll): [Type, Set<string>] {
+function reroll_inner(T: Type, x: Type, seen: Set<string>, self = _reroll): [Type, Set<string>] {
   if (x.kind === 'recursive') {
-    if (seen.has(x)) return [x, new Set()]
-    const [y, ks] = reroll_outer(T, _unroll(x), new HashSet([...seen, x]))
+    if (seen.has(repr(x))) return [x, new Set()]
+    const [y, ks] = reroll_outer(T, _unroll(x), new Set([...seen, repr(x)]))
     if (!ks.size) return [x, new Set()]
     if (occursin(x, y)) return [x, new Set()]
     return [y, ks]
@@ -643,13 +656,13 @@ function reroll_inner(T: Type, x: Type, seen: HashSet<Type>, self = _reroll): [T
   }
 }
 
-function reroll_outer(T: Type, x: Type, seen: HashSet<Type>): [Type, Set<string>] {
+function reroll_outer(T: Type, x: Type, seen: Set<string>): [Type, Set<string>] {
   return x.kind === 'union' ?
     reroll_inner(T, x, seen, reroll_inner) :
     reroll_inner(T, x, seen)
 }
 
-function _reroll(T: Type, x: Type, seen: HashSet<Type>): [Type, Set<string>] {
+function _reroll(T: Type, x: Type, seen: Set<string>): [Type, Set<string>] {
   return isrecur(x, T) ?
     [recurrence, typekey(x)] :
     reroll_outer(T, x, seen)
@@ -659,7 +672,7 @@ function reroll(T: Type): Type {
   if (isRecursive(T)) return T
   const xs = disjuncts(T)
   let ys = xs.map(x => {
-    const [y, keys] = reroll_inner(T, x, new HashSet())
+    const [y, keys] = reroll_inner(T, x, new Set())
     return [y, new Set([...keys, ...typekey(x)])] as const
   })
   let results: [Type, Set<string>][] = []
@@ -698,10 +711,10 @@ function unroll(T: Type): Type {
 
 // Lift
 
-function lift_inner(T: Type, x: Type, seen: HashSet<Type>, self = _lift): [Type | null, boolean, boolean] {
+function lift_inner(T: Type, x: Type, seen: Set<string>, self = _lift): [Type | null, boolean, boolean] {
   if (x.kind === 'recursive') {
-    if (seen.has(x)) return [null, false, true]
-    const [inner, s, r] = lift_outer(T, _unroll(x), new HashSet([...seen, x]))
+    if (seen.has(repr(x))) return [null, false, true]
+    const [inner, s, r] = lift_outer(T, _unroll(x), new Set([...seen, repr(x)]))
     return s && r ? [x, true, false] : [inner, s, false]
   } else {
     const [xs] = reconstruct(x)
@@ -714,20 +727,20 @@ function lift_inner(T: Type, x: Type, seen: HashSet<Type>, self = _lift): [Type 
   }
 }
 
-function lift_outer(T: Type, x: Type, seen: HashSet<Type>): [Type | null, boolean, boolean] {
+function lift_outer(T: Type, x: Type, seen: Set<string>): [Type | null, boolean, boolean] {
   return x.kind === 'union'
     ? lift_inner(T, x, seen, lift_inner)
     : lift_inner(T, x, seen)
 }
 
-function _lift(T: Type, x: Type, seen: HashSet<Type>): [Type | null, boolean, boolean] {
+function _lift(T: Type, x: Type, seen: Set<string>): [Type | null, boolean, boolean] {
   if (!isdistinct(x, T)) {
     return [issubset(x, T) ? null : x, true, false]
   }
   return lift_outer(T, x, seen)
 }
 
-function lift(T: Type): Type | null { return lift_outer(T, T, new HashSet())[0] }
+function lift(T: Type): Type | null { return lift_outer(T, T, new Set())[0] }
 
 // Recursive
 
@@ -755,7 +768,7 @@ function recurser() {
   }
   const fp = new Fixpoint<Type, Type>(
     (self, T) => _recur(T, (T) => self.get(T)),
-    x => x, check
+    x => x, (T) => repr(T), check
   )
   return (T: Type) => fp.get(T)
 }

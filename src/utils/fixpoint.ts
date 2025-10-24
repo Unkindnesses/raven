@@ -1,5 +1,4 @@
 import isEqual from 'lodash/isEqual'
-import { HashMap, HashSet } from './map'
 
 export { WorkQueue, Fixpoint, Accessor }
 
@@ -9,7 +8,7 @@ interface Accessor<K, V> {
 
 class WorkQueue<K> {
   private items: K[] = []
-  private seen = new HashSet<K>()
+  private seen = new Set<K>()
 
   push(k: K) {
     if (!this.seen.has(k)) {
@@ -30,32 +29,37 @@ class WorkQueue<K> {
   }
 }
 
+type Key = string | number
+
 class Frame<K, V> {
+  key: K
   value: V
-  deps = new Set<K>()
-  edges = new Set<K>()
-  constructor(v: V) {
+  deps = new Set<Key>()
+  edges = new Set<Key>()
+  constructor(k: K, v: V) {
+    this.key = k
     this.value = v
   }
 }
 
 class Fixpoint<K, V> {
-  private frames = new HashMap<K, Frame<K, V>>()
-  private queue = new WorkQueue<K>()
-  private stack: Set<K>[] = []
+  private frames = new Map<Key, Frame<K, V>>()
+  private queue = new WorkQueue<Key>()
+  private stack: Set<Key>[] = []
 
   constructor(
     private update: (self: Accessor<K, V>, key: K) => V,
     private init: (key: K) => V,
+    private hash: (key: K) => Key,
     private check: (oldVal: V, newVal: V) => void = () => { }
   ) { }
 
-  private note(k: K) {
+  private note(k: Key) {
     if (this.stack.length) this.stack[this.stack.length - 1].add(k)
   }
 
-  private track<T>(f: () => T): [T, Set<K>] {
-    const s = new Set<K>()
+  private track<T>(f: () => T): [T, Set<Key>] {
+    const s = new Set<Key>()
     this.stack.push(s)
     try {
       return [f(), s]
@@ -64,16 +68,16 @@ class Fixpoint<K, V> {
     }
   }
 
-  private clearDeps(k: K) {
+  private clearDeps(k: Key) {
     const fr = this.frames.get(k)!
     for (const d of fr.deps) this.frames.get(d)?.edges.delete(k)
     fr.deps.clear()
   }
 
-  private refresh(k: K) {
+  private refresh(k: Key) {
     this.clearDeps(k)
     const fr = this.frames.get(k)!
-    const [val, deps] = this.track(() => this.update(new Inner(this), k))
+    const [val, deps] = this.track(() => this.update(new Inner(this), fr.key))
     this.check(fr.value, val)
     fr.deps = deps
     for (const d of deps) this.frames.get(d)?.edges.add(k)
@@ -84,15 +88,16 @@ class Fixpoint<K, V> {
   }
 
   private fetch(k: K, loop: boolean): V {
-    this.note(k)
-    if (!this.frames.has(k)) {
-      this.frames.set(k, new Frame(this.init(k)))
-      this.refresh(k)
+    const key = this.hash(k)
+    this.note(key)
+    if (!this.frames.has(key)) {
+      this.frames.set(key, new Frame(k, this.init(k)))
+      this.refresh(key)
     }
     if (loop) {
       while (!this.queue.empty) this.refresh(this.queue.pop()!)
     }
-    return this.frames.get(k)!.value
+    return this.frames.get(key)!.value
   }
 
   get(k: K): V {

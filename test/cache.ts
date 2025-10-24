@@ -9,7 +9,7 @@ test('Fixpoint square root', () => {
       let y = self.get(x)
       return (y + x / y) / 2
     },
-    x => x
+    x => x, x => x
   )
   const result = fp.get(2)
   assert.ok(Math.abs(result * result - 2) < 1e-10, 'Should approximate sqrt(2)')
