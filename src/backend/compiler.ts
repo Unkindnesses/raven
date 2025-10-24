@@ -8,7 +8,7 @@ import { Inlined, opcount } from '../middle/inline'
 import { refcounts } from '../middle/refcount'
 import * as wasm from './wasm'
 import { irfunc } from '../wasm/ir'
-import { reset, pipe, type Caching } from '../utils/cache'
+import { reset, pipe, Caching, withtime } from '../utils/cache'
 import { loadmodule, reload, common, SourceString } from '../middle/load'
 import { binding, Options, options, withOptions } from '../utils/options'
 import { assigned_globals } from '../frontend/lower'
@@ -88,6 +88,7 @@ function emit(m: mods.Method): void { return getEmit()(m) }
 class Compiler {
   readonly pipe: Pipeline
   readonly emitter: wasm.Emitter
+  time = 0n
 
   constructor(src?: string | SourceString) {
     this.pipe = new Pipeline()
@@ -97,23 +98,29 @@ class Compiler {
   }
 
   loadcommon(): this {
-    this.pipe.loadcommon(this.emitter)
+    const [, t] = withtime(() => {
+      this.pipe.loadcommon(this.emitter)
+    })
+    this.time += t
     return this
   }
 
   reload(src: string | SourceString): wasm.Emitter {
     if (!(this.emitter instanceof wasm.BatchEmitter)) throw new Error('nope')
     const em = this.emitter.clone()
-    const emitIR = (m: mods.Method) => {
+    const [, t] = withtime(() => {
+      const emitIR = (m: mods.Method) => {
+        reset(this.pipe)
+        this.pipe.emit(m, em)
+      }
+      withEmit(emitIR, () => { reload(this.pipe.sources, src) })
       reset(this.pipe)
-      this.pipe.emit(m, em)
-    }
-    withEmit(emitIR, () => { reload(this.pipe.sources, src) })
-    reset(this.pipe)
-    if (options().memcheck) {
-      const checks = this.pipe.defs.methods(tag('common.checkAllocations'))
-      this.pipe.emit(only(checks), em)
-    }
+      if (options().memcheck) {
+        const checks = this.pipe.defs.methods(tag('common.checkAllocations'))
+        this.pipe.emit(only(checks), em)
+      }
+    })
+    this.time += t
     return em
   }
 }
@@ -126,7 +133,7 @@ interface CompileConfig {
   strip?: boolean
 }
 
-async function compile(file: string, config: CompileConfig = {}): Promise<string> {
+async function compile(file: string, config: CompileConfig = {}): Promise<[Compiler, string]> {
   let { dir = path.dirname(file), compiler, options = {}, output, strip = false } = config
   const base = path.basename(file, path.extname(file))
   const wasmPath = output ?? path.join(dir, `${base}.wasm`)
@@ -137,10 +144,10 @@ async function compile(file: string, config: CompileConfig = {}): Promise<string
     if (!(em instanceof wasm.BatchEmitter)) throw new Error('nope')
     await wasm.emitwasm(em, compiler.pipe.wasm, wasmPath, strip)
   })
-  return wasmPath
+  return [compiler!, wasmPath]
 }
 
-async function compileJS(file: string, config: CompileConfig = {}): Promise<string> {
+async function compileJS(file: string, config: CompileConfig = {}): Promise<[Compiler, string]> {
   let { dir = path.dirname(file), compiler, options = {}, output, strip = false } = config
   const base = path.basename(file, path.extname(file))
   const jsPath = output ?? path.join(dir, `${base}.js`)
@@ -155,7 +162,7 @@ async function compileJS(file: string, config: CompileConfig = {}): Promise<stri
     await writeFile(jsPath, `${runtime}\nbinary = Buffer.from('${base64}', 'base64')\n`)
     await chmod(jsPath, 0o755)
   })
-  return jsPath
+  return [compiler!, jsPath]
 }
 
 async function run(cmd: string, args: readonly string[] = [], options: SpawnOptions = {}) {
@@ -169,6 +176,6 @@ async function run(cmd: string, args: readonly string[] = [], options: SpawnOpti
 const execPath = path.join(dirname, '../build/backend/exec.js')
 
 async function exec(file: string, args: string[] = [], config?: CompileConfig): Promise<void> {
-  if (path.extname(file).toLowerCase() !== '.wasm') file = await compile(file, config)
+  if (path.extname(file).toLowerCase() !== '.wasm') [, file] = await compile(file, config)
   await run('node', ['--enable-source-maps', '--experimental-wasm-stack-switching', execPath, file, ...args], { stdio: 'inherit' })
 }

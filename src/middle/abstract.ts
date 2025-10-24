@@ -7,7 +7,7 @@ import { MIR, IRValue, IRType, Binding, Method, Definitions, WIntrinsic, WImport
 import { Def } from '../dwarf'
 import { WorkQueue } from '../utils/fixpoint'
 import { HashMap, HashSet, some } from '../utils/map'
-import { trackdeps, Map as CacheMap, fingerprint, Caching, time } from '../utils/cache'
+import { trackdeps, Map as CacheMap, fingerprint, Caching, withtime } from '../utils/cache'
 import isEqual from 'lodash/isEqual'
 
 const recursionLimit = 10
@@ -401,7 +401,7 @@ class Inferred implements Caching {
   }
 
   get(sig: Sig): [MIR, Anno<Type>] | Redirect {
-    const [res, t] = time(() => this._get(sig))
+    const [res, t] = withtime(() => this._get(sig))
     this.time += t
     return res
   }

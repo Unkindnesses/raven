@@ -3,13 +3,31 @@ import { WorkQueue, Accessor } from "./fixpoint"
 import { HashMap } from "./map"
 
 export {
-  nft, trackdeps, track,
+  nft, trackdeps, track, withtime,
   Caching, Ref, Map, Cache, EagerCache, DualCache, CycleCache,
   fingerprint, reset, pipe, time
 }
 
 let nft_id = 0n
 function nft() { return ++nft_id }
+
+// Timer
+
+let timestack: bigint[] = []
+
+function withtime<T>(f: () => T): [T, bigint] {
+  const start = process.hrtime.bigint()
+  timestack.push(0n)
+  let result: T, offset: bigint
+  try {
+    result = f()
+  } finally {
+    offset = timestack.pop()!
+  }
+  const span = process.hrtime.bigint() - start
+  if (timestack.length > 0) timestack[timestack.length - 1] += span
+  return [result, span - offset]
+}
 
 // Track dependencies through the call stack
 
@@ -31,18 +49,13 @@ function track(t: bigint) {
   if (stack.length) stack[stack.length - 1].add(t)
 }
 
-function time<T>(f: () => T): [T, bigint] {
-  const t0 = process.hrtime.bigint()
-  const v = f()
-  return [v, process.hrtime.bigint() - t0]
-}
-
 // Cache interface
 
 interface Caching {
   subcaches?: Iterable<Caching>
   fingerprint?: () => Set<bigint>
   reset?: (deps: Set<bigint>) => void
+  time?: bigint
 }
 
 function fingerprint(ch: Caching): Set<bigint> {
@@ -58,6 +71,12 @@ function reset(ch: Caching, deps: Set<bigint> | Caching[] = new Set()) {
   if (Array.isArray(deps)) deps = fingerprint({ subcaches: deps })
   if (ch.reset) return ch.reset(deps)
   for (const sub of ch.subcaches ?? []) reset(sub, deps)
+}
+
+function time(ch: Caching): bigint {
+  let t = ch.time ?? 0n
+  for (const sub of ch.subcaches ?? []) t += time(sub)
+  return t
 }
 
 class Pipe implements Caching {
@@ -153,6 +172,7 @@ interface CacheValue<T> {
 class Cache<K, V> implements Caching {
   private print: Set<bigint> = new Set()
   private data: HashMap<K, CacheValue<V>> = new HashMap()
+  time = 0n
   constructor(private init: (k: K) => V) { }
 
   fingerprint() { return this.print }
@@ -165,8 +185,9 @@ class Cache<K, V> implements Caching {
   value(k: K): [V, Set<bigint>] { return trackdeps(() => this.init(k)) }
 
   delete(k: K): boolean {
-    if (!this.iscached(k)) return false
-    this.print.delete(this.id(k))
+    const fr = this.data.get(k)
+    if (!fr) return false
+    this.print.delete(fr.id)
     this.data.delete(k)
     return true
   }
@@ -180,13 +201,19 @@ class Cache<K, V> implements Caching {
     return this
   }
 
-  get(k: K): V {
+  _get(k: K): V {
     if (!this.iscached(k)) {
       const [v, deps] = this.value(k)
       this.set(k, v, { deps })
     }
     track(this.id(k))
     return this.cached(k)
+  }
+
+  get(k: K): V {
+    const [v, time] = withtime(() => this._get(k))
+    this.time += time
+    return v
   }
 
   *invalid(deps: Set<bigint> = new Set()): Generator<K> {
@@ -205,8 +232,11 @@ class Cache<K, V> implements Caching {
 class EagerCache<K, V> extends Cache<K, V> {
   reset(deps: Set<bigint>) {
     for (const k of Array.from(this.invalid(deps))) {
-      const [v, deps] = this.value(k)
-      if (!isEqual(v, this.cached(k))) this.set(k, v, { deps })
+      const [, time] = withtime(() => {
+        const [v, deps] = this.value(k)
+        if (!isEqual(v, this.cached(k))) this.set(k, v, { deps })
+      })
+      this.time += time
     }
   }
 }
@@ -215,8 +245,8 @@ class EagerCache<K, V> extends Cache<K, V> {
 
 class DualCache<K, V> extends Cache<K, V> {
   dual: HashMap<V, K> = new HashMap()
-  get(k: K): V {
-    let v = super.get(k)
+  _get(k: K): V {
+    let v = super._get(k)
     this.dual.set(v, k)
     return v
   }
@@ -248,6 +278,7 @@ class CycleCache<K, V> implements Caching {
   private keys = new globalThis.Map<bigint, K>()
   private data = new HashMap<K, CycleCacheValue<V>>()
   private queue = new WorkQueue<bigint>()
+  time = 0n
   constructor(private init: (k: K) => V, private iter: (ch: Accessor<K, V>, k: K) => V) { }
 
   fingerprint() { return this.print }
@@ -294,15 +325,22 @@ class CycleCache<K, V> implements Caching {
       if (this.keys.has(id)) this.queue.push(id)
   }
 
-  get(k: K, loop = true): V {
+  _get(k: K, loop = true): V {
     if (!this.iscached(k)) {
-      const [val, deps] = trackdeps(() => this.init(k))
+      const [[val, deps], time] = withtime(() => trackdeps(() => this.init(k)))
+      this.time += time
       this.set(k, val, { deps })
       this.update(k)
     }
     if (loop) while (!this.queue.empty) this.update(this.key(this.queue.pop()))
     track(this.id(k))
     return this.cached(k)
+  }
+
+  get(k: K, loop = true): V {
+    const [v, time] = withtime(() => this._get(k, loop))
+    this.time += time
+    return v
   }
 
   reset(deps: Set<bigint>) {

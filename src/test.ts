@@ -37,7 +37,7 @@ async function run(code: string, options?: Partial<Options>): Promise<Result> {
   const rvPath = path.join(dir, 'test.rv')
   try {
     await writeFile(rvPath, code)
-    const wasm = await compile(rvPath, { options, dir, compiler: comp })
+    const [, wasm] = await compile(rvPath, { options, dir, compiler: comp })
     return await runNode(wasm)
   } finally {
     await rm(dir, { recursive: true, force: true })

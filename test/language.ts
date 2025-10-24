@@ -825,7 +825,7 @@ test('part/pack float32', async () => {
 })
 
 test('brainfuck interpreter', async () => {
-  const js = await compile(path.join(__dirname, 'language', 'brainfuck.rv'))
+  const [, js] = await compile(path.join(__dirname, 'language', 'brainfuck.rv'))
   const { code, output } = await runNode(js, [path.join(__dirname, 'language', 'test.bf')])
   assert.strictEqual(output, 'Hello World!\n')
 })
