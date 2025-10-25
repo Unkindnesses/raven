@@ -194,7 +194,7 @@ interface Scope {
   var(name?: string): Binding | ir.Slot
   mod(): Tag
   swaps(): Map<number, string> | undefined // slight hack; store for `return` lowering
-  loops: (string | undefined)[]
+  loops: { kind: 'loop' | 'block', label: string | undefined }[]
 }
 
 function GlobalScope(mod: Tag): Scope {
@@ -312,8 +312,8 @@ function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): Va
 
   if (x instanceof ast.Expr) {
     let ex = ast.asExpr(unwrapAnno(x))
-    if (ex.head === 'Block') return lower(Scope(sc), code, ex.args, value)
     if (ex.head === 'Group') return lower(sc, code, ex.args, value)
+    if (ex.head === 'Block') return lowerBlock(sc, code, x, value)
     if (ex.head === 'Operator') return lowerOperator(sc, code, x, value)
     if (ex.head === 'Call') return lowerCall(sc, code, x)
     if (ex.head === 'Index') return lowerIndex(sc, code, x)
@@ -557,11 +557,26 @@ function sentinel(id: number) {
 }
 
 function loopbranch(sc: Scope, code: LIR, kind: string, label?: string, meta?: ast.Meta): Val<LIR> {
-  const id = label ? sc.loops.findIndex(l => l === label) : sc.loops.length - 1
+  const id = label ?
+    sc.loops.findIndex(l => l.label === label) :
+    sc.loops.map((l, i) => l.kind === 'loop' ? i : -1).filter(i => i >= 0).pop() ?? -1
   if (id < 0) throw new Error('no loop in scope')
   const [brk, cnt] = sentinel(id)
   code.branch(kind === 'break' ? brk : cnt, [], meta && { src: source(meta) })
   return nil
+}
+
+function rewriteJumps(sc: Scope, code: LIR, header: [number, Val<MIR>[]], after: [number, Val<MIR>[]]): void {
+  const [brk, cnt] = sentinel(sc.loops.length - 1)
+  for (const block of code.blocks()) {
+    for (const [v, st] of block) {
+      if (!(st.expr instanceof ir.Branch)) continue
+      if (st.expr.target === brk)
+        code.setStmt(v, { ...st, expr: new ir.Branch(...after, st.expr.when) })
+      else if (st.expr.target === cnt)
+        code.setStmt(v, { ...st, expr: new ir.Branch(...header, st.expr.when) })
+    }
+  }
 }
 
 function lowerWhile(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
@@ -576,28 +591,35 @@ function lowerWhile(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> 
   const condResult = rcall(code, tag('common.condition'), [cond], { src: ex.meta })
   const condBlock = code.block()
   const bodyStart = code.newBlock()
-  sc.loops.push(label)
+  sc.loops.push({ kind: 'loop', label })
   const val = lower(sc, code, ast.asExpr(ex.args[2], 'Block'), value)
   if (value) out = rcall(code, tag('common.append'), [out, val])
   const bodyEnd = code.block()
   const after = code.newBlock()
-  // Rewrite continue/break to the right block number
-  const [brk, cnt] = sentinel(sc.loops.length - 1)
-  for (let i = condBlock.id; i <= bodyEnd.id; i++) {
-    const block = code.block(i + 1)
-    for (const [v, st] of block) {
-      if (!(st.expr instanceof ir.Branch)) continue
-      if (st.expr.target === brk)
-        code.setStmt(v, { ...st, expr: new ir.Branch(after.id + 1, [], st.expr.when) })
-      else if (st.expr.target === cnt)
-        code.setStmt(v, { ...st, expr: new ir.Branch(header.id + 1, value ? [out] : [], st.expr.when) })
-    }
-  }
+  rewriteJumps(sc, code, [header.id + 1, value ? [out] : []], [after.id + 1, []])
   condBlock.branch(bodyStart, [], { when: condResult, src: ex.meta && source(ex.meta) })
   condBlock.branch(after, [], { src: ex.args[0].meta && source(ex.args[0].meta) })
   if (bodyEnd.canbranch()) bodyEnd.branch(header, value ? [out] : [])
   sc.loops.pop()
   return ret
+}
+
+function lowerBlock(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
+  const label = ast.isExpr(ex, 'Annotation') && isEqual(ex.args[0].unwrap(), symbol('label')) ? ex.args[1].toString() : undefined
+  ex = ast.asExpr(unwrapAnno(ex))
+  if (!label) return lower(Scope(sc), code, ex.args, value)
+  if (value) throw new Error('not implemented')
+  const prevBlock = code.block()
+  const header = code.newBlock()
+  prevBlock.branch(header, [])
+  sc.loops.push({ kind: 'block', label })
+  lower(Scope(sc), code, ex.args, value)
+  const bodyEnd = code.block()
+  const after = code.newBlock()
+  rewriteJumps(sc, code, [header.id + 1, []], [after.id + 1, []])
+  if (bodyEnd.canbranch()) bodyEnd.branch(after)
+  sc.loops.pop()
+  return nil
 }
 
 // TODO support pattern matching

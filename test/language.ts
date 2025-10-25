@@ -140,6 +140,23 @@ test('for loop labels', async () => {
   `)
 })
 
+test('labeled block', async () => {
+  await rv(`
+    total = 0
+    iterations = 0
+    @label block
+    {
+      iterations = iterations + 1
+      if iterations > 10 { break block }
+      if rem(iterations, 2) == 0 { continue block }
+      total = total + iterations
+      continue block
+    }
+    test total == 25
+    test iterations == 11
+  `)
+})
+
 test('complex arithmetic', async () => {
   await rv(`
     z = Complex(widen(5), widen(6))
