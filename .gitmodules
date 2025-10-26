@@ -1,3 +1,0 @@
-[submodule "wasi-cli"]
-	path = wasi-cli
-	url = https://github.com/WebAssembly/wasi-cli
