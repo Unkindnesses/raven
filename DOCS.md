@@ -1,6 +1,65 @@
 # The Raven Programming Language
 
-## Syntax
+## The CLI
+
+Use `raven --help` for a command reference. On its own, the `raven` command launches a REPL.
+
+```bash
+$ raven
+> 2+2
+4
+```
+
+Run a script:
+
+```bash
+$ cat hello.rv
+println("Cacaw, World!")
+$ raven hello.rv
+Cacaw, World!
+```
+
+Build and then run a wasm binary:
+
+```bash
+$ raven build hello.rv
+$ raven hello.wasm
+Cacaw, World!
+```
+
+You can name the output file with `-o`, so this is the same as `raven build hello.rv -o hello.wasm`.
+
+Build and run a JS file:
+
+```bash
+$ raven build --js hello.rv
+$ ./hello.js
+Cacaw, World!
+```
+
+To run with Node.js directly, you need the `--experimental-wasm-stack-switching` option.
+
+```bash
+$ node --experimental-wasm-stack-switching hello.js
+Cacaw, World!
+```
+
+Profile the compiler:
+
+```bash
+$ raven build hello.rv --time
+Load          113.76ms
+Definitions    89.35ms
+Interpret     119.46ms
+Inference     496.77ms
+Expansion     228.47ms
+Inlining         1.04s
+Refcounts     257.79ms
+WASM          158.22ms
+Total            2.38s
+```
+
+## The Syntax
 
 Simple literals, function calls and operators are conventional.
 
@@ -170,6 +229,18 @@ for i = range(0, 3) {
     if i == 2 && j == 0 { break outer }
   }
 }
+```
+
+You can also label plain blocks. `continue` goes to the start, and `break` to the end. (Note that unlabelled `break` and `continue` will always target the nearest loop.)
+
+```rust
+x = 3
+@label blk
+{
+  if x > 0 { break blk }
+  x = 0-x
+}
+show x
 ```
 
 The `@foo` annotation syntax is general. Annotations are somewhat like macros, and read arguments up to the end of the line and apply to the next line. However, unlike macros they are passive; they get passed as metadata to the relevant macro (in this case the `for` loop), which decides how to interpret them.
