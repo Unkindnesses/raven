@@ -145,7 +145,7 @@ test('labeled block', async () => {
     total = 0
     iterations = 0
     @label block
-    {
+    let {
       iterations = iterations + 1
       if iterations > 10 { break block }
       if rem(iterations, 2) == 0 { continue block }

@@ -15,7 +15,7 @@ import { lowerpattern, modtag, patternType } from "./patterns"
 
 export {
   IRValue, WIntrinsic, lower_toplevel, bundlemacro, lowerfn, source, LIR,
-  globals, assigned_globals, xlist, xpart, xcall, xtuple, unwrapAnno
+  globals, assigned_globals, xlist, xpart, xcall, xtuple, annos
 }
 
 // Built-in macros
@@ -87,17 +87,26 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
   return ast.Group(...body)
 }
 
-// TODO more declarative anno tools
-function applyAnnotations(source: ast.Tree, target: ast.Tree): ast.Tree {
-  if (!ast.isExpr(source, 'Annotation')) return target
-  const inner = source.args[source.args.length - 1]
-  const wrapped = applyAnnotations(inner, target)
-  const args = [...source.args.slice(0, -1), wrapped]
-  return new ast.Expr('Annotation', args, source.meta)
+function annos(x: ast.Tree, as = new Map<string, ast.Tree[]>()): [ast.Tree, Map<string, ast.Tree[]>] {
+  if (!ast.isExpr(x, 'Annotation')) return [x, as]
+  const name = asSymbol(x.args[0]).toString()
+  const args = x.args.slice(1, -1)
+  as.set(name, args)
+  const [inner] = annos(x.args[x.args.length - 1], as)
+  return [inner, as]
+}
+
+function withAnnos(target: ast.Tree, as: Map<string, ast.Tree[]>): ast.Tree {
+  let result = target
+  for (const [name, args] of [...as].reverse()) {
+    result = ast.Annotation(symbol(name), ...args, result)
+  }
+  return result
 }
 
 function formacro(ex: ast.Expr): ast.Expr {
-  const forExpr = ast.asExpr(unwrapAnno(ex), 'Syntax')
+  let [forExpr, as] = annos(ex)
+  forExpr = ast.asExpr(forExpr, 'Syntax')
   const assign = ast.asExpr(forExpr.args[1], 'Operator')
   if (!isEqual(assign.args[0].unwrap(), symbol('=')))
     throw new Error('for syntax expects `=` assignment')
@@ -105,11 +114,11 @@ function formacro(ex: ast.Expr): ast.Expr {
   const [itr, val] = [gensym("itr"), gensym("val")]
   return ast.Block(
     ast.Operator(s("="), itr, ast.Call(tag("common.iterator"), xs)),
-    applyAnnotations(ex, ast.Syntax(s("while"), s("true"), ast.Block(
+    withAnnos(ast.Syntax(s("while"), s("true"), ast.Block(
       ast.Operator(s("="), val, ast.Call(tag("common.next"), ast.Swap(itr))),
       ast.Syntax(s("if"), ast.Call(symbol("nil?"), val), ast.Block(s("break"))),
       ast.Operator(s("="), x, ast.Call(tag("common.core.part"), ast.Call(tag("common.core.notnil"), val), 1n)),
-      body))))
+      body)), as))
 }
 
 function matchmacro(ex: ast.Expr): ast.Expr {
@@ -279,10 +288,6 @@ function lowermatch(sc: Scope, code: LIR, val: Val<LIR>, pat: ast.Tree): Val<LIR
   return matched
 }
 
-function unwrapAnno(x: ast.Tree): ast.Tree {
-  return ast.isExpr(x, 'Annotation') ? unwrapAnno(x.args[x.args.length - 1]) : x
-}
-
 function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): Val<LIR> {
   if (Array.isArray(x)) {
     if (x.length === 0) return nil
@@ -311,7 +316,8 @@ function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): Va
   }
 
   if (x instanceof ast.Expr) {
-    let ex = ast.asExpr(unwrapAnno(x))
+    let [ex, _] = annos(x)
+    ex = ast.asExpr(ex)
     if (ex.head === 'Group') return lower(sc, code, ex.args, value)
     if (ex.head === 'Block') return lowerBlock(sc, code, x, value)
     if (ex.head === 'Operator') return lowerOperator(sc, code, x, value)
@@ -488,7 +494,7 @@ function intrinsic_args(ex: ast.Tree): ast.Tree[] {
 }
 
 function lowerSyntax(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
-  const syntax = asSymbol(ast.asExpr(unwrapAnno(ex)).args[0]).toString()
+  const syntax = asSymbol(ast.asExpr(annos(ex)[0]).args[0]).toString()
   if (syntax === 'bits') {
     const size = Number(asBigInt(ex.args[1].unwrap()))
     return bits(size, 0n)
@@ -579,9 +585,10 @@ function rewriteJumps(sc: Scope, code: LIR, header: [number, Val<MIR>[]], after:
   }
 }
 
-function lowerWhile(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
-  const label = ast.isExpr(ex, 'Annotation') && isEqual(ex.args[0].unwrap(), symbol('label')) ? ex.args[1].toString() : undefined
-  ex = ast.asExpr(unwrapAnno(ex))
+function lowerWhile(sc: Scope, code: LIR, _ex: ast.Expr, value = true): Val<LIR> {
+  let [ex, as] = annos(_ex)
+  const label = as.get('label')?.[0]?.toString()
+  ex = ast.asExpr(ex)
   const prevBlock = code.block()
   const header = code.newBlock()
   prevBlock.branch(header, value ? [types.list()] : [])
@@ -604,9 +611,10 @@ function lowerWhile(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> 
   return ret
 }
 
-function lowerBlock(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
-  const label = ast.isExpr(ex, 'Annotation') && isEqual(ex.args[0].unwrap(), symbol('label')) ? ex.args[1].toString() : undefined
-  ex = ast.asExpr(unwrapAnno(ex))
+function lowerBlock(sc: Scope, code: LIR, _ex: ast.Expr, value = true): Val<LIR> {
+  let [ex, as] = annos(_ex)
+  const label = as.get('label')?.[0]?.toString()
+  ex = ast.asExpr(ex)
   if (!label) return lower(Scope(sc), code, ex.args, value)
   if (value) throw new Error('not implemented')
   const prevBlock = code.block()
@@ -623,7 +631,9 @@ function lowerBlock(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> 
 }
 
 // TODO support pattern matching
-function lowerLet(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
+function lowerLet(sc: Scope, code: LIR, _ex: ast.Expr, value = true): Val<LIR> {
+  let [ex, as] = annos(_ex)
+  ex = ast.asExpr(ex)
   const assignments = ex.args.slice(1, -1)
   if (!assignments.every(x => ast.isExpr(x, 'Operator') && asSymbol(x.args[0].unwrap()).toString() === '='))
     throw new Error('let statement: all assignments must be of the form (= var val)')
@@ -633,7 +643,7 @@ function lowerLet(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
   for (const v of vars) sc.set(v, ir.slot(gensym(v).toString()))
   for (let i = 0; i < vars.length; i++)
     _push(code, ir.expr('set', sc.get(vars[i]), vals[i]))
-  return lower(sc, code, ex.args[ex.args.length - 1], value)
+  return lower(sc, code, withAnnos(ex.args[ex.args.length - 1], as), value)
 }
 
 function lowerIf(sc: Scope, code: LIR, ex: IfStmt, value = true): Val<LIR> {

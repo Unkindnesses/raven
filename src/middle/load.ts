@@ -3,7 +3,7 @@ import { Module, Modules, Binding } from "../frontend/modules"
 import { Def } from "../dwarf"
 import { Anno, unreachable } from "../utils/ir"
 import { modtag } from "../frontend/patterns"
-import { lower_toplevel, bundlemacro, lowerfn, source, unwrapAnno } from "../frontend/lower"
+import { lower_toplevel, bundlemacro, lowerfn, source, annos } from "../frontend/lower"
 import { lowerpattern } from "../frontend/patterns"
 import { symbolValues, core } from "./primitives"
 import * as ast from "../frontend/ast"
@@ -92,9 +92,10 @@ function load_expr(cx: LoadState, x: ast.Tree): void {
   emit(cx.mod.method(tag('common.core.main'), lowerpattern(ast.List()), ir))
 }
 
-function load_fn(cx: LoadState, x: ast.Expr): void {
-  let extend = ast.isExpr(x, 'Annotation') && isEqual(x.args[0].unwrap(), ast.symbol('extend'))
-  x = unwrapAnno(x) as ast.Expr
+function load_fn(cx: LoadState, ex: ast.Tree): void {
+  let [x, as] = annos(ex)
+  x = ast.asExpr(x)
+  const extend = as.has('extend')
   const [sig, body] = x.args.slice(1)
   let signature = sig.ungroup()
   if (ast.isExpr(signature, 'Index')) signature = ast.Call(tag('common.get'), ...signature.args)
@@ -115,7 +116,7 @@ function load_fn(cx: LoadState, x: ast.Expr): void {
 }
 
 function vload(cx: LoadState, x: ast.Tree, extend = false): void {
-  let ex = unwrapAnno(x)
+  let [ex] = annos(x)
   if (ast.isExpr(ex, 'Syntax')) {
     x = x as ast.Expr
     const first = ex.args[0].unwrap()
