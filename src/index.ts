@@ -3,6 +3,7 @@ import * as commander from 'commander'
 import * as nodeRepl from 'node:repl'
 import * as os from 'os'
 import * as path from 'path'
+import * as fs from 'fs/promises'
 import { compile, compileJS, Compiler, exec } from './backend/compiler'
 import { REPL } from './backend/repl'
 import { Caching, time } from './utils/cache'
@@ -63,9 +64,11 @@ async function startRepl() {
 }
 
 async function main() {
+  const packageJson = JSON.parse(await fs.readFile(path.join(__dirname, '../package.json'), 'utf-8'))
   const program = new commander.Command()
   program
     .name('raven')
+    .version(packageJson.version)
     .description('The Raven Programming Language')
 
   program
