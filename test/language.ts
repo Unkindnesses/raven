@@ -1,4 +1,5 @@
 import * as path from 'node:path'
+import * as fs from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { test } from 'uvu'
 import assert from 'assert'
@@ -875,7 +876,12 @@ test('wasi', async () => {
     { options: { memcheck: false } })
   const wasm = path.join(__dirname, 'language', 'wasi.wasm')
   const component = path.join(__dirname, 'language', 'wasi.cli.wasm')
-  const wit = path.join(__dirname, '..', 'wasi-cli', 'wit')
+  const wasiCli = path.join(__dirname, '../wasi-cli')
+  if (!fs.existsSync(wasiCli)) {
+    const result = spawnSync('git', ['clone', 'https://github.com/WebAssembly/wasi-cli', wasiCli], { encoding: 'utf-8' })
+    if (result.status !== 0) throw new Error(`Failed to clone wasi-cli: ${result.stderr}`)
+  }
+  const wit = path.join(wasiCli, 'wit')
   let result = spawnSync('wasm-tools', ['component', 'embed', wit, '--world', 'command', wasm, '-o', component], { encoding: 'utf-8' })
   if (result.status !== 0) throw new Error(`wasm-tools failed: ${result.stderr}`)
   result = spawnSync('wasm-tools', ['component', 'new', component, '-o', component], { encoding: 'utf-8' })
