@@ -117,8 +117,10 @@ function formacro(ex: ast.Expr): ast.Expr {
     withAnnos(ast.Syntax(s("while"), s("true"), ast.Block(
       ast.Operator(s("="), val, ast.Call(tag("common.next"), ast.Swap(itr))),
       ast.Syntax(s("if"), ast.Call(symbol("nil?"), val), ast.Block(s("break"))),
-      ast.Operator(s("="), x, ast.Call(tag("common.core.part"), ast.Call(tag("common.core.notnil"), val), 1n)),
-      body)), as))
+      ast.Syntax(s("let"),
+        ast.Operator(s("="), x, ast.Call(tag("common.core.part"), ast.Call(tag("common.core.notnil"), val), 1n)),
+        ast.asExpr(body, 'Block')
+      ))), as))
 }
 
 function matchmacro(ex: ast.Expr): ast.Expr {
@@ -586,6 +588,7 @@ function rewriteJumps(sc: Scope, code: LIR, header: [number, Val<MIR>[]], after:
 }
 
 function lowerWhile(sc: Scope, code: LIR, _ex: ast.Expr, value = true): Val<LIR> {
+  sc = Scope(sc)
   let [ex, as] = annos(_ex)
   const label = as.get('label')?.[0]?.toString()
   ex = ast.asExpr(ex)
