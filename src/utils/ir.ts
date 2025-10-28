@@ -34,7 +34,7 @@ class Expr<T> {
   map(f: (x: T | number) => T | number): Expr<T> {
     return new Expr(this.head, this.body.map(f))
   }
-  show(pr: (x: T) => string): string {
+  show(pr: (x: T | number) => string): string {
     return this.body.length ? `${this.head} ${this.body.map(x => showVar(x, pr)).join(', ')}` : this.head
   }
 }
@@ -61,12 +61,12 @@ class Branch<T> extends Expr<T> {
     const when = this.when === undefined ? undefined : f(this.when)
     return new Branch(this.target, this.args.map(f), when)
   }
-  show(pr: (x: T) => string): string {
+  show(pr: (x: T | number) => string): string {
     if (this.isunreachable()) return "unreachable"
-    if (this.isreturn()) return `return ${showVar(this.args[0], pr)}`
+    if (this.isreturn()) return `return ${pr(this.args[0])}`
     let result = `br ${this.target}`
-    if (this.args.length > 0) result += ` (${this.args.map(x => showVar(x, pr)).join(', ')})`
-    if (this.when !== undefined) result += ` if ${showVar(this.when, pr)}`
+    if (this.args.length > 0) result += ` (${this.args.map(pr).join(', ')})`
+    if (this.when !== undefined) result += ` if ${pr(this.when)}`
     return result
   }
 }
@@ -323,7 +323,7 @@ function showBlock<T, A>(block: Block<IR<T, A>>): string {
   for (const [x, st] of block) {
     result += '\n' + tab
     result += `%${x} = `
-    result += st.expr.show(block.ir.show)
+    result += st.expr.show(x => showVar(x, block.ir.show))
     if (!(st.expr instanceof Branch) && st.type !== unreachable) result += ` :: ${show(st.type)}`
     const src = st.src[st.src.length - 1][1]
     if (src) result += showLine(src, st.bp)

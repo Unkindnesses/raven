@@ -18,8 +18,8 @@ class Instr<T> extends Expr<T> {
   map(f: (x: T | number) => T | number): Instr<T> {
     return new Instr(this.instr, this.body.map(f))
   }
-  show(pr: (x: T) => string): string {
-    return `(${instructionToString(this.instr)} ${this.body.map(x => showVar(x, pr)).join(' ')})`
+  show(pr: (x: T | number) => string): string {
+    return `(${instructionToString(this.instr)} ${this.body.map(pr).join(' ')})`
   }
 }
 

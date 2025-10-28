@@ -17,7 +17,7 @@ class LoopIR<T, A> {
   constructor(readonly ir: IR<T, A>, readonly bls: number[], readonly body: IR<T, A>[], public max: number) { }
 }
 
-function showLoop<T, A>(l: LoopIR<T, A>, args: (T | number)[], pr: (x: T) => string): string {
+function showLoop<T, A>(l: LoopIR<T, A>, args: (T | number)[], pr: (x: T | number) => string): string {
   const show = (x: T | number) => typeof x === 'number' ? `%${x}` : pr(x)
   let s = args.length ? `loop ${args.map(show).join(', ')}:` : 'loop:'
   l.body.forEach((b, i) => {
@@ -35,7 +35,7 @@ class Loop<T, A> extends Expr<T> {
   map(f: (x: T | number) => T | number): Loop<T, A> {
     return new Loop(this.loop, this.body.map(f))
   }
-  show(pr: (x: T) => string): string {
+  show(pr: (x: T | number) => string): string {
     return showLoop(this.loop, this.body, pr)
   }
 }
