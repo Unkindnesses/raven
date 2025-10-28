@@ -5,7 +5,7 @@ import { Val, fuseblocks, prune, ssa } from "../utils/ir"
 import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast"
 import * as types from "./types"
 import { Type, Tag, tag, pack, bits, asType, nil } from "./types"
-import { Module, Signature, Binding, WIntrinsic, MIR, WImport, xstring, Method } from "./modules"
+import { Module, Signature, Binding, WIntrinsic, MIR, WImport, xstring, Method, xglobal, xset, SetGlobal } from "./modules"
 import { Def } from "../dwarf"
 import { asBigInt, some } from "../utils/map"
 import { binding, options } from "../utils/options"
@@ -370,7 +370,7 @@ function lowerOperator(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LI
     // Simple assignment: x = value
     const y = lower(sc, code, ex.args[2])
     // Globals are side effects (if they error) so don't let the SSA transform move them around
-    const ySlot = y instanceof Binding ? _push(code, ir.expr('global', y)) : y
+    const ySlot = y instanceof Binding ? _push(code, xglobal(y)) : y
     const x = sc.var(ex.args[1].unwrap().toString())
     _push(code, ir.expr('set', x, ySlot))
     return x
@@ -777,15 +777,15 @@ function rewriteGlobals(code: LIR, cx: Module): [LIR, Set<string>] {
     }
     pr.set(v, ex)
   }
-  [...locals, ...globals].forEach(x => pr.push(pr.stmt(ir.expr('set', new Binding(cx.name, x), ir.slot(x)))))
+  [...locals, ...globals].forEach(x => pr.push(pr.stmt(xset(new Binding(cx.name, x), ir.slot(x)))))
   return [pr.finish(), globals]
 }
 
 function assigned_globals(code: MIR): Map<Binding, Type> {
   const out = new Map<Binding, Type>()
   for (const [_, st] of code)
-    if (st.expr.head === 'set' && st.expr.body[0] instanceof Binding)
-      out.set(st.expr.body[0], asType(st.type))
+    if (st.expr instanceof SetGlobal)
+      out.set(st.expr.binding, asType(st.type))
   return out
 }
 
@@ -802,16 +802,12 @@ function lower_toplevel(mod: Module, ex: ast.Tree, resolve: (x: Symbol) => Type,
 function globals(code: LIR): LIR {
   const pr = new ir.Pipe(code)
   const transform = (x: Val<LIR>): Val<LIR> =>
-    x instanceof Binding ? pr.push(pr.stmt(ir.expr('global', x))) : x
+    x instanceof Binding ? pr.push(pr.stmt(xglobal(x))) : x
   for (const [v, st] of pr) {
     const ex = st.expr
     if (ex.head === 'global') continue
     pr.delete(v)
-    const ex2 = ex.head === 'set'
-      ? ir.expr(ex.head, ex.body[0], ...ex.body.slice(1).map(transform))
-      : ex.map(transform)
-    const v2 = pr.push({ ...st, expr: ex2 })
-    pr.replace(v, v2)
+    pr.replace(v, pr.push({ ...st, expr: ex.map(transform) }))
   }
   return pr.finish()
 }

@@ -3,7 +3,7 @@ import { LoopIR, looped, Path, block, nextpath, nextpathTo, pin, blockargs, loop
 import { MatchMethods, dispatcher } from './patterns'
 import { Tag, Type, repr, union, asType, issubset as iss, isValue, pack, tag, tagOf } from '../frontend/types'
 import { wasmPartials } from '../backend/wasm'
-import { MIR, IRValue, IRType, Binding, Method, Definitions, WIntrinsic, WImport, StringRef } from '../frontend/modules'
+import { MIR, IRValue, IRType, Binding, Method, Definitions, WIntrinsic, WImport, StringRef, Global, SetGlobal } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { WorkQueue } from '../utils/fixpoint'
 import { hash, HashSet, some } from '../utils/map'
@@ -242,16 +242,14 @@ function update(inf: Inference, k: string): void {
         const Ts = ex.body.map(x => asAnno(asType, bl.type(x)))
         if (Ts.some(t => t === unreachable)) break
         bl.ir.setType(v, pack(...Ts as Type[]))
-      } else if (ex.head === 'global') {
-        const b = ex.body[0]
-        if (!(b instanceof Binding)) throw new Error('invalid global')
-        const g = globalFrame(inf, b)
-        fr.deps.add(b[hash])
+      } else if (ex instanceof Global) {
+        const g = globalFrame(inf, ex.binding)
+        fr.deps.add(ex.binding[hash])
         g.edges.add(k)
         if (g.type === unreachable) break
         bl.ir.setType(v, g.type)
-      } else if (ex.head === 'set' && (ex.body[0] instanceof Binding)) {
-        const T = bl.type(ex.body[1])
+      } else if (ex instanceof SetGlobal) {
+        const T = bl.type(ex.value)
         if (T === unreachable) break
         bl.ir.setType(v, asType(T))
       } else if (ex.head === 'loop') {

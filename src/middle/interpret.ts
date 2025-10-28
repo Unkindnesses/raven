@@ -1,6 +1,6 @@
 import * as types from '../frontend/types'
 import { Tag, Type } from '../frontend/types'
-import { Method, Definitions, IRValue, WIntrinsic, MIR, asBinding } from '../frontend/modules'
+import { Method, Definitions, IRValue, WIntrinsic, MIR, Global, SetGlobal } from '../frontend/modules'
 import { IR, unreachable, Branch } from '../utils/ir'
 import { CycleCache } from '../utils/cache'
 import { partial_match } from './patterns'
@@ -78,9 +78,9 @@ function interpretIR(int: Interpreter, ir: MIR, ...args: Type[]): Type | undefin
         const T = types.asType(st.type)
         if (!types.isValue(T)) throw new Error('assert isvalue(st.type)')
         env.set(v, T)
-      } else if (st.expr.head === 'global') {
-        env.set(v, types.asType(int.defs.resolve_static(asBinding(xs[0]))))
-      } else if (st.expr.head === 'set') {
+      } else if (st.expr instanceof Global) {
+        env.set(v, types.asType(int.defs.resolve_static(st.expr.binding)))
+      } else if (st.expr instanceof SetGlobal) {
         return
       } else {
         throw new Error(`Unknown expr type ${st.expr.head}`)

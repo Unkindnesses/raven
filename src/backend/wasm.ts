@@ -9,7 +9,7 @@ import { unreachable, Anno, Pipe, expr, Val, asAnno, Branch } from '../utils/ir'
 import isEqual from 'lodash/isEqual'
 import { layout } from '../middle/expand'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe } from '../utils/cache'
-import { Binding, Definitions, MIR, WImport, WIntrinsic, Method, Const, asFunc, asBinding, StringRef } from '../frontend/modules'
+import { Binding, Definitions, MIR, WImport, WIntrinsic, Method, Const, asFunc, StringRef, Global, SetGlobal } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { Redirect, type Sig } from '../middle/abstract'
 import { Accessor } from '../utils/fixpoint'
@@ -110,8 +110,8 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
       if (!isEqual(layout(types.asType(st.type)), layout(types.asType(ir.type(arg)))))
         throw new Error('cast: layout mismatch')
       pr.replace(v, arg)
-    } else if (st.expr.head === 'global') {
-      const ids = globals.get(asBinding(st.expr.body[0]))
+    } else if (st.expr instanceof Global) {
+      const ids = globals.get(st.expr.binding)
       const parts = layout(types.asType(st.type))
       const ps: Val<MIR>[] = []
       for (let i = 0; i < ids.length; i++)
@@ -144,7 +144,7 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
       const O = layout(types.asType(st.type))
       pr.setStmt(v, { ...st, expr: instr(wasm.CallIndirect(wasm.Signature(I, O), 0), args, f), type: O })
     } else if (st.expr instanceof Branch) {
-    } else if (st.expr.head === 'set' && st.expr.body[0] instanceof Binding) {
+    } else if (st.expr.head === 'setglobal') {
     } else throw new Error(`unrecognised ${st.expr.head} expression`)
   }
   const out = pr.finish()
@@ -157,11 +157,11 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
 function lowerwasm_globals(ir: MIR, globals: WGlobals): MIR {
   const pr = new Pipe(ir)
   for (const [v, st] of pr) {
-    if (!(st.expr.head === 'set' && st.expr.body[0] instanceof Binding)) continue
+    if (!(st.expr instanceof SetGlobal)) continue
     pr.delete(v)
-    const ids = globals.get(st.expr.body[0])
+    const ids = globals.get(st.expr.binding)
     for (let i = 0; i < ids.length; i++) {
-      let p = st.expr.body[1]
+      let p = st.expr.value
       if (wparts(asAnno(types.asType, st.type)).length > 1)
         p = pr.push(pr.stmt(expr('ref', p, Const.i64(i + 1))))
       pr.push(pr.stmt(instr(wasm.SetGlobal(ids[i]), p), { type: [] }))

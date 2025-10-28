@@ -12,7 +12,7 @@ import { Def } from "../dwarf"
 export {
   Module, Method, Signature, Binding, asBinding, asFunc, asConst, Modules,
   Definitions, Const, MIR, IRValue, IRType, WIntrinsic, WImport, showIRValue,
-  StringRef, xstring
+  StringRef, xstring, Global, SetGlobal, xglobal, xset
 }
 
 class WIntrinsic {
@@ -60,7 +60,7 @@ function asConst(x: unknown): Const {
   throw new Error(`Expected Const, got ${typeof x}`)
 }
 
-type IRValue = Type | Const | Method | Binding | WIntrinsic | WImport
+type IRValue = Type | Const | Method | WIntrinsic | WImport
 type IRType = IRValue | ValueType[]
 type MIR = ir.IR<IRValue, IRType>
 
@@ -75,7 +75,6 @@ function irTypeOf(x: IRValue): IRValue | IRType {
 }
 
 function showIRValue(x: IRValue | IRType): string {
-  if (x instanceof Binding) return `${x.mod}.${x.name}`
   if (x instanceof WIntrinsic) return x.name
   if (x instanceof WImport) return `\$${x.mod}.${x.name}`
   if (x instanceof Method) return x.toString()
@@ -95,6 +94,23 @@ class StringRef<T> extends ir.Expr<T> {
 }
 
 function xstring<T>(s: string): StringRef<T> { return new StringRef<T>(s) }
+
+class Global<T> extends ir.Expr<T> {
+  constructor(readonly binding: Binding) { super('global') }
+  map(_: (x: T | number) => T | number): Global<T> { return new Global(this.binding) }
+  show(_: (x: T) => string): string { return `global ${this.binding.mod}.${this.binding.name}` }
+}
+
+function xglobal<T>(b: Binding): Global<T> { return new Global<T>(b) }
+
+class SetGlobal<T> extends ir.Expr<T> {
+  constructor(readonly binding: Binding, readonly value: T | number) { super('setglobal') }
+  get body() { return [this.value] }
+  map(f: (x: T | number) => T | number): SetGlobal<T> { return new SetGlobal(this.binding, f(this.value)) }
+  show(f: (x: T | number) => string): string { return `set ${this.binding.mod}.${this.binding.name}, ${f(this.value)}` }
+}
+
+function xset<T>(b: Binding, v: T): SetGlobal<T> { return new SetGlobal<T>(b, v) }
 
 interface Signature {
   pattern: Pattern

@@ -22,7 +22,7 @@ import * as types from '../frontend/types'
 import { Type, asType } from '../frontend/types'
 import { ValueType, sizeof as wsizeof } from '../wasm/wasm'
 import * as wasm from '../wasm/wasm'
-import { MIR, WImport, WIntrinsic, Method, Const, asBinding, asFunc, xstring } from '../frontend/modules'
+import { MIR, WImport, WIntrinsic, Method, Const, asBinding, asFunc, xstring, Global } from '../frontend/modules'
 import { options } from '../utils/options'
 import { Def } from '../dwarf'
 import { Inferred, Redirect, Sig, sig as resolveSig } from './abstract'
@@ -416,9 +416,9 @@ function lowerdata(code: MIR): MIR {
           pr.replace(v, inlinePrimitive.get(F.id)!(pr, st))
         }
       }
-    } else if (ex.head === 'global' && st.type === ir.unreachable) {
+    } else if (ex instanceof Global && st.type === ir.unreachable) {
       pr.delete(v)
-      abort(pr, `${asBinding(ex.body[0]).name} is not defined`)
+      abort(pr, `${ex.binding.name} is not defined`)
     }
   }
   return pr.finish()
