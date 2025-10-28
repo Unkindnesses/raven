@@ -4,8 +4,8 @@ import * as ir from "../utils/ir"
 import { Val, fuseblocks, prune, ssa } from "../utils/ir"
 import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast"
 import * as types from "./types"
-import { Type, Tag, tag, pack, bits, int32, asType, nil } from "./types"
-import { Module, Signature, Binding, IRValue, WIntrinsic, MIR, WImport, xstring } from "./modules"
+import { Type, Tag, tag, pack, bits, asType, nil } from "./types"
+import { Module, Signature, Binding, WIntrinsic, MIR, WImport, xstring, Method } from "./modules"
 import { Def } from "../dwarf"
 import { asBigInt, some } from "../utils/map"
 import { binding, options } from "../utils/options"
@@ -14,7 +14,7 @@ import { isnil_method, notnil_method, part_method, packcat_method } from "../mid
 import { lowerpattern, modtag, patternType } from "./patterns"
 
 export {
-  IRValue, WIntrinsic, lower_toplevel, bundlemacro, lowerfn, source, LIR,
+  WIntrinsic, lower_toplevel, bundlemacro, lowerfn, source,
   globals, assigned_globals, xlist, xpart, xcall, xtuple, annos
 }
 
@@ -119,8 +119,7 @@ function formacro(ex: ast.Expr): ast.Expr {
       ast.Syntax(s("if"), ast.Call(symbol("nil?"), val), ast.Block(s("break"))),
       ast.Syntax(s("let"),
         ast.Operator(s("="), x, ast.Call(tag("common.core.part"), ast.Call(tag("common.core.notnil"), val), 1n)),
-        ast.asExpr(body, 'Block')
-      ))), as))
+        ast.asExpr(body, 'Block')))), as))
 }
 
 function matchmacro(ex: ast.Expr): ast.Expr {
@@ -170,29 +169,58 @@ const macros = new Map<string, (ex: ast.Expr) => ast.Tree>([
 
 // Expr -> IR lowering
 
-type LIR = MIR
+type IRValue = Type | Method | ir.Slot | Binding | WIntrinsic | WImport
+type LIR = ir.IR<IRValue, Type>
+
+function showIRValue(x: IRValue): string {
+  if (x instanceof ir.Slot) return x.toString()
+  if (x instanceof Binding) return `${x.mod}.${x.name}`
+  if (x instanceof WIntrinsic) return x.name
+  if (x instanceof WImport) return `\$${x.mod}.${x.name}`
+  if (x instanceof Method) return x.toString()
+  return types.repr(x)
+}
+
+function LIR(meta: Def): LIR {
+  return new ir.IR<IRValue, never>(meta, _ => ir.unreachable, showIRValue)
+}
+
+function toMIR(lir: LIR): MIR {
+  const mir = MIR(lir.meta)
+  const env = new Map<number, Val<MIR>>()
+  const rename = (x: Val<LIR>): Val<MIR> =>
+    typeof x === 'number' ? some(env.get(x)) : x
+  for (const block of lir.blocks()) {
+    if (block.id !== 0) mir.newBlock()
+    for (const [arg, type] of block.bb.args)
+      env.set(arg, mir.block().argument(type))
+    for (const [v, st] of block)
+      env.set(v, mir.push({ ...st, expr: st.expr.map(rename as any) }))
+  }
+  return mir
+}
 
 function source(m: ast.Meta): ir.Source {
   return { file: m.file, line: m.loc.line, col: m.loc.column }
 }
 
-function xcall(...args: Val<LIR>[]): ir.Expr<IRValue> {
-  return ir.expr("call", ...args)
+function xcall<T>(...args: (T | number)[]) {
+  return ir.expr<T>("call", ...args)
 }
-function xtuple(...args: Val<LIR>[]): ir.Expr<IRValue> {
+function xtuple<T>(...args: (T | number)[]) {
   return ir.expr("tuple", ...args)
 }
-function xpack(...args: Val<LIR>[]): ir.Expr<IRValue> {
+function xpack<T>(...args: (T | number)[]) {
   return ir.expr("pack", ...args)
 }
-function xlist(...args: Val<LIR>[]): ir.Expr<IRValue> {
-  return xpack(tag("common.List"), ...args)
+function xlist<T>(...args: (T | number)[]) {
+  return xpack<T | Tag>(tag("common.List"), ...args)
 }
-function xpart(x: Val<LIR>, i: Val<LIR>): ir.Expr<IRValue> {
-  return xcall(part_method, x, i)
+function xpart<T>(x: T | number, i: T | number) {
+  return xcall<T | Method>(part_method, x, i)
 }
 
-function rcall(code: LIR, f: Val<LIR>, args: Val<LIR>[], { src, bp }: { src?: ast.Meta, bp?: boolean } = {}): Val<MIR> {
+function rcall(code: LIR, f: Val<LIR>, args: Val<LIR>[], { src, bp }: { src?: ast.Meta, bp?: boolean } = {}): Val<LIR> {
   const arglist = _push(code, xlist(...args), { src })
   const result = _push(code, xcall(f, arglist), { src, bp })
   return _push(code, xpart(result, Type(1n)), { src })
@@ -264,6 +292,7 @@ function swapreturn(code: LIR, val: Val<LIR>, swaps?: Map<number, string>, { src
 
 function string(sc: Scope, code: LIR, x: string) {
   if (options().gc) {
+    // TODO remove type
     return code.push(code.stmt(xstring(x), { type: types.String() }))
   } else {
     const id = code.push(code.stmt(xstring(x), { type: types.list(types.int32()) }))
@@ -574,7 +603,7 @@ function loopbranch(sc: Scope, code: LIR, kind: string, label?: string, meta?: a
   return nil
 }
 
-function rewriteJumps(sc: Scope, code: LIR, header: [number, Val<MIR>[]], after: [number, Val<MIR>[]]): void {
+function rewriteJumps(sc: Scope, code: LIR, header: [number, Val<LIR>[]], after: [number, Val<LIR>[]]): void {
   const [brk, cnt] = sentinel(sc.loops.length - 1)
   for (const block of code.blocks()) {
     for (const [v, st] of block) {
@@ -651,7 +680,7 @@ function lowerLet(sc: Scope, code: LIR, _ex: ast.Expr, value = true): Val<LIR> {
 
 function lowerIf(sc: Scope, code: LIR, ex: IfStmt, value = true): Val<LIR> {
   sc = Scope(sc)
-  const ts: ir.Block<MIR>[] = []
+  const ts: ir.Block<LIR>[] = []
   const vs: Val<LIR>[] = []
   const body = (ir: LIR, ex: ast.Tree): void => {
     if (value) vs.push(lower(sc, ir, ex))
@@ -710,9 +739,9 @@ function lowerIf(sc: Scope, code: LIR, ex: IfStmt, value = true): Val<LIR> {
 const [withResolve, getResolve] = binding<(x: Symbol) => Type>('resolve')
 const resolve_static = (x: Symbol): Type => getResolve()(x)
 
-function lowerfn(mod: Tag, sig: Signature, body: ast.Tree, resolver: (x: Symbol) => Type, meta: Def): LIR {
+function lowerfn(mod: Tag, sig: Signature, body: ast.Tree, resolver: (x: Symbol) => Type, meta: Def): MIR {
   const sc = Scope(GlobalScope(mod), sig.swap)
-  const code = MIR(meta)
+  const code = LIR(meta)
   for (const arg of sig.args) {
     const slot = ir.slot(arg)
     sc.set(arg, slot)
@@ -720,7 +749,7 @@ function lowerfn(mod: Tag, sig: Signature, body: ast.Tree, resolver: (x: Symbol)
   }
   const out = withResolve(resolver, () => lower(sc, code, body))
   if (code.block().canbranch()) swapreturn(code, out, sig.swap)
-  return globals(prune(ssa(fuseblocks(code))))
+  return toMIR(globals(prune(ssa(fuseblocks(code)))))
 }
 
 function assignments(code: LIR): Set<string> {
@@ -760,13 +789,13 @@ function assigned_globals(code: MIR): Map<Binding, Type> {
   return out
 }
 
-function lower_toplevel(mod: Module, ex: ast.Tree, resolve: (x: Symbol) => Type, meta: Def): [LIR, Set<string>] {
+function lower_toplevel(mod: Module, ex: ast.Tree, resolve: (x: Symbol) => Type, meta: Def): [MIR, Set<string>] {
   const sc = GlobalScope(mod.name)
-  const code = MIR(meta)
+  const code = LIR(meta)
   withResolve(resolve, () => { lower(sc, code, ex, false) })
   code.return(nil)
   let [code2, defs] = rewriteGlobals(code, mod)
-  return [globals(prune(ssa(fuseblocks(code2)))), defs]
+  return [toMIR(globals(prune(ssa(fuseblocks(code2))))), defs]
 }
 
 // Turn global references into explicit load instructions

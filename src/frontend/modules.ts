@@ -60,7 +60,7 @@ function asConst(x: unknown): Const {
   throw new Error(`Expected Const, got ${typeof x}`)
 }
 
-type IRValue = Type | Const | Method | ir.Slot | Binding | WIntrinsic | WImport
+type IRValue = Type | Const | Method | Binding | WIntrinsic | WImport
 type IRType = IRValue | ValueType[]
 type MIR = ir.IR<IRValue, IRType>
 
@@ -75,7 +75,6 @@ function irTypeOf(x: IRValue): IRValue | IRType {
 }
 
 function showIRValue(x: IRValue | IRType): string {
-  if (x instanceof ir.Slot) return x.toString()
   if (x instanceof Binding) return `${x.mod}.${x.name}`
   if (x instanceof WIntrinsic) return x.name
   if (x instanceof WImport) return `\$${x.mod}.${x.name}`
