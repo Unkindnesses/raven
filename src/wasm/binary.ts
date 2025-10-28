@@ -5,7 +5,7 @@ import * as dwarf from '../dwarf'
 
 export { binary }
 
-const { i32, i64, f32, f64, externref } = wasm.Type
+const { i32, i64, f32, f64 } = wasm.NumType
 
 interface Debug {
   size: number
@@ -67,13 +67,40 @@ function name(cx: BinaryContext, x: string): void {
 
 // Instruction encoding
 
-const numtypes = new Map<wasm.Type, number>([
+const numtypes = new Map<wasm.NumType, number>([
   [i32, 0x7f],
   [i64, 0x7e],
   [f32, 0x7d],
-  [f64, 0x7c],
-  [externref, 0x6f]
+  [f64, 0x7c]
 ])
+
+const absheaptypes = new Map<string, number>([
+  ['exn', 0x69],
+  ['array', 0x6a],
+  ['struct', 0x6b],
+  ['i31', 0x6c],
+  ['eq', 0x6d],
+  ['any', 0x6e],
+  ['extern', 0x6f],
+  ['func', 0x70]
+])
+
+function heaptype(cx: BinaryContext, ht: wasm.HeapType): void {
+  if (ht.kind !== 'abstract') throw new Error(`Unsupported heap type: ${ht.kind}`)
+  cx.write(some(absheaptypes.get(ht.type)))
+}
+
+function valuetype(cx: BinaryContext, vt: wasm.ValueType): void {
+  if (typeof vt === 'string') {
+    cx.write(some(numtypes.get(vt)))
+  } else {
+    if (vt.null && vt.type.kind === 'abstract') {
+      heaptype(cx, vt.type)
+    } else {
+      throw new Error('unimplemented')
+    }
+  }
+}
 
 function instr(cx: BinaryContext, inst: wasm.Instruction, lt: dwarf.LineTable): void {
   switch (inst.kind) {
@@ -150,7 +177,7 @@ function instr(cx: BinaryContext, inst: wasm.Instruction, lt: dwarf.LineTable): 
       break
     case 'ref_null':
       cx.write(0xd0)
-      cx.write(some(numtypes.get(inst.refType)))
+      heaptype(cx, inst.type)
       break
     case 'op':
       cx.write(some(opcodes.get(inst.name)))
@@ -181,9 +208,9 @@ function withsize(cx: BinaryContext, f: (cx: BinaryContext) => void): number {
   return size
 }
 
-function typevec(cx: BinaryContext, ts: wasm.Type[]): void {
+function typevec(cx: BinaryContext, ts: wasm.ValueType[]): void {
   cx.leb128(ts.length)
-  for (const t of ts) cx.write(some(numtypes.get(t)))
+  for (const t of ts) valuetype(cx, t)
 }
 
 function functype(cx: BinaryContext, s: wasm.Signature): void {
@@ -289,7 +316,7 @@ function memories(cx: BinaryContext, mems: wasm.Mem[]): void {
 }
 
 function globaltype(cx: BinaryContext, g: wasm.Global): void {
-  cx.write(some(numtypes.get(g.type)))
+  valuetype(cx, g.type)
   cx.write(g.mut ? 1 : 0)
 }
 
@@ -362,7 +389,7 @@ function func(cx: BinaryContext, f: wasm.Func): dwarf.LineTable {
   cx.leb128(f.locals.length)
   for (const t of f.locals) {
     cx.leb128(1)
-    cx.write(some(numtypes.get(t)))
+    valuetype(cx, t)
   }
   for (let i = 0; i < f.body.body.length; i++) {
     const src = f.body.srcs[i]

@@ -2,47 +2,75 @@ import { HashSet } from '../utils/map'
 import { Def, LineInfo } from '../dwarf'
 
 export {
-  Type, sizeof,
+  NumType, RefType, ValueType, HeapType, AbsHeapType, sizeof, f64, f32, i64, i32, externref, asNumType,
   Signature, LineInfo, Instruction,
   Const, RefNull, nop, GetLocal, SetLocal, GetGlobal, SetGlobal, Op, Drop, Select, Convert, Branch, Call, CallIndirect, Return, unreachable, Block, Loop, instr,
   Func, Table, Mem, Global, Elem, Data, Import, Export, CustomSection, Module,
-  signatures, callees
+  signatures, callees, zero
 }
 
-enum Type {
-  i32 = 'i32',
-  i64 = 'i64',
-  f32 = 'f32',
+enum NumType {
   f64 = 'f64',
-  externref = 'externref'
+  f32 = 'f32',
+  i64 = 'i64',
+  i32 = 'i32',
 }
 
-function sizeof(t: Type): number {
+enum AbsHeapType {
+  exn = 'exn',
+  array = 'array',
+  struct = 'struct',
+  i31 = 'i31',
+  eq = 'eq',
+  any = 'any',
+  extern = 'extern',
+  func = 'func'
+}
+
+type HeapType =
+  | { kind: 'abstract'; type: AbsHeapType }
+  | { kind: 'struct', fields: [boolean, ValueType][] }
+  | { kind: 'array', field: [boolean, ValueType] }
+
+type RefType = { null: boolean, type: HeapType }
+
+type ValueType = NumType | RefType
+
+const f64 = NumType.f64
+const f32 = NumType.f32
+const i64 = NumType.i64
+const i32 = NumType.i32
+const externref: ValueType = { null: true, type: { kind: 'abstract', type: AbsHeapType.extern } }
+
+function asNumType(t: any): NumType {
+  if ([f64, f32, i64, i32].includes(t)) return t
+  throw new Error(`Expected NumType, got ${typeof t}`)
+}
+
+function sizeof(t: ValueType): number {
   switch (t) {
-    case Type.i32:
-    case Type.f32: return 4
-    case Type.i64:
-    case Type.f64: return 8
-    default: throw new Error(`No sizeof for Wasm type ${t}`)
+    case NumType.i32:
+    case NumType.f32: return 4
+    case NumType.i64:
+    case NumType.f64: return 8
+    default: throw new Error('Reference types have no size')
   }
 }
 
-type Numeric = Type.i32 | Type.i64 | Type.f32 | Type.f64
-
 interface Signature {
   kind: 'signature'
-  params: Type[]
-  result: Type[]
+  params: ValueType[]
+  result: ValueType[]
 }
 
-function Signature(params: Type[], result: Type[]): Signature {
+function Signature(params: ValueType[], result: ValueType[]): Signature {
   return { kind: 'signature', params, result }
 }
 
 type Instruction =
-  | { kind: 'const'; type: Type.f32 | Type.f64; val: number }
-  | { kind: 'const'; type: Type.i32 | Type.i64; val: bigint }
-  | { kind: 'ref_null'; refType: Type }
+  | { kind: 'const'; type: NumType.f32 | NumType.f64; val: number }
+  | { kind: 'const'; type: NumType.i32 | NumType.i64; val: bigint }
+  | { kind: 'ref_null'; type: HeapType }
   | { kind: 'nop' }
   | { kind: 'get_local'; id: number }
   | { kind: 'set_local'; tee: boolean; id: number }
@@ -51,7 +79,7 @@ type Instruction =
   | { kind: 'op'; name: string }
   | { kind: 'drop' }
   | { kind: 'select' }
-  | { kind: 'convert'; to: Type; from: Type; name: string }
+  | { kind: 'convert'; to: NumType; from: NumType; name: string }
   | { kind: 'branch'; cond: boolean; level: number }
   | { kind: 'call'; name: string }
   | { kind: 'call_indirect'; sig: Signature; table: number }
@@ -60,16 +88,16 @@ type Instruction =
   | { kind: 'block'; body: Instruction[]; srcs: LineInfo[] }
   | { kind: 'loop'; body: Instruction[]; srcs: LineInfo[] }
 
-function Const(type: Numeric, val: number | bigint): Instruction & { kind: 'const' } {
-  if (type === Type.i32 || type === Type.i64) {
+function Const(type: NumType, val: number | bigint): Instruction & { kind: 'const' } {
+  if (type === NumType.i32 || type === NumType.i64) {
     return { kind: 'const', type: type, val: BigInt(val) }
   } else {
     return { kind: 'const', type: type, val: Number(val) }
   }
 }
 
-function RefNull(refType: Type): Instruction {
-  return { kind: 'ref_null', refType }
+function RefNull(type: HeapType): Instruction {
+  return { kind: 'ref_null', type }
 }
 
 const nop: Instruction = { kind: 'nop' }
@@ -102,7 +130,7 @@ function Select(): Instruction {
   return { kind: 'select' }
 }
 
-function Convert(to: Type, from: Type, name: string): Instruction {
+function Convert(to: NumType, from: NumType, name: string): Instruction {
   return { kind: 'convert', to, from, name }
 }
 
@@ -147,12 +175,12 @@ interface Func {
   kind: 'func'
   name: string
   sig: Signature
-  locals: Type[]
+  locals: ValueType[]
   body: Block
   meta: Def
 }
 
-function Func(name: string, sig: Signature, locals: Type[], body: Block, meta: Def): Func {
+function Func(name: string, sig: Signature, locals: ValueType[], body: Block, meta: Def): Func {
   return { kind: 'func', name, sig, locals, body, meta }
 }
 
@@ -179,16 +207,19 @@ function Mem(min: number, max?: number, name?: string): Mem {
 
 interface Global {
   kind: 'global'
-  type: Type
+  type: ValueType
   mut: boolean
   init: Instruction
   name?: string
 }
 
-function Global(type: Type, options?: { mut?: boolean; init?: Instruction; name?: string }): Global {
-  const { mut = true, init, name } = options || {}
-  const finalInit = init || (type === Type.externref ? RefNull(type) : Const(type, 0))
-  return { kind: 'global', type, mut, init: finalInit, name }
+function zero(t: ValueType): Instruction {
+  return typeof t === 'string' ? Const(t, 0) : RefNull(t.type)
+}
+
+function Global(type: ValueType, options: { mut?: boolean; init?: Instruction; name?: string } = {}): Global {
+  let { mut = true, init = zero(type), name } = options
+  return { kind: 'global', type, mut, init, name }
 }
 
 interface Elem {

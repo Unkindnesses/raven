@@ -52,12 +52,12 @@ wasmPartials.set('i64.gt_s', cmp(64, (a, b) => a > b, true))
 wasmPartials.set('i64.lt_s', cmp(64, (a, b) => a < b, true))
 wasmPartials.set('i64.le_s', cmp(64, (a, b) => a <= b, true))
 
-function wparts(T: Anno<Type>): wasm.Type[] {
+function wparts(T: Anno<Type>): wasm.ValueType[] {
   return T === unreachable ? [] : layout(types.asType(T))
 }
 
 class WGlobals implements Caching {
-  types: wasm.Type[]
+  types: wasm.ValueType[]
   globals: Cache<Binding, number[]>
   constructor(defs: Definitions) {
     this.types = []
@@ -96,8 +96,8 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
   const pr = new Pipe(ir)
   for (let [v, st] of pr) {
     if (st.expr instanceof StringRef) {
-      const ref = options().gc ? wasm.Type.externref : wasm.Type.i32
-      const name = names.get([new WImport('support', 'string'), [wasm.Type.i32], [ref]])
+      const ref = options().gc ? wasm.externref : wasm.i32
+      const name = names.get([new WImport('support', 'string'), [wasm.i32], [ref]])
       pr.set(v, instr(wasm.Call(name), Const.i32(tables.string(st.expr.value))))
       pr.setType(v, [ref])
     } else if (st.expr.head === 'func') {
@@ -176,7 +176,7 @@ function frame(code: Accessor<Sig, Redirect | MIR>, sig: Sig): MIR {
   return res
 }
 
-type WSig = [WImport, wasm.Type[], wasm.Type[]]
+type WSig = [WImport, wasm.ValueType[], wasm.ValueType[]]
 
 function wname(f: types.Tag | Method | WImport): string {
   if (f instanceof types.Tag) return f.path
@@ -277,9 +277,9 @@ class BatchEmitter implements Emitter {
 
 function startfunc(main: string[]): wasm.Func {
   const meta = Def('_start')
-  const instrs = [...main.map(m => wasm.Call(m)), wasm.Const(wasm.Type.i32, 0)]
+  const instrs = [...main.map(m => wasm.Call(m)), wasm.Const(wasm.NumType.i32, 0)]
   const body = wasm.Block(instrs, instrs.map(() => wasm.LineInfo([[meta, meta.source]])))
-  return wasm.Func('_start', wasm.Signature([], [wasm.Type.i32]), [], body, meta)
+  return wasm.Func('_start', wasm.Signature([], [wasm.NumType.i32]), [], body, meta)
 }
 
 function metaSection(strings: string[]): wasm.CustomSection {

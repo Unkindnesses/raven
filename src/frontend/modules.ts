@@ -2,7 +2,7 @@ import { hash, HashMap, some } from "../utils/map"
 import { Anno, unreachable } from "../utils/ir"
 import { Type, Tag, tag, repr } from "./types"
 import * as types from "./types"
-import { Type as WType } from "../wasm/wasm"
+import { NumType, ValueType } from "../wasm/wasm"
 import * as cache from "../utils/cache"
 import * as ir from "../utils/ir"
 import isEqual from 'lodash/isEqual'
@@ -46,11 +46,11 @@ class Const {
   static i64(v: number | bigint) { return new Const('i64', v) }
   static f32(v: number | bigint) { return new Const('f32', v) }
   static f64(v: number | bigint) { return new Const('f64', v) }
-  static from(t: WType, v: number | bigint): Const {
-    if (t === WType.i32) return Const.i32(v)
-    if (t === WType.i64) return Const.i64(v)
-    if (t === WType.f32) return Const.f32(v)
-    if (t === WType.f64) return Const.f64(v)
+  static from(t: NumType, v: number | bigint): Const {
+    if (t === NumType.i32) return Const.i32(v)
+    if (t === NumType.i64) return Const.i64(v)
+    if (t === NumType.f32) return Const.f32(v)
+    if (t === NumType.f64) return Const.f64(v)
     throw new Error(`Unsupported Wasm const type ${t}`)
   }
 }
@@ -61,7 +61,7 @@ function asConst(x: unknown): Const {
 }
 
 type IRValue = Type | Const | Method | ir.Slot | Binding | WIntrinsic | WImport
-type IRType = IRValue | WType[]
+type IRType = IRValue | ValueType[]
 type MIR = ir.IR<IRValue, IRType>
 
 function irTypeOf(x: IRValue): IRValue | IRType {

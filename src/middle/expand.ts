@@ -20,11 +20,12 @@
 import * as ir from '../utils/ir'
 import * as types from '../frontend/types'
 import { Type, asType } from '../frontend/types'
-import { Type as WType, sizeof as wsizeof } from '../wasm/wasm'
+import { ValueType, sizeof as wsizeof } from '../wasm/wasm'
+import * as wasm from '../wasm/wasm'
 import { MIR, WImport, WIntrinsic, Method, Const, asBinding, asFunc, xstring } from '../frontend/modules'
 import { options } from '../utils/options'
 import { Def } from '../dwarf'
-import { Inferred, Redirect, type Sig, sig as resolveSig } from './abstract'
+import { Inferred, Redirect, Sig, sig as resolveSig } from './abstract'
 import { wasmPartials } from '../backend/wasm'
 import isEqual from 'lodash/isEqual'
 import { Pipe, Block, Fragment, expr, Branch, Val, Anno, unreachable } from '../utils/ir'
@@ -117,24 +118,24 @@ function call(code: Fragment<MIR>, f: Val<MIR>, args: Val<MIR>[], type: Anno<Typ
 
 // Pack primitives
 
-function layout(T: Type): WType[] {
+function layout(T: Type): ValueType[] {
   if (types.isValue(T)) return []
   switch (T.kind) {
-    case 'float32': return [WType.f32]
-    case 'float64': return [WType.f64]
-    case 'ref': return [WType.externref]
+    case 'float32': return [wasm.f32]
+    case 'float64': return [wasm.f64]
+    case 'ref': return [wasm.externref]
     case 'bits': {
-      if (T.size <= 32) return [WType.i32]
-      if (T.size <= 64) return [WType.i64]
+      if (T.size <= 32) return [wasm.i32]
+      if (T.size <= 64) return [wasm.i64]
       throw new Error(`Unsupported bit size ${T.size}`)
     }
     case 'pack': return T.parts.flatMap(layout)
     case 'vpack': return [ // size, pointer
-      ...layout(types.tagOf(T)), WType.i32,
-      ...(layout(some(types.partial_eltype(T))).length === 0 ? [] : [WType.i32])
+      ...layout(types.tagOf(T)), wasm.i32,
+      ...(layout(some(types.partial_eltype(T))).length === 0 ? [] : [wasm.i32])
     ]
-    case 'recursive': return [WType.i32]
-    case 'union': return [WType.i32, ...T.options.flatMap(layout)]
+    case 'recursive': return [wasm.i32]
+    case 'union': return [wasm.i32, ...T.options.flatMap(layout)]
     case 'tag': return []
     case 'any':
     case 'recurrence': throw new Error('unimplemented')
@@ -512,7 +513,7 @@ function cast(pr: Fragment<MIR>, from: Anno<Type>, to: Anno<Type>, x: Val<MIR>):
       const regs = layout(to.options[j - 1]).length
       if (j === i && typeof y === 'number') parts.push(y)
       else for (let k = 1; k <= regs; k++)
-        parts.push(Const.from(layout(to.options[j - 1])[k - 1], 0))
+        parts.push(Const.from(wasm.asNumType(layout(to.options[j - 1])[k - 1]), 0))
     }
     return pr.push(pr.stmt(xtuple(...parts), { type: to }))
   }

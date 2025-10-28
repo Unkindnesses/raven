@@ -38,10 +38,10 @@ function isConst(x: any): x is Const {
 
 function toWasmConst(c: IRConst): Const {
   switch (c.type) {
-    case 'i32': return wasm.Const(wasm.Type.i32, c.value)
-    case 'i64': return wasm.Const(wasm.Type.i64, c.value)
-    case 'f32': return wasm.Const(wasm.Type.f32, c.value)
-    case 'f64': return wasm.Const(wasm.Type.f64, c.value)
+    case 'i32': return wasm.Const(wasm.i32, c.value)
+    case 'i64': return wasm.Const(wasm.i64, c.value)
+    case 'f32': return wasm.Const(wasm.f32, c.value)
+    case 'f64': return wasm.Const(wasm.f64, c.value)
     default: throw new Error(`Unknown IR const type ${c.type}`)
   }
 }
@@ -146,15 +146,15 @@ function opExpr(op: StackOp<[number, number]> | Const): Expr<IRValue> {
   }
 }
 
-function stack(ir: MIR): [MIR, wasm.Type[]] {
+function stack(ir: MIR): [MIR, wasm.ValueType[]] {
   type Part = Const | [number, number]
-  let ret: wasm.Type[] = []
+  let ret: wasm.ValueType[] = []
   const env = new Map<number, Part[]>()
   const parts = (x: Val<MIR>): Part[] =>
     typeof x === 'number' ? some(env.get(x)) :
       x instanceof IRConst ? [toWasmConst(x)] :
         []
-  const partsSet = (x: number, Ts: wasm.Type[]) => env.set(x, Array.from(Ts, (_, i) => [x, i + 1]))
+  const partsSet = (x: number, Ts: wasm.ValueType[]) => env.set(x, Array.from(Ts, (_, i) => [x, i + 1]))
   const lv = liveness(ir)
   const live = (v: number) => {
     const s = new HashSet<[number, number]>()
@@ -187,7 +187,7 @@ function stack(ir: MIR): [MIR, wasm.Type[]] {
       } else if (ex instanceof Branch) {
         if (ex.isreturn()) {
           const result = ex.args[0]
-          const parttype = (p: Part): wasm.Type => {
+          const parttype = (p: Part): wasm.ValueType => {
             if (isConst(p)) return p.type
             const [x, i] = p
             return asArray(ir.type(x))[i - 1]
@@ -234,8 +234,8 @@ function stack(ir: MIR): [MIR, wasm.Type[]] {
 
 // TODO new liveness / interference analysis so we can reuse slots.
 // Will also have to filter redundant moves (due to block args) in that case.
-function locals(ir: MIR): [MIR, wasm.Type[]] {
-  const locals: wasm.Type[] = []
+function locals(ir: MIR): [MIR, wasm.ValueType[]] {
+  const locals: wasm.ValueType[] = []
   const slots = new HashMap<[number, number], number>()
   const b1 = ir.block(1)
   for (let ai = 0; ai < b1.args.length; ai++)

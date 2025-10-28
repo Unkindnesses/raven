@@ -13,6 +13,7 @@ import { abort, call, layout, sizeof, unbox, union_downcast, union_cases, cast, 
 import { isreftype } from './refcount'
 import { options } from '../utils/options'
 import { maybe_union } from './abstract'
+import { asNumType } from '../wasm/wasm'
 
 export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, copy_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue }
 
@@ -421,7 +422,7 @@ outlinePrimitive.set(nparts_method.id, (x: Type): MIR => {
 
 function constValue(T: Type): Const | undefined {
   if (T.kind === 'bits' && T.value !== undefined)
-    return Const.from(only(layout(types.abstract(T))), BigInt.asIntN(T.size, T.value))
+    return Const.from(asNumType(only(layout(types.abstract(T)))), BigInt.asIntN(T.size, T.value))
   if (T.kind === 'float32' && T.value !== undefined)
     return Const.f32(T.value)
   if (T.kind === 'float64' && T.value !== undefined)

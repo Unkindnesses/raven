@@ -42,7 +42,7 @@ function instructionToString(i: wasm.Instruction, level: number = 0): string {
       s += varsToString('result', i.sig.result)
       return s
     case 'ref_null':
-      return `ref.null ${i.refType}`
+      return `ref.null ${i.type}`
     case 'block':
     case 'loop':
       return i.kind + bodyToString(i.body, i.srcs, level + 1)
@@ -64,7 +64,7 @@ function bodyToString(xs: wasm.Instruction[], ss: wasm.LineInfo[], level: number
   return result
 }
 
-function varsToString(name: string, vs: wasm.Type[]): string {
+function varsToString(name: string, vs: wasm.ValueType[]): string {
   if (vs.length === 0) return ''
   return ` (${name} ${vs.join(' ')})`
 }
