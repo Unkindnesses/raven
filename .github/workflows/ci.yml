@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ '**' ] # Run on all branch pushes
+    branches: [ master ]
   pull_request:
-    branches: [ master ] # Keep pull request behavior the same
+    branches: [ master ]
 
 jobs:
   test:
