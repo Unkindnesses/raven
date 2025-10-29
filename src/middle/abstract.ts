@@ -3,7 +3,7 @@ import { LoopIR, looped, Path, block, nextpath, nextpathTo, pin, blockargs, loop
 import { MatchMethods, dispatcher } from './patterns'
 import { Tag, Type, repr, union, asType, issubset as iss, isValue, pack, tag, tagOf } from '../frontend/types'
 import { wasmPartials } from '../backend/wasm'
-import { MIR, IRValue, IRType, Binding, Method, Definitions, WIntrinsic, WImport, StringRef, Global, SetGlobal } from '../frontend/modules'
+import { MIR, IRValue, IRType, Binding, Method, Definitions, WIntrinsic, WImport, StringRef, Global, SetGlobal, callargs } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { WorkQueue } from '../utils/fixpoint'
 import { hash, HashSet, some } from '../utils/map'
@@ -180,10 +180,8 @@ function infercall(inf: Inference, P: Sig, F: Func, ...Ts: Anno<Type>[]): Anno<T
 }
 
 function inferexpr(inf: Inference, P: Sig, ir: MIR | Block<MIR>, ex: Expr<IRValue>): Anno<Type> | undefined {
-  const [F, ...rest] = ex.body.map(x => ir.type(x))
-  if (!(F instanceof Tag) && !(F instanceof Method)) throw new Error('call head must be a Tag or Method')
-  const Ts = rest.map(T => asAnno(asType, T))
-  return infercall(inf, P, F, ...Ts)
+  let [F, Ts] = callargs(ir, ex)
+  return infercall(inf, P, F, ...Ts.map(x => asAnno(asType, ir.type(x))))
 }
 
 function cleardeps(inf: Inference, sig: string): void {
@@ -233,7 +231,7 @@ function update(inf: Inference, k: string): void {
           bl.ir.setType(v, T)
         }
       } else if (ex.head === 'call' && ex.body[0] instanceof WImport) {
-      } else if (ex.head === 'call') {
+      } else if (['call', 'invoke'].includes(ex.head)) {
         const T = inferexpr(inf, fr.sig, bl, ex)
         if (T === undefined) return
         if (T === unreachable) break

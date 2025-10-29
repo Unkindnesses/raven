@@ -22,7 +22,7 @@ import * as types from '../frontend/types'
 import { Type, asType } from '../frontend/types'
 import { ValueType, sizeof as wsizeof } from '../wasm/wasm'
 import * as wasm from '../wasm/wasm'
-import { MIR, WImport, WIntrinsic, Method, Const, asBinding, asFunc, xstring, Global } from '../frontend/modules'
+import { MIR, WImport, WIntrinsic, Method, Const, xstring, Global, Invoke } from '../frontend/modules'
 import { options } from '../utils/options'
 import { Def } from '../dwarf'
 import { Inferred, Redirect, Sig, sig as resolveSig } from './abstract'
@@ -33,7 +33,7 @@ import { some } from '../utils/map'
 import { xcall, xtuple } from '../frontend/lower'
 import { isreftype } from './refcount'
 import { partial_part, getIntValue, nparts, constValue, partial_set, copy_method } from './primitives'
-import { inlinePrimitive, outlinePrimitive } from './prim_map'
+import { inlinePrimitive, InvokeSt, outlinePrimitive } from './prim_map'
 import { Cache } from '../utils/cache'
 
 export { abort, call, layout, sizeof, store, load, box, unbox, union_downcast, union_cases, cast, copyir, partir, packir, set_pack, indexer, setir, Expanded }
@@ -110,7 +110,7 @@ function abort(code: Fragment<MIR>, s: string): Val<MIR> {
 
 // We're a bit fast and loose with types here, because `T` and `[T]` have the
 // same representation (for now).
-function call(code: Fragment<MIR>, f: Val<MIR>, args: Val<MIR>[], type: Anno<Type>): Val<MIR> {
+function call(code: Fragment<MIR>, f: Val<MIR> | Method, args: Val<MIR>[], type: Anno<Type>): Val<MIR> {
   const Ts = args.map(a => types.asType(code.type(a)))
   const arglist = code.push(code.stmt(xtuple(...args), { type: types.list(...Ts) }))
   return code.push(code.stmt(xcall(f, arglist), { type }))
@@ -404,17 +404,13 @@ function lowerdata(code: MIR): MIR {
     if (ex.head === 'pack') {
       const args = ex.body.filter(x => !types.isValue(asType(code.type(x))))
       args.length ? pr.set(v, xtuple(...args)) : pr.replace(v, asType(st.type))
-    } else if (ex.head === 'call') {
-      const callee = ex.body[0]
-      if (callee instanceof WIntrinsic) {
-        if (wasmPartials.has(callee.name) && types.isValue(asType(st.type)))
-          pr.replace(v, asType(st.type))
-      } else {
-        const F = pr.type(callee)
-        if (F instanceof Method && inlinePrimitive.has(F.id)) {
-          pr.delete(v)
-          pr.replace(v, inlinePrimitive.get(F.id)!(pr, st))
-        }
+    } else if (ex.head === 'call' && ex.body[0] instanceof WIntrinsic) {
+      if (wasmPartials.has(ex.body[0].name) && types.isValue(asType(st.type)))
+        pr.replace(v, asType(st.type))
+    } else if (ex instanceof Invoke) {
+      if (inlinePrimitive.has(ex.method.id)) {
+        pr.delete(v)
+        pr.replace(v, inlinePrimitive.get(ex.method.id)!(pr, st as InvokeSt))
       }
     } else if (ex instanceof Global && st.type === ir.unreachable) {
       pr.delete(v)
@@ -535,16 +531,15 @@ function casts(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
     if (ex.head === 'call' && (ex.body[0] instanceof WIntrinsic || ex.body[0] instanceof WImport)) {
       const args = ex.body.slice(1).map(a => constValue(asType(pr.type(a))) ?? a)
       pr.set(v, xcall(ex.body[0], ...args))
-    } else if (ex.head === 'call') {
+    } else if (ex instanceof Invoke) {
       const S = ex.body.map(a => pr.type(a))
-      const partial = S[0] instanceof Method && S[0].func !== undefined
-      if (!partial && S.every(t => t !== ir.unreachable)) {
-        const sig: Sig = [asFunc(S[0]), ...S.slice(1).map(x => asType(x))]
+      if (!ex.method.func && S.every(t => t !== ir.unreachable)) {
+        const sig: Sig = [ex.method, ...S.map(x => asType(x))]
         if (!(inf.get(sig) instanceof Redirect)) continue
         const [_, ...T] = resolveSig(inf.inf, sig)
         pr.delete(v)
-        const args = ex.body.slice(1).map((a, i) => cast(pr, asType(S[i + 1]), T[i], a))
-        const v2 = pr.push(pr.stmt(xcall(ex.body[0], ...args), { type: st.type }))
+        const args = ex.body.map((a, i) => cast(pr, asType(S[i]), T[i], a))
+        const v2 = pr.push(pr.stmt(xcall(ex.method, ...args), { type: st.type }))
         pr.replace(v, v2)
       }
     } else if (st.expr instanceof Branch) {

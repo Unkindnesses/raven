@@ -9,7 +9,7 @@ import { unreachable, Anno, Pipe, expr, Val, asAnno, Branch } from '../utils/ir'
 import isEqual from 'lodash/isEqual'
 import { layout } from '../middle/expand'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe } from '../utils/cache'
-import { Binding, Definitions, MIR, WImport, WIntrinsic, Method, Const, asFunc, StringRef, Global, SetGlobal } from '../frontend/modules'
+import { Binding, Definitions, MIR, WImport, WIntrinsic, Method, Const, StringRef, Global, SetGlobal, Invoke, callargs } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { Redirect, type Sig } from '../middle/abstract'
 import { Accessor } from '../utils/fixpoint'
@@ -131,11 +131,12 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
       // TODO deprecate array types
       pr.setStmt(v, { ...st, type: st.type === unreachable ? [] : Array.isArray(st.type) ? st.type : layout(types.asType(st.type)) })
       if (st.type === unreachable) pr.push(pr.stmt(instr(wasm.unreachable), { type: [] }))
-    } else if (st.expr.head === 'call') {
-      const Ts = st.expr.body.map(a => ir.type(a))
+    } else if (['call', 'invoke'].includes(st.expr.head)) {
+      let [F, args] = callargs(pr, st.expr)
+      const Ts = args.map(a => ir.type(a))
       if (Ts.some(t => t === unreachable)) throw new Error('unreachable arg in call')
-      const sig: Sig = [asFunc(Ts[0]), ...Ts.slice(1).map(t => types.asType(t))]
-      const args = st.expr.body.slice(1).filter(x => !types.isValue(types.asType(ir.type(x))))
+      const sig: Sig = [F, ...Ts.map(t => types.asType(t))]
+      args = args.filter(x => !types.isValue(types.asType(ir.type(x))))
       const expr = instr(wasm.Call(names.get(sig)), ...args)
       pr.setStmt(v, { ...st, expr, type: wparts(asAnno(types.asType, st.type)) })
     } else if (st.expr.head === 'call_indirect') {

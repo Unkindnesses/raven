@@ -260,7 +260,7 @@ function indexer(code: MIR, T: types.Type, arg: ir.Val<MIR>, path: Path): ir.Val
   return indexer(code, T, arg, rest)
 }
 
-function icall(inf: Inference, code: MIR, sig: Sig, f: IRValue, ...args: (IRValue | number)[]): ir.Val<MIR> {
+function icall(inf: Inference, code: MIR, sig: Sig, f: IRValue | Method, ...args: (IRValue | number)[]): ir.Val<MIR> {
   if (!(f instanceof Method))
     args = [code.push(code.stmt(xlist(...args),
       { type: types.list(...args.map(a => types.asType(code.type(a)))) }))]
@@ -274,7 +274,7 @@ function dispatcher(inf: Inference, func: types.Tag, Ts: types.Type): [MIR, ir.A
   const args = code.argument(Ts)
   let ret: ir.Anno<types.Type> = ir.unreachable
   let arms = dispatch_arms(Ts)
-  const call = (f: IRValue, ...as: (IRValue | number)[]) => icall(inf, code, [func, Ts], f, ...as)
+  const call = (f: IRValue | Method, ...as: (IRValue | number)[]) => icall(inf, code, [func, Ts], f, ...as)
   for (const [meth, m] of inf.meths.get([func, Ts])) {
     if (m === undefined) {
       const pat = patternType(meth.sig.pattern)

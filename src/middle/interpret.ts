@@ -1,6 +1,6 @@
 import * as types from '../frontend/types'
 import { Tag, Type } from '../frontend/types'
-import { Method, Definitions, IRValue, WIntrinsic, MIR, Global, SetGlobal } from '../frontend/modules'
+import { Method, Definitions, IRValue, WIntrinsic, MIR, Global, SetGlobal, Invoke } from '../frontend/modules'
 import { IR, unreachable, Branch } from '../utils/ir'
 import { CycleCache } from '../utils/cache'
 import { partial_match } from './patterns'
@@ -46,7 +46,11 @@ function interpretIR(int: Interpreter, ir: MIR, ...args: Type[]): Type | undefin
   while (true) {
     for (const [v, st] of ir.block(bl)) {
       const xs = st.expr.body.map(resolve)
-      if (st.expr.head === 'call') {
+      if (st.expr instanceof Invoke) {
+        const result = int.get(st.expr.method, xs.map(x => types.asType(x)))
+        if (result === undefined) return
+        env.set(v, result)
+      } else if (st.expr.head === 'call') {
         const op = xs[0]
         if (op instanceof WIntrinsic) {
           if (!wasmPartials.has(op.name)) return
@@ -54,7 +58,7 @@ function interpretIR(int: Interpreter, ir: MIR, ...args: Type[]): Type | undefin
           const allValues = args.every(types.isValue)
           env.set(v, allValues ? wasmPartials.get(op.name)!(...args) : types.asType(st.type))
         } else {
-          if (!(op instanceof Tag || op instanceof Method)) throw new Error(`Expected function or method, got ${op}`)
+          if (!(op instanceof Tag)) throw new Error(`Expected function or method, got ${op}`)
           const result = int.get(op, xs.slice(1).map(x => types.asType(x)))
           if (result === undefined) return
           env.set(v, result)

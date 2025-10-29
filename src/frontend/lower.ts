@@ -5,7 +5,7 @@ import { Val, fuseblocks, prune, ssa } from "../utils/ir"
 import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast"
 import * as types from "./types"
 import { Type, Tag, tag, pack, bits, asType, nil } from "./types"
-import { Module, Signature, Binding, WIntrinsic, MIR, WImport, xstring, Method, xglobal, xset, SetGlobal } from "./modules"
+import { Module, Signature, Binding, WIntrinsic, MIR, WImport, xstring, Method, xglobal, xset, SetGlobal, Invoke } from "./modules"
 import { Def } from "../dwarf"
 import { asBigInt, some } from "../utils/map"
 import { binding, options } from "../utils/options"
@@ -169,7 +169,7 @@ const macros = new Map<string, (ex: ast.Expr) => ast.Tree>([
 
 // Expr -> IR lowering
 
-type IRValue = Type | Method | ir.Slot | Binding | WIntrinsic | WImport
+type IRValue = Type | ir.Slot | Binding | WIntrinsic | WImport
 type LIR = ir.IR<IRValue, Type>
 
 function showIRValue(x: IRValue): string {
@@ -177,7 +177,6 @@ function showIRValue(x: IRValue): string {
   if (x instanceof Binding) return `${x.mod}.${x.name}`
   if (x instanceof WIntrinsic) return x.name
   if (x instanceof WImport) return `\$${x.mod}.${x.name}`
-  if (x instanceof Method) return x.toString()
   return types.repr(x)
 }
 
@@ -204,8 +203,9 @@ function source(m: ast.Meta): ir.Source {
   return { file: m.file, line: m.loc.line, col: m.loc.column }
 }
 
-function xcall<T>(...args: (T | number)[]) {
-  return ir.expr<T>("call", ...args)
+function xcall<T>(head: T | Method | number, ...args: (T | number)[]) {
+  if (head instanceof Method) return new Invoke<T>(head, args)
+  return ir.expr<T>("call", head, ...args)
 }
 function xtuple<T>(...args: (T | number)[]) {
   return ir.expr("tuple", ...args)
@@ -217,7 +217,7 @@ function xlist<T>(...args: (T | number)[]) {
   return xpack<T | Tag>(tag("common.List"), ...args)
 }
 function xpart<T>(x: T | number, i: T | number) {
-  return xcall<T | Method>(part_method, x, i)
+  return xcall(part_method, x, i)
 }
 
 function rcall(code: LIR, f: Val<LIR>, args: Val<LIR>[], { src, bp }: { src?: ast.Meta, bp?: boolean } = {}): Val<LIR> {

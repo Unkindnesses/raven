@@ -1,8 +1,10 @@
 import { Type } from '../frontend/types'
-import { IRType, IRValue, MIR, Method } from '../frontend/modules'
-import { Fragment, Statement, Val } from '../utils/ir'
+import { IRType, IRValue, Invoke, MIR } from '../frontend/modules'
+import { Fragment, IR, Statement, Val } from '../utils/ir'
 
-export { inlinePrimitive, outlinePrimitive }
+export { InvokeSt, inlinePrimitive, outlinePrimitive }
 
-const inlinePrimitive = new Map<bigint, (code: Fragment<MIR>, st: Statement<IRValue, IRType>) => Val<MIR>>()
+type InvokeSt = Statement<IRValue, IRType> & { expr: Invoke<IRValue> }
+
+const inlinePrimitive = new Map<bigint, (code: Fragment<MIR>, st: InvokeSt) => Val<MIR>>()
 const outlinePrimitive = new Map<bigint, (...Ts: Type[]) => MIR>()

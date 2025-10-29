@@ -314,24 +314,24 @@ function primitives(): Method[] {
 inlinePrimitive.set(pack_method.id, (code, st) => {
   const T = asType(st.type)
   if (isEqual(T, types.float64())) {
-    const arg = st.expr.body[1]
+    const arg = st.expr.body[0]
     const ref = code.push(code.stmt(expr('ref', arg, i64(1)), { type: bits(64) }))
     return code.push({ ...st, expr: xcall(new WIntrinsic('f64.reinterpret_i64'), ref) })
   } else if (isEqual(T, types.float32())) {
-    const arg = st.expr.body[1]
+    const arg = st.expr.body[0]
     const ref = code.push(code.stmt(expr('ref', arg, i64(1)), { type: bits(32) }))
     return code.push({ ...st, expr: xcall(new WIntrinsic('f32.reinterpret_i32'), ref) })
   } else {
     // Arguments are turned into a tuple when calling any function, so this
     // is just a cast.
-    const x = st.expr.body[1]
+    const x = st.expr.body[0]
     if (!isEqual(layout(T), layout(asType(code.type(x))))) throw new Error('pack: layout mismatch')
     return x
   }
 })
 
 inlinePrimitive.set(part_method.id, (code, st) => {
-  let [x, i] = st.expr.body.slice(1)
+  let [x, i] = st.expr.body
   let [T, I] = [x, i].map(x => asType(code.type(x)))
   if (T.kind === 'recursive') {
     T = types.unroll(T)
@@ -353,7 +353,7 @@ const copy_method = primitive('common.core.copy', '[src, dst, len]', (...xs) => 
 outlinePrimitive.set(copy_method.id, copyir)
 
 inlinePrimitive.set(packcat_method.id, (code, st) => {
-  const x = st.expr.body[1]
+  const x = st.expr.body[0]
   const S = asType(code.type(x))
   const T = asType(st.type)
   if (types.isValue(T)) return T
@@ -368,7 +368,7 @@ outlinePrimitive.set(packcat_method.id, packir)
 
 inlinePrimitive.set(set_method.id, (code, st) => {
   if (asType(st.type).kind === 'pack') {
-    const [xs, i, x] = st.expr.body.slice(1)
+    const [xs, i, x] = st.expr.body
     return set_pack(code, xs, i, x)
   }
   return code.push(st)
@@ -392,7 +392,7 @@ function nparts(code: Fragment<MIR>, T: Type, x: Val<MIR>): Val<MIR> {
 }
 
 inlinePrimitive.set(nparts_method.id, (code, st) => {
-  let x = st.expr.body[1]
+  let x = st.expr.body[0]
   let T = asType(code.type(x))
   if (T.kind === 'recursive') {
     T = types.unroll(T)
@@ -430,7 +430,7 @@ function constValue(T: Type): Const | undefined {
 }
 
 inlinePrimitive.set(widen_method.id, (code, st) => {
-  const x = st.expr.body[1]
+  const x = st.expr.body[0]
   const T = asType(code.type(x))
   if (types.isAtom(T) && types.isValue(T)) return constValue(T) ?? T
   if (isEqual(tagOf(T), tag('common.Int')) || isEqual(tagOf(T), tag('common.Bool')))
@@ -459,7 +459,7 @@ function extend(code: Fragment<MIR>, T: BitsType, x: Val<MIR>): Val<MIR> {
 
 inlinePrimitive.set(bitcast_method.id, (code, st) => {
   if (types.isValue(asType(st.type))) return asType(st.type)
-  let x = st.expr.body[2]
+  let x = st.expr.body[1]
   const F = asType(code.type(x), 'bits')
   const T = asType(st.type, 'bits')
   const lT = only(layout(T))
@@ -475,7 +475,7 @@ inlinePrimitive.set(bitcast_method.id, (code, st) => {
 
 inlinePrimitive.set(bitcast_s_method.id, (code, st) => {
   if (types.isValue(asType(st.type))) return asType(st.type)
-  let x = st.expr.body[2]
+  let x = st.expr.body[1]
   const F = asType(code.type(x), 'bits')
   const T = asType(st.type, 'bits')
   if (T.size <= F.size) return inlinePrimitive.get(bitcast_method.id)!(code, st)
@@ -489,8 +489,8 @@ for (const [op, method] of bitop_methods)
   inlinePrimitive.set(method.id, (code, st) => {
     const T = asType(st.type, 'bits')
     if (types.isValue(T)) return T
-    let x = st.expr.body[1]
-    let y = st.expr.body[2]
+    let x = st.expr.body[0]
+    let y = st.expr.body[1]
     const sz = sizeof(T) * 8
     if (op.endsWith('_s') && T.size < sz) {
       x = extend(code, T, x)
@@ -504,8 +504,8 @@ for (const [op, method] of bitop_methods)
 for (const [op, method] of bitcmp_methods)
   inlinePrimitive.set(method.id, (code, st) => {
     if (types.isValue(asType(st.type))) return asType(st.type)
-    let x = st.expr.body[1]
-    let y = st.expr.body[2]
+    let x = st.expr.body[0]
+    let y = st.expr.body[1]
     const T = asType(types.union(asType(code.type(x)), asType(code.type(y))), 'bits')
     const sz = sizeof(T) * 8
     if (op.endsWith('_s') && T.size < sz) {
@@ -516,7 +516,7 @@ for (const [op, method] of bitcmp_methods)
   })
 
 inlinePrimitive.set(biteqz_method.id, (code, st) => {
-  const x = st.expr.body[1]
+  const x = st.expr.body[0]
   const T = asType(code.type(x))
   if (types.isValue(asType(st.type))) return asType(st.type)
   if (sizeof(T) * 8 === 64) return code.push({ ...st, expr: xcall(new WIntrinsic('i64.eqz'), x) })
@@ -532,8 +532,8 @@ function symOverlap(x: Type, y: Type): number[] {
 
 inlinePrimitive.set(shortcutEquals_method.id, (code, st) => {
   if (types.isValue(asType(st.type))) return asType(st.type)
-  let a = st.expr.body[1]
-  let b = st.expr.body[2]
+  let a = st.expr.body[0]
+  let b = st.expr.body[1]
   let A = asType(code.type(a))
   let B = asType(code.type(b))
   if (B.kind === 'union') [a, b, A, B] = [b, a, B, A]
@@ -543,7 +543,7 @@ inlinePrimitive.set(shortcutEquals_method.id, (code, st) => {
 })
 
 inlinePrimitive.set(isnil_method.id, (code, st) => {
-  const x = st.expr.body[1]
+  const x = st.expr.body[0]
   const T = asType(code.type(x))
   if (types.isValue(asType(st.type))) return asType(st.type)
   if (T.kind !== 'union') throw new Error('unimplemented')
@@ -555,7 +555,7 @@ inlinePrimitive.set(isnil_method.id, (code, st) => {
 })
 
 inlinePrimitive.set(notnil_method.id, (code, st) => {
-  const x = st.expr.body[1]
+  const x = st.expr.body[0]
   const T = asType(code.type(x))
   const V = asAnno(asType, st.type)
   if (isEqual(T, V)) return x
@@ -568,10 +568,10 @@ inlinePrimitive.set(notnil_method.id, (code, st) => {
 })
 
 inlinePrimitive.set(tagcast_method.id, (code, st) => {
-  let x = st.expr.body[1]
+  let x = st.expr.body[0]
   let T = asType(code.type(x))
   const V = asAnno(asType, st.type)
-  const tg = asType(code.type(st.expr.body[2]), 'tag')
+  const tg = asType(code.type(st.expr.body[1]), 'tag')
   if (isEqual(T, V)) return x
   if (V === unreachable) return abort(code, 'tagcast')
   if (T.kind === 'recursive') {
@@ -592,7 +592,7 @@ function string(pr: Fragment<MIR>, s: string) {
 }
 
 inlinePrimitive.set(tagstring_method.id, (code, st) => {
-  const T = asType(code.type(st.expr.body[1]))
+  const T = asType(code.type(st.expr.body[0]))
   if (T.kind === 'tag') return string(code, types.asTag(T).path)
   return code.push(st)
 })
@@ -608,13 +608,13 @@ outlinePrimitive.set(tagstring_method.id, (T: Type): MIR => {
 // UB if inferred output type is not `O`
 // TODO wrap with a type check / conversion
 inlinePrimitive.set(function_method.id, (code, st) => {
-  const [f, I, O] = st.expr.body.slice(1, 4).map(x => asType(code.type(x)))
+  const [f, I, O] = st.expr.body.slice(0, 3).map(x => asType(code.type(x)))
   if (![f, I, O].every(types.isValue)) throw new Error('nope')
   return code.push({ ...st, expr: expr('func', f, rvtype(I), rvtype(O)) })
 })
 
 inlinePrimitive.set(invoke_method.id, (code, st) => {
-  const [f, I0, O0, args0] = st.expr.body.slice(1, 5)
+  const [f, I0, O0, args0] = st.expr.body.slice(0, 4)
   const [I, O] = [I0, O0].map(x => rvtype(asType(code.type(x))))
   // TODO conversion
   if (!types.issubset(asType(code.type(args0)), I)) throw new Error('invoke: argument type mismatch')

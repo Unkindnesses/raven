@@ -10,9 +10,9 @@ import { Pattern } from "./patterns"
 import { Def } from "../dwarf"
 
 export {
-  Module, Method, Signature, Binding, asBinding, asFunc, asConst, Modules,
+  Module, Method, Signature, Binding, asBinding, asConst, Modules,
   Definitions, Const, MIR, IRValue, IRType, WIntrinsic, WImport, showIRValue,
-  StringRef, xstring, Global, SetGlobal, xglobal, xset
+  StringRef, xstring, Global, SetGlobal, xglobal, xset, Invoke, callargs
 }
 
 class WIntrinsic {
@@ -31,11 +31,6 @@ class Binding {
 function asBinding(x: unknown): Binding {
   if (x instanceof Binding) return x
   throw new Error(`Expected Binding, got ${typeof x}`)
-}
-
-function asFunc(x: unknown): Tag | Method {
-  if (x instanceof Method || x instanceof Tag) return x
-  throw new Error(`Expected Tag or Method, got ${typeof x}`)
 }
 
 class Const {
@@ -60,7 +55,7 @@ function asConst(x: unknown): Const {
   throw new Error(`Expected Const, got ${typeof x}`)
 }
 
-type IRValue = Type | Const | Method | WIntrinsic | WImport
+type IRValue = Type | Const | WIntrinsic | WImport
 type IRType = IRValue | ValueType[]
 type MIR = ir.IR<IRValue, IRType>
 
@@ -77,7 +72,6 @@ function irTypeOf(x: IRValue): IRValue | IRType {
 function showIRValue(x: IRValue | IRType): string {
   if (x instanceof WIntrinsic) return x.name
   if (x instanceof WImport) return `\$${x.mod}.${x.name}`
-  if (x instanceof Method) return x.toString()
   if (x instanceof Const) return `${x.type}(${x.value.toString()})`
   if (Array.isArray(x)) return `[${x.join(', ')}]`
   return repr(x)
@@ -111,6 +105,22 @@ class SetGlobal<T> extends ir.Expr<T> {
 }
 
 function xset<T>(b: Binding, v: T): SetGlobal<T> { return new SetGlobal<T>(b, v) }
+
+class Invoke<T> extends ir.Expr<T> {
+  constructor(readonly method: Method, readonly args: (T | number)[]) { super('invoke', args) }
+  map(f: (x: T | number) => T | number): Invoke<T> { return new Invoke(this.method, this.args.map(f)) }
+  show(pr: (x: T | number) => string): string {
+    return this.args.length > 0
+      ? `call ${this.method.toString()}, ${this.args.map(pr).join(', ')}`
+      : `call ${this.method.toString()}`
+  }
+}
+
+function callargs(ir: ir.Fragment<MIR>, ex: ir.Expr<IRValue>): [Tag | Method, ir.Val<MIR>[]] {
+  return ex instanceof Invoke ?
+    [ex.method, ex.body] :
+    [types.asTag(ir.type(ex.body[0])), ex.body.slice(1)]
+}
 
 interface Signature {
   pattern: Pattern

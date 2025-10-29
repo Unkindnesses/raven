@@ -28,7 +28,7 @@
 import * as ir from '../utils/ir'
 import * as types from '../frontend/types'
 import { Type, tag, tagOf, asType } from '../frontend/types'
-import { MIR, Const, IRValue, Method, asConst } from '../frontend/modules'
+import { MIR, Const, IRValue, Method, asConst, Invoke } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { Redirect, type Sig } from './abstract'
 import { Cache } from '../utils/cache'
@@ -264,9 +264,9 @@ function elide_counts(code: MIR): MIR {
   for (const bl of code.blocks()) {
     const retains = new HashMap<AliasItem[], number[]>()
     for (const [v, st] of bl) {
-      if (st.expr.head !== 'call') continue
-      const callee = st.expr.body[0]
-      const arg = st.expr.body[1]
+      if (!(st.expr instanceof Invoke)) continue
+      const callee = st.expr.method
+      const arg = st.expr.body[0]
       if (ismethod(callee, tag('common.core.retain'))) {
         // TODO aliases for args
         if (typeof arg !== 'number' || !vs.has(arg)) continue
