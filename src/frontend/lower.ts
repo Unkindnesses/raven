@@ -5,7 +5,7 @@ import { Val, fuseblocks, prune, ssa } from "../utils/ir"
 import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast"
 import * as types from "./types"
 import { Type, Tag, tag, pack, bits, asType, nil } from "./types"
-import { Module, Signature, Binding, WIntrinsic, MIR, WImport, xstring, Method, xglobal, xset, SetGlobal, Invoke } from "./modules"
+import { Module, Signature, Binding, WIntrinsic, MIR, WImport, xstring, Method, xglobal, xset, SetGlobal, Invoke, Wasm } from "./modules"
 import { Def } from "../dwarf"
 import { asBigInt, some } from "../utils/map"
 import { binding, options } from "../utils/options"
@@ -169,14 +169,12 @@ const macros = new Map<string, (ex: ast.Expr) => ast.Tree>([
 
 // Expr -> IR lowering
 
-type IRValue = Type | ir.Slot | Binding | WIntrinsic | WImport
+type IRValue = Type | ir.Slot | Binding
 type LIR = ir.IR<IRValue, Type>
 
 function showIRValue(x: IRValue): string {
   if (x instanceof ir.Slot) return x.toString()
   if (x instanceof Binding) return `${x.mod}.${x.name}`
-  if (x instanceof WIntrinsic) return x.name
-  if (x instanceof WImport) return `\$${x.mod}.${x.name}`
   return types.repr(x)
 }
 
@@ -188,13 +186,13 @@ function toMIR(lir: LIR): MIR {
   const mir = MIR(lir.meta)
   const env = new Map<number, Val<MIR>>()
   const rename = (x: Val<LIR>): Val<MIR> =>
-    typeof x === 'number' ? some(env.get(x)) : x
+    typeof x === 'number' ? some(env.get(x)) : x as Val<MIR>
   for (const block of lir.blocks()) {
     if (block.id !== 0) mir.newBlock()
     for (const [arg, type] of block.bb.args)
       env.set(arg, mir.block().argument(type))
     for (const [v, st] of block)
-      env.set(v, mir.push({ ...st, expr: st.expr.map(rename as any) }))
+      env.set(v, mir.push({ ...st, expr: st.expr.map(rename as any) as any }))
   }
   return mir
 }
@@ -203,7 +201,7 @@ function source(m: ast.Meta): ir.Source {
   return { file: m.file, line: m.loc.line, col: m.loc.column }
 }
 
-function xcall<T>(head: T | Method | number, ...args: (T | number)[]) {
+function xcall<T>(head: Method | T | number, ...args: (T | number)[]) {
   if (head instanceof Method) return new Invoke<T>(head, args)
   return ir.expr<T>("call", head, ...args)
 }
@@ -546,7 +544,7 @@ function lowerSyntax(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR>
     const wasmExpr = ast.asExpr(ex.args[1], 'Block').args[0]
     const [op, ret] = intrinsic(wasmExpr)
     const args = intrinsic_args(wasmExpr).map(arg => lower(sc, code, arg))
-    return _push(code, xcall(op, ...args), { src: ex.meta, type: ret, bp: true })
+    return _push(code, new Wasm(op, args), { src: ex.meta, type: ret, bp: true })
   } else if (syntax === 'let') {
     return lowerLet(sc, code, ex, value)
   } else if (macros.has(syntax)) {

@@ -9,7 +9,7 @@ import { unreachable, Anno, Pipe, expr, Val, asAnno, Branch } from '../utils/ir'
 import isEqual from 'lodash/isEqual'
 import { layout } from '../middle/expand'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe } from '../utils/cache'
-import { Binding, Definitions, MIR, WImport, WIntrinsic, Method, Const, StringRef, Global, SetGlobal, Invoke, callargs } from '../frontend/modules'
+import { Binding, Definitions, MIR, WImport, Method, Const, StringRef, Global, SetGlobal, Wasm as WasmCall, callargs } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { Redirect, type Sig } from '../middle/abstract'
 import { Accessor } from '../utils/fixpoint'
@@ -118,8 +118,8 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
         ps.push(pr.insert(v, pr.stmt(instr(wasm.GetGlobal(ids[i])), { type: [parts[i]] })))
       if (ps.length === 1) pr.replace(v, ps[0])
       else pr.set(v, xtuple(...ps))
-    } else if (st.expr.head === 'call' && (st.expr.body[0] instanceof WIntrinsic || st.expr.body[0] instanceof WImport)) {
-      const [callee, ...args] = st.expr.body
+    } else if (st.expr instanceof WasmCall) {
+      const [callee, args] = [st.expr.callee, st.expr.body]
       if (callee instanceof WImport) {
         const I = args.flatMap(a => layout(types.abstract(types.asType(ir.type(a))))) // TODO shouldn't get consts here
         const O = st.type === unreachable ? [] : layout(types.asType(st.type))

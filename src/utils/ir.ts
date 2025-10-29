@@ -220,7 +220,7 @@ class Block<I extends IR<any, any>> implements Fragment<I> {
   get args() { return this.bb.args.map(([arg, _]) => arg) }
   get argtypes(): Anno<A<I>>[] { return this.bb.args.map(([_, type]) => type) }
   get length() { let n = 0; for (const _ of this) n++; return n }
-  type(x: T<I> | number): T<I> | Anno<A<I>> { return this.ir.type(x) }
+  type(x: T<I> | number): Anno<A<I>> { return this.ir.type(x) }
 
   stmt(expr: Expr<T<I>>, opts: StmtOpts<A<I>> = {}): Statement<T<I>, A<I>> {
     return this.ir.stmt(expr, opts)
@@ -630,7 +630,7 @@ class Pipe<I extends IR<any, any>> implements Fragment<I> {
     this.to.setType(asNumber(this.substitute(v)), type)
   }
 
-  type(x: T<I> | number): T<I> | Anno<A<I>> {
+  type(x: T<I> | number): Anno<A<I>> {
     if (typeof x !== 'number') return this.to.typeOf(x)
     return this.to.type(this.substitute(x))
   }

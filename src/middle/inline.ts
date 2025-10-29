@@ -1,6 +1,6 @@
 import * as ir from '../utils/ir'
 import * as types from '../frontend/types'
-import { MIR, WIntrinsic, WImport, callargs } from '../frontend/modules'
+import { MIR, callargs } from '../frontend/modules'
 import { Redirect, type Sig } from './abstract'
 import { options } from '../utils/options'
 import { CycleCache } from '../utils/cache'
@@ -18,7 +18,7 @@ function opcount(code: MIR): number {
     if (['tuple', 'ref', 'branch', 'cast', 'retain', 'release', 'string'].includes(st.expr.head)) {
     } else if (['global', 'setglobal'].includes(st.expr.head)) {
       count += layout(types.asType(st.type)).length > 0 ? 1 : 0
-    } else if (['call', 'invoke', 'func', 'call_indirect'].includes(st.expr.head)) {
+    } else if (['call', 'invoke', 'wasm', 'func', 'call_indirect'].includes(st.expr.head)) {
       count += 1
     } else
       throw new Error(`unrecognised expr ${st.expr.head}`)
@@ -53,7 +53,6 @@ function inline(code: MIR, inlined: Accessor<Sig, Redirect | MIR>): MIR {
   const pr = new ir.Pipe(code)
   for (const [v, st] of pr) {
     if (!['call', 'invoke'].includes(st.expr.head)) continue
-    if (st.expr.head === 'call' && (st.expr.body[0] instanceof WIntrinsic || st.expr.body[0] instanceof WImport)) continue
     const [F, args] = callargs(pr, st.expr)
     const sig: Sig = [F, ...args.map(x => types.asType(pr.type(x)))]
     if (!inlineable(inlined, sig)) continue

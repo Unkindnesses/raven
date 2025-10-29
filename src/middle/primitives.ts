@@ -6,6 +6,7 @@ import isEqual from 'lodash/isEqual'
 import { Method, MIR, Module, WIntrinsic, Const, xstring } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { xtuple, xcall } from '../frontend/lower'
+import { xwasm } from '../frontend/modules'
 import { lowerpattern } from '../frontend/patterns'
 import * as parse from '../frontend/parse'
 import { inlinePrimitive, outlinePrimitive } from './prim_map'
@@ -316,11 +317,11 @@ inlinePrimitive.set(pack_method.id, (code, st) => {
   if (isEqual(T, types.float64())) {
     const arg = st.expr.body[0]
     const ref = code.push(code.stmt(expr('ref', arg, i64(1)), { type: bits(64) }))
-    return code.push({ ...st, expr: xcall(new WIntrinsic('f64.reinterpret_i64'), ref) })
+    return code.push({ ...st, expr: xwasm(new WIntrinsic('f64.reinterpret_i64'), ref) })
   } else if (isEqual(T, types.float32())) {
     const arg = st.expr.body[0]
     const ref = code.push(code.stmt(expr('ref', arg, i64(1)), { type: bits(32) }))
-    return code.push({ ...st, expr: xcall(new WIntrinsic('f32.reinterpret_i32'), ref) })
+    return code.push({ ...st, expr: xwasm(new WIntrinsic('f32.reinterpret_i32'), ref) })
   } else {
     // Arguments are turned into a tuple when calling any function, so this
     // is just a cast.
@@ -445,15 +446,15 @@ type BitsType = Type & { kind: 'bits' }
 // TODO use Const rather than BitsType in the output?
 function mask(code: Fragment<MIR>, T: BitsType, x: Val<MIR>): Val<MIR> {
   const m = bits(sizeof(T) * 8, (1n << BigInt(T.size)) - 1n)
-  x = code.push(code.stmt(xcall(new WIntrinsic(`${only(layout(T))}.and`), x, m), { type: layout(T) }))
+  x = code.push(code.stmt(xwasm(new WIntrinsic(`${only(layout(T))}.and`), x, m), { type: layout(T) }))
   return x
 }
 
 function extend(code: Fragment<MIR>, T: BitsType, x: Val<MIR>): Val<MIR> {
   const n = sizeof(T) * 8
   const shift = bits(n, BigInt(n - T.size))
-  x = code.push(code.stmt(xcall(new WIntrinsic(`${only(layout(T))}.shl`), x, shift), { type: bits(n) }))
-  x = code.push(code.stmt(xcall(new WIntrinsic(`${only(layout(T))}.shr_s`), x, shift), { type: bits(n) }))
+  x = code.push(code.stmt(xwasm(new WIntrinsic(`${only(layout(T))}.shl`), x, shift), { type: bits(n) }))
+  x = code.push(code.stmt(xwasm(new WIntrinsic(`${only(layout(T))}.shr_s`), x, shift), { type: bits(n) }))
   return x
 }
 
@@ -465,9 +466,9 @@ inlinePrimitive.set(bitcast_method.id, (code, st) => {
   const lT = only(layout(T))
   const lF = only(layout(F))
   if (lT === 'i32' && lF === 'i64')
-    x = code.push(code.stmt(xcall(new WIntrinsic('i32.wrap_i64'), x), { type: bits(32) }))
+    x = code.push(code.stmt(xwasm(new WIntrinsic('i32.wrap_i64'), x), { type: bits(32) }))
   else if (lT === 'i64' && lF === 'i32')
-    x = code.push(code.stmt(xcall(new WIntrinsic('i64.extend_i32_u'), x), { type: bits(64) }))
+    x = code.push(code.stmt(xwasm(new WIntrinsic('i64.extend_i32_u'), x), { type: bits(64) }))
   if (T.size < F.size && T.size < sizeof(T) * 8)
     x = mask(code, T, x)
   return x
@@ -480,7 +481,7 @@ inlinePrimitive.set(bitcast_s_method.id, (code, st) => {
   const T = asType(st.type, 'bits')
   if (T.size <= F.size) return inlinePrimitive.get(bitcast_method.id)!(code, st)
   if (F.size < sizeof(F) * 8) x = extend(code, F, x)
-  if (isEqual([sizeof(T), sizeof(F)], [8, 4])) x = code.push(code.stmt(xcall(new WIntrinsic('i64.extend_i32_s'), x), { type: bits(64) }))
+  if (isEqual([sizeof(T), sizeof(F)], [8, 4])) x = code.push(code.stmt(xwasm(new WIntrinsic('i64.extend_i32_s'), x), { type: bits(64) }))
   if (T.size < sizeof(T) * 8) x = mask(code, T, x)
   return x
 })
@@ -496,7 +497,7 @@ for (const [op, method] of bitop_methods)
       x = extend(code, T, x)
       y = extend(code, T, y)
     }
-    let result: Val<MIR> = code.push({ ...st, expr: xcall(new WIntrinsic(`${only(layout(T))}.${op}`), x, y) })
+    let result: Val<MIR> = code.push({ ...st, expr: xwasm(new WIntrinsic(`${only(layout(T))}.${op}`), x, y) })
     if (T.size < sz) result = mask(code, T, result)
     return result
   })
@@ -512,15 +513,15 @@ for (const [op, method] of bitcmp_methods)
       x = extend(code, T, x)
       y = extend(code, T, y)
     }
-    return code.push({ ...st, expr: xcall(new WIntrinsic(`${only(layout(T))}.${op}`), x, y) })
+    return code.push({ ...st, expr: xwasm(new WIntrinsic(`${only(layout(T))}.${op}`), x, y) })
   })
 
 inlinePrimitive.set(biteqz_method.id, (code, st) => {
   const x = st.expr.body[0]
   const T = asType(code.type(x))
   if (types.isValue(asType(st.type))) return asType(st.type)
-  if (sizeof(T) * 8 === 64) return code.push({ ...st, expr: xcall(new WIntrinsic('i64.eqz'), x) })
-  if (sizeof(T) * 8 === 32) return code.push({ ...st, expr: xcall(new WIntrinsic('i32.eqz'), x) })
+  if (sizeof(T) * 8 === 64) return code.push({ ...st, expr: xwasm(new WIntrinsic('i64.eqz'), x) })
+  if (sizeof(T) * 8 === 32) return code.push({ ...st, expr: xwasm(new WIntrinsic('i32.eqz'), x) })
   throw new Error('unimplemented')
 })
 
@@ -539,7 +540,7 @@ inlinePrimitive.set(shortcutEquals_method.id, (code, st) => {
   if (B.kind === 'union') [a, b, A, B] = [b, a, B, A]
   const ov = symOverlap(A, B)
   const i = code.push(code.stmt(expr('ref', a, i64(1)), { type: bits(32) }))
-  return code.push({ ...st, expr: xcall(new WIntrinsic('i32.eq'), i, bits(32, only(ov))) })
+  return code.push({ ...st, expr: xwasm(new WIntrinsic('i32.eq'), i, bits(32, only(ov))) })
 })
 
 inlinePrimitive.set(isnil_method.id, (code, st) => {
@@ -549,7 +550,7 @@ inlinePrimitive.set(isnil_method.id, (code, st) => {
   if (T.kind !== 'union') throw new Error('unimplemented')
   const i = T.options.findIndex(opt => isEqual(opt, types.nil)) + 1
   const j = code.push(code.stmt(expr('ref', x, i64(1)), { type: bits(32) }))
-  const result = code.push({ ...st, expr: xcall(new WIntrinsic('i32.eq'), j, bits(32, i)) })
+  const result = code.push({ ...st, expr: xwasm(new WIntrinsic('i32.eq'), j, bits(32, i)) })
   if (isreftype(T)) code.push(code.stmt(expr('release', x)))
   return result
 })

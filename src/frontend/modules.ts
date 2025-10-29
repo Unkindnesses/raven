@@ -12,7 +12,7 @@ import { Def } from "../dwarf"
 export {
   Module, Method, Signature, Binding, asBinding, asConst, Modules,
   Definitions, Const, MIR, IRValue, IRType, WIntrinsic, WImport, showIRValue,
-  StringRef, xstring, Global, SetGlobal, xglobal, xset, Invoke, callargs
+  StringRef, xstring, Global, SetGlobal, xglobal, xset, Invoke, Wasm, xwasm, callargs
 }
 
 class WIntrinsic {
@@ -55,23 +55,22 @@ function asConst(x: unknown): Const {
   throw new Error(`Expected Const, got ${typeof x}`)
 }
 
-type IRValue = Type | Const | WIntrinsic | WImport
-type IRType = IRValue | ValueType[]
+type IRValue = Type | Const
+type IRType = Type | ValueType[]
 type MIR = ir.IR<IRValue, IRType>
 
-function irTypeOf(x: IRValue): IRValue | IRType {
+function irTypeOf(x: IRValue): IRType {
   if (x instanceof Const) {
     if (x.type === 'i32') return types.int32()
     if (x.type === 'i64') return types.int64()
     if (x.type === 'f32') return types.float32()
     if (x.type === 'f64') return types.float64()
+    throw new Error('unreachable')
   }
   return x
 }
 
 function showIRValue(x: IRValue | IRType): string {
-  if (x instanceof WIntrinsic) return x.name
-  if (x instanceof WImport) return `\$${x.mod}.${x.name}`
   if (x instanceof Const) return `${x.type}(${x.value.toString()})`
   if (Array.isArray(x)) return `[${x.join(', ')}]`
   return repr(x)
@@ -114,6 +113,23 @@ class Invoke<T> extends ir.Expr<T> {
       ? `call ${this.method.toString()}, ${this.args.map(pr).join(', ')}`
       : `call ${this.method.toString()}`
   }
+}
+
+class Wasm<T> extends ir.Expr<T> {
+  constructor(readonly callee: WIntrinsic | WImport, readonly args: (T | number)[]) { super('wasm', args) }
+  map(f: (x: T | number) => T | number): Wasm<T> { return new Wasm(this.callee, this.args.map(f)) }
+  show(pr: (x: T | number) => string): string {
+    const target = this.callee instanceof WIntrinsic
+      ? this.callee.name
+      : `\$${this.callee.mod}.${this.callee.name}`
+    return this.args.length > 0
+      ? `call ${target}, ${this.args.map(pr).join(', ')}`
+      : `call ${target}`
+  }
+}
+
+function xwasm<T>(callee: WIntrinsic | WImport, ...args: (T | number)[]) {
+  return new Wasm<T>(callee, args)
 }
 
 function callargs(ir: ir.Fragment<MIR>, ex: ir.Expr<IRValue>): [Tag | Method, ir.Val<MIR>[]] {

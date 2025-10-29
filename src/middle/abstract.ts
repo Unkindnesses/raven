@@ -3,7 +3,7 @@ import { LoopIR, looped, Path, block, nextpath, nextpathTo, pin, blockargs, loop
 import { MatchMethods, dispatcher } from './patterns'
 import { Tag, Type, repr, union, asType, issubset as iss, isValue, pack, tag, tagOf } from '../frontend/types'
 import { wasmPartials } from '../backend/wasm'
-import { MIR, IRValue, IRType, Binding, Method, Definitions, WIntrinsic, WImport, StringRef, Global, SetGlobal, callargs } from '../frontend/modules'
+import { MIR, IRValue, IRType, Binding, Method, Definitions, WIntrinsic, WImport, StringRef, Global, SetGlobal, Wasm, callargs } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { WorkQueue } from '../utils/fixpoint'
 import { hash, HashSet, some } from '../utils/map'
@@ -223,14 +223,14 @@ function update(inf: Inference, k: string): void {
     const bl = block(fr.ir, path)
     for (const [v, st] of bl) {
       const ex = st.expr
-      if (ex.head === 'call' && ex.body[0] instanceof WIntrinsic) {
-        const op = ex.body[0]
-        const Ts = ex.body.slice(1).map(x => asAnno(asType, bl.type(x)))
+      if (ex instanceof Wasm) {
+        if (ex.callee instanceof WImport) continue
+        const op = ex.callee
+        const Ts = ex.body.map(x => asAnno(asType, bl.type(x)))
         if (Ts.every(t => t !== unreachable) && Ts.every(t => isValue(t)) && wasmPartials.has(op.name)) {
           const T = some(wasmPartials.get(op.name))(...Ts)
           bl.ir.setType(v, T)
         }
-      } else if (ex.head === 'call' && ex.body[0] instanceof WImport) {
       } else if (['call', 'invoke'].includes(ex.head)) {
         const T = inferexpr(inf, fr.sig, bl, ex)
         if (T === undefined) return

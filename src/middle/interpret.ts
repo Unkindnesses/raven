@@ -1,6 +1,6 @@
 import * as types from '../frontend/types'
 import { Tag, Type } from '../frontend/types'
-import { Method, Definitions, IRValue, WIntrinsic, MIR, Global, SetGlobal, Invoke } from '../frontend/modules'
+import { Method, Definitions, IRValue, WIntrinsic, WImport, MIR, Global, SetGlobal, Invoke, Wasm } from '../frontend/modules'
 import { IR, unreachable, Branch } from '../utils/ir'
 import { CycleCache } from '../utils/cache'
 import { partial_match } from './patterns'
@@ -50,19 +50,22 @@ function interpretIR(int: Interpreter, ir: MIR, ...args: Type[]): Type | undefin
         const result = int.get(st.expr.method, xs.map(x => types.asType(x)))
         if (result === undefined) return
         env.set(v, result)
-      } else if (st.expr.head === 'call') {
-        const op = xs[0]
+      } else if (st.expr instanceof Wasm) {
+        const op = st.expr.callee
         if (op instanceof WIntrinsic) {
           if (!wasmPartials.has(op.name)) return
-          const args = xs.slice(1).map(x => types.asType(x))
+          const args = xs.map(x => types.asType(x))
           const allValues = args.every(types.isValue)
           env.set(v, allValues ? wasmPartials.get(op.name)!(...args) : types.asType(st.type))
-        } else {
-          if (!(op instanceof Tag)) throw new Error(`Expected function or method, got ${op}`)
-          const result = int.get(op, xs.slice(1).map(x => types.asType(x)))
-          if (result === undefined) return
-          env.set(v, result)
-        }
+        } else if (op instanceof WImport) {
+          return
+        } else throw new Error(`Expected intrinsic or import, got ${op}`)
+      } else if (st.expr.head === 'call') {
+        const op = xs[0]
+        if (!(op instanceof Tag)) throw new Error(`Expected function or method, got ${op}`)
+        const result = int.get(op, xs.slice(1).map(x => types.asType(x)))
+        if (result === undefined) return
+        env.set(v, result)
       } else if (st.expr.head === 'pack') {
         env.set(v, types.pack(...xs.map(x => types.asType(x))))
       } else if (st.expr instanceof Branch) {
