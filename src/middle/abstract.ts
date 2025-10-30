@@ -263,7 +263,7 @@ function update(inf: Inference, k: string): void {
           break
         } else {
           const condT = br.isconditional() ? asType(bl.type(br.when)) : Type(true)
-          if (!isEqual(tagOf(condT), tag('common.Bool'))) throw new Error('branch condition must be Bool')
+          if (!tag('common.Bool').isEqual(tagOf(condT))) throw new Error('branch condition must be Bool')
           if (isEqual(condT, Type(false))) continue
           let [p, rr] = nextpathTo(fr.ir, path, br.target)
           rr ||= pin(fr.ir, path, p.parts.length)

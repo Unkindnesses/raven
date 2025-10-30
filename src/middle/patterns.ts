@@ -207,8 +207,8 @@ function trivial_isa(int: Interpreter, val: types.Type, T: types.Type): boolean 
   const r = int.get(types.tag('common.matchTrait'), [types.list(T, val)])
   if (r === undefined) return undefined
   const tag = types.tagOf(types.part(r, 1))
-  if (isEqual(tag, types.tag('common.Some'))) return true
-  if (isEqual(tag, types.tag('common.Nil'))) return false
+  if (types.tag('common.Some').isEqual(tag)) return true
+  if (types.tag('common.Nil').isEqual(tag)) return false
   return undefined
 }
 
@@ -316,7 +316,7 @@ function dispatcher(inf: Inference, func: types.Tag, Ts: types.Type): [MIR, ir.A
       return [code, ret]
     }
   }
-  if (isEqual(func, types.tag('common.abort')) && types.issubset(Ts, types.list(types.String())))
+  if (types.tag('common.abort').isEqual(func) && types.issubset(Ts, types.list(types.String())))
     throw new Error("Compiler fault: couldn't guarantee abort method matches")
   if (options().jspanic)
     call(types.tag('common.abort'), string(code, `No matching method: ${func}: ${types.repr(Ts)}`))

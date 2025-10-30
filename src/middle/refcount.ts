@@ -43,7 +43,7 @@ import { Accessor } from '../utils/fixpoint'
 export { isrefobj, isreftype, CountMode, retain_method, release_method, refcounts }
 
 function isrefobj(x: Type): boolean {
-  return x.kind === 'pack' && isEqual(tagOf(x), tag('common.Ref'))
+  return x.kind === 'pack' && tag('common.Ref').isEqual(tagOf(x))
 }
 
 function isreftype(x: Type): boolean {
@@ -83,7 +83,7 @@ function release(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>): void {
 function countptr(code: ir.Fragment<MIR>, ptr: ir.Val<MIR>, mode: CountMode): void {
   const f = mode === 'retain' ? tag('common.retain!') : tag('common.release!')
   const t = asType(code.type(ptr))
-  if (!isEqual(tagOf(t), tag('common.Ptr'))) throw new Error('countptr: expected Ptr')
+  if (!tag('common.Ptr').isEqual(tagOf(t))) throw new Error('countptr: expected Ptr')
   call(code, f, [ptr], types.nil)
 }
 
@@ -255,7 +255,7 @@ function aliases(code: MIR): Map<number, AliasItem[]> {
 }
 
 function ismethod(m: unknown, name: types.Tag): boolean {
-  return m instanceof Method && isEqual(m.name, name)
+  return m instanceof Method && name.path === m.name.path
 }
 
 // ...and take them away again

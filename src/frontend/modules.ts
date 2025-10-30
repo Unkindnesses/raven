@@ -177,7 +177,7 @@ class Methods implements cache.Caching {
   }
 
   import(mod: Tag) {
-    if (this.imports.get().some(m => isEqual(m, mod))) return
+    if (this.imports.get().some(m => m.isEqual(mod))) return
     this.imports.set([...this.imports.get(), mod])
     for (const k of this.methods.keys())
       this.methods.set(k, [...this.methods.get(k)!, mod])

@@ -181,7 +181,7 @@ function partir_union(x: Type & { kind: 'union' }, i: Type): MIR {
 // TODO: should make sure this comes out as a switch / branch table.
 function partir(x: Type, i: Type): MIR {
   if (x.kind === 'union') return partir_union(x, i)
-  if (!isEqual(types.tagOf(i), types.tag('common.Int'))) throw new Error('partir: expected Int index')
+  if (!types.tag('common.Int').isEqual(types.tagOf(i))) throw new Error('partir: expected Int index')
   const T = partial_part(x, i)
   const code = MIR(Def('common.core.part'))
   const vx = code.argument(x)

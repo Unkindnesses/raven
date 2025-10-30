@@ -73,7 +73,7 @@ for (const [op, f] of bitcmpFuncs) {
 // TODO: bit ops should be handled by the backend.
 
 function isInt(x: Type, size?: number): x is { kind: 'pack'; parts: [Type, Type & { kind: 'bits' }] } {
-  return isEqual(tagOf(x), tag('common.Int')) &&
+  return tag('common.Int').isEqual(tagOf(x)) &&
     x.kind === 'pack' && x.parts[1].kind === 'bits' && (size === undefined || x.parts[1].size === size)
 }
 
@@ -129,7 +129,7 @@ function partial_widen(x: Type): Type {
   if (types.isAtom(x)) return types.abstract(x)
   if (x.kind === 'pack') {
     const tg = types.tagOf(x)
-    if (isEqual(tg, tag('common.Int')) || isEqual(tg, tag('common.Bool')))
+    if (tag('common.Int').isEqual(tg) || tag('common.Bool').isEqual(tg))
       return types.pack(tg, types.abstract(types.part(x, 1)))
   }
   throw new Error('unimplemented')
@@ -215,9 +215,9 @@ function rvtype(x: Type): Type {
   if (!types.isValue(x)) throw new Error('Expected value')
   if (x.kind === 'tag') throw new Error('unimplemented')
   if (types.isAtom(x)) return types.abstract(x)
-  if (isEqual(tagOf(x), tag('common.List')))
+  if (tag('common.List').isEqual(tagOf(x)))
     return types.pack(tagOf(x), ...types.parts(x).map(rvtype))
-  if (isEqual(tagOf(x), tag('common.Pack')))
+  if (tag('common.Pack').isEqual(tagOf(x)))
     return types.pack(...types.parts(x).map(rvtype))
   if (isEqual(tagOf(x), tag('common.Literal')))
     return types.part(x, 1)
@@ -434,7 +434,7 @@ inlinePrimitive.set(widen_method.id, (code, st) => {
   const x = st.expr.body[0]
   const T = asType(code.type(x))
   if (types.isAtom(T) && types.isValue(T)) return constValue(T) ?? T
-  if (isEqual(tagOf(T), tag('common.Int')) || isEqual(tagOf(T), tag('common.Bool')))
+  if (tag('common.Int').isEqual(tagOf(T)) || tag('common.Bool').isEqual(tagOf(T)))
     return constValue(types.part(T, 1)) ?? types.part(T, 1)
   return x
 })

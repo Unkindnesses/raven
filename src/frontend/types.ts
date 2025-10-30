@@ -25,6 +25,9 @@ class Tag {
   }
   get [hash](): string { return this.path }
   toString(): string { return 'tag\"' + this.path + '\"' }
+  isEqual(other: unknown): boolean {
+    return other instanceof Tag && this.path === other.path
+  }
 }
 
 function tag(s: string) { return new Tag(s) }
@@ -104,7 +107,7 @@ function _repr(x: Type): string {
         if (bits.size === 64) return value.toString()
         return `int ${bits.size} ${value}`
       }
-      if (isEqual(tagOf(x), tag('common.List')))
+      if (tag('common.List').isEqual(tagOf(x)))
         return `[${parts(x).map(repr).join(', ')}]`
       return `pack(${x.parts.map(repr).join(', ')})`
     }
@@ -192,9 +195,9 @@ function pack(...xs: TypeLike[]): Type {
   const parts = xs.map(Type)
   if (parts.length === 2) {
     const [t, data] = parts
-    if (isEqual(t, tag('common.core.Float32')) && data.kind === 'bits' && data.size === 32)
+    if (tag('common.core.Float32').isEqual(t) && data.kind === 'bits' && data.size === 32)
       return bitsToFloat(data)
-    if (isEqual(t, tag('common.core.Float64')) && data.kind === 'bits' && data.size === 64)
+    if (tag('common.core.Float64').isEqual(t) && data.kind === 'bits' && data.size === 64)
       return bitsToFloat(data)
   }
   return { kind: 'pack', parts }
@@ -430,7 +433,7 @@ function _issubset(self: Accessor<[Type, Type], boolean>, x: Type, y: Type): boo
       x.parts.slice(1).every(t => iss(t, y.parts))
   if (x.kind === 'vpack' && y.kind === 'vpack')
     return iss(tagOf(x), tagOf(y)) && iss(x.parts, y.parts)
-  if (isEqual(x, Any) && isEqual(y, Any))
+  if (x.kind === 'any' && y.kind === 'any')
     return true
   return false
 }
@@ -445,7 +448,7 @@ function subsetter() {
 }
 
 function issubset(x: Type, y: Type): boolean {
-  return subsetter()(x as Type, y as Type)
+  return subsetter()(x, y)
 }
 
 // Disjoint
@@ -470,7 +473,7 @@ function _isdisjoint(self: Accessor<[Type, Type], boolean>, x: Type, y: Type): b
     return isd(y, x)
   if (x.kind === 'vpack' && y.kind === 'vpack')
     return isd(tagOf(x), tagOf(y))
-  if (isEqual(x, Any) && isEqual(y, Any))
+  if (x.kind === 'any' && y.kind === 'any')
     return false
   return true
 }
@@ -531,7 +534,7 @@ function distincter() {
 }
 
 function isdistinct(x: Type, y: Type): boolean {
-  return distincter()(x as Type, y as Type)
+  return distincter()(x, y)
 }
 
 // Union
@@ -542,7 +545,7 @@ function finite(T: Type, depth = 1): Type {
   } else if (T.kind === 'recursive') {
     let term = _unroll(T, null)
     if (isdistinct(T, term)) term = _unroll(T, term)
-    for (let i = 0; i < depth; i++) term = _unroll(T, term as Type)
+    for (let i = 0; i < depth; i++) term = _unroll(T, term)
     return term
   } else {
     return T
@@ -567,7 +570,7 @@ function splitby<T>(f: (x: T) => boolean, xs: T[]): [T[], T[]] {
 
 function _union(x: Type, y: Type): Type {
   [x, y] = [x, y].map(x => finite(x))
-  if (isEqual(x, Any) && isEqual(y, Any)) return x
+  if (x.kind === 'any' && y.kind === 'any') return x
   if (x.kind === 'union' || y.kind === 'union') {
     let ys: Type[] = []
     for (let term of [...disjuncts(y), ...disjuncts(x)]) {
@@ -593,7 +596,7 @@ function _union(x: Type, y: Type): Type {
   }
   if (x.kind === 'pack' && y.kind === 'pack' && nparts(x) === nparts(y)) {
     let parts = x.parts.map((part, i) => _union(part, y.parts[i]))
-    return pack(...parts as Type[])
+    return pack(...parts)
   }
   throw new Error(`unreachable`)
 }
@@ -781,12 +784,12 @@ function recur(T: Type): Type {
 function simplify(T: Type): Type {
   if (T.kind === 'union') {
     const xs = T.options.map(simplify)
-    if (xs.some(x => isEqual(x, Any))) return Any
+    if (xs.some(x => x.kind === 'any')) return Any
     return onion(...xs)
   }
   if (T.kind === 'recursive') {
     const r = simplify(T.inner)
-    if (isEqual(r, Any)) return Any
+    if (r.kind === 'any') return Any
     return occursin(recurrence, r) ? recursive(r) : r
   }
   const [children, f] = reconstruct(T)
