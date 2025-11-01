@@ -1,13 +1,63 @@
 import isEqual from 'lodash/isEqual'
-import { Const as IRConst, IRValue, type MIR, asConst } from '../frontend/modules'
 import * as wasm from './wasm'
-import { Func } from './wasm'
-import { Pipe, liveness, Branch, Expr, expr, Source, CFG, Component, components, entry, showVar, Val } from '../utils/ir'
+import { Func, NumType, ValueType } from './wasm'
+import { Pipe, liveness, Branch, Expr, expr, Source, CFG, Component, components, entry, Val } from '../utils/ir'
 import { asArray, HashSet, HashMap, some, asNumber } from '../utils/map'
-import { LineInfo } from '../dwarf'
+import { LineInfo, Def } from '../dwarf'
 import { instructionToString } from './wat'
+import * as ir from '../utils/ir'
 
-export { Locals, stackshuffle, locals, shiftbps, irfunc, Instr, setdiff, union, intersect }
+export { Locals, stackshuffle, locals, shiftbps, irfunc, Instr, setdiff, union, intersect, Value, asValue, isValue, WIR }
+
+class Value {
+  constructor(
+    readonly type: NumType,
+    readonly value: number | bigint) { }
+  static i32(v: number | bigint) { return new Value(NumType.i32, v) }
+  static i64(v: number | bigint) { return new Value(NumType.i64, v) }
+  static f32(v: number | bigint) { return new Value(NumType.f32, v) }
+  static f64(v: number | bigint) { return new Value(NumType.f64, v) }
+  static from(t: NumType, v: number | bigint): Value {
+    if (t === NumType.i32) return Value.i32(v)
+    if (t === NumType.i64) return Value.i64(v)
+    if (t === NumType.f32) return Value.f32(v)
+    if (t === NumType.f64) return Value.f64(v)
+    let _: never = t
+    throw new Error(`unreachable`)
+  }
+  toString() { return `${this.type}(${this.value})` }
+}
+
+function asValue(x: unknown): Value {
+  if (x instanceof Value) return x
+  throw new Error(`Expected Value, got ${typeof x}`)
+}
+
+function isValue(x: unknown): x is Value {
+  return x instanceof Value
+}
+
+type WIR = ir.IR<Value, ValueType[]>
+
+function showIRValue(x: Value | ValueType[]): string {
+  if (Array.isArray(x)) return `[${x.join(', ')}]`
+  return x.toString()
+}
+
+function irTypeOf(x: Value): ValueType[] {
+  if (x instanceof Value) {
+    if (x.type === 'i32') return [wasm.i32]
+    if (x.type === 'i64') return [wasm.i64]
+    if (x.type === 'f32') return [wasm.f32]
+    if (x.type === 'f64') return [wasm.f64]
+    throw new Error('unreachable')
+  }
+  throw new Error('no type values in WIR')
+}
+
+function WIR(meta: Def): WIR {
+  return new ir.IR<Value, ValueType[]>(meta, irTypeOf, showIRValue)
+}
 
 type Const = wasm.Instruction & { kind: 'const' }
 
@@ -24,19 +74,15 @@ class Instr<T> extends Expr<T> {
 }
 
 interface Locals<T> {
-  stack: (T | Const)[]
+  stack: (T | Value)[]
   store: HashSet<T>
 }
 
-function Locals<T>(stack: (T | Const)[], store = new HashSet<T>()): Locals<T> {
+function Locals<T>(stack: (T | Value)[], store = new HashSet<T>()): Locals<T> {
   return { stack, store }
 }
 
-function isConst(x: any): x is Const {
-  return typeof x === 'object' && x !== null && x.kind === 'const'
-}
-
-function toWasmConst(c: IRConst): Const {
+function toConst(c: Value): Const {
   switch (c.type) {
     case 'i32': return wasm.Const(wasm.i32, c.value)
     case 'i64': return wasm.Const(wasm.i64, c.value)
@@ -88,19 +134,19 @@ type StackOp<T> =
   | { kind: 'tee'; x: T }
   | { kind: 'drop' }
 
-function stackshuffle<T>(locals: Locals<T>, target: Locals<T>, options: { store?: boolean } = {}): [(StackOp<T> | Const)[], Locals<T>] {
+function stackshuffle<T>(locals: Locals<T>, target: Locals<T>, options: { store?: boolean } = {}): [(StackOp<T> | Value)[], Locals<T>] {
   const { store = false } = options
-  const implicit = setdiff(target.stack, locals.stack).filter((x): x is T => !isConst(x))
+  const implicit = setdiff(target.stack, locals.stack).filter((x): x is T => !isValue(x))
   const state: Locals<T> = { stack: [...locals.stack], store: union(locals.store, implicit) }
   const needed = union(target.store, target.stack)
-  const path: (StackOp<T> | Const)[] = []
-  const load = (x: T | Const) => {
-    if (isConst(x)) {
+  const path: (StackOp<T> | Value)[] = []
+  const load = (x: T | Value) => {
+    if (isValue(x)) {
       path.push(x)
       state.stack.push(x)
     } else {
       const last = path[path.length - 1]
-      if (last && !isConst(last) && isEqual(last, { kind: 'set', x }))
+      if (last && !isValue(last) && isEqual(last, { kind: 'set', x }))
         path[path.length - 1] = { kind: 'tee', x }
       else
         path.push({ kind: 'get', x })
@@ -110,17 +156,17 @@ function stackshuffle<T>(locals: Locals<T>, target: Locals<T>, options: { store?
   while (true) {
     const [len, pos] = prefix(target.stack, state.stack)
     let live = state.store
-    if (!store) live = union(state.store, state.stack.slice(0, state.stack.length - len).filter((x): x is T => !isConst(x)))
+    if (!store) live = union(state.store, state.stack.slice(0, state.stack.length - len).filter((x): x is T => !isValue(x)))
     if (
       pos === state.stack.length &&
-      target.stack.slice(len).every(x => isConst(x) || state.store.has(x)) &&
+      target.stack.slice(len).every(x => isValue(x) || state.store.has(x)) &&
       Array.from(target.store.values()).every(x => live.has(x))
     ) {
       target.stack.slice(len).forEach(load)
       break
     }
     const v = state.stack.pop()!
-    if (isConst(v) || state.store.has(v) || !needed.has(v))
+    if (isValue(v) || state.store.has(v) || !needed.has(v))
       path.push({ kind: 'drop' })
     else {
       path.push({ kind: 'set', x: v })
@@ -130,13 +176,8 @@ function stackshuffle<T>(locals: Locals<T>, target: Locals<T>, options: { store?
   return [path, state]
 }
 
-function asValue(x: unknown): number | IRConst {
-  if (typeof x === 'number' || x instanceof IRConst) return x
-  throw new Error(`Expected number | IRConst, got ${typeof x}`)
-}
-
-function opExpr(op: StackOp<[number, number]> | Const): Expr<IRValue> {
-  if (isConst(op)) return new Instr(op, [])
+function opExpr(op: StackOp<[number, number]> | Value): Expr<Value> {
+  if (isValue(op)) return new Instr(toConst(op), [])
   switch (op.kind) {
     case 'drop': return new Instr(wasm.Drop(), [])
     case 'get':
@@ -146,14 +187,12 @@ function opExpr(op: StackOp<[number, number]> | Const): Expr<IRValue> {
   }
 }
 
-function stack(ir: MIR): [MIR, wasm.ValueType[]] {
-  type Part = Const | [number, number]
+function stack(ir: WIR): [WIR, wasm.ValueType[]] {
+  type Part = Value | [number, number]
   let ret: wasm.ValueType[] = []
   const env = new Map<number, Part[]>()
-  const parts = (x: Val<MIR>): Part[] =>
-    typeof x === 'number' ? some(env.get(x)) :
-      x instanceof IRConst ? [toWasmConst(x)] :
-        []
+  const parts = (x: Val<WIR>): Part[] =>
+    typeof x === 'number' ? some(env.get(x)) : [x]
   const partsSet = (x: number, Ts: wasm.ValueType[]) => env.set(x, Array.from(Ts, (_, i) => [x, i + 1]))
   const lv = liveness(ir)
   const live = (v: number) => {
@@ -172,14 +211,14 @@ function stack(ir: MIR): [MIR, wasm.ValueType[]] {
       const ex = st.expr
       const src = st.src
       if (ex.head === 'tuple') {
-        env.set(v, ex.body.map(asValue).flatMap(parts))
+        env.set(v, ex.body.flatMap(parts))
         pr.delete(v)
       } else if (ex.head === 'ref') {
-        env.set(v, [some(parts(asValue(ex.body[0]))[Number(asConst(ex.body[1]).value) - 1])])
+        env.set(v, [some(parts(ex.body[0])[Number(asValue(ex.body[1]).value) - 1])])
         pr.delete(v)
       } else if (ex instanceof Instr) {
         partsSet(v, asArray(st.type))
-        const args = ex.body.map(asValue).flatMap(parts)
+        const args = ex.body.flatMap(parts)
         const [ops, state] = stackshuffle(Locals(stack), Locals(args, intersect(live(v), stack)))
         ops.forEach(op => pr.insert(v, pr.stmt(opExpr(op), { src })))
         pr.set(v, new Instr(ex.instr, []))
@@ -188,7 +227,7 @@ function stack(ir: MIR): [MIR, wasm.ValueType[]] {
         if (ex.isreturn()) {
           const result = ex.args[0]
           const parttype = (p: Part): wasm.ValueType => {
-            if (isConst(p)) return p.type
+            if (isValue(p)) return p.type
             const [x, i] = p
             return asArray(ir.type(x))[i - 1]
           }
@@ -200,7 +239,7 @@ function stack(ir: MIR): [MIR, wasm.ValueType[]] {
         } else if (ex.isunreachable()) {
           pr.set(v, new Instr(wasm.unreachable, []))
         } else {
-          const bargs = ex.args.map(asValue).flatMap(parts)
+          const bargs = ex.args.flatMap(parts)
           // TODO in this case the args could be in any order
           let [ops, state] = stackshuffle(Locals(stack), Locals(bargs, intersect(live(v), stack)))
           ops.forEach(op => pr.insert(v, pr.stmt(opExpr(op), { src })))
@@ -227,14 +266,14 @@ function stack(ir: MIR): [MIR, wasm.ValueType[]] {
   for (const [v, st] of out) {
     if (!(['get', 'set', 'tee'].includes(st.expr.head))) continue
     const [x, i] = st.expr.body[0] as any
-    out.set(v, expr(st.expr.head, pr.substitute(x), IRConst.i64(i)))
+    out.set(v, expr(st.expr.head, pr.substitute(x), Value.i64(i)))
   }
   return [out, ret]
 }
 
 // TODO new liveness / interference analysis so we can reuse slots.
 // Will also have to filter redundant moves (due to block args) in that case.
-function locals(ir: MIR): [MIR, wasm.ValueType[]] {
+function locals(ir: WIR): [WIR, wasm.ValueType[]] {
   const locals: wasm.ValueType[] = []
   const slots = new HashMap<[number, number], number>()
   const b1 = ir.block(1)
@@ -253,7 +292,7 @@ function locals(ir: MIR): [MIR, wasm.ValueType[]] {
   for (const [v, st] of ir) {
     const ex = st.expr
     if (!(['get', 'set', 'tee'].includes(ex.head))) continue
-    const [x, i] = [asNumber(ex.body[0]), Number(asConst(ex.body[1]).value)]
+    const [x, i] = [asNumber(ex.body[0]), Number(asValue(ex.body[1]).value)]
     const s = slot(x, i)
     ir.set(v, new Instr(ex.head === 'get' ? wasm.GetLocal(s) : wasm.SetLocal(s, ex.head === 'tee'), []))
   }
@@ -265,7 +304,7 @@ function locals(ir: MIR): [MIR, wasm.ValueType[]] {
 // is_stmt, whichever comes first. To avoid stepping to each call twice, we
 // find contiguous sequences of instrs with the same source location, and move
 // any breakpoint to the top of the sequence.
-function shiftbps(ir: MIR): MIR {
+function shiftbps(ir: WIR): WIR {
   for (const bl of ir.blocks()) {
     let ip: number | undefined = undefined
     let src: Source | undefined = undefined
@@ -286,7 +325,7 @@ function shiftbps(ir: MIR): MIR {
 class Relooping {
   readonly scopes: (wasm.Block | wasm.Loop)[]
   readonly targets: number[]
-  constructor(readonly ir: MIR, readonly cfg: CFG) {
+  constructor(readonly ir: WIR, readonly cfg: CFG) {
     this.scopes = [wasm.Block()]
     this.targets = []
   }
@@ -331,7 +370,7 @@ class Relooping {
   }
 }
 
-function reloop(ir: MIR, cfg: CFG): wasm.Block {
+function reloop(ir: WIR, cfg: CFG): wasm.Block {
   const rl = new Relooping(ir, cfg)
   rl.reloop(components(cfg))
   if (rl.scopes.length !== 1) throw new Error('Scope imbalance after reloop')
@@ -339,7 +378,7 @@ function reloop(ir: MIR, cfg: CFG): wasm.Block {
   return rl.scopes[0] as wasm.Block
 }
 
-function irfunc(name: string, ir: MIR): Func {
+function irfunc(name: string, ir: WIR): Func {
   const cfg = new CFG(ir)
   const params = ir.block(1).argtypes.flatMap(asArray)
   const [ir2, ret] = stack(ir)

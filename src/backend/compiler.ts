@@ -57,11 +57,11 @@ class Pipeline implements Caching {
     const gs = assigned_globals(ir)
     for (const [b, T] of gs) this.sources.set(b, T)
     if (opcount(ir) <= 0) return
-    ir = this.wasm.lower(ir)
+    let wir = this.wasm.lower(ir)
     if (gs.size > 0) reset(this)
-    ir = wasm.lowerwasm_globals(ir, this.wasm.globals)
+    wir = wasm.lowerwasm_globals(wir, this.wasm.globals)
     const name = this.wasm.names.get([m])
-    const fn = irfunc(name, ir)
+    const fn = irfunc(name, wir)
     em.emit(this.wasm, fn)
   }
 

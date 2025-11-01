@@ -1,19 +1,20 @@
 import * as types from '../frontend/types'
-import { Type, Bits, asBits, bits, tag } from '../frontend/types'
+import { Type, Bits, asBits, bits } from '../frontend/types'
 import * as wasm from '../wasm/wasm'
 import { binary as wasmBinary } from '../wasm/binary'
 import { writeFile } from 'fs/promises'
 import { options } from '../utils/options'
-import { irfunc, Instr, setdiff } from '../wasm/ir'
-import { unreachable, Anno, Pipe, expr, Val, asAnno, Branch } from '../utils/ir'
+import { irfunc, Instr, setdiff, Value, WIR, asValue } from '../wasm/ir'
+import { unreachable, Anno, Pipe, expr, Val, asAnno, Branch, Expr } from '../utils/ir'
 import isEqual from 'lodash/isEqual'
 import { layout } from '../middle/expand'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe } from '../utils/cache'
-import { Binding, Definitions, MIR, WImport, Method, Const, StringRef, Global, SetGlobal, Wasm as WasmCall, callargs } from '../frontend/modules'
+import { Binding, Definitions, MIR, WImport, Method, StringRef, Global, SetGlobal, Wasm as WasmCall, callargs, IRType } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { Redirect, type Sig } from '../middle/abstract'
 import { Accessor } from '../utils/fixpoint'
 import { xtuple } from '../frontend/lower'
+import { asArray, some } from '../utils/map'
 
 export { wasmPartials, Wasm, BatchEmitter, StreamEmitter, Emitter, emitwasm, emitwasmBinary, lowerwasm, lowerwasm_globals }
 
@@ -92,70 +93,86 @@ function instr<T>(instr: wasm.Instruction, ...args: (T | number)[]): Instr<T> {
   return new Instr(instr, args)
 }
 
-function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlobals, tables: Tables): MIR {
-  const pr = new Pipe(ir)
-  for (let [v, st] of pr) {
-    if (st.expr instanceof StringRef) {
-      const ref = options().gc ? wasm.externref : wasm.i32
-      const name = names.get([new WImport('support', 'string'), [wasm.i32], [ref]])
-      pr.set(v, instr(wasm.Call(name), Const.i32(tables.string(st.expr.value))))
-      pr.setType(v, [ref])
-    } else if (st.expr.head === 'func') {
-      const [f, I, O] = st.expr.body
-      const name = names.get([types.asTag(f), types.asType(I)])
-      pr.set(v, xtuple(Const.i32(tables.func(name))))
-    } else if (['tuple', 'ref'].includes(st.expr.head)) {
-    } else if (st.expr.head === 'cast') { // TODO just use `tuple` instead
-      const arg = st.expr.body[0]
-      if (!isEqual(layout(types.asType(st.type)), layout(types.asType(ir.type(arg)))))
-        throw new Error('cast: layout mismatch')
-      pr.replace(v, arg)
-    } else if (st.expr instanceof Global) {
-      const ids = globals.get(st.expr.binding)
-      const parts = layout(types.asType(st.type))
-      const ps: Val<MIR>[] = []
-      for (let i = 0; i < ids.length; i++)
-        ps.push(pr.insert(v, pr.stmt(instr(wasm.GetGlobal(ids[i])), { type: [parts[i]] })))
-      if (ps.length === 1) pr.replace(v, ps[0])
-      else pr.set(v, xtuple(...ps))
-    } else if (st.expr instanceof WasmCall) {
-      const [callee, args] = [st.expr.callee, st.expr.body]
-      if (callee instanceof WImport) {
-        const I = args.flatMap(a => layout(types.abstract(types.asType(ir.type(a))))) // TODO shouldn't get consts here
-        const O = st.type === unreachable ? [] : layout(types.asType(st.type))
-        const name = names.get([callee, I, O])
-        st = { ...st, expr: instr(wasm.Call(name), ...args) }
-      } else {
-        st = { ...st, expr: instr(wasm.Op(callee.name), ...args) }
-      }
-      // TODO deprecate array types
-      pr.setStmt(v, { ...st, type: st.type === unreachable ? [] : Array.isArray(st.type) ? st.type : layout(types.asType(st.type)) })
-      if (st.type === unreachable) pr.push(pr.stmt(instr(wasm.unreachable), { type: [] }))
-    } else if (['call', 'invoke'].includes(st.expr.head)) {
-      let [F, args] = callargs(pr, st.expr)
-      const Ts = args.map(a => ir.type(a))
-      if (Ts.some(t => t === unreachable)) throw new Error('unreachable arg in call')
-      const sig: Sig = [F, ...Ts.map(t => types.asType(t))]
-      args = args.filter(x => !types.isValue(types.asType(ir.type(x))))
-      const expr = instr(wasm.Call(names.get(sig)), ...args)
-      pr.setStmt(v, { ...st, expr, type: wparts(asAnno(types.asType, st.type)) })
-    } else if (st.expr.head === 'call_indirect') {
-      const [f, args] = st.expr.body
-      const I = layout(types.asType(ir.type(args)))
-      const O = layout(types.asType(st.type))
-      pr.setStmt(v, { ...st, expr: instr(wasm.CallIndirect(wasm.Signature(I, O), 0), args, f), type: O })
-    } else if (st.expr instanceof Branch) {
-    } else if (st.expr.head === 'setglobal') {
-    } else throw new Error(`unrecognised ${st.expr.head} expression`)
+function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlobals, tables: Tables): WIR {
+  const out = WIR(ir.meta)
+  const env = new Map<number, Val<WIR>>()
+  // TODO deprecate array types
+  const type = (t: Anno<IRType>): Anno<wasm.ValueType[]> => t === unreachable ? [] : Array.isArray(t) ? t : layout(t)
+  const rename = (x: Val<MIR>) => typeof x === 'number' ? some(env.get(x)) : asValue(x)
+  const coerce = (x: Val<MIR>) =>
+    typeof x === 'number' || x instanceof Value ? rename(x) :
+      out.push(out.stmt(xtuple(), { type: [] })) // TODO just filter these out – or empty Const?
+  for (const block of ir.blocks()) {
+    if (block.id !== 0) out.newBlock()
+    const ob = out.block()
+    for (let i = 0; i < block.args.length; i++) {
+      const arg = block.args[i]
+      const type = layout(types.asType(block.argtypes[i]))
+      env.set(arg, ob.argument(type))
+    }
+    for (const [v, st] of block) {
+      if (st.expr instanceof StringRef) {
+        const ref = options().gc ? wasm.externref : wasm.i32
+        const name = names.get([new WImport('support', 'string'), [wasm.i32], [ref]])
+        env.set(v, out.push({ ...st, expr: instr(wasm.Call(name), Value.i32(tables.string(st.expr.value))), type: [ref] }))
+      } else if (st.expr.head === 'func') {
+        const [f, I, O] = st.expr.body
+        const name = names.get([types.asTag(f), types.asType(I)])
+        env.set(v, out.push({ ...st, expr: xtuple(Value.i32(tables.func(name))), type: type(st.type) }))
+      } else if (['tuple', 'ref'].includes(st.expr.head)) {
+        env.set(v, out.push({ ...st, expr: st.expr.map(rename) as Expr<Value>, type: type(st.type) }))
+      } else if (st.expr.head === 'cast') { // TODO just use `tuple` instead
+        const arg = st.expr.body[0]
+        if (!isEqual(layout(types.asType(st.type)), layout(types.asType(ir.type(arg)))))
+          throw new Error('cast: layout mismatch')
+        env.set(v, rename(arg))
+      } else if (st.expr instanceof Global) {
+        const ids = globals.get(st.expr.binding)
+        const parts = layout(types.asType(st.type))
+        const ps: Val<WIR>[] = []
+        for (let i = 0; i < ids.length; i++)
+          ps.push(out.push(out.stmt(instr(wasm.GetGlobal(ids[i])), { type: [parts[i]] })))
+        if (ps.length === 1) env.set(v, ps[0])
+        else env.set(v, out.push({ ...st, expr: xtuple(...ps), type: parts }))
+      } else if (st.expr instanceof WasmCall) {
+        const [callee, args] = [st.expr.callee, st.expr.body]
+        let expr: Expr<Value>
+        if (callee instanceof WImport) {
+          const I = args.flatMap(a => layout(types.abstract(types.asType(ir.type(a))))) // TODO shouldn't get consts here
+          const O = st.type === unreachable ? [] : layout(types.asType(st.type))
+          const name = names.get([callee, I, O])
+          expr = instr(wasm.Call(name), ...args.map(rename))
+        } else {
+          expr = instr(wasm.Op(callee.name), ...args.map(rename))
+        }
+        env.set(v, out.push({ ...st, expr: expr, type: type(st.type) }))
+        if (st.type === unreachable) out.push(out.stmt(instr(wasm.unreachable), { type: [] })) // TODO unnecessary?
+      } else if (['call', 'invoke'].includes(st.expr.head)) {
+        let [F, args] = callargs(ir, st.expr)
+        const Ts = args.map(a => ir.type(a))
+        if (Ts.some(t => t === unreachable)) throw new Error('unreachable arg in call')
+        const sig: Sig = [F, ...Ts.map(t => types.asType(t))]
+        args = args.filter(x => !types.isValue(types.asType(ir.type(x))))
+        const expr = instr(wasm.Call(names.get(sig)), ...args.map(rename))
+        env.set(v, out.push({ ...st, expr: expr, type: wparts(asAnno(types.asType, st.type)) }))
+      } else if (st.expr.head === 'call_indirect') {
+        const [f, args] = st.expr.body
+        const I = layout(types.asType(ir.type(args)))
+        const O = layout(types.asType(st.type))
+        env.set(v, out.push({ ...st, expr: instr(wasm.CallIndirect(wasm.Signature(I, O), 0), rename(args), rename(f)), type: O }))
+      } else if (st.expr instanceof Branch) {
+        const expr = st.expr.map(coerce)
+        env.set(v, out.push({ ...st, expr, type: unreachable }))
+      } else if (st.expr.head === 'setglobal') {
+        const expr = st.expr.map(coerce) as Expr<Value>
+        env.set(v, out.push({ ...st, expr, type: type(st.type) }))
+      } else throw new Error(`unrecognised ${st.expr.head} expression`)
+    }
   }
-  const out = pr.finish()
-  for (const b of out.blocks())
-    for (let i = 0; i < b.bb.args.length; i++)
-      b.bb.args[i][1] = layout(types.asType(b.bb.args[i][1]))
   return out
 }
 
-function lowerwasm_globals(ir: MIR, globals: WGlobals): MIR {
+function lowerwasm_globals(ir: WIR, globals: WGlobals): WIR {
   const pr = new Pipe(ir)
   for (const [v, st] of pr) {
     if (!(st.expr instanceof SetGlobal)) continue
@@ -163,8 +180,8 @@ function lowerwasm_globals(ir: MIR, globals: WGlobals): MIR {
     const ids = globals.get(st.expr.binding)
     for (let i = 0; i < ids.length; i++) {
       let p = st.expr.value
-      if (wparts(asAnno(types.asType, st.type)).length > 1)
-        p = pr.push(pr.stmt(expr('ref', p, Const.i64(i + 1))))
+      if (asArray(st.type).length > 1)
+        p = pr.push(pr.stmt(expr('ref', p, Value.i64(i + 1))))
       pr.push(pr.stmt(instr(wasm.SetGlobal(ids[i]), p), { type: [] }))
     }
   }

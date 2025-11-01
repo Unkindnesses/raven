@@ -28,7 +28,7 @@
 import * as ir from '../utils/ir'
 import * as types from '../frontend/types'
 import { Type, tag, tagOf, asType } from '../frontend/types'
-import { MIR, Const, IRValue, Method, asConst, Invoke } from '../frontend/modules'
+import { MIR, Value, IRValue, Method, asValue, Invoke } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { Redirect, type Sig } from './abstract'
 import { Cache } from '../utils/cache'
@@ -116,8 +116,8 @@ function pack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode
 function vpack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode): void {
   if (!(code instanceof ir.IR)) throw new Error('nope')
   if (!isreftype(T)) return
-  let len = code.push(code.stmt(ir.expr('ref', x, Const.i64(1)), { type: types.int32() }))
-  const ptr = code.push(code.stmt(ir.expr('ref', x, Const.i64(2)), { type: types.Ptr() }))
+  let len = code.push(code.stmt(ir.expr('ref', x, Value.i64(1)), { type: types.int32() }))
+  const ptr = code.push(code.stmt(ir.expr('ref', x, Value.i64(2)), { type: types.Ptr() }))
   let pos: ir.Val<MIR> = ptr
   const elT = some(types.partial_eltype(T))
   if (mode === 'release' && isreftype(elT)) {
@@ -132,14 +132,14 @@ function vpack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mod
 
     len = header.argument(types.int32())
     pos = header.argument(types.Ptr())
-    const done = call(header, tag('common.=='), [len, Const.i32(0)], types.int32())
+    const done = call(header, tag('common.=='), [len, Value.i32(0)], types.int32())
     header.branch(after, [], { when: done })
     header.branch(body)
 
     const el = load(body, elT, pos, { count: false })
     release(body, elT, el)
-    const len2 = call(body, tag('common.-'), [len, Const.i32(1)], types.int32())
-    const pos2 = call(body, tag('common.+'), [pos, Const.i32(sizeof(elT))], types.Ptr())
+    const len2 = call(body, tag('common.-'), [len, Value.i32(1)], types.int32())
+    const pos2 = call(body, tag('common.+'), [pos, Value.i32(sizeof(elT))], types.Ptr())
     body.branch(header, [len2, pos2])
   }
   countptr(code, ptr, mode)
@@ -155,7 +155,7 @@ function union_count_inline(code: ir.Fragment<MIR>, T: Type & { kind: 'union' },
 
 function recursive_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode): void {
   if (!(code instanceof ir.IR)) throw new Error('nope')
-  const ptr = code.push(code.stmt(ir.expr('ref', x, Const.i64(1)), { type: types.Ptr() }))
+  const ptr = code.push(code.stmt(ir.expr('ref', x, Value.i64(1)), { type: types.Ptr() }))
   if (mode === 'release') {
     const before = code.block()
     const body = code.newBlock()
@@ -248,7 +248,7 @@ function aliases(code: MIR): Map<number, AliasItem[]> {
     if (st.expr.head === 'tuple')
       out.set(v, st.expr.body.flatMap(alias))
     else if (st.expr.head === 'ref' && typeof st.expr.body[0] === 'number') {
-      out.set(v, [alias(st.expr.body[0])[Number(asConst(st.expr.body[1]).value) - 1]])
+      out.set(v, [alias(st.expr.body[0])[Number(asValue(st.expr.body[1]).value) - 1]])
     }
   }
   return out

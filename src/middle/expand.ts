@@ -22,7 +22,7 @@ import * as types from '../frontend/types'
 import { Type, asType } from '../frontend/types'
 import { ValueType, sizeof as wsizeof } from '../wasm/wasm'
 import * as wasm from '../wasm/wasm'
-import { MIR, WImport, WIntrinsic, Method, Const, xstring, Global, Invoke, Wasm } from '../frontend/modules'
+import { MIR, WImport, WIntrinsic, Method, Value, xstring, Global, Invoke, Wasm } from '../frontend/modules'
 import { options } from '../utils/options'
 import { Def } from '../dwarf'
 import { Inferred, Redirect, Sig, sig as resolveSig } from './abstract'
@@ -39,8 +39,8 @@ import { Cache } from '../utils/cache'
 
 export { abort, call, layout, sizeof, store, load, box, unbox, union_downcast, union_cases, cast, copyir, partir, packir, set_pack, indexer, setir, Expanded }
 
-const i32 = Const.i32
-const i64 = Const.i64
+const i32 = Value.i32
+const i64 = Value.i64
 
 // Unions
 
@@ -510,7 +510,7 @@ function cast(pr: Fragment<MIR>, from: Anno<Type>, to: Anno<Type>, x: Val<MIR>):
       const regs = layout(to.options[j - 1]).length
       if (j === i && typeof y === 'number') parts.push(y)
       else for (let k = 1; k <= regs; k++)
-        parts.push(Const.from(wasm.asNumType(layout(to.options[j - 1])[k - 1]), 0))
+        parts.push(Value.from(wasm.asNumType(layout(to.options[j - 1])[k - 1]), 0))
     }
     return pr.push(pr.stmt(xtuple(...parts), { type: to }))
   }

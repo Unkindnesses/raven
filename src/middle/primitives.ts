@@ -3,7 +3,7 @@ import { Type, tagOf, tag, asType, bits } from '../frontend/types'
 import { unreachable, Anno, expr, asAnno, Val, Fragment } from '../utils/ir'
 import { HashSet, only, some } from '../utils/map'
 import isEqual from 'lodash/isEqual'
-import { Method, MIR, Module, WIntrinsic, Const, xstring } from '../frontend/modules'
+import { Method, MIR, Module, WIntrinsic, Value, xstring } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { xtuple, xcall } from '../frontend/lower'
 import { xwasm } from '../frontend/modules'
@@ -18,7 +18,7 @@ import { asNumType } from '../wasm/wasm'
 
 export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, copy_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue }
 
-const i64 = Const.i64
+const i64 = Value.i64
 
 const bitopFuncs = new Map<string, (x: bigint, y: bigint) => bigint>([
   ['shl', (x, y) => x << y],
@@ -421,13 +421,13 @@ outlinePrimitive.set(nparts_method.id, (x: Type): MIR => {
   return code
 })
 
-function constValue(T: Type): Const | undefined {
+function constValue(T: Type): Value | undefined {
   if (T.kind === 'bits' && T.value !== undefined)
-    return Const.from(asNumType(only(layout(types.abstract(T)))), BigInt.asIntN(T.size, T.value))
+    return Value.from(asNumType(only(layout(types.abstract(T)))), BigInt.asIntN(T.size, T.value))
   if (T.kind === 'float32' && T.value !== undefined)
-    return Const.f32(T.value)
+    return Value.f32(T.value)
   if (T.kind === 'float64' && T.value !== undefined)
-    return Const.f64(T.value)
+    return Value.f64(T.value)
 }
 
 inlinePrimitive.set(widen_method.id, (code, st) => {

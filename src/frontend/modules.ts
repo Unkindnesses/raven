@@ -5,13 +5,13 @@ import * as types from "./types"
 import { NumType, ValueType } from "../wasm/wasm"
 import * as cache from "../utils/cache"
 import * as ir from "../utils/ir"
-import isEqual from 'lodash/isEqual'
 import { Pattern } from "./patterns"
 import { Def } from "../dwarf"
+import { Value, asValue } from "../wasm/ir"
 
 export {
-  Module, Method, Signature, Binding, asBinding, asConst, Modules,
-  Definitions, Const, MIR, IRValue, IRType, WIntrinsic, WImport, showIRValue,
+  Module, Method, Signature, Binding, asBinding, asValue, Modules,
+  Definitions, Value, MIR, IRValue, IRType, WIntrinsic, WImport, showIRValue,
   StringRef, xstring, Global, SetGlobal, xglobal, xset, Invoke, Wasm, xwasm, callargs
 }
 
@@ -33,34 +33,12 @@ function asBinding(x: unknown): Binding {
   throw new Error(`Expected Binding, got ${typeof x}`)
 }
 
-class Const {
-  constructor(
-    readonly type: 'i32' | 'i64' | 'f32' | 'f64',
-    readonly value: number | bigint) { }
-  static i32(v: number | bigint) { return new Const('i32', v) }
-  static i64(v: number | bigint) { return new Const('i64', v) }
-  static f32(v: number | bigint) { return new Const('f32', v) }
-  static f64(v: number | bigint) { return new Const('f64', v) }
-  static from(t: NumType, v: number | bigint): Const {
-    if (t === NumType.i32) return Const.i32(v)
-    if (t === NumType.i64) return Const.i64(v)
-    if (t === NumType.f32) return Const.f32(v)
-    if (t === NumType.f64) return Const.f64(v)
-    throw new Error(`Unsupported Wasm const type ${t}`)
-  }
-}
-
-function asConst(x: unknown): Const {
-  if (x instanceof Const) return x
-  throw new Error(`Expected Const, got ${typeof x}`)
-}
-
-type IRValue = Type | Const
+type IRValue = Type | Value
 type IRType = Type | ValueType[]
 type MIR = ir.IR<IRValue, IRType>
 
 function irTypeOf(x: IRValue): IRType {
-  if (x instanceof Const) {
+  if (x instanceof Value) {
     if (x.type === 'i32') return types.int32()
     if (x.type === 'i64') return types.int64()
     if (x.type === 'f32') return types.float32()
@@ -71,7 +49,7 @@ function irTypeOf(x: IRValue): IRType {
 }
 
 function showIRValue(x: IRValue | IRType): string {
-  if (x instanceof Const) return `${x.type}(${x.value.toString()})`
+  if (x instanceof Value) return `${x.type}(${x.value.toString()})`
   if (Array.isArray(x)) return `[${x.join(', ')}]`
   return repr(x)
 }
