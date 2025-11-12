@@ -19,7 +19,7 @@
 
 import * as ir from '../utils/ir'
 import * as types from '../frontend/types'
-import { Type, asType } from '../frontend/types'
+import { Type } from '../frontend/types'
 import { ValueType, sizeof as wsizeof } from '../wasm/wasm'
 import * as wasm from '../wasm/wasm'
 import { MIR, WImport, WIntrinsic, Method, Value, xstring, Global, Invoke, Wasm } from '../frontend/modules'
@@ -28,7 +28,7 @@ import { Def } from '../dwarf'
 import { Inferred, Redirect, Sig, sig as resolveSig } from './abstract'
 import { wasmPartials } from '../backend/wasm'
 import isEqual from 'lodash/isEqual'
-import { Pipe, Block, Fragment, expr, Branch, Val, Anno, unreachable } from '../utils/ir'
+import { Pipe, Block, Fragment, expr, Branch, Val, Anno, unreachable, asType } from '../utils/ir'
 import { some } from '../utils/map'
 import { xcall, xtuple } from '../frontend/lower'
 import { xwasm } from '../frontend/modules'
@@ -55,7 +55,7 @@ function trim_unreachable(code: MIR): MIR {
         if (!br.isconditional()) {
           flag = true
         } else {
-          const cond = types.asType(pr.type(br.when))
+          const cond = asType(pr.type(br.when))
           if (!types.issubset(cond, types.bool())) throw new Error('non-bool condition')
           if (isEqual(cond, types.bool(false))) {
             pr.delete(v)
@@ -73,8 +73,7 @@ function trim_unreachable(code: MIR): MIR {
   return pr.finish()
 }
 
-function union_downcast(pr: Fragment<MIR>, T: Type, i: number, x: Val<MIR>): Val<MIR> {
-  const U = asType(T, 'union')
+function union_downcast(pr: Fragment<MIR>, U: Type & { kind: 'union' }, i: number, x: Val<MIR>): Val<MIR> {
   const offset = 1 + U.options.slice(0, i - 1).reduce((n, t) => n + layout(t).length, 0)
   const regs = layout(U.options[i - 1]).length
   const parts: Val<MIR>[] = []
@@ -112,7 +111,7 @@ function abort(code: Fragment<MIR>, s: string): Val<MIR> {
 // We're a bit fast and loose with types here, because `T` and `[T]` have the
 // same representation (for now).
 function call(code: Fragment<MIR>, f: Val<MIR> | Method, args: Val<MIR>[], type: Anno<Type>): Val<MIR> {
-  const Ts = args.map(a => types.asType(code.type(a)))
+  const Ts = args.map(a => asType(code.type(a)))
   const arglist = code.push(code.stmt(xtuple(...args), { type: types.list(...Ts) }))
   return code.push(code.stmt(xcall(f, arglist), { type }))
 }
@@ -185,7 +184,7 @@ function partir_union(x: Type & { kind: 'union' }, i: Type): MIR {
     // TODO possibly insert `part_method` calls and redo lowering
     let ret = indexer(code, T, i, val, vi)
     if (partial_part(T, i) === unreachable) return ret // TODO insert unreachable?
-    if (isreftype(asType(partial_part(T, i)))) code.push(code.stmt(expr('retain', ret)))
+    if (isreftype(partial_part(T, i))) code.push(code.stmt(expr('retain', ret)))
     if (isreftype(T)) code.push(code.stmt(expr('release', val)))
     ret = cast(code, partial_part(T, i), retT, ret)
     return ret

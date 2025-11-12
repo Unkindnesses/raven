@@ -5,7 +5,7 @@ import { WorkQueue } from "./fixpoint"
 import isEqual from "lodash/isEqual"
 
 export {
-  Anno, Unreachable, unreachable, asAnno, Source, Slot, slot, Expr, expr,
+  Anno, Unreachable, unreachable, asType, Source, Slot, slot, Expr, expr,
   Statement, IR, Block, Pipe, Branch, CFG, Component, components, entry, rename,
   getIndent, withIndent, Val, Fragment, asIR,
   liveness_after, liveness,
@@ -17,8 +17,10 @@ const unreachable: Unreachable = '⊥'
 
 type Anno<T> = T | Unreachable
 
-function asAnno<T>(asT: (x: any) => T, x: any): Anno<T> {
-  return x === unreachable ? unreachable : asT(x)
+function asType<T>(value: Anno<T>, message?: string): T {
+  if (value === unreachable)
+    throw new Error(message || 'Assertion failed: value is unreachable')
+  return value
 }
 
 class Slot {

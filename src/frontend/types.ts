@@ -6,7 +6,7 @@ import { options } from '../utils/options'
 
 export {
   Tag, Bits, Type,
-  tag, asTag, asType, bits, pack, packcat, vpack, onion, float32, float64, int32, int64, bool, recursive, recurrence,
+  tag, asTag, bits, pack, packcat, vpack, onion, float32, float64, int32, int64, bool, recursive, recurrence,
   repr, issubset, isdisjoint, union, unroll, recur, finite, tagOf, part, parts,
   nil, isValue, isAtom, nparts, allparts, abstract, partial_eltype, Ref, String, Ptr, list, asBits, simplify, Any
 }
@@ -68,19 +68,6 @@ type Type =
   | { kind: 'recurrence' }
   | { kind: 'recursive'; inner: Type }
   | { kind: 'any' }
-
-function asType(x: unknown): Type
-function asType<K extends Type['kind']>(x: unknown, kind: K): Type & { kind: K }
-function asType(x: unknown, kind?: Type['kind']): Type {
-  if (typeof x === 'object' && x !== null && 'kind' in x) {
-    const validKinds: Type['kind'][] = ['tag', 'bits', 'float32', 'float64', 'ref', 'pack', 'vpack', 'union', 'recurrence', 'recursive', 'any']
-    const actual = (x as any).kind
-    if (!validKinds.includes(actual)) throw new Error(`Expected Type, got invalid kind ${'' + actual}`)
-    if (kind !== undefined && actual !== kind) throw new Error(`Expected ${kind} type, got ${actual}`)
-    return x as Type
-  }
-  throw new Error(`Expected Type, got ${typeof x}`)
-}
 
 function _repr(x: Type): string {
   switch (x.kind) {

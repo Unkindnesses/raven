@@ -27,7 +27,7 @@
 
 import * as ir from '../utils/ir'
 import * as types from '../frontend/types'
-import { Type, tag, tagOf, asType } from '../frontend/types'
+import { Type, tag, tagOf } from '../frontend/types'
 import { MIR, Value, IRValue, Method, asValue, Invoke } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { Redirect, type Sig } from './abstract'
@@ -37,7 +37,7 @@ import isEqual from 'lodash/isEqual'
 import { HashMap, asNumber, some, setdiff, filter as filter } from '../utils/map'
 import { layout, call, indexer, load, sizeof, union_cases, unbox } from './expand'
 import { unreachable } from '../utils/ir'
-import { xcall, xtuple } from '../frontend/lower'
+import { xcall } from '../frontend/lower'
 import { Accessor } from '../utils/fixpoint'
 
 export { isrefobj, isreftype, CountMode, retain_method, release_method, refcounts }
@@ -46,7 +46,8 @@ function isrefobj(x: Type): boolean {
   return x.kind === 'pack' && tag('common.Ref').isEqual(tagOf(x))
 }
 
-function isreftype(x: Type): boolean {
+function isreftype(x: ir.Anno<Type>): x is Type {
+  if (x === unreachable) return false
   if (x.kind === 'pack') return isrefobj(x) || types.parts(x).some(isreftype)
   if (x.kind === 'union') return x.options.some(isreftype)
   if (x.kind === 'vpack') return layout(some(types.partial_eltype(x))).length !== 0
@@ -82,7 +83,7 @@ function release(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>): void {
 
 function countptr(code: ir.Fragment<MIR>, ptr: ir.Val<MIR>, mode: CountMode): void {
   const f = mode === 'retain' ? tag('common.retain!') : tag('common.release!')
-  const t = asType(code.type(ptr))
+  const t = ir.asType(code.type(ptr))
   if (!tag('common.Ptr').isEqual(tagOf(t))) throw new Error('countptr: expected Ptr')
   call(code, f, [ptr], types.nil)
 }
@@ -186,13 +187,13 @@ function refcountsIR(code: MIR): MIR {
   const lv = ir.liveness(code)
   const pr = new ir.Pipe(code)
   for (const bl of pr.blocks()) {
-    const rel = (x: number) => { const T = asType(code.type(x)); if (isreftype(T)) release(pr, T, x) }
+    const rel = (x: number) => { if (isreftype(code.type(x))) release(pr, code.type(x) as Type, x) }
     // unused block arguments
     for (const x of code.block(bl.id).args)
       if (!some(lv.blocks.get(bl.id)).has(x)) rel(x)
     // conditionally dropped variables
     const dropped = ir.predecessors(code.block(bl.id)).map(c =>
-      filter(setdiff(ir.liveness_after(c, lv.blocks), lv.blocks.get(bl.id)!), x => isreftype(asType(code.type(x)))))
+      filter(setdiff(ir.liveness_after(c, lv.blocks), lv.blocks.get(bl.id)!), x => isreftype(code.type(x))))
     if (dropped.length) {
       if (!dropped.every(xs => isEqual(xs, dropped[0]))) throw new Error('nope') // condition mentioned above
       for (const x of dropped[0]) rel(x)
@@ -201,12 +202,12 @@ function refcountsIR(code: MIR): MIR {
       if (st.expr.head === 'release') {
         pr.delete(v)
         const x = asNumber(st.expr.body[0])
-        const T = asType(code.type(x))
+        const T = code.type(x)
         if (isreftype(T) && !lv.stmts.get(v)!.has(x)) release(pr, T, x)
       } else if (st.expr.head === 'retain') {
         pr.delete(v)
         const x = asNumber(st.expr.body[0])
-        const T = asType(code.type(x))
+        const T = code.type(x)
         if (isreftype(T) && lv.stmts.get(v)!.has(x)) retain(pr, T, x)
       } else if (['call', 'tuple', 'branch'].includes(st.expr.head)) {
         const live = st.expr.head === 'branch' ? ir.liveness_after(code.blockOf(v), lv.blocks) : lv.stmts.get(v)!
@@ -214,7 +215,7 @@ function refcountsIR(code: MIR): MIR {
         // reused argument
         for (const x of new Set(st.expr.body.filter(a => typeof a === 'number'))) {
           if (code.type(x) === unreachable) continue
-          const T = asType(code.type(x))
+          const T = code.type(x)
           if (!isreftype(T)) continue
           const occ = st.expr.body.filter(a => a === x).length
           const ret = (isglobal(code, x) ? 1 : 0) + occ - (live.has(x) ? 0 : 1)
@@ -224,8 +225,7 @@ function refcountsIR(code: MIR): MIR {
         pr.replace(v, v2)
         // dropped variable
         if (st.type !== ir.unreachable) {
-          const T = asType(st.type)
-          if (isreftype(T) && !lv.stmts.get(v)!.has(v)) release(pr, T, v2)
+          if (isreftype(st.type) && !lv.stmts.get(v)!.has(v)) release(pr, st.type, v2)
         }
       }
     }
@@ -240,7 +240,7 @@ function aliases(code: MIR): Map<number, AliasItem[]> {
   const out = new Map<number, AliasItem[]>()
   const alias = (x: ir.Val<MIR>) => {
     if (typeof x !== 'number') return [x]
-    if (!out.has(x)) out.set(x, Array.from({ length: layout(asType(code.type(x))).length }, (_, i) => [x, i + 1]))
+    if (!out.has(x)) out.set(x, Array.from({ length: layout(ir.asType(code.type(x))).length }, (_, i) => [x, i + 1]))
     return out.get(x)!
   }
   for (const [v, st] of code) {

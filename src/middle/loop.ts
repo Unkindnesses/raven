@@ -1,7 +1,7 @@
 import { some } from '../utils/map'
-import { Type, issubset, union, asType } from '../frontend/types'
+import { Type, issubset, union } from '../frontend/types'
 import { IRValue, MIR } from '../frontend/modules'
-import { IR, Block, Branch, CFG, Component, components, entry, rename, Expr, unreachable, getIndent, withIndent } from '../utils/ir'
+import { IR, Block, Branch, CFG, Component, components, entry, rename, Expr, unreachable, getIndent, withIndent, asType } from '../utils/ir'
 
 export { LoopIR, loop, looped, unloop, Path, tail, block, nextpath, nextpathTo, pin, reroll, blockargs }
 

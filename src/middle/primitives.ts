@@ -1,6 +1,6 @@
 import * as types from '../frontend/types'
-import { Type, tagOf, tag, asType, bits } from '../frontend/types'
-import { unreachable, Anno, expr, asAnno, Val, Fragment } from '../utils/ir'
+import { Type, tagOf, tag, bits } from '../frontend/types'
+import { unreachable, Anno, expr, Val, Fragment, asType } from '../utils/ir'
 import { HashSet, only, some } from '../utils/map'
 import isEqual from 'lodash/isEqual'
 import { Method, MIR, Module, WIntrinsic, Value, xstring } from '../frontend/modules'
@@ -461,8 +461,9 @@ function extend(code: Fragment<MIR>, T: BitsType, x: Val<MIR>): Val<MIR> {
 inlinePrimitive.set(bitcast_method.id, (code, st) => {
   if (types.isValue(asType(st.type))) return asType(st.type)
   let x = st.expr.body[1]
-  const F = asType(code.type(x), 'bits')
-  const T = asType(st.type, 'bits')
+  const F = asType(code.type(x))
+  const T = asType(st.type)
+  if (F.kind !== 'bits' || T.kind !== 'bits') throw new Error('bitcast: expected bits')
   const lT = only(wlayout(T))
   const lF = only(wlayout(F))
   if (lT === 'i32' && lF === 'i64')
@@ -477,8 +478,9 @@ inlinePrimitive.set(bitcast_method.id, (code, st) => {
 inlinePrimitive.set(bitcast_s_method.id, (code, st) => {
   if (types.isValue(asType(st.type))) return asType(st.type)
   let x = st.expr.body[1]
-  const F = asType(code.type(x), 'bits')
-  const T = asType(st.type, 'bits')
+  const F = asType(code.type(x))
+  const T = asType(st.type)
+  if (F.kind !== 'bits' || T.kind !== 'bits') throw new Error('bitcast_s: expected bits')
   if (T.size <= F.size) return inlinePrimitive.get(bitcast_method.id)!(code, st)
   if (F.size < sizeof(F) * 8) x = extend(code, F, x)
   if (isEqual([sizeof(T), sizeof(F)], [8, 4])) x = code.push(code.stmt(xwasm(new WIntrinsic('i64.extend_i32_s'), x), { type: bits(64) }))
@@ -488,8 +490,9 @@ inlinePrimitive.set(bitcast_s_method.id, (code, st) => {
 
 for (const [op, method] of bitop_methods)
   inlinePrimitive.set(method.id, (code, st) => {
-    const T = asType(st.type, 'bits')
+    const T = asType(st.type)
     if (types.isValue(T)) return T
+    if (T.kind !== 'bits') throw new Error('bitop: expected bits')
     let x = st.expr.body[0]
     let y = st.expr.body[1]
     const sz = sizeof(T) * 8
@@ -507,7 +510,8 @@ for (const [op, method] of bitcmp_methods)
     if (types.isValue(asType(st.type))) return asType(st.type)
     let x = st.expr.body[0]
     let y = st.expr.body[1]
-    const T = asType(types.union(asType(code.type(x)), asType(code.type(y))), 'bits')
+    const T = types.union(asType(code.type(x)), asType(code.type(y)))
+    if (T.kind !== 'bits') throw new Error('bitcmp: expected bits')
     const sz = sizeof(T) * 8
     if (op.endsWith('_s') && T.size < sz) {
       x = extend(code, T, x)
@@ -558,7 +562,7 @@ inlinePrimitive.set(isnil_method.id, (code, st) => {
 inlinePrimitive.set(notnil_method.id, (code, st) => {
   const x = st.expr.body[0]
   const T = asType(code.type(x))
-  const V = asAnno(asType, st.type)
+  const V = st.type
   if (isEqual(T, V)) return x
   if (V === unreachable)
     // TODO make sure `not` in dispatcher infers
@@ -571,7 +575,7 @@ inlinePrimitive.set(notnil_method.id, (code, st) => {
 inlinePrimitive.set(tagcast_method.id, (code, st) => {
   let x = st.expr.body[0]
   let T = asType(code.type(x))
-  const V = asAnno(asType, st.type)
+  const V = st.type
   const tg = asType(code.type(st.expr.body[1]), 'tag')
   if (isEqual(T, V)) return x
   if (V === unreachable) return abort(code, 'tagcast')
@@ -579,6 +583,7 @@ inlinePrimitive.set(tagcast_method.id, (code, st) => {
     T = types.unroll(T)
     x = unbox(code, T, x)
   }
+  if (!(T.kind === 'union')) throw new Error('unimplemented')
   const i = asType(T, 'union').options.findIndex(opt => isEqual(tagOf(opt), tg)) + 1
   return union_downcast(code, T, i, x)
 })

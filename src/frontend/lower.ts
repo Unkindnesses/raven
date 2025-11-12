@@ -4,7 +4,7 @@ import * as ir from "../utils/ir"
 import { Val, fuseblocks, prune, ssa } from "../utils/ir"
 import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast"
 import * as types from "./types"
-import { Type, Tag, tag, pack, bits, asType, nil } from "./types"
+import { Type, Tag, tag, pack, bits, nil } from "./types"
 import { Module, Signature, Binding, WIntrinsic, MIR, WImport, xstring, Method, xglobal, xset, SetGlobal, Invoke, Wasm } from "./modules"
 import { Def } from "../dwarf"
 import { asBigInt, some } from "../utils/map"
@@ -783,7 +783,7 @@ function assigned_globals(code: MIR): Map<Binding, Type> {
   const out = new Map<Binding, Type>()
   for (const [_, st] of code)
     if (st.expr instanceof SetGlobal)
-      out.set(st.expr.binding, asType(st.type))
+      out.set(st.expr.binding, ir.asType(st.type))
   return out
 }
 

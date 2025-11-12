@@ -1,7 +1,7 @@
-import { unreachable, expand, Anno, Block, Expr, Branch, asAnno, prune } from '../utils/ir'
+import { unreachable, expand, Anno, Block, Expr, Branch, prune, asType } from '../utils/ir'
 import { LoopIR, looped, Path, block, nextpath, nextpathTo, pin, blockargs, loop, unloop } from './loop'
 import { MatchMethods, dispatcher } from './patterns'
-import { Tag, Type, repr, union, asType, issubset as iss, isValue, pack, tag, tagOf } from '../frontend/types'
+import { Tag, Type, repr, union, issubset as iss, isValue, pack, tag, tagOf } from '../frontend/types'
 import { wasmPartials } from '../backend/wasm'
 import { MIR, IRValue, Binding, Method, Definitions, WImport, StringRef, Global, SetGlobal, Wasm, callargs } from '../frontend/modules'
 import { Def } from '../dwarf'
@@ -181,7 +181,7 @@ function infercall(inf: Inference, P: Sig, F: Func, ...Ts: Anno<Type>[]): Anno<T
 
 function inferexpr(inf: Inference, P: Sig, ir: MIR | Block<MIR>, ex: Expr<IRValue>): Anno<Type> | undefined {
   let [F, Ts] = callargs(ir, ex)
-  return infercall(inf, P, F, ...Ts.map(x => asAnno(asType, ir.type(x))))
+  return infercall(inf, P, F, ...Ts.map(x => ir.type(x)))
 }
 
 function cleardeps(inf: Inference, sig: string): void {
@@ -226,7 +226,7 @@ function update(inf: Inference, k: string): void {
       if (ex instanceof Wasm) {
         if (ex.callee instanceof WImport) continue
         const op = ex.callee
-        const Ts = ex.body.map(x => asAnno(asType, bl.type(x)))
+        const Ts = ex.body.map(x => bl.type(x))
         if (Ts.every(t => t !== unreachable) && Ts.every(t => isValue(t)) && wasmPartials.has(op.name)) {
           const T = some(wasmPartials.get(op.name))(...Ts)
           bl.ir.setType(v, T)
@@ -237,7 +237,7 @@ function update(inf: Inference, k: string): void {
         if (T === unreachable) break
         bl.ir.setType(v, T)
       } else if (ex.head === 'pack') {
-        const Ts = ex.body.map(x => asAnno(asType, bl.type(x)))
+        const Ts = ex.body.map(x => bl.type(x))
         if (Ts.some(t => t === unreachable)) break
         bl.ir.setType(v, pack(...Ts as Type[]))
       } else if (ex instanceof Global) {
@@ -249,7 +249,7 @@ function update(inf: Inference, k: string): void {
       } else if (ex instanceof SetGlobal) {
         const T = bl.type(ex.value)
         if (T === unreachable) break
-        bl.ir.setType(v, asType(T))
+        bl.ir.setType(v, T)
       } else if (ex.head === 'loop') {
         const inner = some(loop(bl))
         blockargs(inner.body[0].block(1), bl.argtypes.map(t => asType(t)))
@@ -258,7 +258,7 @@ function update(inf: Inference, k: string): void {
       } else if (st.expr instanceof Branch) {
         const br = st.expr
         if (br.isreturn()) {
-          ret = maybe_union(ret, asAnno(asType, bl.type(br.args[0])))
+          ret = maybe_union(ret, bl.type(br.args[0]))
         } else if (br.isunreachable()) {
           break
         } else {

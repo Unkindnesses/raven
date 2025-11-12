@@ -1,7 +1,7 @@
 import * as types from '../frontend/types'
 import { Tag, Type } from '../frontend/types'
-import { Method, Definitions, IRValue, WIntrinsic, WImport, MIR, Global, SetGlobal, Invoke, Wasm } from '../frontend/modules'
-import { IR, unreachable, Branch } from '../utils/ir'
+import { Method, Definitions, IRValue, WIntrinsic, WImport, MIR, Global, SetGlobal, Invoke, Wasm, Value } from '../frontend/modules'
+import { IR, unreachable, Branch, asType } from '../utils/ir'
 import { CycleCache } from '../utils/cache'
 import { partial_match } from './patterns'
 import { wasmPartials } from '../backend/wasm'
@@ -39,54 +39,56 @@ function interpret(int: Interpreter, x: Func, ...args: Type[]): Type | undefined
 
 function interpretIR(int: Interpreter, ir: MIR, ...args: Type[]): Type | undefined {
   const env = new Map<number, Type>()
-  const resolve = (x: number | IRValue): IRValue =>
-    typeof x === 'number' ? some(env.get(x)) : x
+  const resolve = (x: number | IRValue): Type => {
+    if (x instanceof Value) throw new Error('unsupported')
+    return typeof x === 'number' ? some(env.get(x)) : x
+  }
   for (const [v, x] of ir.block(1).args.map((v, i) => [v, args[i]] as const)) env.set(v, x)
   let bl = 1
   while (true) {
     for (const [v, st] of ir.block(bl)) {
       const xs = st.expr.body.map(resolve)
       if (st.expr instanceof Invoke) {
-        const result = int.get(st.expr.method, xs.map(x => types.asType(x)))
+        const result = int.get(st.expr.method, xs)
         if (result === undefined) return
         env.set(v, result)
       } else if (st.expr instanceof Wasm) {
         const op = st.expr.callee
         if (op instanceof WIntrinsic) {
           if (!wasmPartials.has(op.name)) return
-          const args = xs.map(x => types.asType(x))
+          const args = xs
           const allValues = args.every(types.isValue)
-          env.set(v, allValues ? wasmPartials.get(op.name)!(...args) : types.asType(st.type))
+          env.set(v, allValues ? wasmPartials.get(op.name)!(...args) : asType(st.type))
         } else if (op instanceof WImport) {
           return
         } else throw new Error(`Expected intrinsic or import, got ${op}`)
       } else if (st.expr.head === 'call') {
         const op = xs[0]
         if (!(op instanceof Tag)) throw new Error(`Expected function or method, got ${op}`)
-        const result = int.get(op, xs.slice(1).map(x => types.asType(x)))
+        const result = int.get(op, xs.slice(1))
         if (result === undefined) return
         env.set(v, result)
       } else if (st.expr.head === 'pack') {
-        env.set(v, types.pack(...xs.map(x => types.asType(x))))
+        env.set(v, types.pack(...xs))
       } else if (st.expr instanceof Branch) {
-        if (st.expr.isreturn()) return types.asType(xs[0])
+        if (st.expr.isreturn()) return xs[0]
         if (st.expr.isunreachable()) return
         if (st.expr.isconditional()) {
-          const cond = types.asType(xs[0])
+          const cond = xs[0]
           if (!types.issubset(cond, types.bool())) throw new Error(`Expected boolean condition`)
           if (!types.isValue(cond)) return
           if (!isEqual(cond, types.bool(true))) continue
         }
         bl = st.expr.target
-        let as = st.expr.args.map(x => types.asType(resolve(x)))
+        let as = st.expr.args.map(x => resolve(x))
         ir.block(st.expr.target).args.forEach((arg, i) => env.set(arg, as[i]))
         break
       } else if (st.expr.head === 'tuple') {
-        const T = types.asType(st.type)
+        const T = asType(st.type)
         if (!types.isValue(T)) throw new Error('assert isvalue(st.type)')
         env.set(v, T)
       } else if (st.expr instanceof Global) {
-        env.set(v, types.asType(int.defs.resolve_static(st.expr.binding)))
+        env.set(v, asType(int.defs.resolve_static(st.expr.binding)))
       } else if (st.expr instanceof SetGlobal) {
         return
       } else {

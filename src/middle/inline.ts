@@ -5,7 +5,6 @@ import { Redirect, type Sig } from './abstract'
 import { options } from '../utils/options'
 import { CycleCache } from '../utils/cache'
 import { layout } from './expand'
-import isEqual from 'lodash/isEqual'
 import { some, only } from '../utils/map'
 import { Accessor } from '../utils/fixpoint'
 import { Stack } from '../dwarf'
@@ -17,7 +16,7 @@ function opcount(code: MIR): number {
   for (const [_, st] of code) {
     if (['tuple', 'ref', 'branch', 'cast', 'retain', 'release', 'string'].includes(st.expr.head)) {
     } else if (['global', 'setglobal'].includes(st.expr.head)) {
-      count += layout(types.asType(st.type)).length > 0 ? 1 : 0
+      count += layout(ir.asType(st.type)).length > 0 ? 1 : 0
     } else if (['call', 'invoke', 'wasm', 'func', 'call_indirect'].includes(st.expr.head)) {
       count += 1
     } else
@@ -54,7 +53,7 @@ function inline(code: MIR, inlined: Accessor<Sig, Redirect | MIR>): MIR {
   for (const [v, st] of pr) {
     if (!['call', 'invoke'].includes(st.expr.head)) continue
     const [F, args] = callargs(pr, st.expr)
-    const sig: Sig = [F, ...args.map(x => types.asType(pr.type(x)))]
+    const sig: Sig = [F, ...args.map(x => ir.asType(pr.type(x)))]
     if (!inlineable(inlined, sig)) continue
     pr.delete(v)
     const ret = inlineHere(pr, ir.asIR(inlined.get(sig)), st.src, args)
