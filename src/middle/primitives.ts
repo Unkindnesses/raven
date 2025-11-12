@@ -10,7 +10,7 @@ import { xwasm } from '../frontend/modules'
 import { lowerpattern } from '../frontend/patterns'
 import * as parse from '../frontend/parse'
 import { inlinePrimitive, outlinePrimitive } from './prim_map'
-import { abort, call, layout, sizeof, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir, copyir } from './expand'
+import { abort, call, layout, wlayout, sizeof, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir, copyir } from './expand'
 import { isreftype } from './refcount'
 import { options } from '../utils/options'
 import { maybe_union } from './abstract'
@@ -423,7 +423,7 @@ outlinePrimitive.set(nparts_method.id, (x: Type): MIR => {
 
 function constValue(T: Type): Value | undefined {
   if (T.kind === 'bits' && T.value !== undefined)
-    return Value.from(asNumType(only(layout(types.abstract(T)))), BigInt.asIntN(T.size, T.value))
+    return Value.from(asNumType(only(wlayout(types.abstract(T)))), BigInt.asIntN(T.size, T.value))
   if (T.kind === 'float32' && T.value !== undefined)
     return Value.f32(T.value)
   if (T.kind === 'float64' && T.value !== undefined)
@@ -446,15 +446,15 @@ type BitsType = Type & { kind: 'bits' }
 // TODO use Const rather than BitsType in the output?
 function mask(code: Fragment<MIR>, T: BitsType, x: Val<MIR>): Val<MIR> {
   const m = bits(sizeof(T) * 8, (1n << BigInt(T.size)) - 1n)
-  x = code.push(code.stmt(xwasm(new WIntrinsic(`${only(layout(T))}.and`), x, m), { type: layout(T) }))
+  x = code.push(code.stmt(xwasm(new WIntrinsic(`${only(wlayout(T))}.and`), x, m), { type: only(layout(T)) }))
   return x
 }
 
 function extend(code: Fragment<MIR>, T: BitsType, x: Val<MIR>): Val<MIR> {
   const n = sizeof(T) * 8
   const shift = bits(n, BigInt(n - T.size))
-  x = code.push(code.stmt(xwasm(new WIntrinsic(`${only(layout(T))}.shl`), x, shift), { type: bits(n) }))
-  x = code.push(code.stmt(xwasm(new WIntrinsic(`${only(layout(T))}.shr_s`), x, shift), { type: bits(n) }))
+  x = code.push(code.stmt(xwasm(new WIntrinsic(`${only(wlayout(T))}.shl`), x, shift), { type: bits(n) }))
+  x = code.push(code.stmt(xwasm(new WIntrinsic(`${only(wlayout(T))}.shr_s`), x, shift), { type: bits(n) }))
   return x
 }
 
@@ -463,8 +463,8 @@ inlinePrimitive.set(bitcast_method.id, (code, st) => {
   let x = st.expr.body[1]
   const F = asType(code.type(x), 'bits')
   const T = asType(st.type, 'bits')
-  const lT = only(layout(T))
-  const lF = only(layout(F))
+  const lT = only(wlayout(T))
+  const lF = only(wlayout(F))
   if (lT === 'i32' && lF === 'i64')
     x = code.push(code.stmt(xwasm(new WIntrinsic('i32.wrap_i64'), x), { type: bits(32) }))
   else if (lT === 'i64' && lF === 'i32')
@@ -497,7 +497,7 @@ for (const [op, method] of bitop_methods)
       x = extend(code, T, x)
       y = extend(code, T, y)
     }
-    let result: Val<MIR> = code.push({ ...st, expr: xwasm(new WIntrinsic(`${only(layout(T))}.${op}`), x, y) })
+    let result: Val<MIR> = code.push({ ...st, expr: xwasm(new WIntrinsic(`${only(wlayout(T))}.${op}`), x, y) })
     if (T.size < sz) result = mask(code, T, result)
     return result
   })
@@ -513,7 +513,7 @@ for (const [op, method] of bitcmp_methods)
       x = extend(code, T, x)
       y = extend(code, T, y)
     }
-    return code.push({ ...st, expr: xwasm(new WIntrinsic(`${only(layout(T))}.${op}`), x, y) })
+    return code.push({ ...st, expr: xwasm(new WIntrinsic(`${only(wlayout(T))}.${op}`), x, y) })
   })
 
 inlinePrimitive.set(biteqz_method.id, (code, st) => {

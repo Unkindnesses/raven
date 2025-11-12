@@ -7,9 +7,9 @@ import { options } from '../utils/options'
 import { irfunc, Instr, setdiff, Value, WIR, asValue } from '../wasm/ir'
 import { unreachable, Anno, Pipe, expr, Val, asAnno, Branch, Expr } from '../utils/ir'
 import isEqual from 'lodash/isEqual'
-import { layout } from '../middle/expand'
+import { wlayout } from '../middle/expand'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe } from '../utils/cache'
-import { Binding, Definitions, MIR, WImport, Method, StringRef, Global, SetGlobal, Wasm as WasmCall, callargs, IRType } from '../frontend/modules'
+import { Binding, Definitions, MIR, WImport, Method, StringRef, Global, SetGlobal, Wasm as WasmCall, callargs } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { Redirect, type Sig } from '../middle/abstract'
 import { Accessor } from '../utils/fixpoint'
@@ -54,7 +54,7 @@ wasmPartials.set('i64.lt_s', cmp(64, (a, b) => a < b, true))
 wasmPartials.set('i64.le_s', cmp(64, (a, b) => a <= b, true))
 
 function wparts(T: Anno<Type>): wasm.ValueType[] {
-  return T === unreachable ? [] : layout(types.asType(T))
+  return T === unreachable ? [] : wlayout(types.asType(T))
 }
 
 class WGlobals implements Caching {
@@ -97,7 +97,7 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
   const out = WIR(ir.meta)
   const env = new Map<number, Val<WIR>>()
   // TODO deprecate array types
-  const type = (t: Anno<IRType>): Anno<wasm.ValueType[]> => t === unreachable ? [] : Array.isArray(t) ? t : layout(t)
+  const type = (t: Anno<Type>): Anno<wasm.ValueType[]> => t === unreachable ? [] : wlayout(t)
   const rename = (x: Val<MIR>) => typeof x === 'number' ? some(env.get(x)) : asValue(x)
   const coerce = (x: Val<MIR>) =>
     typeof x === 'number' || x instanceof Value ? rename(x) :
@@ -107,7 +107,7 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
     const ob = out.block()
     for (let i = 0; i < block.args.length; i++) {
       const arg = block.args[i]
-      const type = layout(types.asType(block.argtypes[i]))
+      const type = wlayout(types.asType(block.argtypes[i]))
       env.set(arg, ob.argument(type))
     }
     for (const [v, st] of block) {
@@ -123,12 +123,12 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
         env.set(v, out.push({ ...st, expr: st.expr.map(rename) as Expr<Value>, type: type(st.type) }))
       } else if (st.expr.head === 'cast') { // TODO just use `tuple` instead
         const arg = st.expr.body[0]
-        if (!isEqual(layout(types.asType(st.type)), layout(types.asType(ir.type(arg)))))
+        if (!isEqual(wlayout(types.asType(st.type)), wlayout(types.asType(ir.type(arg)))))
           throw new Error('cast: layout mismatch')
         env.set(v, rename(arg))
       } else if (st.expr instanceof Global) {
         const ids = globals.get(st.expr.binding)
-        const parts = layout(types.asType(st.type))
+        const parts = wlayout(types.asType(st.type))
         const ps: Val<WIR>[] = []
         for (let i = 0; i < ids.length; i++)
           ps.push(out.push(out.stmt(instr(wasm.GetGlobal(ids[i])), { type: [parts[i]] })))
@@ -138,8 +138,8 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
         const [callee, args] = [st.expr.callee, st.expr.body]
         let expr: Expr<Value>
         if (callee instanceof WImport) {
-          const I = args.flatMap(a => layout(types.abstract(types.asType(ir.type(a))))) // TODO shouldn't get consts here
-          const O = st.type === unreachable ? [] : layout(types.asType(st.type))
+          const I = args.flatMap(a => wlayout(types.abstract(types.asType(ir.type(a))))) // TODO shouldn't get consts here
+          const O = st.type === unreachable ? [] : wlayout(types.asType(st.type))
           const name = names.get([callee, I, O])
           expr = instr(wasm.Call(name), ...args.map(rename))
         } else {
@@ -157,8 +157,8 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
         env.set(v, out.push({ ...st, expr: expr, type: wparts(asAnno(types.asType, st.type)) }))
       } else if (st.expr.head === 'call_indirect') {
         const [f, args] = st.expr.body
-        const I = layout(types.asType(ir.type(args)))
-        const O = layout(types.asType(st.type))
+        const I = wlayout(types.asType(ir.type(args)))
+        const O = wlayout(types.asType(st.type))
         env.set(v, out.push({ ...st, expr: instr(wasm.CallIndirect(wasm.Signature(I, O), 0), rename(args), rename(f)), type: O }))
       } else if (st.expr instanceof Branch) {
         const expr = st.expr.map(coerce)

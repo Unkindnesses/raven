@@ -37,7 +37,7 @@ import { partial_part, getIntValue, nparts, constValue, partial_set, copy_method
 import { inlinePrimitive, InvokeSt, outlinePrimitive } from './prim_map'
 import { Cache } from '../utils/cache'
 
-export { abort, call, layout, sizeof, store, load, box, unbox, union_downcast, union_cases, cast, copyir, partir, packir, set_pack, indexer, setir, Expanded }
+export { abort, call, layout, wlayout, sizeof, store, load, box, unbox, union_downcast, union_cases, cast, copyir, partir, packir, set_pack, indexer, setir, Expanded }
 
 const i32 = Value.i32
 const i64 = Value.i64
@@ -119,29 +119,45 @@ function call(code: Fragment<MIR>, f: Val<MIR> | Method, args: Val<MIR>[], type:
 
 // Pack primitives
 
-function layout(T: Type): ValueType[] {
+function layout(T: Type): Type[] {
   if (types.isValue(T)) return []
   switch (T.kind) {
-    case 'float32': return [wasm.f32]
-    case 'float64': return [wasm.f64]
-    case 'ref': return [wasm.externref]
+    case 'float32': return [types.float32()]
+    case 'float64': return [types.float64()]
+    case 'ref': return [types.Ref]
     case 'bits': {
-      if (T.size <= 32) return [wasm.i32]
-      if (T.size <= 64) return [wasm.i64]
+      if (T.size <= 32) return [types.bits(32)]
+      if (T.size <= 64) return [types.bits(64)]
       throw new Error(`Unsupported bit size ${T.size}`)
     }
     case 'pack': return T.parts.flatMap(layout)
     case 'vpack': return [ // size, pointer
-      ...layout(types.tagOf(T)), wasm.i32,
-      ...(layout(some(types.partial_eltype(T))).length === 0 ? [] : [wasm.i32])
+      ...layout(types.tagOf(T)), types.bits(32),
+      ...(layout(some(types.partial_eltype(T))).length === 0 ? [] : [types.bits(32)])
     ]
-    case 'recursive': return [wasm.i32]
-    case 'union': return [wasm.i32, ...T.options.flatMap(layout)]
+    case 'recursive': return [types.bits(32)]
+    case 'union': return [types.bits(32), ...T.options.flatMap(layout)]
     case 'tag': return []
     case 'any':
     case 'recurrence': throw new Error('unimplemented')
     default: { const _: never = T; throw new Error('unreachable') }
   }
+}
+
+function wtype(T: Type): ValueType {
+  if (T.kind === 'float32') return wasm.f32
+  if (T.kind === 'float64') return wasm.f64
+  if (T.kind === 'ref') return wasm.externref
+  if (T.kind === 'bits') {
+    if (T.size <= 32) return wasm.i32
+    if (T.size <= 64) return wasm.i64
+    throw new Error(`Unsupported bit size ${T.size}`)
+  }
+  throw new Error(`wtype: unexpected type ${T.kind}`)
+}
+
+function wlayout(T: Type): ValueType[] {
+  return layout(T).map(t => wtype(t))
 }
 
 function sublayout(T: Type, i: number): number[] {
@@ -154,7 +170,7 @@ function sublayout(T: Type, i: number): number[] {
 }
 
 function sizeof(T: Type): number {
-  return layout(T).reduce((n, t) => n + wsizeof(t), 0)
+  return wlayout(T).reduce((n, t) => n + wsizeof(t), 0)
 }
 
 // part
@@ -188,7 +204,7 @@ function partir(x: Type, i: Type): MIR {
   const vi = code.argument(i)
   const xlayout = layout(x)
   const part = (k: number): Val<MIR> =>
-    code.push(code.stmt(expr('ref', vx, i64(k)), { type: [xlayout[k - 1]] }))
+    code.push(code.stmt(expr('ref', vx, i64(k)), { type: xlayout[k - 1] }))
   for (let idx = 1; idx <= types.nparts(x); idx++) {
     const cond = call(code, types.tag('common.=='), [i64(idx), vi], types.bool())
     const before = code.block()
@@ -244,7 +260,7 @@ function indexer(pr: Fragment<MIR>, T: Type, I: Type, x: Val<MIR>, i: Val<MIR>):
       return abort(pr, `Invalid index ${idx} for ${types.repr(T)}`)
     const P = types.part(T, idx)
     const range = sublayout(T, idx)
-    const _part = (k: number): Val<MIR> => pr.push(pr.stmt(expr('ref', x, i64(k)), { type: [layout(T)[k - 1]] }))
+    const _part = (k: number): Val<MIR> => pr.push(pr.stmt(expr('ref', x, i64(k)), { type: layout(T)[k - 1] }))
     return pr.push(pr.stmt(xtuple(...range.map(_part)), { type: P }))
   } else {
     throw new Error('unimplemented')
@@ -425,7 +441,7 @@ function lowerdata(code: MIR): MIR {
 
 function store(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, x: Val<MIR>): void {
   if (!(isEqual(pr.type(ptr), types.Ptr()) || isEqual(pr.type(ptr), types.int32()))) throw new Error('store: expected RPtr or Int32')
-  const regs = layout(T)
+  const regs = wlayout(T)
   for (let i = 0; i < regs.length; i++) {
     const part = pr.push(pr.stmt(expr('ref', x, i64(i + 1))))
     pr.push(pr.stmt(xwasm(new WIntrinsic(`${regs[i]}.store`), ptr, part), { type: types.nil }))
@@ -441,11 +457,11 @@ function load(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, { count = true }: { cou
   const parts: Val<MIR>[] = []
   for (let i = 0; i < regs.length; i++) {
     const bits = pr.push(pr.stmt(expr('ref', ptr, i64(1)), { type: types.bits(32) }))
-    const val = pr.push(pr.stmt(xwasm(new WIntrinsic(`${regs[i]}.load`), bits), { type: [regs[i]] }))
+    const val = pr.push(pr.stmt(xwasm(new WIntrinsic(`${wtype(regs[i])}.load`), bits), { type: regs[i] }))
     parts.push(val)
     // TODO same as above
     if (i + 1 < regs.length)
-      ptr = pr.push(pr.stmt(xwasm(new WIntrinsic('i32.add'), ptr, i32(wsizeof(regs[i]))), { type: types.int32() }))
+      ptr = pr.push(pr.stmt(xwasm(new WIntrinsic('i32.add'), ptr, i32(sizeof(regs[i]))), { type: types.int32() }))
   }
   const result = pr.push(pr.stmt(xtuple(...parts), { type: T }))
   if (count && isreftype(T)) pr.push(pr.stmt(expr('retain', result)))
@@ -507,10 +523,10 @@ function cast(pr: Fragment<MIR>, from: Anno<Type>, to: Anno<Type>, x: Val<MIR>):
     let y = cast(pr, from, to.options[i - 1], x)
     const parts: Val<MIR>[] = [i32(i)]
     for (let j = 1; j <= to.options.length; j++) {
-      const regs = layout(to.options[j - 1]).length
+      const regs = wlayout(to.options[j - 1]).length
       if (j === i && typeof y === 'number') parts.push(y)
       else for (let k = 1; k <= regs; k++)
-        parts.push(Value.from(wasm.asNumType(layout(to.options[j - 1])[k - 1]), 0))
+        parts.push(Value.from(wasm.asNumType(wlayout(to.options[j - 1])[k - 1]), 0))
     }
     return pr.push(pr.stmt(xtuple(...parts), { type: to }))
   }

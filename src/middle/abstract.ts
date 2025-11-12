@@ -3,7 +3,7 @@ import { LoopIR, looped, Path, block, nextpath, nextpathTo, pin, blockargs, loop
 import { MatchMethods, dispatcher } from './patterns'
 import { Tag, Type, repr, union, asType, issubset as iss, isValue, pack, tag, tagOf } from '../frontend/types'
 import { wasmPartials } from '../backend/wasm'
-import { MIR, IRValue, IRType, Binding, Method, Definitions, WIntrinsic, WImport, StringRef, Global, SetGlobal, Wasm, callargs } from '../frontend/modules'
+import { MIR, IRValue, Binding, Method, Definitions, WImport, StringRef, Global, SetGlobal, Wasm, callargs } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { WorkQueue } from '../utils/fixpoint'
 import { hash, HashSet, some } from '../utils/map'
@@ -27,7 +27,7 @@ function maybe_union(x: Anno<Type>, y: Anno<Type>): Anno<Type> {
 
 type Func = Tag | Method
 type Sig = [Func, ...Type[]]
-type AIR = LoopIR<IRValue, IRType>
+type AIR = LoopIR<IRValue, Type>
 
 function prepare_ir(ir: MIR): AIR {
   return looped(expand(ir.clone()))

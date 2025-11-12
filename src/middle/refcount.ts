@@ -213,7 +213,7 @@ function refcountsIR(code: MIR): MIR {
         pr.delete(v)
         // reused argument
         for (const x of new Set(st.expr.body.filter(a => typeof a === 'number'))) {
-          if (code.type(x) === unreachable || Array.isArray(code.type(x))) continue // skip WASM native types (TODO remove them)
+          if (code.type(x) === unreachable) continue
           const T = asType(code.type(x))
           if (!isreftype(T)) continue
           const occ = st.expr.body.filter(a => a === x).length
@@ -223,7 +223,7 @@ function refcountsIR(code: MIR): MIR {
         const v2 = pr.push(st)
         pr.replace(v, v2)
         // dropped variable
-        if (st.type !== ir.unreachable && !Array.isArray(st.type)) {
+        if (st.type !== ir.unreachable) {
           const T = asType(st.type)
           if (isreftype(T) && !lv.stmts.get(v)!.has(v)) release(pr, T, v2)
         }
@@ -238,10 +238,9 @@ type AliasItem = RegAlias | IRValue
 
 function aliases(code: MIR): Map<number, AliasItem[]> {
   const out = new Map<number, AliasItem[]>()
-  const lyt = (x: any) => Array.isArray(x) ? x : layout(asType(x))
   const alias = (x: ir.Val<MIR>) => {
     if (typeof x !== 'number') return [x]
-    if (!out.has(x)) out.set(x, Array.from({ length: lyt(code.type(x)).length }, (_, i) => [x, i + 1]))
+    if (!out.has(x)) out.set(x, Array.from({ length: layout(asType(code.type(x))).length }, (_, i) => [x, i + 1]))
     return out.get(x)!
   }
   for (const [v, st] of code) {

@@ -2,7 +2,6 @@ import { hash, HashMap, some } from "../utils/map"
 import { Anno, unreachable } from "../utils/ir"
 import { Type, Tag, tag, repr } from "./types"
 import * as types from "./types"
-import { NumType, ValueType } from "../wasm/wasm"
 import * as cache from "../utils/cache"
 import * as ir from "../utils/ir"
 import { Pattern } from "./patterns"
@@ -11,7 +10,7 @@ import { Value, asValue } from "../wasm/ir"
 
 export {
   Module, Method, Signature, Binding, asBinding, asValue, Modules,
-  Definitions, Value, MIR, IRValue, IRType, WIntrinsic, WImport, showIRValue,
+  Definitions, Value, MIR, IRValue, WIntrinsic, WImport, showIRValue,
   StringRef, xstring, Global, SetGlobal, xglobal, xset, Invoke, Wasm, xwasm, callargs
 }
 
@@ -34,10 +33,9 @@ function asBinding(x: unknown): Binding {
 }
 
 type IRValue = Type | Value
-type IRType = Type | ValueType[]
-type MIR = ir.IR<IRValue, IRType>
+type MIR = ir.IR<IRValue, Type>
 
-function irTypeOf(x: IRValue): IRType {
+function irTypeOf(x: IRValue): Type {
   if (x instanceof Value) {
     if (x.type === 'i32') return types.int32()
     if (x.type === 'i64') return types.int64()
@@ -48,14 +46,14 @@ function irTypeOf(x: IRValue): IRType {
   return x
 }
 
-function showIRValue(x: IRValue | IRType): string {
+function showIRValue(x: IRValue | Type): string {
   if (x instanceof Value) return `${x.type}(${x.value.toString()})`
   if (Array.isArray(x)) return `[${x.join(', ')}]`
   return repr(x)
 }
 
 function MIR(meta: Def): MIR {
-  return new ir.IR<IRValue, IRType>(meta, irTypeOf, showIRValue)
+  return new ir.IR<IRValue, Type>(meta, irTypeOf, showIRValue)
 }
 
 class StringRef<T> extends ir.Expr<T> {
