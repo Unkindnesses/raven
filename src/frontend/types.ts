@@ -230,11 +230,7 @@ function Ptr(): Type {
 }
 
 function JSObject(): Type {
-  if (options().gc)
-    return pack(tag('common.JSObject'), Ref)
-  return options().jsalloc ?
-    pack(tag('common.JSObject'), pack(tag('common.Ref'), Ptr())) :
-    pack(tag('common.JSObject'), int32())
+  return pack(tag('common.JSObject'), Ref)
 }
 
 function String(): Type {

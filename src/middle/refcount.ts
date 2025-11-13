@@ -28,16 +28,16 @@
 import * as ir from '../utils/ir'
 import * as types from '../frontend/types'
 import { Type, tag, tagOf } from '../frontend/types'
-import { MIR, Value, IRValue, Method, asValue, Invoke } from '../frontend/modules'
+import { MIR, Value, IRValue, Method, asValue, Invoke, xwasm } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { Redirect, type Sig } from './abstract'
 import { Cache } from '../utils/cache'
 import { primitive } from './primitives'
 import isEqual from 'lodash/isEqual'
-import { HashMap, asNumber, some, setdiff, filter as filter } from '../utils/map'
-import { layout, call, indexer, load, sizeof, union_cases, unbox } from './expand'
+import { HashMap, asNumber, some, setdiff, filter as filter, only } from '../utils/map'
+import { layout, call, indexer, load, sizeof, union_cases, unbox, heapType } from './expand'
 import { unreachable } from '../utils/ir'
-import { xcall } from '../frontend/lower'
+import { xcall, xtuple } from '../frontend/lower'
 import { Accessor } from '../utils/fixpoint'
 
 export { isrefobj, isreftype, CountMode, retain_method, release_method, refcounts }
@@ -48,6 +48,7 @@ function isrefobj(x: Type): boolean {
 
 function isreftype(x: ir.Anno<Type>): x is Type {
   if (x === unreachable) return false
+  if (x.kind === 'ref') return true
   if (x.kind === 'pack') return isrefobj(x) || types.parts(x).some(isreftype)
   if (x.kind === 'union') return x.options.some(isreftype)
   if (x.kind === 'vpack') return layout(some(types.partial_eltype(x))).length !== 0
@@ -68,17 +69,19 @@ type CountMode = 'retain' | 'release'
 const retain_method = primitive('common.core.retain', 'args', (_: Type) => unreachable)
 const release_method = primitive('common.core.release', 'args', (_: Type) => unreachable)
 
-function count(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode): void {
-  if (T.kind === 'pack' && !isrefobj(T)) return count_inline(code, T, x, mode)
-  code.push(code.stmt(xcall(mode === 'retain' ? retain_method : release_method, x), { type: types.nil }))
+function count(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode, heap = false): void {
+  if (T.kind === 'ref' || (T.kind === 'pack' && !isrefobj(T))) return count_inline(code, T, x, mode, heap)
+  let method = mode === 'retain' ? retain_method : release_method
+  if (heap) method = method.param(T)
+  code.push(code.stmt(xcall(method, x), { type: types.nil }))
 }
 
-function retain(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>): void {
-  count(code, T, x, 'retain')
+function retain(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, heap = false): void {
+  count(code, T, x, 'retain', heap)
 }
 
-function release(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>): void {
-  count(code, T, x, 'release')
+function release(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, heap = false): void {
+  count(code, T, x, 'release', heap)
 }
 
 function countptr(code: ir.Fragment<MIR>, ptr: ir.Val<MIR>, mode: CountMode): void {
@@ -88,15 +91,22 @@ function countptr(code: ir.Fragment<MIR>, ptr: ir.Val<MIR>, mode: CountMode): vo
   call(code, f, [ptr], types.nil)
 }
 
-function count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode): void {
-  if (T.kind === 'pack') return pack_count_inline(code, T, x, mode)
+function count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode, heap = false): void {
+  if (T.kind === 'ref') return ref_count_inline(code, x, mode, heap)
+  if (T.kind === 'pack') return pack_count_inline(code, T, x, mode, heap)
   if (T.kind === 'vpack') return vpack_count_inline(code, T, x, mode)
-  if (T.kind === 'union') return union_count_inline(code, T, x, mode)
+  if (T.kind === 'union') return union_count_inline(code, T, x, mode, heap)
   if (T.kind === 'recursive') return recursive_count_inline(code, T, x, mode)
   throw new Error('unimplemented')
 }
 
-function pack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode): void {
+function ref_count_inline(code: ir.Fragment<MIR>, x: ir.Val<MIR>, mode: CountMode, heap = false): void {
+  if (!heap) return
+  if (mode === 'retain') throw new Error('heap refs should not be retained')
+  code.push(code.stmt(xwasm(['support', 'release'], x), { type: types.nil }))
+}
+
+function pack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode, heap = false): void {
   if (isrefobj(T)) {
     const ptr = indexer(code, T, types.int64(1), x, types.int64(1))
     if (mode === 'release') {
@@ -108,8 +118,9 @@ function pack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode
     for (let i = 0; i <= types.nparts(T); i++) {
       const P = types.part(T, i)
       if (!isreftype(P)) continue
-      const p = indexer(code, T, types.int64(i), x, types.int64(i))
-      count(code, P, p, mode)
+      let p = indexer(code, T, types.int64(i), x, types.int64(i))
+      if (heap) p = code.push(code.stmt(xtuple(p), { type: heapType(P) }))
+      count(code, P, p, mode, heap)
     }
   }
 }
@@ -137,8 +148,8 @@ function vpack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mod
     header.branch(after, [], { when: done })
     header.branch(body)
 
-    const el = load(body, elT, pos, { count: false })
-    release(body, elT, el)
+    const el = load(body, elT, pos, { count: false, heap: true })
+    release(body, elT, el, true)
     const len2 = call(body, tag('common.-'), [len, Value.i32(1)], types.int32())
     const pos2 = call(body, tag('common.+'), [pos, Value.i32(sizeof(elT))], types.Ptr())
     body.branch(header, [len2, pos2])
@@ -146,10 +157,10 @@ function vpack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mod
   countptr(code, ptr, mode)
 }
 
-function union_count_inline(code: ir.Fragment<MIR>, T: Type & { kind: 'union' }, x: ir.Val<MIR>, mode: CountMode): void {
+function union_count_inline(code: ir.Fragment<MIR>, T: Type & { kind: 'union' }, x: ir.Val<MIR>, mode: CountMode, heap = false): void {
   if (!(code instanceof ir.IR)) throw new Error('nope')
   union_cases(code, T, x, (S, val) => {
-    if (isreftype(S)) count(code, S, val, mode)
+    if (isreftype(S)) count(code, S, val, mode, heap)
     return types.nil
   })
 }
@@ -165,17 +176,17 @@ function recursive_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>,
     before.branch(body, [], { when: unique })
     before.branch(after)
     const U = types.unroll(T)
-    const inner = unbox(body, U, x, { count: false })
-    release(body, U, inner)
+    const inner = unbox(body, U, x, { count: false, heap: true })
+    release(body, U, inner, true)
     body.branch(after)
   }
   countptr(code, ptr, mode)
 }
 
-function count_ir(T: Type, mode: CountMode): MIR {
+function count_ir(T: Type, L: Type, mode: CountMode, heap = false): MIR {
   const code = MIR(Def(`common.core.${mode}`))
-  const x = code.argument(T)
-  count_inline(code, T, x, mode)
+  const x = code.argument(L)
+  count_inline(code, T, x, mode, heap)
   code.return(types.nil)
   return code
 }
@@ -294,8 +305,10 @@ function elide_counts(code: MIR): MIR {
 function refcounts(c: Accessor<Sig, Redirect | MIR>): Cache<Sig, Redirect | MIR> {
   return new Cache<Sig, Redirect | MIR>(sig => {
     const [F, ...Ts] = sig
-    if (isEqual(F, retain_method) || isEqual(F, release_method))
-      return count_ir(Ts[0], isEqual(F, retain_method) ? 'retain' : 'release')
+    if (retain_method.isEqual(F) || release_method.isEqual(F)) {
+      const T = F.params.length > 0 ? only(F.params) : Ts[0]
+      return count_ir(T, Ts[0], retain_method.isEqual(F) ? 'retain' : 'release')
+    }
     const ir = c.get(sig)
     if (ir instanceof Redirect) return ir
     return elide_counts(refcountsIR(ir))

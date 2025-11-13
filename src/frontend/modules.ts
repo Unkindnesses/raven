@@ -135,6 +135,7 @@ class Method {
   ) { }
   get [hash]() { return `${this.id}${this.params.map(x => types.repr(x)).join()}` }
   toString() { return `Method(${this.name})` }
+  isEqual(other: unknown): other is Method { return other instanceof Method && this.id === other.id }
   param(...Ts: Type[]) {
     return new Method(this.mod, this.name, this.sig, this.func, Ts, this.id)
   }

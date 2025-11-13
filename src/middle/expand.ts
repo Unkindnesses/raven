@@ -23,7 +23,6 @@ import { Type } from '../frontend/types'
 import { ValueType, sizeof as wsizeof } from '../wasm/wasm'
 import * as wasm from '../wasm/wasm'
 import { MIR, Method, Value, xstring, Global, Invoke, Wasm } from '../frontend/modules'
-import { options } from '../utils/options'
 import { Def } from '../dwarf'
 import { Inferred, Redirect, Sig, sig as resolveSig } from './abstract'
 import { wasmPartials } from '../backend/wasm'
@@ -37,7 +36,7 @@ import { partial_part, getIntValue, nparts, constValue, partial_set, copy_method
 import { inlinePrimitive, InvokeSt, outlinePrimitive } from './prim_map'
 import { Cache } from '../utils/cache'
 
-export { abort, call, layout, wlayout, sizeof, store, load, box, unbox, union_downcast, union_cases, cast, copyir, partir, packir, set_pack, indexer, setir, Expanded }
+export { abort, call, layout, wlayout, sizeof, store, load, box, unbox, union_downcast, union_cases, cast, copyir, partir, packir, set_pack, indexer, setir, Expanded, heapType }
 
 const i32 = Value.i32
 const i64 = Value.i64
@@ -103,8 +102,7 @@ function union_cases(code: MIR, T: Type & { kind: 'union' }, x: Val<MIR>, f: (S:
 // Panic
 
 function abort(code: Fragment<MIR>, s: string): Val<MIR> {
-  const ref = options().gc ? types.Ref : types.bits(32)
-  const id = code.push(code.stmt(xstring(s), { type: ref }))
+  const id = code.push(code.stmt(xstring(s), { type: types.Ref }))
   return code.push(code.stmt(xwasm(['support', 'abort'], id)))
 }
 
@@ -118,29 +116,35 @@ function call(code: Fragment<MIR>, f: Val<MIR> | Method, args: Val<MIR>[], type:
 
 // Pack primitives
 
-function layout(T: Type): Type[] {
+function layout(T: Type, heap = false): Type[] {
+  const recur = (x: Type) => layout(x, heap)
   if (types.isValue(T)) return []
   switch (T.kind) {
     case 'float32': return [types.float32()]
     case 'float64': return [types.float64()]
-    case 'ref': return [types.Ref]
+    case 'ref': return [heap ? types.bits(32) : types.Ref]
     case 'bits': {
       if (T.size <= 32) return [types.bits(32)]
       if (T.size <= 64) return [types.bits(64)]
       throw new Error(`Unsupported bit size ${T.size}`)
     }
-    case 'pack': return T.parts.flatMap(layout)
+    case 'pack': return T.parts.flatMap(recur)
     case 'vpack': return [ // size, pointer
-      ...layout(types.tagOf(T)), types.bits(32),
-      ...(layout(some(types.partial_eltype(T))).length === 0 ? [] : [types.bits(32)])
+      ...recur(types.tagOf(T)), types.bits(32),
+      ...(recur(some(types.partial_eltype(T))).length === 0 ? [] : [types.bits(32)])
     ]
     case 'recursive': return [types.bits(32)]
-    case 'union': return [types.bits(32), ...T.options.flatMap(layout)]
+    case 'union': return [types.bits(32), ...T.options.flatMap(recur)]
     case 'tag': return []
     case 'any':
     case 'recurrence': throw new Error('unimplemented')
     default: { const _: never = T; throw new Error('unreachable') }
   }
+}
+
+function heapType(T: Type): Type {
+  const ps = layout(T, true)
+  return ps.length === 1 ? ps[0] : types.list(...ps)
 }
 
 function wtype(T: Type): ValueType {
@@ -169,7 +173,7 @@ function sublayout(T: Type, i: number): number[] {
 }
 
 function sizeof(T: Type): number {
-  return wlayout(T).reduce((n, t) => n + wsizeof(t), 0)
+  return layout(T, true).reduce((n, t) => n + wsizeof(wtype(t)), 0)
 }
 
 // part
@@ -440,31 +444,46 @@ function lowerdata(code: MIR): MIR {
 
 // Casts
 
+function storeAtom(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, x: Val<MIR>): void {
+  if (T.kind === 'ref') {
+    T = types.bits(32)
+    x = pr.push(pr.stmt(xwasm(['support', 'createRef'], x), { type: T }))
+  }
+  pr.push(pr.stmt(xwasm(`${wtype(T)}.store`, ptr, x), { type: types.nil }))
+}
+
 function store(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, x: Val<MIR>): void {
   if (!(isEqual(pr.type(ptr), types.Ptr()) || isEqual(pr.type(ptr), types.int32()))) throw new Error('store: expected RPtr or Int32')
-  const regs = wlayout(T)
+  const regs = layout(T)
   for (let i = 0; i < regs.length; i++) {
-    const part = pr.push(pr.stmt(expr('ref', x, i64(i + 1))))
-    pr.push(pr.stmt(xwasm(`${regs[i]}.store`, ptr, part), { type: types.nil }))
+    const part = pr.push(pr.stmt(expr('ref', x, i64(i + 1)), { type: regs[i] }))
+    storeAtom(pr, regs[i], ptr, part)
     // TODO could use constant offset here
     if (i + 1 < regs.length)
-      ptr = pr.push(pr.stmt(xwasm('i32.add', ptr, i32(wsizeof(regs[i]))), { type: types.int32() }))
+      ptr = pr.push(pr.stmt(xwasm(`i32.add`, ptr, i32(sizeof(regs[i]))), { type: types.int32() }))
   }
 }
 
-function load(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, { count = true }: { count?: boolean } = {}): Val<MIR> {
+function loadAtom(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, heap = false): Val<MIR> {
+  const t = T.kind === 'ref' ? types.bits(32) : T
+  let val = pr.push(pr.stmt(xwasm(`${wtype(t)}.load`, ptr), { type: t }))
+  if (T.kind === 'ref' && !heap)
+    val = pr.push(pr.stmt(xwasm(['support', 'fromRef'], val), { type: types.Ref }))
+  return val
+}
+
+function load(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, { count = true, heap = false }: { count?: boolean, heap?: boolean } = {}): Val<MIR> {
   if (!(isEqual(pr.type(ptr), types.Ptr()) || isEqual(pr.type(ptr), types.int32()))) throw new Error('load: expected RPtr or Int32')
   const regs = layout(T)
   const parts: Val<MIR>[] = []
   for (let i = 0; i < regs.length; i++) {
     const bits = pr.push(pr.stmt(expr('ref', ptr, i64(1)), { type: types.bits(32) }))
-    const val = pr.push(pr.stmt(xwasm(`${wtype(regs[i])}.load`, bits), { type: regs[i] }))
-    parts.push(val)
+    parts.push(loadAtom(pr, regs[i], bits, heap))
     // TODO same as above
     if (i + 1 < regs.length)
       ptr = pr.push(pr.stmt(xwasm('i32.add', ptr, i32(sizeof(regs[i]))), { type: types.int32() }))
   }
-  const result = pr.push(pr.stmt(xtuple(...parts), { type: T }))
+  const result = pr.push(pr.stmt(xtuple(...parts), { type: heap ? heapType(T) : T }))
   if (count && isreftype(T)) pr.push(pr.stmt(expr('retain', result)))
   return result
 }
@@ -475,15 +494,21 @@ function box(pr: Fragment<MIR>, T: Type, x: Val<MIR>): Val<MIR> {
   return ptr
 }
 
-function unbox(pr: Fragment<MIR>, T: Type, x: Val<MIR>, { count = true }: { count?: boolean } = {}): Val<MIR> {
+function unbox(pr: Fragment<MIR>, T: Type, x: Val<MIR>, { count = true, heap = false }: { count?: boolean, heap?: boolean } = {}): Val<MIR> {
   const ptr = pr.push(pr.stmt(expr('ref', x, i64(1)), { type: types.int32() }))
-  const result = load(pr, T, ptr, { count })
+  const result = load(pr, T, ptr, { count, heap })
   if (count) pr.push(pr.stmt(expr('release', x)))
   return result
 }
 
 function blockargtype(bl: Block<MIR>, i: number): Type {
   return asType(bl.type(bl.args[i - 1]))
+}
+
+function zero(pr: Fragment<MIR>, T: ValueType): Val<MIR> {
+  if (isEqual(T, wasm.externref))
+    return pr.push(pr.stmt(xwasm(wasm.RefNull(wasm.externref.type)), { type: types.Ref }))
+  return Value.from(wasm.asNumType(T), 0)
 }
 
 function cast(pr: Fragment<MIR>, from: Anno<Type>, to: Anno<Type>, x: Val<MIR>): Val<MIR> {
@@ -527,7 +552,7 @@ function cast(pr: Fragment<MIR>, from: Anno<Type>, to: Anno<Type>, x: Val<MIR>):
       const regs = wlayout(to.options[j - 1]).length
       if (j === i && typeof y === 'number') parts.push(y)
       else for (let k = 1; k <= regs; k++)
-        parts.push(Value.from(wasm.asNumType(wlayout(to.options[j - 1])[k - 1]), 0))
+        parts.push(zero(pr, wlayout(to.options[j - 1])[k - 1]))
     }
     return pr.push(pr.stmt(xtuple(...parts), { type: to }))
   }

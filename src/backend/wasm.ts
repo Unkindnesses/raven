@@ -112,9 +112,8 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
     }
     for (const [v, st] of block) {
       if (st.expr instanceof StringRef) {
-        const ref = options().gc ? wasm.externref : wasm.i32
-        const name = names.get([['support', 'string'], [wasm.i32], [ref]])
-        env.set(v, out.push({ ...st, expr: instr(wasm.Call(name), Value.i32(tables.string(st.expr.value))), type: [ref] }))
+        const name = names.get([['support', 'string'], [wasm.i32], [wasm.externref]])
+        env.set(v, out.push({ ...st, expr: instr(wasm.Call(name), Value.i32(tables.string(st.expr.value))), type: [wasm.externref] }))
       } else if (st.expr.head === 'func') {
         const [f, I, O] = st.expr.body
         const name = names.get([types.asTag(f), asType(ir.type(I))])

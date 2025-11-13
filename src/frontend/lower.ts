@@ -289,15 +289,7 @@ function swapreturn(code: LIR, val: Val<LIR>, swaps?: Map<number, string>, { src
 }
 
 function string(sc: Scope, code: LIR, x: string) {
-  if (options().gc) {
-    // TODO remove type
-    return code.push(code.stmt(xstring(x), { type: types.String() }))
-  } else {
-    const id = code.push(code.stmt(xstring(x), { type: types.list(types.int32()) }))
-    const obj = code.push(code.stmt(xcall(tag('common.JSObject'), id)))
-    const s = code.push(code.stmt(xcall(tag('common.String'), obj)))
-    return code.push(code.stmt(xpart(s, Type(1n))))
-  }
+  return code.push(code.stmt(xstring(x)))
 }
 
 function lowermatch(sc: Scope, code: LIR, val: Val<LIR>, pat: ast.Tree): Val<LIR> {
@@ -487,7 +479,7 @@ const wtypes = new Map<string, Type>([
   ['externref', types.Ref]])
 
 function wtype(name: string): Type {
-  if (name === 'ref') return options().gc ? types.Ref : types.int32()
+  if (name === 'ref') return types.Ref
   return some(wtypes.get(name))
 }
 

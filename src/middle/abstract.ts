@@ -1,7 +1,7 @@
 import { unreachable, expand, Anno, Block, Expr, Branch, prune, asType } from '../utils/ir'
 import { LoopIR, looped, Path, block, nextpath, nextpathTo, pin, blockargs, loop, unloop } from './loop'
 import { MatchMethods, dispatcher } from './patterns'
-import { Tag, Type, repr, union, issubset as iss, isValue, pack, tag, tagOf } from '../frontend/types'
+import { Tag, Type, repr, union, issubset as iss, isValue, pack, tag, tagOf, String as RString } from '../frontend/types'
 import { wasmPartials } from '../backend/wasm'
 import { MIR, IRValue, Binding, Method, Definitions, StringRef, Global, SetGlobal, Wasm, callargs } from '../frontend/modules'
 import { Def } from '../dwarf'
@@ -281,7 +281,7 @@ function update(inf: Inference, k: string): void {
       } else if (ex.head === 'tuple') {
         if (!isValue(asType(st.type))) throw new Error('tuple without type')
       } else if (ex instanceof StringRef) {
-        asType(st.type)
+        bl.ir.setType(v, RString())
       } else throw new Error(`Unknown expr type ${ex.head}`)
     }
     while (true) {

@@ -40,7 +40,7 @@ const f64 = NumType.f64
 const f32 = NumType.f32
 const i64 = NumType.i64
 const i32 = NumType.i32
-const externref: ValueType = { null: true, type: { kind: 'abstract', type: AbsHeapType.extern } }
+const externref: RefType = { null: true, type: { kind: 'abstract', type: AbsHeapType.extern } }
 
 function asNumType(t: any): NumType {
   if ([f64, f32, i64, i32].includes(t)) return t

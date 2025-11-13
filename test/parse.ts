@@ -170,23 +170,20 @@ test('lower function with swap pattern', () => {
   %8 = br 2 if %7
   %9 = br 3
 2:
-  %10 = "match failed: [x, y]" :: [int 32]
-  %11 = call tag"common.JSObject", %10
-  %12 = call tag"common.String", %11
+  %10 = "match failed: [x, y]"
+  %11 = pack tag"common.List", %10
+  %12 = call tag"common.abort", %11
   %13 = call Method(tag"common.core.part"), %12, 1
-  %14 = pack tag"common.List", %13
-  %15 = call tag"common.abort", %14
-  %16 = call Method(tag"common.core.part"), %15, 1
 3:
-  %17 = call Method(tag"common.core.notnil"), %6
-  %18 = pack tag"common.List", %17, tag"x"
+  %14 = call Method(tag"common.core.notnil"), %6
+  %15 = pack tag"common.List", %14, tag"x"
+  %16 = call tag"common.getkey", %15
+  %17 = call Method(tag"common.core.part"), %16, 1
+  %18 = pack tag"common.List", %14, tag"y"
   %19 = call tag"common.getkey", %18
   %20 = call Method(tag"common.core.part"), %19, 1
-  %21 = pack tag"common.List", %17, tag"y"
-  %22 = call tag"common.getkey", %21
-  %23 = call Method(tag"common.core.part"), %22, 1
-  %24 = pack tag"common.List", pack(tag"common.Nil"), %20, %23
-  %25 = return %24`)
+  %21 = pack tag"common.List", pack(tag"common.Nil"), %17, %20
+  %22 = return %21`)
 })
 
 test('lower list construction', () => {

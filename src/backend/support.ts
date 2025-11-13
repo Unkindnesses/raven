@@ -5,11 +5,9 @@ import { Def } from '../dwarf'
 export { loadWasm, support, table }
 
 let idcounter = 0
-let gc = false
 const table: any = {}
 
 function createRef(obj: unknown) {
-  if (gc) return obj
   if (idcounter >= 4294967295) throw new Error("too many JSRefs")
   const ref = idcounter++
   table[ref] = obj
@@ -17,12 +15,7 @@ function createRef(obj: unknown) {
 }
 
 function fromRef(ref: number) {
-  if (gc) return ref
   return table[ref]
-}
-
-async function awate(ref: number) {
-  return createRef(await fromRef(ref))
 }
 
 function release(ref: number) {
@@ -30,50 +23,44 @@ function release(ref: number) {
 }
 
 function global() {
-  return createRef(globalThis)
+  return globalThis
 }
 
-function property(obj: number, prop: number) {
-  const r = fromRef(obj)[fromRef(prop)]
-  return createRef(r)
+function property(obj: any, prop: any) {
+  return obj[prop]
 }
 
-function _call(obj: any, meth: any, ...args: any[]) {
+function call(obj: any, meth: any, ...args: any[]) {
   const func = obj[meth]
   if (func === undefined) {
     throw new Error(`No such method ${meth}`)
   }
-  return createRef(func.call(obj, ...args))
+  return func.call(obj, ...args)
 }
 
-function call(obj: number, meth: number, ...args: number[]) {
-  return _call(fromRef(obj), fromRef(meth), ...args.map(fromRef))
+function apply(obj: any, meth: any, args: any) {
+  return call(obj, meth, ...args)
 }
 
-function apply(obj: number, meth: number, args: number) {
-  return _call(fromRef(obj), fromRef(meth), ...fromRef(args))
-}
-
-async function errcall(_obj: number, _meth: number, ..._args: number[]) {
-  let [obj, meth, ...args] = [_obj, _meth, ..._args].map(fromRef)
+async function errcall(obj: any, meth: any, ...args: any[]) {
   const func = obj[meth]
   if (func === undefined) {
     throw new Error(`No such method ${meth}`)
   }
   try {
     let result = await func.call(obj, ...args)
-    return [0, createRef(result)]
+    return [0, result]
   } catch (e) {
-    return [1, createRef(e)]
+    return [1, e]
   }
 }
 
-function equal(a: number, b: number) {
-  return fromRef(a) === fromRef(b)
+function equal(a: any, b: any) {
+  return a === b
 }
 
-function abort(obj: number, cause: number) {
-  throw new Error(fromRef(obj), cause ? { cause: fromRef(cause) } : {})
+function abort(obj: any, cause: any) {
+  throw new Error(obj, cause ? { cause: cause } : {})
 }
 
 (globalThis as any).require = require;
@@ -108,10 +95,11 @@ function support(strings: string[]) {
     global, property, call, apply,
     createRef, fromRef, abort,
     equal, release,
-    await: new (WebAssembly as any).Suspending(awate),
+    identity: (x: any) => x,
+    await: new (WebAssembly as any).Suspending((x: any) => x),
     errcall: new (WebAssembly as any).Suspending(errcall),
     debugger: () => { debugger },
-    string: (i: number) => createRef(strings[i])
+    string: (i: number) => strings[i]
   }
 }
 
@@ -166,7 +154,6 @@ async function loadWasm(buf: string | Uint8Array, imports: any = {}) {
     buf = await fs.readFile(buf)
   const m = meta(buf)
   if (m === undefined) throw new Error('Not a Raven wasm module.')
-  gc = m.gc
   imports = { ...imports, support: support(m.strings) }
   const res = await WebAssembly.instantiate(new Uint8Array(buf), imports)
   const debug = DebugModule(buf)
