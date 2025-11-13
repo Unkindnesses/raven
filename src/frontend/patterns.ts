@@ -2,9 +2,9 @@ import isEqual from "lodash/isEqual"
 import * as ast from "./ast"
 import { asSymbol, Symbol, symbol } from "./ast"
 import { Type, Tag, tag, pack, part, parts, tagOf, asTag } from "./types"
-import { Signature, IRValue, WIntrinsic } from "./modules"
+import { Signature, IRValue } from "./modules"
 
-export { Pattern, IRValue, WIntrinsic, modtag, lowerpattern, patternType, pattern }
+export { Pattern, IRValue, modtag, lowerpattern, patternType, pattern }
 
 // Pattern types
 

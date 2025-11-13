@@ -22,7 +22,7 @@ import * as types from '../frontend/types'
 import { Type } from '../frontend/types'
 import { ValueType, sizeof as wsizeof } from '../wasm/wasm'
 import * as wasm from '../wasm/wasm'
-import { MIR, WImport, WIntrinsic, Method, Value, xstring, Global, Invoke, Wasm } from '../frontend/modules'
+import { MIR, Method, Value, xstring, Global, Invoke, Wasm } from '../frontend/modules'
 import { options } from '../utils/options'
 import { Def } from '../dwarf'
 import { Inferred, Redirect, Sig, sig as resolveSig } from './abstract'
@@ -86,7 +86,7 @@ function union_downcast(pr: Fragment<MIR>, U: Type & { kind: 'union' }, i: numbe
 function union_cases(code: MIR, T: Type & { kind: 'union' }, x: Val<MIR>, f: (S: Type, val: Val<MIR>) => Val<MIR>): MIR {
   const j = code.push(code.stmt(expr('ref', x, i64(1)), { type: types.bits(32) }))
   for (let caseIdx = 1; caseIdx <= T.options.length; caseIdx++) {
-    const cond = code.push(code.stmt(xwasm(new WIntrinsic('i32.eq'), j, i32(caseIdx)), { type: types.bool() }))
+    const cond = code.push(code.stmt(xwasm('i32.eq', j, i32(caseIdx)), { type: types.bool() }))
     const before = code.block()
     const body = code.newBlock()
     const val = union_downcast(code, T, caseIdx, x)
@@ -105,7 +105,7 @@ function union_cases(code: MIR, T: Type & { kind: 'union' }, x: Val<MIR>, f: (S:
 function abort(code: Fragment<MIR>, s: string): Val<MIR> {
   const ref = options().gc ? types.Ref : types.bits(32)
   const id = code.push(code.stmt(xstring(s), { type: ref }))
-  return code.push(code.stmt(xwasm(new WImport('support', 'abort'), id)))
+  return code.push(code.stmt(xwasm(['support', 'abort'], id)))
 }
 
 // We're a bit fast and loose with types here, because `T` and `[T]` have the
@@ -248,9 +248,9 @@ function indexer(pr: Fragment<MIR>, T: Type, I: Type, x: Val<MIR>, i: Val<MIR>):
     if (types.isValue(types.part(T, idx)))
       return types.part(T, idx)
     if (isEqual(T, types.float64()))
-      return pr.push(pr.stmt(xwasm(new WIntrinsic('i64.reinterpret_f64'), x), { type: types.bits(64) }))
+      return pr.push(pr.stmt(xwasm('i64.reinterpret_f64', x), { type: types.bits(64) }))
     if (isEqual(T, types.float32()))
-      return pr.push(pr.stmt(xwasm(new WIntrinsic('i32.reinterpret_f32'), x), { type: types.bits(32) }))
+      return pr.push(pr.stmt(xwasm('i32.reinterpret_f32', x), { type: types.bits(32) }))
     return x
   } else if (T.kind === 'vpack') {
     return vpack_indexer(pr, T, I, x, i)
@@ -420,8 +420,10 @@ function lowerdata(code: MIR): MIR {
     if (ex.head === 'pack') {
       const args = ex.body.filter(x => !types.isValue(asType(code.type(x))))
       args.length ? pr.set(v, xtuple(...args)) : pr.replace(v, asType(st.type))
-    } else if (ex instanceof Wasm && ex.callee instanceof WIntrinsic) {
-      if (wasmPartials.has(ex.callee.name) && types.isValue(asType(st.type)))
+    } else if (ex instanceof Wasm && !ex.isImport()) {
+      const instr = ex.callee as wasm.Instruction
+      const op = instr.kind === 'op' ? instr.name : ''
+      if (wasmPartials.has(op) && types.isValue(asType(st.type)))
         pr.replace(v, asType(st.type))
     } else if (ex instanceof Invoke) {
       if (inlinePrimitive.has(ex.method.id)) {
@@ -443,10 +445,10 @@ function store(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, x: Val<MIR>): void {
   const regs = wlayout(T)
   for (let i = 0; i < regs.length; i++) {
     const part = pr.push(pr.stmt(expr('ref', x, i64(i + 1))))
-    pr.push(pr.stmt(xwasm(new WIntrinsic(`${regs[i]}.store`), ptr, part), { type: types.nil }))
+    pr.push(pr.stmt(xwasm(`${regs[i]}.store`, ptr, part), { type: types.nil }))
     // TODO could use constant offset here
     if (i + 1 < regs.length)
-      ptr = pr.push(pr.stmt(xwasm(new WIntrinsic('i32.add'), ptr, i32(wsizeof(regs[i]))), { type: types.int32() }))
+      ptr = pr.push(pr.stmt(xwasm('i32.add', ptr, i32(wsizeof(regs[i]))), { type: types.int32() }))
   }
 }
 
@@ -456,11 +458,11 @@ function load(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, { count = true }: { cou
   const parts: Val<MIR>[] = []
   for (let i = 0; i < regs.length; i++) {
     const bits = pr.push(pr.stmt(expr('ref', ptr, i64(1)), { type: types.bits(32) }))
-    const val = pr.push(pr.stmt(xwasm(new WIntrinsic(`${wtype(regs[i])}.load`), bits), { type: regs[i] }))
+    const val = pr.push(pr.stmt(xwasm(`${wtype(regs[i])}.load`, bits), { type: regs[i] }))
     parts.push(val)
     // TODO same as above
     if (i + 1 < regs.length)
-      ptr = pr.push(pr.stmt(xwasm(new WIntrinsic('i32.add'), ptr, i32(sizeof(regs[i]))), { type: types.int32() }))
+      ptr = pr.push(pr.stmt(xwasm('i32.add', ptr, i32(sizeof(regs[i]))), { type: types.int32() }))
   }
   const result = pr.push(pr.stmt(xtuple(...parts), { type: T }))
   if (count && isreftype(T)) pr.push(pr.stmt(expr('retain', result)))

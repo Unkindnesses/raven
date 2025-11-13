@@ -3,12 +3,13 @@ import { LoopIR, looped, Path, block, nextpath, nextpathTo, pin, blockargs, loop
 import { MatchMethods, dispatcher } from './patterns'
 import { Tag, Type, repr, union, issubset as iss, isValue, pack, tag, tagOf } from '../frontend/types'
 import { wasmPartials } from '../backend/wasm'
-import { MIR, IRValue, Binding, Method, Definitions, WImport, StringRef, Global, SetGlobal, Wasm, callargs } from '../frontend/modules'
+import { MIR, IRValue, Binding, Method, Definitions, StringRef, Global, SetGlobal, Wasm, callargs } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { WorkQueue } from '../utils/fixpoint'
 import { hash, HashSet, some } from '../utils/map'
 import { trackdeps, Map as CacheMap, fingerprint, Caching, withtime } from '../utils/cache'
 import isEqual from 'lodash/isEqual'
+import { Instruction } from '../wasm/wasm'
 
 const recursionLimit = 10
 
@@ -224,11 +225,12 @@ function update(inf: Inference, k: string): void {
     for (const [v, st] of bl) {
       const ex = st.expr
       if (ex instanceof Wasm) {
-        if (ex.callee instanceof WImport) continue
-        const op = ex.callee
+        if (ex.isImport()) continue
+        const instr = ex.callee as Instruction
+        const op = instr.kind === 'op' ? instr.name : ''
         const Ts = ex.body.map(x => bl.type(x))
-        if (Ts.every(t => t !== unreachable) && Ts.every(t => isValue(t)) && wasmPartials.has(op.name)) {
-          const T = some(wasmPartials.get(op.name))(...Ts)
+        if (Ts.every(t => t !== unreachable) && Ts.every(t => isValue(t)) && wasmPartials.has(op)) {
+          const T = some(wasmPartials.get(op))(...Ts)
           bl.ir.setType(v, T)
         }
       } else if (['call', 'invoke'].includes(ex.head)) {

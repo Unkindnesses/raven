@@ -5,7 +5,7 @@ import { Val, fuseblocks, prune, ssa } from "../utils/ir"
 import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast"
 import * as types from "./types"
 import { Type, Tag, tag, pack, bits, nil } from "./types"
-import { Module, Signature, Binding, WIntrinsic, MIR, WImport, xstring, Method, xglobal, xset, SetGlobal, Invoke, Wasm } from "./modules"
+import { Module, Signature, Binding, MIR, xstring, Method, xglobal, xset, SetGlobal, Invoke, Wasm } from "./modules"
 import { Def } from "../dwarf"
 import { asBigInt, some } from "../utils/map"
 import { binding, options } from "../utils/options"
@@ -14,7 +14,7 @@ import { isnil_method, notnil_method, part_method, packcat_method } from "../mid
 import { lowerpattern, modtag, patternType } from "./patterns"
 
 export {
-  WIntrinsic, lower_toplevel, bundlemacro, lowerfn, source,
+  lower_toplevel, bundlemacro, lowerfn, source,
   globals, assigned_globals, xlist, xpart, xcall, xtuple, annos
 }
 
@@ -491,7 +491,7 @@ function wtype(name: string): Type {
   return some(wtypes.get(name))
 }
 
-function intrinsic(ex: ast.Tree): [WIntrinsic | WImport, ir.Anno<Type>] {
+function intrinsic(ex: ast.Tree): [string | [string, string], ir.Anno<Type>] {
   let T: ir.Anno<Type> = types.nil
   if (ast.isExpr(ex, 'Operator') && isEqual(ex.args[0].unwrap(), ast.symbol(':'))) {
     const type = ex.args[2]
@@ -504,13 +504,13 @@ function intrinsic(ex: ast.Tree): [WIntrinsic | WImport, ir.Anno<Type>] {
   let op = ast.asExpr(ex).args[0].ungroup()
   if (isEqual(op.unwrap(), ast.symbol('call'))) {
     let name = ast.asExpr(ast.asExpr(ex).args[1], 'Field').args.map(t => t.unwrap().toString())
-    return [new WImport(name[0], name[1]), T]
+    return [[name[0], name[1]], T]
   } else if (isEqual(op, parse.expr('global.get'))) {
     throw new Error('not supported')
   } else {
     const namify = (x: ast.Tree): string =>
       ast.isExpr(x, 'Field') ? x.args.map(namify).join('.') : ast.asSymbol(x).name
-    return [new WIntrinsic(namify(op)), T]
+    return [namify(op), T]
   }
 }
 

@@ -9,7 +9,7 @@ import { unreachable, Anno, Pipe, expr, Val, Branch, Expr, asType } from '../uti
 import isEqual from 'lodash/isEqual'
 import { wlayout } from '../middle/expand'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe } from '../utils/cache'
-import { Binding, Definitions, MIR, WImport, Method, StringRef, Global, SetGlobal, Wasm as WasmCall, callargs } from '../frontend/modules'
+import { Binding, Definitions, MIR, Method, StringRef, Global, SetGlobal, Wasm as WasmCall, callargs } from '../frontend/modules'
 import { Def } from '../dwarf'
 import { Redirect, type Sig } from '../middle/abstract'
 import { Accessor } from '../utils/fixpoint'
@@ -113,7 +113,7 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
     for (const [v, st] of block) {
       if (st.expr instanceof StringRef) {
         const ref = options().gc ? wasm.externref : wasm.i32
-        const name = names.get([new WImport('support', 'string'), [wasm.i32], [ref]])
+        const name = names.get([['support', 'string'], [wasm.i32], [ref]])
         env.set(v, out.push({ ...st, expr: instr(wasm.Call(name), Value.i32(tables.string(st.expr.value))), type: [ref] }))
       } else if (st.expr.head === 'func') {
         const [f, I, O] = st.expr.body
@@ -137,13 +137,13 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
       } else if (st.expr instanceof WasmCall) {
         const [callee, args] = [st.expr.callee, st.expr.body]
         let expr: Expr<Value>
-        if (callee instanceof WImport) {
+        if (Array.isArray(callee)) {
           const I = args.flatMap(a => wlayout(types.abstract(asType(ir.type(a))))) // TODO shouldn't get consts here
           const O = wparts(st.type)
           const name = names.get([callee, I, O])
           expr = instr(wasm.Call(name), ...args.map(rename))
         } else {
-          expr = instr(wasm.Op(callee.name), ...args.map(rename))
+          expr = instr(callee, ...args.map(rename))
         }
         env.set(v, out.push({ ...st, expr: expr, type: type(st.type) }))
         if (st.type === unreachable) out.push(out.stmt(instr(wasm.unreachable), { type: [] })) // TODO unnecessary?
@@ -193,12 +193,12 @@ function frame(code: Accessor<Sig, Redirect | MIR>, sig: Sig): MIR {
   return res
 }
 
-type WSig = [WImport, wasm.ValueType[], wasm.ValueType[]]
+type WSig = [[string, string], wasm.ValueType[], wasm.ValueType[]]
 
-function wname(f: types.Tag | Method | WImport): string {
+function wname(f: types.Tag | Method | [string, string]): string {
   if (f instanceof types.Tag) return f.path
   if (f instanceof Method) return `${f.name.path}:method`
-  if (f instanceof WImport) return `${f.mod}:${f.name}`
+  if (Array.isArray(f)) return `${f[0]}:${f[1]}`
   throw new Error('unreachable')
 }
 
@@ -214,7 +214,7 @@ class Wasm implements Caching {
     // TODO should be `funcs`, not `code`, to make global redefs of the same type
     // more efficient. But that creates an awkward cycle between names and funcs.
     this.names = new DualCache<Sig | WSig, string>(sig => {
-      if (!(sig[0] instanceof WImport)) code.get(sig as Sig) // new name if code changes
+      if (!Array.isArray(sig[0])) code.get(sig as Sig) // new name if code changes
       const id = wname(sig[0])
       const c = (count.get(id) ?? 0) + 1
       count.set(id, c)
@@ -229,12 +229,12 @@ class Wasm implements Caching {
   lower(ir: MIR) { return lowerwasm(ir, this.names, this.globals, this.tables) }
   get(sig: Sig): wasm.Func { return this.funcs.get(sig) }
   haskey(name: string): boolean {
-    return this.names.hasvalue(name) && !(this.names.getkey(name)[0] instanceof WImport)
+    return this.names.hasvalue(name) && !Array.isArray(this.names.getkey(name)[0])
   }
 
   getByName(name: string): wasm.Func {
     const sig = this.names.getkey(name)
-    if (sig[0] instanceof WImport) throw new Error('nope')
+    if (Array.isArray(sig[0])) throw new Error('nope')
     return this.get(sig as Sig)
   }
 
@@ -277,9 +277,9 @@ class BatchEmitter implements Emitter {
     this.seen.add(f)
     if (!mod.names.hasvalue(f)) return
     const key = mod.names.getkey(f)
-    if (key[0] instanceof WImport) {
+    if (Array.isArray(key[0])) {
       const [imp, I, O] = key as WSig
-      this.imports.push(wasm.Import(imp.mod, imp.name, f, wasm.Signature(I, O)))
+      this.imports.push(wasm.Import(imp[0], imp[1], f, wasm.Signature(I, O)))
     } else {
       this.emitFunc(mod, mod.get(key as Sig))
     }
@@ -337,9 +337,9 @@ function emitwasmBinary(em: BatchEmitter, mod: Wasm, strip = false): Uint8Array 
 
 function wimport(mod: Wasm, f: string): wasm.Import {
   const sig = mod.names.getkey(f)
-  if (sig[0] instanceof WImport) {
+  if (Array.isArray(sig[0])) {
     const [imp, I, O] = sig as WSig
-    return wasm.Import(imp.mod, imp.name, f, wasm.Signature(I, O))
+    return wasm.Import(imp[0], imp[1], f, wasm.Signature(I, O))
   } else {
     const fn = mod.get(sig as Sig)
     return wasm.Import('wasm', f, f, fn.sig)

@@ -7,19 +7,12 @@ import * as ir from "../utils/ir"
 import { Pattern } from "./patterns"
 import { Def } from "../dwarf"
 import { Value, asValue } from "../wasm/ir"
+import { Instruction, Op } from "../wasm/wasm"
 
 export {
   Module, Method, Signature, Binding, asBinding, asValue, Modules,
-  Definitions, Value, MIR, IRValue, WIntrinsic, WImport, showIRValue,
+  Definitions, Value, MIR, IRValue, showIRValue,
   StringRef, xstring, Global, SetGlobal, xglobal, xset, Invoke, Wasm, xwasm, callargs
-}
-
-class WIntrinsic {
-  constructor(readonly name: string) { }
-}
-
-class WImport {
-  constructor(readonly mod: string, readonly name: string) { }
 }
 
 class Binding {
@@ -92,19 +85,30 @@ class Invoke<T> extends ir.Expr<T> {
 }
 
 class Wasm<T> extends ir.Expr<T> {
-  constructor(readonly callee: WIntrinsic | WImport, readonly args: (T | number)[]) { super('wasm', args) }
-  map(f: (x: T | number) => T | number): Wasm<T> { return new Wasm(this.callee, this.args.map(f)) }
+  readonly callee: Instruction | [string, string]
+  constructor(callee: Instruction | string | [string, string], readonly args: (T | number)[]) {
+    super('wasm', args)
+    this.callee = typeof callee === 'string' ? Op(callee) : callee
+  }
+  map(f: (x: T | number) => T | number): Wasm<T> { return new Wasm<T>(this.callee, this.args.map(f)) }
+  isImport(): this is Wasm<T> & { callee: [string, string] } {
+    return Array.isArray(this.callee)
+  }
   show(pr: (x: T | number) => string): string {
-    const target = this.callee instanceof WIntrinsic
-      ? this.callee.name
-      : `\$${this.callee.mod}.${this.callee.name}`
+    let target: string
+    if (this.isImport()) {
+      target = `\$${this.callee[0]}.${this.callee[1]}`
+    } else {
+      const instr = this.callee as Instruction
+      target = instr.kind === 'op' ? instr.name : `<${instr.kind}>`
+    }
     return this.args.length > 0
       ? `call ${target}, ${this.args.map(pr).join(', ')}`
       : `call ${target}`
   }
 }
 
-function xwasm<T>(callee: WIntrinsic | WImport, ...args: (T | number)[]) {
+function xwasm<T>(callee: Instruction | string | [string, string], ...args: (T | number)[]) {
   return new Wasm<T>(callee, args)
 }
 

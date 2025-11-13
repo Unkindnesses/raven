@@ -1,6 +1,6 @@
 import * as types from '../frontend/types'
 import { Tag, Type } from '../frontend/types'
-import { Method, Definitions, IRValue, WIntrinsic, WImport, MIR, Global, SetGlobal, Invoke, Wasm, Value } from '../frontend/modules'
+import { Method, Definitions, IRValue, MIR, Global, SetGlobal, Invoke, Wasm, Value } from '../frontend/modules'
 import { IR, unreachable, Branch, asType } from '../utils/ir'
 import { CycleCache } from '../utils/cache'
 import { partial_match } from './patterns'
@@ -8,6 +8,7 @@ import { wasmPartials } from '../backend/wasm'
 import { invoke_method } from './primitives'
 import isEqual from 'lodash/isEqual'
 import { some } from '../utils/map'
+import { Instruction } from '../wasm/wasm'
 
 export { Interpreter, interpret, interpreter }
 
@@ -53,15 +54,13 @@ function interpretIR(int: Interpreter, ir: MIR, ...args: Type[]): Type | undefin
         if (result === undefined) return
         env.set(v, result)
       } else if (st.expr instanceof Wasm) {
-        const op = st.expr.callee
-        if (op instanceof WIntrinsic) {
-          if (!wasmPartials.has(op.name)) return
-          const args = xs
-          const allValues = args.every(types.isValue)
-          env.set(v, allValues ? wasmPartials.get(op.name)!(...args) : asType(st.type))
-        } else if (op instanceof WImport) {
-          return
-        } else throw new Error(`Expected intrinsic or import, got ${op}`)
+        if (st.expr.isImport()) return
+        const instr = st.expr.callee as Instruction
+        const op = instr.kind === 'op' ? instr.name : ''
+        if (!wasmPartials.has(op)) return
+        const args = xs
+        const allValues = args.every(types.isValue)
+        env.set(v, allValues ? wasmPartials.get(op)!(...args) : asType(st.type))
       } else if (st.expr.head === 'call') {
         const op = xs[0]
         if (!(op instanceof Tag)) throw new Error(`Expected function or method, got ${op}`)
