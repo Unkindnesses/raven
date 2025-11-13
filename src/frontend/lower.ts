@@ -535,9 +535,8 @@ function lowerSyntax(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR>
   } else if (syntax === 'if') {
     return lowerIf(sc, code, parseIf(ex), value)
   } else if (syntax === 'wasm') {
-    const wasmExpr = ast.asExpr(ex.args[1], 'Block').args[0]
-    const [op, T, ret] = intrinsic(wasmExpr)
-    const args = intrinsic_args(wasmExpr).map(arg => lower(sc, code, arg))
+    const [op, T, ret] = intrinsic(ex.args[1])
+    const args = intrinsic_args(ex.args[1]).map(arg => lower(sc, code, arg))
     return _push(code, new Wasm(op, args, ret), { src: ex.meta, type: T, bp: true })
   } else if (syntax === 'let') {
     return lowerLet(sc, code, ex, value)

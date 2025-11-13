@@ -4,11 +4,11 @@
   str = malloc!(len)
   ptr = str
   for char = chars {
-    wasm { i32.store8(bits(addr(ptr)): i32, bits(Int32(char)): i32) }
+    wasm i32.store8(bits(addr(ptr)): i32, bits(Int32(char)): i32)
     ptr = ptr + 1
   }
-  stdout = wasm { call("cm32p2|wasi:cli/stdout@0.2"."get-stdout"): i32 }
-  wasm { call("cm32p2|wasi:io/streams@0.2"."[method]output-stream.write",
-              stdout: i32, bits(addr(str)): i32, bits(len): i32, bits(addr(str)): i32) }
+  stdout = wasm call("cm32p2|wasi:cli/stdout@0.2"."get-stdout"): i32
+  wasm call("cm32p2|wasi:io/streams@0.2"."[method]output-stream.write",
+            stdout: i32, bits(addr(str)): i32, bits(len): i32, bits(addr(str)): i32)
   free!(str)
 }

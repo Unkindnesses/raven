@@ -107,7 +107,7 @@ fn Bool(x: Int) { not(zero?(x)) }
 @extend
 fn Float64(Int(x)) {
   x = bitcast_s(bits 64, x)
-  wasm { f64.convert_i64_s(x: i64): f64 }
+  wasm f64.convert_i64_s(x: i64): f64
 }
 
 fn (a: Int) / (b: Int) { Float64(a) / Float64(b) }

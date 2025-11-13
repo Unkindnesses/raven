@@ -24,21 +24,21 @@ fn (p: Ptr) == (q: Ptr) {
 }
 
 fn memoryPages() {
-  Int32(wasm { memory.size(): i32 })
+  Int32(wasm memory.size(): i32)
 }
 
 fn memoryGrow!(n: Int32) {
-  Int32(wasm { memory.grow(bits(n): i32): i32 })
+  Int32(wasm memory.grow(bits(n): i32): i32)
 }
 
 fn i32load(p: Ptr) {
   a = addr(p)
-  Int32(wasm { i32.load(bits(a): i32): i32 })
+  Int32(wasm i32.load(bits(a): i32): i32)
 }
 
 fn i32store!(p: Ptr, x: Int32) {
   a = addr(p)
-  wasm { i32.store(bits(a): i32, bits(x): i32) }
+  wasm i32.store(bits(a): i32, bits(x): i32)
 }
 
 # Function pointer
