@@ -40,16 +40,12 @@ import { unreachable } from '../utils/ir'
 import { xcall, xtuple } from '../frontend/lower'
 import { Accessor } from '../utils/fixpoint'
 
-export { isrefobj, isreftype, CountMode, retain_method, release_method, refcounts }
-
-function isrefobj(x: Type): boolean {
-  return x.kind === 'pack' && tag('common.Ref').isEqual(tagOf(x))
-}
+export { isreftype, CountMode, retain_method, release_method, refcounts }
 
 function isreftype(x: ir.Anno<Type>): x is Type {
   if (x === unreachable) return false
   if (x.kind === 'ref') return true
-  if (x.kind === 'pack') return isrefobj(x) || types.parts(x).some(isreftype)
+  if (x.kind === 'pack') return types.parts(x).some(isreftype)
   if (x.kind === 'union') return x.options.some(isreftype)
   if (x.kind === 'vpack') return layout(some(types.partial_eltype(x))).length !== 0
   if (x.kind === 'recursive') return true
@@ -70,7 +66,7 @@ const retain_method = primitive('common.core.retain', 'args', (_: Type) => unrea
 const release_method = primitive('common.core.release', 'args', (_: Type) => unreachable)
 
 function count(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode, heap = false): void {
-  if (T.kind === 'ref' || (T.kind === 'pack' && !isrefobj(T))) return count_inline(code, T, x, mode, heap)
+  if (T.kind === 'ref' || T.kind === 'pack') return count_inline(code, T, x, mode, heap)
   let method = mode === 'retain' ? retain_method : release_method
   if (heap) method = method.param(T)
   code.push(code.stmt(xcall(method, x), { type: types.nil }))
@@ -107,21 +103,12 @@ function ref_count_inline(code: ir.Fragment<MIR>, x: ir.Val<MIR>, mode: CountMod
 }
 
 function pack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode, heap = false): void {
-  if (isrefobj(T)) {
-    const ptr = indexer(code, T, types.int64(1), x, types.int64(1))
-    if (mode === 'release') {
-      const cleanup = call(code, types.tag('common.i32load'), [ptr], types.int32())
-      call(code, types.tag('common.release!'), [ptr, cleanup], types.nil)
-    } else
-      call(code, types.tag('common.retain!'), [ptr], types.nil)
-  } else {
-    for (let i = 0; i <= types.nparts(T); i++) {
-      const P = types.part(T, i)
-      if (!isreftype(P)) continue
-      let p = indexer(code, T, types.int64(i), x, types.int64(i))
-      if (heap) p = code.push(code.stmt(xtuple(p), { type: heapType(P) }))
-      count(code, P, p, mode, heap)
-    }
+  for (let i = 0; i <= types.nparts(T); i++) {
+    const P = types.part(T, i)
+    if (!isreftype(P)) continue
+    let p = indexer(code, T, types.int64(i), x, types.int64(i))
+    if (heap) p = code.push(code.stmt(xtuple(p), { type: heapType(P) }))
+    count(code, P, p, mode, heap)
   }
 }
 

@@ -672,23 +672,6 @@ test('clear function', async () => {
   `, { error: true, output: 'No matching method' })
 })
 
-test('pow without js refcounting', async () => {
-  await rv(`
-    fn pow(x, n: Int64) {
-      r = one(x)
-      while true {
-        if n == 0 {
-          return r
-        }
-        n = n - one(n)
-        r = r * x
-      }
-    }
-
-    test pow(2, 3) == 8
-  `, { options: { jsalloc: false } })
-})
-
 test('int/string union', async () => {
   await rv(`
     fn either(x) {

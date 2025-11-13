@@ -56,7 +56,7 @@ function patchIo(port: MessagePort) {
 patchIo(port)
 
 async function runWasm(module: Uint8Array) {
-  let [exports] = await loadWasm(module, imports)
+  let exports = await loadWasm(module, imports)
   Object.assign(imports.wasm, exports)
   let _start = (WebAssembly as any).promising(exports._start)
   await _start()

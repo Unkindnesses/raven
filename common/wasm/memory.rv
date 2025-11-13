@@ -58,26 +58,3 @@ fn invoke(f: Function, xs...) {
   Function(f, I, O) = f
   invoke(f, I, O, xs...)
 }
-
-# Managed pointer
-
-fn hold(x...) { nil }
-
-bundle Ref(p: Ptr)
-
-fn Ref(n: Int64) {
-  ptr = malloc!(Int32(n+8))
-  i32store!(ptr, Int32(-1))
-  return Ref(ptr)
-}
-
-fn pointer(Ref(ptr)) { ptr+8 }
-
-fn retain!(Ref(ptr)) { retain!(ptr) }
-
-fn cleanup!(r: Ref(ptr), func) {
-  f = function(func, [TPtr], TNil)
-  i32store!(ptr, Int32(f))
-  hold(r) # retain r until cleanup is set
-  return
-}

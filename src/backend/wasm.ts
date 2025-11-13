@@ -299,7 +299,7 @@ function startfunc(main: string[]): wasm.Func {
 }
 
 function metaSection(strings: string[]): wasm.CustomSection {
-  const meta = { strings, jsalloc: options().jsalloc, gc: options().gc }
+  const meta = { strings }
   return wasm.CustomSection('raven.meta', new TextEncoder().encode(JSON.stringify(meta)))
 }
 

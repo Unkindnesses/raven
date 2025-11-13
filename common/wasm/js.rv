@@ -3,42 +3,13 @@ export {
   readline, require
 }
 
-CoreRef = tag"common.core.Ref"
 fn matchTrait(tag"common.core.Ref", x: pack(tag"common.core.Ref", _)) { Some(x) }
 
-fn jsfree(ptr: Ptr) {
-  id = i32load(ptr)
-  wasm { call(support.release, bits(id): i32) }
-  return
-}
-
-bundle JSObject(ref: CoreRef | Ref)
-
-fn JSObject(id: Int32) {
-  if jsalloc() {
-    r = Ref(8)
-    i32store!(pointer(r), id)
-    cleanup!(r, jsfree)
-    return JSObject(r)
-  } else {
-    return pack(tag".JSObject", id)
-  }
-}
-
-fn JSObject(id: Bits) { JSObject(Int32(id)) }
+bundle JSObject(ref: Ref)
 
 fn js(x: JSObject) { x }
 
-fn jsref(JSObject(ref: CoreRef)) { ref }
-
-fn jsref(JSObject(ref: Ref)) { bits(i32load(pointer(ref))) }
-
-# We have a compiler option which skips the `Ref` wrapper, which lets us avoid
-# compiling malloc. (And of course JS objects won't be freed.)
-fn jsref(JSObject(ref: Int32)) { bits(ref) }
-
-fn retain!(JSObject(_)) {}
-fn retain!(JSObject(ref: Ref)) { retain!(ref) }
+fn jsref(JSObject(ref)) { ref }
 
 fn js() {
   ref = wasm { call(support.global): ref }
@@ -49,7 +20,6 @@ fn (obj: JSObject)[prop] { obj[js(prop)] }
 
 fn (obj: JSObject)[prop: JSObject] {
   ref = wasm { call(support.property, jsref(obj): ref, jsref(prop): ref): ref }
-  hold(obj, prop)
   return JSObject(ref)
 }
 
@@ -59,7 +29,6 @@ fn call(obj: JSObject, meth, args...) { apply(obj, js(meth), js(args)) }
 
 fn apply(obj: JSObject, meth: JSObject, args: JSObject) {
   ref = wasm { call(support.apply, jsref(obj): ref, jsref(meth): ref, jsref(args): ref): ref }
-  hold(obj, meth, args)
   return JSObject(ref)
 }
 
@@ -67,7 +36,6 @@ fn call(obj: JSObject, meth) { call(obj, js(meth)) }
 
 fn call(obj: JSObject, meth: JSObject) {
   ref = wasm { call(support.call, jsref(obj): ref, jsref(meth): ref): ref }
-  hold(obj, meth)
   return JSObject(ref)
 }
 
@@ -75,7 +43,6 @@ fn call(obj: JSObject, meth, x) { call(obj, js(meth), js(x)) }
 
 fn call(obj: JSObject, meth: JSObject, x: JSObject) {
   ref = wasm { call(support.call, jsref(obj): ref, jsref(meth): ref, jsref(x): ref): ref }
-  hold(obj, meth, x)
   return JSObject(ref)
 }
 
@@ -87,7 +54,6 @@ fn errcall(obj: JSObject, meth) { errcall(obj, js(meth)) }
 
 fn errcall(obj: JSObject, meth: JSObject) {
   [err, ref] = wasm { call(support.errcall, jsref(obj): ref, jsref(meth): ref): (i32, ref) }
-  hold(obj, meth)
   result = JSObject(ref)
   if Bool(err) {
     return Err(result)
@@ -100,7 +66,6 @@ fn errcall(obj: JSObject, meth, x) { errcall(obj, js(meth), js(x)) }
 
 fn errcall(obj: JSObject, meth: JSObject, x: JSObject) {
   [err, ref] = wasm { call(support.errcall, jsref(obj): ref, jsref(meth): ref, jsref(x): ref): (i32, ref) }
-  hold(obj, meth, x)
   result = JSObject(ref)
   if Bool(err) {
     return Err(result)
@@ -111,13 +76,11 @@ fn errcall(obj: JSObject, meth: JSObject, x: JSObject) {
 
 fn await(obj: JSObject) {
   ref = wasm { call(support.await, jsref(obj): ref): ref }
-  hold(obj)
   return JSObject(ref)
 }
 
 fn (a: JSObject) == (b: JSObject) {
   result = wasm { call(support.equal, jsref(a): ref, jsref(b): ref): i32 }
-  hold(a, b)
   return Bool(result)
 }
 
@@ -135,14 +98,12 @@ fn js(x: Float32) { js(Float64(x)) }
 @extend
 fn Float64(obj: JSObject) {
   x = wasm { call(support.identity, jsref(obj): ref): f64 }
-  hold(obj)
   return x
 }
 
 @extend
 fn Int32(obj: JSObject) {
   x = wasm { call(support.identity, jsref(obj): ref): i32 }
-  hold(obj)
   return Int32(x)
 }
 
@@ -156,13 +117,10 @@ fn debugger() {
 }
 
 fn abort(s: JSObject) {
-  retain!(s)
   wasm { call(support.abort, jsref(s): ref): unreachable }
 }
 
 fn abort(s: JSObject, cause: JSObject) {
-  retain!(s)
-  retain!(cause)
   wasm { call(support.abort, jsref(s): ref, jsref(cause): ref): unreachable }
 }
 

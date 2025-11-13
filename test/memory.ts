@@ -98,14 +98,4 @@ test('invoke', async () => {
   `)
 })
 
-test('ref cleanup', async () => {
-  await rv(`
-    {
-      ref = Ref(16)
-    }
-
-    test allocationCount() == 0
-  `)
-})
-
 test.run()

@@ -1,5 +1,4 @@
 import * as ir from '../utils/ir'
-import * as types from '../frontend/types'
 import { MIR, callargs } from '../frontend/modules'
 import { Redirect, type Sig } from './abstract'
 import { options } from '../utils/options'
@@ -26,7 +25,6 @@ function opcount(code: MIR): number {
 }
 
 function inlineable(cache: Accessor<Sig, Redirect | MIR>, sig: Sig): boolean {
-  if (!options().gc && types.tag('common.hold').isEqual(sig[0])) return false
   const ir = cache.get(sig)
   if (ir instanceof Redirect) return inlineable(cache, ir.to)
   return ir.blockCount === 1 && opcount(ir) <= 3

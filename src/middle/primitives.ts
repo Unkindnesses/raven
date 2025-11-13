@@ -12,7 +12,6 @@ import * as parse from '../frontend/parse'
 import { inlinePrimitive, outlinePrimitive } from './prim_map'
 import { abort, call, layout, wlayout, sizeof, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir, copyir } from './expand'
 import { isreftype } from './refcount'
-import { options } from '../utils/options'
 import { maybe_union } from './abstract'
 import { asNumType } from '../wasm/wasm'
 
@@ -232,10 +231,6 @@ function partial_invoke(f: Type, I: Type, O: Type, ...xs: Type[]): Type {
   return rvtype(O)
 }
 
-function partial_jsalloc(): Type {
-  return Type(options().jsalloc)
-}
-
 function primitive(name: string, pattern: string, func: (...args: Type[]) => Anno<Type>): Method {
   return new Method(tag('common.core'), tag(name), lowerpattern(parse.expr(pattern)), func)
 }
@@ -280,8 +275,6 @@ const tagstring_method = primitive('common.core.tagstring', '[x]', partial_tagst
 const function_method = primitive('common.core.function', '[f, I, O]', partial_function)
 const invoke_method = primitive('common.core.invoke', '[f, I, O, xs...]', partial_invoke)
 
-const jsalloc_method = primitive('common.core.jsalloc', '[]', partial_jsalloc)
-
 function primitives(): Method[] {
   return [
     pack_method,
@@ -303,7 +296,6 @@ function primitives(): Method[] {
     tagstring_method,
     function_method,
     invoke_method,
-    jsalloc_method,
   ]
 }
 
@@ -622,8 +614,6 @@ inlinePrimitive.set(invoke_method.id, (code, st) => {
   const args = cast(code, asType(code.type(args0)), I, args0)
   return code.push({ ...st, expr: expr('call_indirect', f, args) })
 })
-
-inlinePrimitive.set(jsalloc_method.id, (code, st) => asType(st.type))
 
 // Core module
 

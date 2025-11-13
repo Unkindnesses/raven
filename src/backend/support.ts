@@ -105,8 +105,6 @@ function support(strings: string[]) {
 
 interface Metadata {
   strings: string[]
-  jsalloc: boolean
-  gc: boolean
 }
 
 function meta(bytes: Uint8Array): Metadata | undefined {
@@ -158,5 +156,5 @@ async function loadWasm(buf: string | Uint8Array, imports: any = {}) {
   const res = await WebAssembly.instantiate(new Uint8Array(buf), imports)
   const debug = DebugModule(buf)
   if (debug) debugModules.set(res.instance, debug)
-  return [res.instance.exports, m] as const
+  return res.instance.exports
 }

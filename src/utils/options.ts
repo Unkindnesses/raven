@@ -39,13 +39,12 @@ function binding<V>(name: string, fallback?: V) {
 interface Options {
   memcheck: boolean // checkAllocations() call after main
   jspanic: boolean  // Use JS interop for error handling
-  jsalloc: boolean  // JS interop uses malloc/refcounting
   inline: boolean   // Allow inlining
   gc: boolean       // Enable Wasm GC
 }
 
 function defaults(): Options {
-  return { memcheck: true, jspanic: true, jsalloc: true, inline: true, gc: false }
+  return { memcheck: true, jspanic: true, inline: true, gc: false }
 }
 
 const [_withOptions, options] = binding('options', defaults())
@@ -53,7 +52,6 @@ const [_withOptions, options] = binding('options', defaults())
 const withOptions = <T>(opts: Partial<Options>, f: () => T): T => {
   const merged = { ...defaults(), ...opts }
   if (merged.gc) {
-    merged.jsalloc = false
     merged.memcheck = false
   }
   return _withOptions(merged, f)
