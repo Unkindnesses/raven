@@ -7,7 +7,7 @@ import * as ir from "../utils/ir"
 import { Pattern } from "./patterns"
 import { Def } from "../dwarf"
 import { Value, asValue } from "../wasm/ir"
-import { Instruction, Op } from "../wasm/wasm"
+import { Instruction, Op, ValueType } from "../wasm/wasm"
 
 export {
   Module, Method, Signature, Binding, asBinding, asValue, Modules,
@@ -86,11 +86,15 @@ class Invoke<T> extends ir.Expr<T> {
 
 class Wasm<T> extends ir.Expr<T> {
   readonly callee: Instruction | [string, string]
-  constructor(callee: Instruction | string | [string, string], readonly args: (T | number)[]) {
+  constructor(
+    callee: Instruction | string | [string, string],
+    readonly args: (T | number)[],
+    readonly result?: ValueType[]
+  ) {
     super('wasm', args)
     this.callee = typeof callee === 'string' ? Op(callee) : callee
   }
-  map(f: (x: T | number) => T | number): Wasm<T> { return new Wasm<T>(this.callee, this.args.map(f)) }
+  map(f: (x: T | number) => T | number): Wasm<T> { return new Wasm<T>(this.callee, this.args.map(f), this.result) }
   isImport(): this is Wasm<T> & { callee: [string, string] } {
     return Array.isArray(this.callee)
   }

@@ -138,7 +138,7 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
         let expr: Expr<Value>
         if (Array.isArray(callee)) {
           const I = args.flatMap(a => wlayout(types.abstract(asType(ir.type(a))))) // TODO shouldn't get consts here
-          const O = wparts(st.type)
+          const O = st.expr.result ?? wparts(st.type)
           const name = names.get([callee, I, O])
           expr = instr(wasm.Call(name), ...args.map(rename))
         } else {

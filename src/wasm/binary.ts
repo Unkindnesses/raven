@@ -97,7 +97,8 @@ function valuetype(cx: BinaryContext, vt: wasm.ValueType): void {
     if (vt.null && vt.type.kind === 'abstract') {
       heaptype(cx, vt.type)
     } else {
-      throw new Error('unimplemented')
+      cx.write(vt.null ? 0x63 : 0x64)
+      heaptype(cx, vt.type)
     }
   }
 }

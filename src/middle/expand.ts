@@ -573,7 +573,7 @@ function casts(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
     // TODO insert widen calls instead
     if (ex instanceof Wasm) {
       const args = ex.body.map(a => constValue(asType(pr.type(a))) ?? a)
-      pr.set(v, xwasm(ex.callee, ...args))
+      pr.set(v, new Wasm(ex.callee, args, ex.result))
     } else if (ex instanceof Invoke) {
       const S = ex.body.map(a => pr.type(a))
       if (!ex.method.func && S.every(t => t !== ir.unreachable)) {

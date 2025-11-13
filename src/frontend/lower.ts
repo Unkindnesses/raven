@@ -5,11 +5,11 @@ import { Val, fuseblocks, prune, ssa } from "../utils/ir"
 import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast"
 import * as types from "./types"
 import { Type, Tag, tag, pack, bits, nil } from "./types"
+import { ValueType, AbsHeapType, i32, i64, f32, f64, externref } from "../wasm/wasm"
 import { Module, Signature, Binding, MIR, xstring, Method, xglobal, xset, SetGlobal, Invoke, Wasm } from "./modules"
 import { Def } from "../dwarf"
 import { asBigInt, some } from "../utils/map"
-import { binding, options } from "../utils/options"
-import * as parse from "./parse"
+import { binding } from "../utils/options"
 import { isnil_method, notnil_method, part_method, packcat_method } from "../middle/primitives"
 import { lowerpattern, modtag, patternType } from "./patterns"
 
@@ -471,38 +471,40 @@ function lowerTemplate(sc: Scope, code: LIR, ex: ast.Expr): Val<LIR> {
   throw new Error(`Unimplemented template type: ${templateType}`)
 }
 
-const wtypes = new Map<string, Type>([
-  ['i32', types.bits(32)],
-  ['i64', types.bits(64)],
-  ['f32', types.float32()],
-  ['f64', types.float64()],
-  ['externref', types.Ref]])
+const nonNullExternref: ValueType = { null: false, type: { kind: 'abstract', type: AbsHeapType.extern } }
 
-function wtype(name: string): Type {
-  if (name === 'ref') return types.Ref
-  return some(wtypes.get(name))
-}
+const wtypes = new Map<string, [Type, ValueType[]]>([
+  ['i32', [types.bits(32), [i32]]],
+  ['i64', [types.bits(64), [i64]]],
+  ['f32', [types.float32(), [f32]]],
+  ['f64', [types.float64(), [f64]]],
+  ['ref', [types.Ref, [externref]]],
+  ['ref!', [types.Ref, [nonNullExternref]]]
+])
 
-function intrinsic(ex: ast.Tree): [string | [string, string], ir.Anno<Type>] {
+function intrinsic(ex: ast.Tree): [string | [string, string], ir.Anno<Type>, ValueType[]?] {
   let T: ir.Anno<Type> = types.nil
+  let ret: ValueType[] | undefined
   if (ast.isExpr(ex, 'Operator') && isEqual(ex.args[0].unwrap(), ast.symbol(':'))) {
     const type = ex.args[2]
     if (isEqual(type.unwrap(), ast.symbol('unreachable'))) T = ir.unreachable
-    else if (ast.isExpr(type, 'Group'))
-      T = types.list(...type.args.map(t => some(wtype(ast.asSymbol(t).name))))
-    else T = some(wtype(ast.asSymbol(type).name))
+    else if (ast.isExpr(type, 'Group')) {
+      const specs = type.args.map(t => some(wtypes.get(ast.asSymbol(t).name)))
+      T = types.list(...specs.map(s => s[0]))
+      ret = specs.flatMap(s => s[1])
+    } else {
+      [T, ret] = some(wtypes.get(ast.asSymbol(type).name))
+    }
     ex = ex.args[1]
   }
   let op = ast.asExpr(ex).args[0].ungroup()
   if (isEqual(op.unwrap(), ast.symbol('call'))) {
     let name = ast.asExpr(ast.asExpr(ex).args[1], 'Field').args.map(t => t.unwrap().toString())
-    return [[name[0], name[1]], T]
-  } else if (isEqual(op, parse.expr('global.get'))) {
-    throw new Error('not supported')
+    return [[name[0], name[1]], T, ret]
   } else {
     const namify = (x: ast.Tree): string =>
       ast.isExpr(x, 'Field') ? x.args.map(namify).join('.') : ast.asSymbol(x).name
-    return [namify(op), T]
+    return [namify(op), T, ret]
   }
 }
 
@@ -534,9 +536,9 @@ function lowerSyntax(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR>
     return lowerIf(sc, code, parseIf(ex), value)
   } else if (syntax === 'wasm') {
     const wasmExpr = ast.asExpr(ex.args[1], 'Block').args[0]
-    const [op, ret] = intrinsic(wasmExpr)
+    const [op, T, ret] = intrinsic(wasmExpr)
     const args = intrinsic_args(wasmExpr).map(arg => lower(sc, code, arg))
-    return _push(code, new Wasm(op, args), { src: ex.meta, type: ret, bp: true })
+    return _push(code, new Wasm(op, args, ret), { src: ex.meta, type: T, bp: true })
   } else if (syntax === 'let') {
     return lowerLet(sc, code, ex, value)
   } else if (macros.has(syntax)) {
