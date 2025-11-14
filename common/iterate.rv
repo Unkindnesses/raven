@@ -1,4 +1,4 @@
-export { next, iterator, Range, range, Mapping, mapping }
+export { iterator, next, count, Range, range, Mapping, mapping }
 
 bundle IndexIterator(xs, i: Int64)
 
@@ -15,6 +15,12 @@ fn next(&itr: IndexIterator(xs, i)) {
     itr = IndexIterator(xs, i)
     return Some(val)
   }
+}
+
+fn count(itr) {
+  i = 0
+  for _ = itr { i = i + 1 }
+  return i
 }
 
 bundle Range(start, stop)

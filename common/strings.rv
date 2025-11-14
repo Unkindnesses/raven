@@ -1,8 +1,18 @@
-export { String, string, concat }
+export { String, string, concat, compare, utf16 }
 
-bundle String(obj: JSObject)
+bundle String(ref: Ref)
 
-fn js(s: String) { part(s, 1) }
+fn unsafeString(ref: Ref) { pack(String, ref) }
+
+fn String(ref: Ref) {
+  ref = wasm call("wasm:js-string".cast, ref: ref): ref!
+  ref = jsref(JSObject(ref).toWellFormed())
+  return unsafeString(ref)
+}
+
+fn String(obj: JSObject) { String(jsref(obj)) }
+
+fn js(String(r)) { JSObject(r) }
 
 fn show(x: String) {
   print(js().JSON.stringify(x))
@@ -12,18 +22,44 @@ fn iterator(x: String) {
   mapping(String, js(x))
 }
 
-fn concat(a: String, b: String) {
-  String(js(a).concat(b))
+fn length(s: String) { count(s) }
+
+fn concat(String(a), String(b)) {
+  ref = wasm call("wasm:js-string".concat, a: ref, b: ref): ref!
+  return String(ref)
 }
 
-fn (a: String) == (b: String) {
-  shortcutEquals(a, b) || (js(a) == js(b))
+fn String(a) == String(b) {
+  r = wasm call("wasm:js-string".equals, a: ref, b: ref): i32
+  return Bool(r)
 }
 
-fn string(x: Tag) {
-  tagstring(x)
+fn compare(String(a), String(b)) {
+  r = wasm call("wasm:js-string".compare, a: ref, b: ref): i32
+  return Int64(Int32(r))
 }
 
-fn (a: Tag) == (b: Tag) {
-  shortcutEquals(a, b)
+# Data views
+
+bundle UTF16View(s: String)
+
+fn utf16(s: String) { UTF16View(s) }
+
+fn length(UTF16View(s)) {
+  String(x) = s # TODO fix nested constructor pattern
+  len = wasm call("wasm:js-string".length, x: ref): i32
+  return Int64(len)
 }
+
+fn UTF16View(s)[i] {
+  String(x) = s
+  i = widen(bits(Int32(i-1))) # TODO remove widen
+  ch = wasm call("wasm:js-string".charCodeAt, x: ref, i: i32): i32
+  return Int32(ch)
+}
+
+# Tags
+
+fn string(x: Tag) { tagstring(x) }
+
+fn (a: Tag) == (b: Tag) { shortcutEquals(a, b) }

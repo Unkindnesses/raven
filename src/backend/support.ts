@@ -153,7 +153,7 @@ async function loadWasm(buf: string | Uint8Array, imports: any = {}) {
   const m = meta(buf)
   if (m === undefined) throw new Error('Not a Raven wasm module.')
   imports = { ...imports, support: support(m.strings) }
-  const res = await WebAssembly.instantiate(new Uint8Array(buf), imports)
+  const res = await (WebAssembly.instantiate as any)(new Uint8Array(buf), imports, { builtins: ['js-string'] })
   const debug = DebugModule(buf)
   if (debug) debugModules.set(res.instance, debug)
   return res.instance.exports

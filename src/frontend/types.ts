@@ -2,7 +2,6 @@ import isEqual from 'lodash/isEqual'
 import { hash } from '../utils/map'
 import { Fixpoint, Accessor } from '../utils/fixpoint'
 import { Symbol } from './ast'
-import { options } from '../utils/options'
 
 export {
   Tag, Bits, Type,
@@ -229,12 +228,8 @@ function Ptr(): Type {
   return pack(tag('common.Ptr'), int32())
 }
 
-function JSObject(): Type {
-  return pack(tag('common.JSObject'), Ref)
-}
-
 function String(): Type {
-  return pack(tag('common.String'), JSObject())
+  return pack(tag('common.String'), Ref)
 }
 
 function list(...args: TypeLike[]): Type {
