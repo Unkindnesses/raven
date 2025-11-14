@@ -26,18 +26,29 @@ function runTool(cmd: string, args: string[], err = false): string {
 const dwarfdump = (f: string): string => runTool('llvm-dwarfdump', [f], true)
 const dwarf_verify = (f: string): string => runTool('llvm-dwarfdump', ['--verify', f], true)
 const dwarf_verify_lines = (f: string): string => runTool('llvm-dwarfdump', ['--debug-line', '--verify', f], true)
-const headers = (f: string): string => runTool('wasm-objdump', ['-h', f])
-const disassembly = (f: string): string => runTool('wasm-objdump', ['-d', f])
+const disassembly = (f: string): string => runTool('wasm-tools', ['dump', f])
+
+const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const code_offset = (f: string): number => {
-  const match = headers(f).match(/Code start=0x([0-9a-f]+)/i)
-  if (!match) throw new Error('Code start not found')
-  return parseInt(match[1], 16)
+  const lines = disassembly(f).split('\n')
+  const sectionIndex = lines.findIndex(line => /code section/i.test(line))
+  if (sectionIndex === -1) throw new Error('Code section not found')
+  for (let i = sectionIndex + 1; i < lines.length; i++) {
+    if (!/count/i.test(lines[i])) continue
+    const match = lines[i].match(/0x([0-9a-f]+)/i)
+    if (!match) break
+    return parseInt(match[1], 16)
+  }
+  throw new Error('Code start not found')
 }
 
 const callsites = (wasm: string, func: string): number[] => {
   const dis = disassembly(wasm)
-  const matches = dis.matchAll(new RegExp(`([\\da-f]+):[^\n]*\\| call \\d+ <${func}>`, 'gi'))
+  const indexMatch = dis.match(new RegExp(`index: (\\d+), name: "${escapeRegex(func)}"`))
+  if (!indexMatch) throw new Error(`Function ${func} not found`)
+  const index = parseInt(indexMatch[1], 10)
+  const matches = dis.matchAll(new RegExp(`0x([0-9a-f]+)\\s+\\|[^\\n]*\\|\\s+call function_index:${index}\\b`, 'gi'))
   const sites: number[] = []
   for (const m of matches)
     sites.push(parseInt(m[1], 16))

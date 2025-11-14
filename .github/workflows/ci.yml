@@ -35,7 +35,6 @@ jobs:
 
     - uses: bytecodealliance/actions/wasm-tools/setup@v1
     - uses: bytecodealliance/actions/wasmtime/setup@v1
-    - run: 'npm install --global wabt'
 
     - name: Install dependencies
       run: npm ci
