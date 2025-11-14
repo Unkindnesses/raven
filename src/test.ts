@@ -20,7 +20,7 @@ interface Result {
 
 async function runNode(wasm: string, args: string[] = []): Promise<Result> {
   return await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['--experimental-wasm-stack-switching', execPath, wasm, ...args], { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(process.execPath, ['--experimental-wasm-jspi', execPath, wasm, ...args], { stdio: ['ignore', 'pipe', 'pipe'] })
     let output = ''
     child.stdout?.on('data', chunk => { output += chunk.toString() })
     child.stderr?.on('data', chunk => { output += chunk.toString() })

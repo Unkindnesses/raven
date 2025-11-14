@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --enable-source-maps --experimental-wasm-stack-switching
+#!/usr/bin/env -S node --enable-source-maps --experimental-wasm-jspi
 import * as commander from 'commander'
 import * as nodeRepl from 'node:repl'
 import * as os from 'os'

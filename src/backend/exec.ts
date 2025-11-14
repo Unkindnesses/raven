@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --enable-source-maps --experimental-wasm-stack-switching
+#!/usr/bin/env -S node --enable-source-maps --experimental-wasm-jspi
 import { loadWasm, table } from './support'
 
 let binary: string | undefined

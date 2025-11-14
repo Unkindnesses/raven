@@ -37,10 +37,10 @@ $ ./hello.js
 Cacaw, World!
 ```
 
-To run with Node.js directly, you need the `--experimental-wasm-stack-switching` option.
+To run with Node.js directly, you need the `--experimental-wasm-jspi` option.
 
 ```bash
-$ node --experimental-wasm-stack-switching hello.js
+$ node --experimental-wasm-jspi hello.js
 Cacaw, World!
 ```
 
