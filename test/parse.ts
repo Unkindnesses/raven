@@ -18,6 +18,25 @@ test('parse simple function definition', () => {
   assert.ok(treeString.includes('println'))
 })
 
+test('raw string literals', () => {
+  const escaped = parse('test', '"\\n"')[0]
+  const raw = parse('test', '`\\n`')[0]
+  assert.equal(ast.asToken(escaped).unwrap(), '\n')
+  assert.equal(ast.asToken(raw).unwrap(), '\\n')
+})
+
+test('raw string extended delimiter', () => {
+  const src = "\\`a backtick ` inside`\\"
+  const tree = parse('test', src)[0]
+  assert.equal(ast.asToken(tree).unwrap(), 'a backtick ` inside')
+})
+
+test('escaped string extended delimiter', () => {
+  const src = String.raw`\\"a quote " a newline \\n a backslash \n"\\`
+  const tree = parse('test', src)[0]
+  assert.equal(ast.asToken(tree).unwrap(), 'a quote " a newline \n a backslash \\n')
+})
+
 test('precedence table transitivity', () => {
   function transitive(t: PrecTable): boolean {
     let trans = true

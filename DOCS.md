@@ -264,3 +264,34 @@ The identity function.
 """
 fn identity(x) { x }
 ```
+
+## Strings
+
+Strings in double quotes, `"hello, world"`, understand escapes like `\n`, `\t`, `\\` and `\"`. Backticks avoid escaping.
+
+```
+> println("hello,\n world")
+hello,
+ world
+> println(`hello,\n world`)
+hello,\n world
+```
+
+You can add backslashes before and after the outer quotes to avoid escaping inner ones.
+
+```rust
+> println(\"hello, "world""\)
+hello, "world"
+> println(\`hello, `world``\)
+hello, `world`
+```
+
+In double quotes with backslashes, escapes need the number of backslashes to match inside and out.
+
+```
+> println(\\"hello,\n world"\\)
+hello,\n world
+> println(\\"hello,\\n world"\\)
+hello,
+ world
+```

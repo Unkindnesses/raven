@@ -45,12 +45,16 @@ repository:
         match: '&'
       - name: keyword.operator.update.raven
   strings:
-    name: string.quoted.double.raven
-    begin: '"'
-    end: '"'
     patterns:
-    - name: constant.character.escape.raven
-      match: '\\.'
+    - name: string.quoted.double.raven
+      begin: '"'
+      end: '"'
+      patterns:
+      - name: constant.character.escape.raven
+        match: '\\.'
+    - name: string.quoted.raw.raven
+      begin: '`'
+      end: '`'
   numbers:
     name: "constant.numeric.raven"
     match: '\b[0-9]+\.?[0-9]*\b'

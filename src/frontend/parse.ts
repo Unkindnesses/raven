@@ -100,9 +100,8 @@ class PrecTable {
 // Tokens
 
 function exact(r: Reader, s: string): string | undefined {
-  for (const c of s) {
+  for (const c of s)
     if (r.eof() || r.read() !== c) return
-  }
   return s
 }
 
@@ -152,17 +151,33 @@ function opsymbol(r: Reader): ast.Symbol | undefined {
   return ast.symbol(s)
 }
 
-const escapes = new Map([['"', '"'], ['\\', '\\'], ['n', '\n']])
+// TODO unicode escapes
+const escapes = new Map([
+  ['0', '\0'],
+  ['t', '\t'],
+  ['n', '\n'],
+  ['r', '\r'],
+  ['"', '\"'],
+  ["'", '\''],
+  ['\\', '\\'],
+])
 
 function string(r: Reader): string | undefined {
-  if (r.read() !== '"') return
+  let slashes = 0
+  while (!r.eof() && r.peek === '\\') { r.read(); slashes++ }
+  if (r.eof()) return
+  const open = r.read()
+  if (open !== '"' && open !== '`') return
+  const raw = open === '`'
+  const escape = '\\'.repeat(raw ? 0 : Math.max(1, slashes))
   let s = ''
   while (!r.eof()) {
-    const c = r.read()
-    if (c === '"') return s
-    if (c === '\\') {
+    if (r.parse(r => exact(r, open + '\\'.repeat(slashes))) !== undefined) return s
+    if (!raw && r.parse(r => exact(r, escape))) {
       s += some(escapes.get(r.read()))
-    } else s += c
+      continue
+    }
+    s += r.read()
   }
   throw new Error('unterminated string')
 }
