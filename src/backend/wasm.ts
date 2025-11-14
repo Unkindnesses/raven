@@ -3,7 +3,6 @@ import { Type, Bits, asBits, bits } from '../frontend/types'
 import * as wasm from '../wasm/wasm'
 import { binary as wasmBinary } from '../wasm/binary'
 import { writeFile } from 'fs/promises'
-import { options } from '../utils/options'
 import { irfunc, Instr, setdiff, Value, WIR, asValue } from '../wasm/ir'
 import { unreachable, Anno, Pipe, expr, Val, Branch, Expr, asType } from '../utils/ir'
 import isEqual from 'lodash/isEqual'
@@ -57,6 +56,8 @@ function wparts(T: Anno<Type>): wasm.ValueType[] {
   return T === unreachable ? [] : wlayout(T)
 }
 
+const USER_GLOBAL_BASE = 1 << 20
+
 class WGlobals implements Caching {
   types: wasm.ValueType[]
   globals: Cache<Binding, number[]>
@@ -65,10 +66,10 @@ class WGlobals implements Caching {
     this.globals = new Cache<Binding, number[]>(b => {
       let T: Anno<Type> | Binding = b
       while (T instanceof Binding) T = defs.global(T)
-      const start = this.types.length - 1
+      const start = this.types.length
       const l = wparts(T)
       this.types.push(...l)
-      return Array.from({ length: l.length }, (_, i) => start + i + 1)
+      return Array.from({ length: l.length }, (_, i) => USER_GLOBAL_BASE + start + i)
     })
   }
   get subcaches() { return [this.globals] }
@@ -112,8 +113,7 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
     }
     for (const [v, st] of block) {
       if (st.expr instanceof StringRef) {
-        const name = names.get([['support', 'string'], [wasm.i32], [wasm.externref]])
-        env.set(v, out.push({ ...st, expr: instr(wasm.Call(name), Value.i32(tables.string(st.expr.value))), type: [wasm.externref] }))
+        env.set(v, out.push({ ...st, expr: instr(wasm.GetGlobal(tables.string(st.expr.value))), type: [wasm.externref] }))
       } else if (st.expr.head === 'func') {
         const [f, I, O] = st.expr.body
         const name = names.get([types.asTag(f), asType(ir.type(I))])
@@ -298,16 +298,34 @@ function startfunc(main: string[]): wasm.Func {
   return wasm.Func('_start', wasm.Signature([], [wasm.NumType.i32]), [], body, meta)
 }
 
-function metaSection(strings: string[]): wasm.CustomSection {
-  const meta = { strings }
-  return wasm.CustomSection('raven.meta', new TextEncoder().encode(JSON.stringify(meta)))
+function stringImports(strings: string[]): wasm.Import[] {
+  return strings.map((value, i) =>
+    wasm.Import('strings', value, `string_${i}`, wasm.Global(wasm.externref, { mut: false })))
+}
+
+function rebaseGlobals(mod: wasm.Module, stringCount: number) {
+  const adjust = (instr: wasm.Instruction) => {
+    switch (instr.kind) {
+      case 'get_global':
+      case 'set_global':
+        if (instr.id >= USER_GLOBAL_BASE)
+          instr.id = instr.id - USER_GLOBAL_BASE + stringCount
+        break
+      case 'block':
+      case 'loop':
+        instr.body.forEach(adjust)
+        break
+    }
+  }
+  for (const fn of mod.funcs) adjust(fn.body)
+  for (const gl of mod.globals) adjust(gl.init)
 }
 
 function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.Module {
   em.funcs.unshift(startfunc(em.main))
-  return wasm.Module({
+  const mod = wasm.Module({
     funcs: em.funcs,
-    imports: em.imports,
+    imports: [...stringImports(tables.strings), ...em.imports],
     exports: [
       wasm.Export('_start', '_start'),
       wasm.Export('_start', 'cm32p2|wasi:cli/run@0.2|run')
@@ -315,9 +333,10 @@ function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.M
     globals: globals.types.map(t => wasm.Global(t)),
     tables: [wasm.Table(tables.funcs.length)],
     elems: [wasm.Elem(0, tables.funcs)],
-    mems: [wasm.Mem(0, undefined, 'cm32p2_memory')],
-    customs: [metaSection(tables.strings)]
+    mems: [wasm.Mem(0, undefined, 'cm32p2_memory')]
   })
+  rebaseGlobals(mod, tables.strings.length)
+  return mod
 }
 
 async function binary(m: wasm.Module, file: string, strip = false): Promise<void> {
@@ -387,14 +406,14 @@ class StreamEmitter implements Emitter {
     // TODO shared table
     const wmod = wasm.Module({
       funcs: fs,
-      imports: [...gimports, ...iimports],
+      imports: [...stringImports(mod.tables.strings), ...gimports, ...iimports],
       exports: fs.map(f => wasm.Export(f.name, f.name)),
       globals,
       tables: [wasm.Table(mod.tables.funcs.length)],
       elems: [wasm.Elem(0, Array.from(mod.tables.funcs))],
-      mems: first ? [wasm.Mem(0, undefined, 'memory')] : [],
-      customs: [metaSection(mod.tables.strings)]
+      mems: first ? [wasm.Mem(0, undefined, 'memory')] : []
     })
+    rebaseGlobals(wmod, mod.tables.strings.length)
     this.queue.push(wmod)
     this.globals = mod.globals.types.length
   }

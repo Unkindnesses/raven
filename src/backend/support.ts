@@ -1,5 +1,5 @@
 import * as fs from 'fs/promises'
-import { DebugModule, locate, sections, Source } from '../dwarf/parse'
+import { DebugModule, locate, Source } from '../dwarf/parse'
 import { Def } from '../dwarf'
 
 export { loadWasm, support, table }
@@ -90,7 +90,7 @@ function abort(obj: any, cause: any) {
   throw new Error('dummy error')
 }
 
-function support(strings: string[]) {
+function support() {
   return {
     global, property, call, apply,
     createRef, fromRef, abort,
@@ -98,19 +98,8 @@ function support(strings: string[]) {
     identity: (x: any) => x,
     await: new (WebAssembly as any).Suspending((x: any) => x),
     errcall: new (WebAssembly as any).Suspending(errcall),
-    debugger: () => { debugger },
-    string: (i: number) => strings[i]
+    debugger: () => { debugger }
   }
-}
-
-interface Metadata {
-  strings: string[]
-}
-
-function meta(bytes: Uint8Array): Metadata | undefined {
-  const bs = sections(bytes)[1].get('raven.meta')
-  if (!bs) return
-  return JSON.parse(new TextDecoder().decode(bs)) as Metadata
 }
 
 const debugModules = new Map<WebAssembly.Instance, DebugModule>()
@@ -150,10 +139,8 @@ Error.stackTraceLimit = 100
 async function loadWasm(buf: string | Uint8Array, imports: any = {}) {
   if (typeof buf === 'string')
     buf = await fs.readFile(buf)
-  const m = meta(buf)
-  if (m === undefined) throw new Error('Not a Raven wasm module.')
-  imports = { ...imports, support: support(m.strings) }
-  const res = await (WebAssembly.instantiate as any)(new Uint8Array(buf), imports, { builtins: ['js-string'] })
+  imports = { ...imports, support: support() }
+  const res = await (WebAssembly.instantiate as any)(new Uint8Array(buf), imports, { builtins: ['js-string'], importedStringConstants: "strings" })
   const debug = DebugModule(buf)
   if (debug) debugModules.set(res.instance, debug)
   return res.instance.exports
