@@ -198,15 +198,15 @@ class IR<T, A> implements Fragment<IR<T, A>> {
     if (i < 1 || i > this._blocks.length) throw new Error(`Block index out of bounds: ${i} `)
     const idx = i - 1
     this._blocks.splice(idx, 1)
-    if (i !== this._blocks.length + 1) {
-      for (const b of this.blocks()) for (const [v, st] of b)
-        if (st.expr instanceof Branch && st.expr.target >= i)
-          this.setStmt(v, { ...st, expr: new Branch(st.expr.target - 1, st.expr.args, st.expr.when) })
-    }
     for (let v = 1; v <= this._defs.length; v++) {
       const [b, pos] = this._defs[v - 1]
       if (b === idx) this._defs[v - 1] = [-1, -1]
       else if (b > idx) this._defs[v - 1] = [b - 1, pos]
+    }
+    if (i !== this._blocks.length + 1) {
+      for (const b of this.blocks()) for (const [v, st] of b)
+        if (st.expr instanceof Branch && st.expr.target >= i)
+          this.setStmt(v, { ...st, expr: new Branch(st.expr.target - 1, st.expr.args, st.expr.when) })
     }
   }
 }

@@ -300,12 +300,25 @@ function Module(options: Partial<Module> = {}): Module {
 function signatures(m: Module): Signature[] {
   const sigs: Signature[] = []
   const seen = new HashSet<Signature>()
-  const allItems = [...m.imports, ...m.funcs]
-  for (const item of allItems) {
-    if (item.sig.kind !== 'signature' || seen.has(item.sig)) continue
-    seen.add(item.sig)
-    sigs.push(item.sig)
+  const push = (sig: Signature) => {
+    if (seen.has(sig)) return
+    seen.add(sig)
+    sigs.push(sig)
   }
+  for (const item of [...m.imports, ...m.funcs])
+    if (item.sig.kind === 'signature') push(item.sig)
+  const visit = (instr: Instruction) => {
+    switch (instr.kind) {
+      case 'call_indirect':
+        push(instr.sig)
+        break
+      case 'block':
+      case 'loop':
+        instr.body.forEach(visit)
+        break
+    }
+  }
+  for (const fn of m.funcs) visit(fn.body)
   return sigs
 }
 

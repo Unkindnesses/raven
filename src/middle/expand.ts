@@ -43,6 +43,21 @@ const i64 = Value.i64
 
 // Unions
 
+function reachableBlocks(code: MIR): Set<number> {
+  const seen = new Set<number>()
+  const queue = [1]
+  while (queue.length > 0) {
+    const id = queue.pop()!
+    if (seen.has(id)) continue
+    if (id < 1 || id > code.blockCount) continue
+    seen.add(id)
+    const block = code.block(id)
+    for (const br of block.branches())
+      if (br.target > 0) queue.push(br.target)
+  }
+  return seen
+}
+
 function trim_unreachable(code: MIR): MIR {
   const pr = new Pipe(code)
   for (const bl of pr.blocks()) {
@@ -69,7 +84,11 @@ function trim_unreachable(code: MIR): MIR {
       }
     }
   }
-  return pr.finish()
+  const trimmed = pr.finish()
+  const reachable = reachableBlocks(trimmed)
+  for (let i = trimmed.blockCount; i >= 2; i--)
+    if (!reachable.has(i)) trimmed.deleteBlock(i)
+  return trimmed
 }
 
 function union_downcast(pr: Fragment<MIR>, U: Type & { kind: 'union' }, i: number, x: Val<MIR>): Val<MIR> {
