@@ -90,6 +90,12 @@ test('triple malloc', async () => {
   `)
 })
 
+test('alloc check', async () => {
+  await rv(`
+    ptr1 = malloc!(Int32(8))
+  `, { output: 'Warning: retained memory' })
+})
+
 test('invoke', async () => {
   await rv(`
     TInt64 = Pack(Literal(Int), bits 64)

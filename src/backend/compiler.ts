@@ -115,7 +115,7 @@ class Compiler {
       }
       withEmit(emitIR, () => { reload(this.pipe.sources, src) })
       reset(this.pipe)
-      if (options().memcheck) {
+      if (options().memcheck && em.funcs.some(fn => fn.name.startsWith('common.malloc!'))) {
         const checks = this.pipe.defs.methods(tag('common.checkAllocations'))
         this.pipe.emit(only(checks), em)
       }
