@@ -79,8 +79,8 @@ async function main() {
     .option('-o, --output <file>', 'Rename output file')
     .option('--time', 'Print compiler phase timing information')
     .action(async (source, { output, js, time }) => {
-      let { inline, memcheck, gc = false, strip } = program.optsWithGlobals()
-      let [compiler] = await (js ? compileJS : compile)(source, { options: { inline, memcheck, gc }, output, strip })
+      let { inline, memcheck, strip } = program.optsWithGlobals()
+      let [compiler] = await (js ? compileJS : compile)(source, { options: { inline, memcheck }, output, strip })
       if (time) printTiming(compiler)
     })
 
@@ -88,12 +88,11 @@ async function main() {
     .argument('[source] [args...]', 'Source file to execute')
     .option('--no-inline', 'Disable function inlining')
     .option('--no-memcheck', 'Disable allocation checks')
-    .option('--gc', 'Enable Wasm GC')
     .option('--strip', 'Remove debug metadata from the binary')
     .action(async (xs) => {
-      let { inline, memcheck, gc = false, strip } = program.optsWithGlobals()
+      let { inline, memcheck, strip } = program.optsWithGlobals()
       let [source, ...args] = xs
-      if (source) await exec(source, args, { options: { inline, memcheck, gc }, strip })
+      if (source) await exec(source, args, { options: { inline, memcheck }, strip })
       else await startRepl()
     })
 

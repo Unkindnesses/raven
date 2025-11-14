@@ -40,19 +40,12 @@ interface Options {
   memcheck: boolean // checkAllocations() call after main
   jspanic: boolean  // Use JS interop for error handling
   inline: boolean   // Allow inlining
-  gc: boolean       // Enable Wasm GC
 }
 
 function defaults(): Options {
-  return { memcheck: true, jspanic: true, inline: true, gc: false }
+  return { memcheck: true, jspanic: true, inline: true }
 }
 
 const [_withOptions, options] = binding('options', defaults())
 
-const withOptions = <T>(opts: Partial<Options>, f: () => T): T => {
-  const merged = { ...defaults(), ...opts }
-  if (merged.gc) {
-    merged.memcheck = false
-  }
-  return _withOptions(merged, f)
-}
+const withOptions = <T>(opts: Partial<Options>, f: () => T): T => _withOptions({ ...defaults(), ...opts }, f)
