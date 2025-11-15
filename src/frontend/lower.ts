@@ -524,6 +524,9 @@ function lowerSyntax(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR>
   } else if (syntax === 'int') {
     const size = Number(asBigInt(ex.args[1].unwrap()))
     return pack(tag('common.Int'), bits(size, 0n))
+  } else if (syntax === 'uint') {
+    const size = Number(asBigInt(ex.args[1].unwrap()))
+    return pack(tag('common.UInt'), bits(size, 0n))
   } else if (syntax === 'return') {
     const result = lower(sc, code, ex.args[1])
     swapreturn(code, result, sc.swaps(), { src: ex.meta, bp: true })

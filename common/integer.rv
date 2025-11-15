@@ -1,4 +1,4 @@
-export { Bits, Bool, true, false, Int, Int64, Int32, bits, oftype, typemin, typemax }
+export { Bits, Bool, true, false, Int, Int64, Int32, UInt, bits, oftype, typemin, typemax }
 
 fn matchTrait(tag"common.core.Bits", x: pack(tag"common.core.Bits", _)) { Some(x) }
 
@@ -11,6 +11,8 @@ fn (a: Bits) == (b: Bits) { Bool(biteq(a, b)) }
 fn matchTrait(Params(tag"common.core.Bits", N), x: Bits) {
   if bitsize(x) == N { Some(x) }
 }
+
+# Bool
 
 bundle Bool(x: Bits[1])
 
@@ -34,6 +36,8 @@ false = Bool(bits"0")
 
 fn condition(x) { abort("Non-boolean used as a condition") }
 fn condition(x: Bool) { x }
+
+# Int
 
 # TODO `bundle Int[N](x: Bits[N])`
 bundle Int(x: Bits)
@@ -68,7 +72,7 @@ fn promote(a: Int, b: Int) {
   [oftype(T, a), oftype(T, b)]
 }
 
-fn intop(f, a: Int, b: Int) {
+fn intop(f, a, b) {
   [a, b] = promote(a, b)
   f(bits(a), bits(b))
 }
@@ -118,7 +122,6 @@ fn print(x: Int) { print(js(x)) }
 
 fn show(x: Int) {
   N = bitsize(bits(x))
-  x = oftype(int 64, x)
   print("oftype(int ")
   print(N)
   print(", ")
@@ -141,3 +144,99 @@ fn show(x: Int32) {
 }
 
 fn show(x: Int64) { print(x) }
+
+# UInt
+
+bundle UInt(x: Bits)
+
+fn tag"common.UInt"[N] { Params(UInt, N) }
+
+fn matchTrait(Params(tag"common.UInt", N), UInt(b)) {
+  if isa?(b, Bits[N]) {
+    Some(UInt(b))
+  }
+}
+
+fn bits(UInt(x)) { x }
+
+fn UInt(x: Int) { UInt(bits(x)) } # TODO check positive
+
+fn oftype(to: UInt, from: Bits) { UInt(bitcast(bits(to), from)) }
+fn oftype(to: UInt, from: UInt) { UInt(bitcast(bits(to), bits(from))) }
+
+fn oftype(to: UInt, from: Bool) { oftype(to, bits(from)) }
+fn oftype(to: UInt, from: Int) { oftype(to, UInt(from)) }
+
+fn oftype(to: Int, from: UInt) { oftype(to, bits(from)) } # TODO check positive
+
+fn larger(a: UInt, b: UInt) {
+  if lt(bitsize(bits(a)), bitsize(bits(b))) { b } else { a }
+}
+
+fn promote(a: UInt, b: UInt) {
+  T = larger(a, b)
+  [oftype(T, a), oftype(T, b)]
+}
+
+fn (a: UInt) + (b: UInt) { UInt(intop(bitadd, a, b)) }
+fn (a: UInt) - (b: UInt) { UInt(intop(bitsub, a, b)) }
+fn (a: UInt) * (b: UInt) { UInt(intop(bitmul, a, b)) }
+
+fn (a: UInt) == (b: UInt) { Bool(intop(biteq, a, b)) }
+fn (a: UInt) != (b: UInt) { Bool(intop(bitne, a, b)) }
+
+fn (a: UInt) >  (b: UInt) { Bool(intop(bitgt, a, b)) }
+fn (a: UInt) >= (b: UInt) { Bool(intop(bitge, a, b)) }
+fn (a: UInt) <  (b: UInt) { Bool(intop(bitlt, a, b)) }
+fn (a: UInt) <= (b: UInt) { Bool(intop(bitle, a, b)) }
+
+fn zero?(x: UInt) { Bool(biteqz(bits(x))) }
+
+fn zero(x: UInt) { oftype(x, 0) }
+fn one(x: UInt) { oftype(x, 1) }
+
+fn typemin(n: UInt) { zero(n) }
+fn typemax(n: UInt) { typemin(n)-one(n) }
+
+fn Bool(x: UInt) { not(zero?(x)) }
+
+@extend
+fn Float64(UInt(x)) {
+  x = bitcast(bits 64, x)
+  wasm f64.convert_i64_u(x: i64): f64
+}
+
+fn (a: UInt) / (b: UInt) { Float64(a) / Float64(b) }
+
+fn js(x: UInt) { js(Float64(x)) }
+
+fn print(x: UInt) { print(js(x)) }
+
+fn show(x: UInt) {
+  N = bitsize(bits(x))
+  print("oftype(uint ")
+  print(N)
+  print(", ")
+  print(Int64(x))
+  print(")")
+}
+
+# Special sizes
+
+fn matchTrait(tag".UInt32", x: UInt[32]) { Some(x) }
+fn matchTrait(tag".UInt64", x: UInt[64]) { Some(x) }
+
+fn UInt32(x) { oftype(int 32, x) }
+fn UInt64(x) { oftype(int 64, x) }
+
+fn show(x: UInt32) {
+  print("UInt32(")
+  print(x)
+  print(")")
+}
+
+fn show(x: UInt64) {
+  print("UInt(")
+  print(x)
+  print(")")
+}
