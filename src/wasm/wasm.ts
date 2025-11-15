@@ -59,12 +59,17 @@ function sizeof(t: ValueType): number {
 
 interface Signature {
   kind: 'signature'
+  name?: string
   params: ValueType[]
   result: ValueType[]
 }
 
-function Signature(params: ValueType[], result: ValueType[]): Signature {
-  return { kind: 'signature', params, result }
+type NamedSignature = Signature & { name: string }
+
+function Signature(params: ValueType[], result: ValueType[]): Signature
+function Signature(params: ValueType[], result: ValueType[], name: string): NamedSignature
+function Signature(params: ValueType[], result: ValueType[], name?: string): Signature {
+  return { kind: 'signature', name, params, result }
 }
 
 type Instruction =
@@ -245,12 +250,11 @@ interface Import {
   kind: 'import'
   mod: string
   name: string
-  as: string // TODO get from sig?
-  sig: Signature | Global | Mem | Table
+  sig: NamedSignature | Global | Mem | Table
 }
 
-function Import(mod: string, name: string, as: string, sig: Signature | Global | Mem | Table): Import {
-  return { kind: 'import', mod, name, as, sig }
+function Import(mod: string, name: string, sig: NamedSignature | Global | Mem | Table): Import {
+  return { kind: 'import', mod, name, sig }
 }
 
 interface Export {

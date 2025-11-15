@@ -66,7 +66,7 @@ test('binary', () => {
   m = wasm.Module({ funcs: [wasm.Func('add', wasm.Signature([], [wasm.f64]), [], Block([wasm.Const(wasm.f64, 1.0)]), Def('add'))] })
   assert.ok(compiled_wat(m).includes('f64.const 0x1p+0'))
 
-  m = wasm.Module({ imports: [wasm.Import('support', 'global', 'jsglobal', wasm.Signature([wasm.f32], [wasm.i32]))] })
+  m = wasm.Module({ imports: [wasm.Import('support', 'global', wasm.Signature([wasm.f32], [wasm.i32], 'jsglobal'))] })
   s = compiled_wat(m)
   assert.ok(s.includes('import "support" "global"'))
   assert.ok(s.includes('(param f32) (result i32)'))

@@ -284,7 +284,7 @@ class BatchEmitter implements Emitter {
     const key = mod.names.getkey(f)
     if (Array.isArray(key[0])) {
       const [imp, I, O] = key as WSig
-      this.imports.push(wasm.Import(imp[0], imp[1], f, wasm.Signature(I, O)))
+      this.imports.push(wasm.Import(...imp, wasm.Signature(I, O, f)))
     } else {
       this.emitFunc(mod, mod.get(key as Sig))
     }
@@ -307,7 +307,7 @@ function startfunc(main: string[]): wasm.Func {
 function stringImports(strings: string[]): wasm.Import[] {
   // TODO names from table
   return strings.map(value =>
-    wasm.Import('strings', value, value, wasm.Global(value, wasm.externref, { mut: false })))
+    wasm.Import('strings', value, wasm.Global(value, wasm.externref, { mut: false })))
 }
 
 function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.Module {
@@ -346,10 +346,10 @@ function wimport(mod: Wasm, f: string): wasm.Import {
   const sig = mod.names.getkey(f)
   if (Array.isArray(sig[0])) {
     const [imp, I, O] = sig as WSig
-    return wasm.Import(imp[0], imp[1], f, wasm.Signature(I, O))
+    return wasm.Import(...imp, wasm.Signature(I, O, f))
   } else {
     const fn = mod.get(sig as Sig)
-    return wasm.Import('wasm', f, f, fn.sig)
+    return wasm.Import('wasm', f, { ...fn.sig, name: f })
   }
 }
 
@@ -388,12 +388,12 @@ class StreamEmitter implements Emitter {
     const gimports: wasm.Import[] = []
     for (let i = 1; i <= this.globals; i++) {
       const [name, type] = mod.globals.types[i - 1]
-      gimports.push(wasm.Import('wasm', name, name, wasm.Global(name, type)))
+      gimports.push(wasm.Import('wasm', name, wasm.Global(name, type)))
     }
     const globals: wasm.Global[] = []
     for (let i = this.globals + 1; i <= mod.globals.types.length; i++)
       globals.push(wasm.Global(...mod.globals.types[i - 1]))
-    if (!first) iimports.push(wasm.Import('wasm', 'memory', 'memory', wasm.Mem('memory', 0)))
+    if (!first) iimports.push(wasm.Import('wasm', 'memory', wasm.Mem('memory', 0)))
     // TODO shared table
     const wmod = wasm.Module({
       funcs: fs,

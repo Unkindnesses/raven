@@ -46,7 +46,7 @@ class BinaryContext {
     let id = 0
     for (const f of [...m.imports, ...m.funcs]) {
       if (f.sig.kind !== 'signature') continue
-      const name = f.kind === 'import' ? f.as : f.name
+      const name = f.kind === 'import' ? f.sig.name : f.name
       add(name, 'func', id++)
     }
     id = 0
@@ -440,7 +440,7 @@ function names(cx: BinaryContext, m: wasm.Module): void {
       cx.leb128(fs.length)
       for (let i = 0; i < fs.length; i++) {
         cx.leb128(i)
-        name(cx, fs[i].kind === 'import' ? (fs[i] as wasm.Import).as : fs[i].name)
+        name(cx, fs[i].kind === 'import' ? (fs[i] as wasm.Import).sig.name : fs[i].name)
       }
     })
     if (gs.length === 0) return
