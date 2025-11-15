@@ -1,4 +1,4 @@
-export { Bits, Bool, true, false, Int, Int64, Int32, UInt, bits, oftype, typemin, typemax }
+export { Bits, Bool, true, false, Int, Int64, Int32, UInt, bits, oftype, typemin, typemax, bitsize }
 
 fn matchTrait(tag"common.core.Bits", x: pack(tag"common.core.Bits", _)) { Some(x) }
 
@@ -52,6 +52,9 @@ fn matchTrait(Params(tag"common.Int", N), Int(b)) {
 
 fn bits(Int(x)) { x }
 
+@extend
+fn bitsize(Int(x)) { bitsize(x) }
+
 fn oftype(to: Int, from: Bits) { Int(bitcast(bits(to), from)) }
 fn oftype(to: Int, from: Int) { Int(bitcast_s(bits(to), bits(from))) }
 
@@ -64,7 +67,7 @@ fn eq(a: Int, b: Int) { Bool(biteq(bits(a), bits(b))) }
 fn lt(a: Int, b: Int) { Bool(bitlt_s(bits(a), bits(b))) }
 
 fn larger(a: Int, b: Int) {
-  if lt(bitsize(bits(a)), bitsize(bits(b))) { b } else { a }
+  if lt(bitsize(a), bitsize(b)) { b } else { a }
 }
 
 fn promote(a: Int, b: Int) {
@@ -159,6 +162,9 @@ fn matchTrait(Params(tag"common.UInt", N), UInt(b)) {
 
 fn bits(UInt(x)) { x }
 
+@extend
+fn bitsize(UInt(x)) { bitsize(x) }
+
 fn UInt(x: Int) { UInt(bits(x)) } # TODO check positive
 
 fn oftype(to: UInt, from: Bits) { UInt(bitcast(bits(to), from)) }
@@ -170,7 +176,7 @@ fn oftype(to: UInt, from: Int) { oftype(to, UInt(from)) }
 fn oftype(to: Int, from: UInt) { oftype(to, bits(from)) } # TODO check positive
 
 fn larger(a: UInt, b: UInt) {
-  if lt(bitsize(bits(a)), bitsize(bits(b))) { b } else { a }
+  if lt(bitsize(a), bitsize(b)) { b } else { a }
 }
 
 fn promote(a: UInt, b: UInt) {

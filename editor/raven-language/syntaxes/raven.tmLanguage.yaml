@@ -56,8 +56,11 @@ repository:
       begin: '`'
       end: '`'
   numbers:
-    name: "constant.numeric.raven"
-    match: '\b[0-9]+\.?[0-9]*\b'
+    patterns:
+    - name: constant.numeric.hex.raven
+      match: '\b0x[0-9A-Fa-f]+\b'
+    - name: constant.numeric.raven
+      match: '\b[0-9]+\.?[0-9]*\b'
   comments:
     patterns:
       - include: '#blockcomments'

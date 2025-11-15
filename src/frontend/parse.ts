@@ -121,6 +121,14 @@ function num(r: Reader): number | bigint | undefined {
   return float ? parseFloat(num) : BigInt(parseInt(num, 10))
 }
 
+function hex(r: Reader) {
+  if (!(r.parse(r => exact(r, '0x')))) return
+  let num = ''
+  while (!r.eof() && /[0-9a-fA-F]/.test(r.peek)) num += r.read()
+  if (num === '') throw new Error('invalid hex literal')
+  return ast.Template(ast.symbol('hex'), num)
+}
+
 function negnum(r: Reader) {
   if (r.read() !== '-') return
   const x = num(r)
@@ -128,7 +136,9 @@ function negnum(r: Reader) {
   return -x
 }
 
-function number(r: Reader) { return r.parse(negnum, num) }
+function number(r: Reader) {
+  return r.parse<ast.Expr | bigint | number | undefined>(hex, negnum, num)
+}
 
 function symbol(r: Reader): ast.Symbol | undefined {
   let s = ''

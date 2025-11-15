@@ -18,6 +18,14 @@ test('print float', async () => {
   await rv('println(2.0)', { output: '2' })
 })
 
+test('hex literals', async () => {
+  await rv(`
+    test bitsize(0x1) == 8
+    test bitsize(0xFF) == 8
+    test bitsize(0x001) == 16
+  `)
+})
+
 test('undefined variable errors', async () => {
   await rv('println(x)', { error: true, output: 'x is not defined' })
 })

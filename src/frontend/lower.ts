@@ -467,6 +467,11 @@ function lowerTemplate(sc: Scope, code: LIR, ex: ast.Expr): Val<LIR> {
     const bitString = asString(ex.args[1])
     const value = bitString === '' ? 0n : BigInt('0b' + bitString)
     return bits(bitString.length, value)
+  } else if (templateType === 'hex') {
+    const digits = asString(ex.args[1])
+    const value = BigInt('0x' + digits)
+    let size = Math.pow(2, Math.ceil(Math.log2(digits.length * 4)))
+    return pack(tag('common.UInt'), bits(Math.max(size, 8), value))
   }
   throw new Error(`Unimplemented template type: ${templateType}`)
 }
