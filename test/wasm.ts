@@ -52,7 +52,7 @@ function Block(instrs: wasm.Instruction[]): wasm.Block {
 }
 
 test('binary', () => {
-  let m = wasm.Module({ mems: [wasm.Mem(0)] })
+  let m = wasm.Module({ mems: [wasm.Mem('mem', 0)] })
   assert.ok(compiled_wat(m).includes('(memory'))
 
   m = wasm.Module({ globals: [wasm.Global('foo', wasm.i64)] })

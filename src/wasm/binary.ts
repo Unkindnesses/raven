@@ -13,19 +13,21 @@ interface Debug {
   functions: dwarf.Function[]
 }
 
+type NameKind = (wasm.Func | wasm.Global | wasm.Table | wasm.Mem)['kind']
+
 class BinaryContext {
   buffer: number[]
   types: HashMap<wasm.Signature, number>
-  names: Map<string, number>
+  names: Map<string, [NameKind, number]>
 
   constructor(
     buffer: number[],
     types: HashMap<wasm.Signature, number>,
-    funcs: Map<string, number>,
+    names: Map<string, [NameKind, number]>,
   ) {
     this.buffer = buffer
     this.types = types
-    this.names = funcs
+    this.names = names
   }
 
   static from(buffer: number[], cx: BinaryContext): BinaryContext {
@@ -34,22 +36,31 @@ class BinaryContext {
 
   static fromModule(buffer: number[], m: wasm.Module): BinaryContext {
     const types = new HashMap<wasm.Signature, number>()
-    const names = new Map<string, number>()
+    const names = new Map<string, [NameKind, number]>()
+    const add = (name: string, kind: NameKind, id: number) => {
+      if (names.has(name)) throw new Error(`Duplicate name: ${name}`)
+      names.set(name, [kind, id])
+    }
     const sigs = wasm.signatures(m) // assign ids to type signatures
     for (let i = 0; i < sigs.length; i++) types.set(sigs[i], i)
-    let i = 0 // assign ids to function names
+    let id = 0
     for (const f of [...m.imports, ...m.funcs]) {
       if (f.sig.kind !== 'signature') continue
       const name = f.kind === 'import' ? f.as : f.name
-      if (names.has(name)) throw new Error(`Duplicate function name: ${name}`)
-      names.set(name, i)
-      i++
+      add(name, 'func', id++)
     }
-    let g = 0
-    for (const gl of [...m.imports.filter(x => x.sig.kind === 'global').map(x => x.sig), ...m.globals] as wasm.Global[]) {
-      if (names.has(gl.name)) throw new Error(`Duplicate global name: ${gl.name}`)
-      names.set(gl.name, g++)
-    }
+    id = 0
+    for (const imp of m.imports.filter(x => x.sig.kind === 'global'))
+      add((imp.sig as wasm.Global).name, 'global', id++)
+    for (const gl of m.globals) add(gl.name, 'global', id++)
+    id = 0
+    for (const imp of m.imports.filter(x => x.sig.kind === 'table'))
+      add((imp.sig as wasm.Table).name, 'table', id++)
+    for (const table of m.tables) add(table.name, 'table', id++)
+    id = 0
+    for (const imp of m.imports.filter(x => x.sig.kind === 'mem'))
+      add((imp.sig as wasm.Mem).name, 'mem', id++)
+    for (const mem of m.mems) add(mem.name, 'mem', id++)
     return new BinaryContext(buffer, types, names)
   }
 
@@ -146,7 +157,7 @@ function instr(cx: BinaryContext, inst: wasm.Instruction, lt: dwarf.LineTable): 
       break
     case 'call':
       cx.write(0x10)
-      cx.leb128(some(cx.names.get(inst.name)))
+      cx.leb128(some(cx.names.get(inst.name))[1])
       break
     case 'call_indirect':
       cx.write(0x11)
@@ -166,11 +177,11 @@ function instr(cx: BinaryContext, inst: wasm.Instruction, lt: dwarf.LineTable): 
       break
     case 'get_global':
       cx.write(0x23)
-      cx.leb128(some(cx.names.get(inst.id)))
+      cx.leb128(some(cx.names.get(inst.id))[1])
       break
     case 'set_global':
       cx.write(0x24)
-      cx.leb128(some(cx.names.get(inst.id)))
+      cx.leb128(some(cx.names.get(inst.id))[1])
       break
     case 'const':
       const typeOffset = [i32, i64, f32, f64].indexOf(inst.type)
@@ -343,34 +354,25 @@ function globals(cx: BinaryContext, gs: wasm.Global[]): void {
   })
 }
 
-function exportcode(x: wasm.Table | wasm.Mem | wasm.Global): number {
-  if (x.kind === 'table') return 0x01
-  if (x.kind === 'mem') return 0x02
-  return 0x03
+function exportcode(kind: NameKind): number {
+  switch (kind) {
+    case 'func': return 0x00
+    case 'table': return 0x01
+    case 'mem': return 0x02
+    case 'global': return 0x03
+  }
 }
 
 function wexports(cx: BinaryContext, m: wasm.Module): void {
-  const offset = m.imports.filter(x => x.sig.kind === 'global').length
-  const named = [[offset, m.globals], [0, m.mems], [0, m.tables]] as const
-  const n = m.exports.length + named.reduce((sum, [, xs]) =>
-    sum + xs.filter(x => x.exported).length, 0)
-  if (n === 0) return
+  if (m.exports.length === 0) return
   cx.write(0x07)
   withsize(cx, cx => {
-    cx.leb128(n)
+    cx.leb128(m.exports.length)
     for (const ex of m.exports) {
+      const [kind, id] = some(cx.names.get(ex.name))
       name(cx, ex.as)
-      cx.write(0x00) // func export
-      cx.leb128(some(cx.names.get(ex.name)))
-    }
-    for (const [offset, xs] of named) {
-      for (let i = 0; i < xs.length; i++) {
-        const x = xs[i]
-        if (!x.exported) continue
-        name(cx, x.name!)
-        cx.write(exportcode(x as any))
-        cx.leb128(i + offset)
-      }
+      cx.write(exportcode(kind))
+      cx.leb128(id)
     }
   })
 }
@@ -387,7 +389,7 @@ function elems(cx: BinaryContext, es: wasm.Elem[]): void {
       cx.leb128(e.data.length)
       for (const f of e.data) {
         // TODO hacky, but handles invalidated code appearing within tables.
-        cx.leb128(cx.names.get(f) || 0)
+        cx.leb128(cx.names.get(f)?.[1] || 0)
       }
     }
   })

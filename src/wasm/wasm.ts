@@ -186,25 +186,23 @@ function Func(name: string, sig: Signature, locals: ValueType[], body: Block, me
 
 interface Table {
   kind: 'table'
+  name: string
   min: number
-  name?: string
-  exported: boolean
 }
 
-function Table(min: number, name?: string): Table {
-  return { kind: 'table', min, name, exported: !!name }
+function Table(name: string, min: number): Table {
+  return { kind: 'table', name, min }
 }
 
 interface Mem {
   kind: 'mem'
+  name: string
   min: number
   max?: number
-  name?: string
-  exported: boolean
 }
 
-function Mem(min: number, max?: number, name?: string): Mem {
-  return { kind: 'mem', min, max, name, exported: !!name }
+function Mem(name: string, min: number, max?: number): Mem {
+  return { kind: 'mem', name, min, max }
 }
 
 interface Global {
@@ -213,16 +211,15 @@ interface Global {
   type: ValueType
   mut: boolean
   init: Instruction
-  exported: boolean
 }
 
 function zero(t: ValueType): Instruction {
   return typeof t === 'string' ? Const(t, 0) : RefNull(t.type)
 }
 
-function Global(name: string, type: ValueType, options: { mut?: boolean; init?: Instruction; exported?: boolean } = {}): Global {
-  let { mut = true, init = zero(type), exported = false } = options
-  return { kind: 'global', name, type, mut, init, exported }
+function Global(name: string, type: ValueType, options: { mut?: boolean; init?: Instruction } = {}): Global {
+  let { mut = true, init = zero(type) } = options
+  return { kind: 'global', name, type, mut, init }
 }
 
 interface Elem {

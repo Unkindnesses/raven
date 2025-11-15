@@ -1,6 +1,6 @@
 import * as wasm from './wasm'
 
-export { moduleToString, instructionToString }
+export { instructionToString }
 
 function basename(p: string): string {
   if (p.length === 0) return ''
@@ -67,71 +67,4 @@ function bodyToString(xs: wasm.Instruction[], ss: wasm.LineInfo[], level: number
 function varsToString(name: string, vs: wasm.ValueType[]): string {
   if (vs.length === 0) return ''
   return ` (${name} ${vs.join(' ')})`
-}
-
-function signatureToString(sig: wasm.Signature): string {
-  return varsToString('param', sig.params) + varsToString('result', sig.result)
-}
-
-function funcToString(f: wasm.Func, level: number = 1): string {
-  let result = '\n' + '  '.repeat(level)
-  result += `(func $${f.name}`
-  result += signatureToString(f.sig)
-  if (f.locals.length > 0) {
-    result += '\n' + '  '.repeat(level) + ' '
-    result += varsToString('local', f.locals)
-  }
-  result += bodyToString(f.body.body, f.body.srcs, level + 1)
-  result += ')'
-  return result
-}
-
-function memToString(x: wasm.Mem, level: number): string {
-  let result = '\n' + '  '.repeat(level)
-  result += `(memory ${x.min})` // TODO: add x.max
-  return result
-}
-
-function dataToString(x: wasm.Data, level: number): string {
-  let result = '\n' + '  '.repeat(level)
-  result += `(data (i32.const ${x.offset}) "${new TextDecoder().decode(x.data)}")`
-  return result
-}
-
-function exportToString(x: wasm.Export, level: number): string {
-  let result = '\n' + '  '.repeat(level)
-  result += `(export "${x.as}" (func $${x.name}))`
-  return result
-}
-
-function importToString(x: wasm.Import, level: number): string {
-  let result = '\n' + '  '.repeat(level)
-  result += `(import "${x.mod}" "${x.name}" (func $${x.as}`
-  if (x.sig.kind === 'signature') result += signatureToString(x.sig)
-  result += '))'
-  return result
-}
-
-function globalToString(x: wasm.Global, level: number): string {
-  let result = '\n' + '  '.repeat(level)
-  result += '(global '
-  if (x.mut) {
-    result += `(mut ${x.type}) `
-  } else {
-    result += `${x.type} `
-  }
-  result += `(${instructionToString(x.init, level)}))`
-  return result
-}
-
-function moduleToString(m: wasm.Module): string {
-  let result = '(module'
-  for (const imp of m.imports) result += importToString(imp, 1)
-  for (const exp of m.exports) result += exportToString(exp, 1)
-  for (const glob of m.globals) result += globalToString(glob, 1)
-  for (const mem of m.mems) result += memToString(mem, 1)
-  for (const data of m.data) result += dataToString(data, 1)
-  for (const func of m.funcs) result += funcToString(func, 1)
-  result += '\n)'
-  return result
 }

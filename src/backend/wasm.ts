@@ -316,13 +316,14 @@ function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.M
     funcs: em.funcs,
     imports: [...stringImports(tables.strings), ...em.imports],
     exports: [
-      wasm.Export('_start', '_start'),
-      wasm.Export('_start', 'cm32p2|wasi:cli/run@0.2|run')
+      wasm.Export('_start'),
+      wasm.Export('_start', 'cm32p2|wasi:cli/run@0.2|run'),
+      wasm.Export('cm32p2_memory')
     ],
     globals: globals.types.map(g => wasm.Global(...g)),
-    tables: [wasm.Table(tables.funcs.length)],
+    tables: [wasm.Table('funcs', tables.funcs.length)],
     elems: [wasm.Elem(0, tables.funcs)],
-    mems: [wasm.Mem(0, undefined, 'cm32p2_memory')]
+    mems: [wasm.Mem('cm32p2_memory', 0)]
   })
   return mod
 }
@@ -391,17 +392,17 @@ class StreamEmitter implements Emitter {
     }
     const globals: wasm.Global[] = []
     for (let i = this.globals + 1; i <= mod.globals.types.length; i++)
-      globals.push(wasm.Global(...mod.globals.types[i - 1], { exported: true }))
-    if (!first) iimports.push(wasm.Import('wasm', 'memory', 'memory', wasm.Mem(0)))
+      globals.push(wasm.Global(...mod.globals.types[i - 1]))
+    if (!first) iimports.push(wasm.Import('wasm', 'memory', 'memory', wasm.Mem('memory', 0)))
     // TODO shared table
     const wmod = wasm.Module({
       funcs: fs,
       imports: [...stringImports(mod.tables.strings), ...gimports, ...iimports],
-      exports: fs.map(f => wasm.Export(f.name, f.name)),
+      exports: [wasm.Export('memory'), ...fs.map(f => wasm.Export(f.name, f.name)), ...globals.map(g => wasm.Export(g.name, g.name))],
       globals,
-      tables: [wasm.Table(mod.tables.funcs.length)],
+      tables: [wasm.Table('funcs', mod.tables.funcs.length)],
       elems: [wasm.Elem(0, Array.from(mod.tables.funcs))],
-      mems: first ? [wasm.Mem(0, undefined, 'memory')] : []
+      mems: first ? [wasm.Mem('memory', 0)] : []
     })
     this.queue.push(wmod)
     this.globals = mod.globals.types.length
