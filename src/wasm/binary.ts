@@ -431,27 +431,28 @@ function code(cx: BinaryContext, funcs: wasm.Func[]): Debug {
   return { size, lines: table, functions }
 }
 
-function names(cx: BinaryContext, m: wasm.Module): void {
-  const fs = [...m.imports, ...m.funcs].filter(f => f.sig.kind === 'signature')
-  const gs = [...m.imports.filter(x => x.sig.kind === 'global').map(x => (x.sig as wasm.Global).name), ...m.globals.map(x => x.name)]
+function names(cx: BinaryContext): void {
+  const groups: Record<NameKind, [number, string][]> = { func: [], global: [], table: [], mem: [] }
+  for (const [nm, [kind, id]] of cx.names.entries()) groups[kind].push([id, nm])
+  const sections: [NameKind, number][] = [
+    ['func', 0x01],
+    ['table', 0x05],
+    ['mem', 0x06],
+    ['global', 0x07]
+  ]
   custom(cx, 'name', cx => {
-    cx.write(0x01) // func map
-    withsize(cx, cx => {
-      cx.leb128(fs.length)
-      for (let i = 0; i < fs.length; i++) {
-        cx.leb128(i)
-        name(cx, fs[i].kind === 'import' ? (fs[i] as wasm.Import).sig.name : fs[i].name)
-      }
-    })
-    if (gs.length === 0) return
-    cx.write(0x07) // global map
-    withsize(cx, cx => {
-      cx.leb128(gs.length)
-      for (let i = 0; i < gs.length; i++) {
-        cx.leb128(i)
-        name(cx, gs[i])
-      }
-    })
+    for (const [kind, subsection] of sections) {
+      const entries = groups[kind]
+      if (kind !== 'func' && entries.length === 0) continue
+      cx.write(subsection)
+      withsize(cx, cx => {
+        cx.leb128(entries.length)
+        for (const [id, nm] of entries) {
+          cx.leb128(id)
+          name(cx, nm)
+        }
+      })
+    }
   })
 }
 
@@ -490,7 +491,7 @@ function binary(m: wasm.Module, strip = false): Uint8Array {
   customSections(cx, m.customs)
   const dbg = code(cx, m.funcs)
   if (!strip) {
-    names(cx, m)
+    names(cx)
     emitDwarf(cx, dbg)
   }
   return new Uint8Array(buf)
