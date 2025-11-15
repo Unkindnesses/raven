@@ -288,7 +288,7 @@ function swapreturn(code: LIR, val: Val<LIR>, swaps?: Map<number, string>, { src
   }
 }
 
-function string(sc: Scope, code: LIR, x: string) {
+function string(code: LIR, x: string) {
   return code.push(code.stmt(xstring(x)))
 }
 
@@ -300,7 +300,7 @@ function lowermatch(sc: Scope, code: LIR, val: Val<LIR>, pat: ast.Tree): Val<LIR
   code.branch(code._blocks.length + 1, [], { when: isnil })
   code.branch(code._blocks.length + 2)
   code.newBlock()
-  rcall(code, tag('common.abort'), [string(sc, code, `match failed: ${ast.repr(pat)}`)])
+  rcall(code, tag('common.abort'), [string(code, `match failed: ${ast.repr(pat)}`)])
   code.newBlock()
   const matched = _push(code, xcall(notnil_method, m))
   for (const arg of sig.args) {
@@ -330,7 +330,7 @@ function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): Va
         return sc.get(val.toString())
       }
     } else if (typeof val === 'string') {
-      return string(sc, code, val)
+      return string(code, val)
     } else {
       return Type(val)
     }
@@ -475,6 +475,9 @@ function lowerTemplate(sc: Scope, code: LIR, ex: ast.Expr): Val<LIR> {
   } else if (template === 'c') {
     const val = some(asString(ex.args[1]).codePointAt(0))
     return pack(tag('common.Char'), pack(tag('common.UInt'), bits(21, BigInt(val))))
+  } else if (template === 'r') {
+    const pattern = asString(ex.args[1])
+    return rcall(code, tag('common.Regex'), [string(code, pattern)], { src: ex.meta })
   }
   throw new Error(`Unimplemented template type: ${template}`)
 }

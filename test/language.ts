@@ -805,6 +805,19 @@ test('string indexing', async () => {
   `, { output: '0x0066' })
 })
 
+test('regex contains', async () => {
+  await rv(`
+    test contains?("1, 2, 3", r\`\\d\`)
+  `)
+})
+
+test('regex match', async () => {
+  await rv(`
+    ms = matches("1, 2, 3", r\`\\d\`)
+    show collect(ms)
+  `, { output: '[["1"], ["2"], ["3"]]' })
+})
+
 test('print bits', async () => {
   await rv(`
     bitcast = tag"common.core.bitcast"

@@ -1,4 +1,4 @@
-export { Char, String, string, concat, compare, utf16 }
+export { Char, String, Regex, string, concat, compare, utf16, contains?, matches }
 
 # Chars
 
@@ -90,4 +90,35 @@ fn show(x: Tag) {
   print(`tag"`)
   print(string(x))
   print(`"`)
+}
+
+# Regex
+
+bundle Regex(r: JSObject)
+
+# TODO flags
+fn Regex(r: String) { Regex(js().RegExp(r, "vg")) }
+
+fn js(Regex(r)) { r }
+
+fn show(Regex(r)) {
+  print("r`")
+  print(r.source)
+  print("`")
+}
+
+fn contains?(s: String, Regex(r)) {
+  r["lastIndex"] = 0 # JS RegExps have state!
+  return Bool(r.test(s))
+}
+
+bundle Matches(s: String, r: Regex)
+
+fn matches(s: String, r: Regex) { Matches(s, r) }
+
+# TODO lambdas
+fn collectStrings(xs) { map(String, xs) }
+
+fn iterator(Matches(s, r)) {
+  mapping(collectStrings, js(s).matchAll(r))
 }

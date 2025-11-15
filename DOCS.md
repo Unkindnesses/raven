@@ -279,7 +279,7 @@ hello,\n world
 
 You can add backslashes before and after the outer quotes to avoid escaping inner ones.
 
-```rust
+```
 > println(\"hello, "world""\)
 hello, "world"
 > println(\`hello, `world``\)
@@ -294,4 +294,13 @@ hello,\n world
 > println(\\"hello,\\n world"\\)
 hello,
  world
+```
+
+Regular expressions use the `r"..."` string macro. Test a string with `contains?` and iterate over matches (and capture groups) with `matches`.
+
+```
+> contains?("1, 2, 3", r`\d`)
+true
+> collect(matches("1, 2, 3", r`\d`))
+[["1"], ["2"], ["3"]]
 ```

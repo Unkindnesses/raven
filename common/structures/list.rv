@@ -56,15 +56,13 @@ fn show(x: List) {
   print("]")
 }
 
-fn map(f, xs) {
-  ys = []
-  for x = xs {
-    append(&ys, f(x))
-  }
-  return ys
+fn collect(xs) {
+  for x = xs { x }
 }
 
-fn collect(xs) { map(identity, xs) }
+fn map(f, xs) {
+  for x = xs { f(x) }
+}
 
 fn js(xs: List) {
   ys = js().Array.of()

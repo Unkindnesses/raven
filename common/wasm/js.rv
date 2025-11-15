@@ -1,5 +1,5 @@
 export {
-  JSObject, debugger, abort, js, property, call, errcall, await, new, sleep
+  JSObject, debugger, abort, js, call, errcall, await, new, sleep
   readline, require
 }
 
@@ -8,6 +8,8 @@ fn matchTrait(tag"common.core.Ref", x: pack(tag"common.core.Ref", _)) { Some(x) 
 fn show(x: Ref) { print("Ref(...)") }
 
 bundle JSObject(ref: Ref)
+
+fn JSObject() { new(js().Object) }
 
 fn js(x: JSObject) { x }
 
@@ -21,8 +23,15 @@ fn js() {
 fn (obj: JSObject)[prop] { obj[js(prop)] }
 
 fn (obj: JSObject)[prop: JSObject] {
-  ref = wasm call(support.property, jsref(obj): ref, jsref(prop): ref): ref
+  ref = wasm call(support.get, jsref(obj): ref, jsref(prop): ref): ref
   return JSObject(ref)
+}
+
+fn set(&obj: JSObject, x, prop) { obj[js(prop)] = js(x) }
+
+fn set(&obj: JSObject, x: JSObject, prop: JSObject) {
+  wasm call(support.set, jsref(obj): ref, jsref(prop): ref, jsref(x): ref): ref
+  return obj
 }
 
 fn field(obj: JSObject, f: Tag) { obj[string(f)] }

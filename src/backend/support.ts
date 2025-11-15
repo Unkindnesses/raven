@@ -26,10 +26,6 @@ function global() {
   return globalThis
 }
 
-function property(obj: any, prop: any) {
-  return obj[prop]
-}
-
 function call(obj: any, meth: any, ...args: any[]) {
   const func = obj[meth]
   if (func === undefined) {
@@ -92,9 +88,11 @@ function abort(obj: any, cause: any) {
 
 function support() {
   return {
-    global, property, call, apply,
+    global, call, apply,
     createRef, fromRef, abort,
     equal, release,
+    get: (x: any, p: any) => x[p],
+    set: (x: any, p: any, v: any) => { x[p] = v },
     identity: (x: any) => x,
     await: new (WebAssembly as any).Suspending((x: any) => x),
     errcall: new (WebAssembly as any).Suspending(errcall),
