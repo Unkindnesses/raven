@@ -799,6 +799,12 @@ test('collect string', async () => {
   `, { output: '["f", "o", "o"]' })
 })
 
+test('string indexing', async () => {
+  await rv(`
+    show utf16("foo")[1]
+  `, { output: '0x0066' })
+})
+
 test('print bits', async () => {
   await rv(`
     bitcast = tag"common.core.bitcast"

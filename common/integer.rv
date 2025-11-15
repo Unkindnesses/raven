@@ -1,4 +1,4 @@
-export { Bits, Bool, true, false, Int, Int64, Int32, UInt, bits, oftype, typemin, typemax, bitsize }
+export { Bits, Bool, true, false, Int, Int64, Int32, UInt, UInt64, UInt32, UInt16, UInt8, bits, oftype, typemin, typemax, bitsize }
 
 fn matchTrait(tag"common.core.Bits", x: pack(tag"common.core.Bits", _)) { Some(x) }
 
@@ -121,6 +121,9 @@ fn (a: Int) / (b: Int) { Float64(a) / Float64(b) }
 
 fn js(x: Int) { js(Float64(x)) }
 
+fn string(x: Int, base: Int) { js(x).toString(base) }
+fn string(x: Int) { string(x, 10) }
+
 fn print(x: Int) { print(js(x)) }
 
 fn show(x: Int) {
@@ -222,27 +225,39 @@ fn show(x: UInt) {
   N = bitsize(bits(x))
   print("oftype(uint ")
   print(N)
-  print(", ")
-  print(Int64(x))
+  print(", 0x")
+  print(string(Int64(x), 16))
   print(")")
 }
 
 # Special sizes
 
+fn matchTrait(tag".UInt8", x: UInt[8]) { Some(x) }
+fn matchTrait(tag".UInt16", x: UInt[16]) { Some(x) }
 fn matchTrait(tag".UInt32", x: UInt[32]) { Some(x) }
 fn matchTrait(tag".UInt64", x: UInt[64]) { Some(x) }
 
-fn UInt32(x) { oftype(int 32, x) }
-fn UInt64(x) { oftype(int 64, x) }
+fn UInt8(x) { oftype(uint 8, x) }
+fn UInt16(x) { oftype(uint 16, x) }
+fn UInt32(x) { oftype(uint 32, x) }
+fn UInt64(x) { oftype(uint 64, x) }
+
+fn show(x: UInt8) {
+  print("0x")
+  print(js(string(Int64(x), 16)).padStart(2, "0"))
+}
+
+fn show(x: UInt16) {
+  print("0x")
+  print(js(string(Int64(x), 16)).padStart(4, "0"))
+}
 
 fn show(x: UInt32) {
-  print("UInt32(")
-  print(x)
-  print(")")
+  print("0x")
+  print(js(string(Int64(x), 16)).padStart(8, "0"))
 }
 
 fn show(x: UInt64) {
-  print("UInt(")
-  print(x)
-  print(")")
+  print("0x")
+  print(js(string(Int64(x), 16)).padStart(16, "0"))
 }

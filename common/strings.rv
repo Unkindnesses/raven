@@ -77,7 +77,7 @@ fn UTF16View(s)[i] {
   String(x) = s
   i = widen(bits(Int32(i-1))) # TODO remove widen
   ch = wasm call("wasm:js-string".charCodeAt, x: ref, i: i32): i32
-  return Int32(ch)
+  return UInt16(ch)
 }
 
 # Tags
