@@ -74,8 +74,8 @@ type Instruction =
   | { kind: 'nop' }
   | { kind: 'get_local'; id: number }
   | { kind: 'set_local'; tee: boolean; id: number }
-  | { kind: 'get_global'; id: number }
-  | { kind: 'set_global'; id: number }
+  | { kind: 'get_global'; id: string }
+  | { kind: 'set_global'; id: string }
   | { kind: 'op'; name: string }
   | { kind: 'drop' }
   | { kind: 'select' }
@@ -110,11 +110,11 @@ function SetLocal(id: number, tee: boolean = false): Instruction {
   return { kind: 'set_local', tee, id }
 }
 
-function GetGlobal(id: number): Instruction {
+function GetGlobal(id: string): Instruction {
   return { kind: 'get_global', id }
 }
 
-function SetGlobal(id: number): Instruction {
+function SetGlobal(id: string): Instruction {
   return { kind: 'set_global', id }
 }
 
@@ -188,10 +188,11 @@ interface Table {
   kind: 'table'
   min: number
   name?: string
+  exported: boolean
 }
 
 function Table(min: number, name?: string): Table {
-  return { kind: 'table', min, name }
+  return { kind: 'table', min, name, exported: !!name }
 }
 
 interface Mem {
@@ -199,27 +200,29 @@ interface Mem {
   min: number
   max?: number
   name?: string
+  exported: boolean
 }
 
 function Mem(min: number, max?: number, name?: string): Mem {
-  return { kind: 'mem', min, max, name }
+  return { kind: 'mem', min, max, name, exported: !!name }
 }
 
 interface Global {
   kind: 'global'
+  name: string
   type: ValueType
   mut: boolean
   init: Instruction
-  name?: string
+  exported: boolean
 }
 
 function zero(t: ValueType): Instruction {
   return typeof t === 'string' ? Const(t, 0) : RefNull(t.type)
 }
 
-function Global(type: ValueType, options: { mut?: boolean; init?: Instruction; name?: string } = {}): Global {
-  let { mut = true, init = zero(type), name } = options
-  return { kind: 'global', type, mut, init, name }
+function Global(name: string, type: ValueType, options: { mut?: boolean; init?: Instruction; exported?: boolean } = {}): Global {
+  let { mut = true, init = zero(type), exported = false } = options
+  return { kind: 'global', name, type, mut, init, exported }
 }
 
 interface Elem {
@@ -245,7 +248,7 @@ interface Import {
   kind: 'import'
   mod: string
   name: string
-  as: string
+  as: string // TODO get from sig?
   sig: Signature | Global | Mem | Table
 }
 

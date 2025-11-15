@@ -25,8 +25,8 @@ function instructionToString(i: wasm.Instruction, level: number = 0): string {
     case 'const': return `${i.type}.const ${i.val}`
     case 'get_local': return `local.get ${i.id}`
     case 'set_local': return i.tee ? `local.tee ${i.id}` : `local.set ${i.id}`
-    case 'get_global': return `global.get ${i.id}`
-    case 'set_global': return `global.set ${i.id}`
+    case 'get_global': return `global.get $${i.id}`
+    case 'set_global': return `global.set $${i.id}`
     case 'op': return i.name
     case 'call': return `call $${i.name}`
     case 'convert': return `${i.to}.${i.name}/${i.from}`

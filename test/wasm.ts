@@ -55,8 +55,8 @@ test('binary', () => {
   let m = wasm.Module({ mems: [wasm.Mem(0)] })
   assert.ok(compiled_wat(m).includes('(memory'))
 
-  m = wasm.Module({ globals: [wasm.Global(wasm.i64)] })
-  assert.ok(compiled_wat(m).includes('(global (;0;) (mut i64) i64.const 0)'))
+  m = wasm.Module({ globals: [wasm.Global('foo', wasm.i64)] })
+  assert.ok(compiled_wat(m).includes('(global $foo (;0;) (mut i64) i64.const 0)'))
 
   m = wasm.Module({ funcs: [wasm.Func('add', wasm.Signature([], [wasm.i32]), [], Block([wasm.Const(wasm.i32, 5n)]), Def('add'))] })
   let s = compiled_wat(m)

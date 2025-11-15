@@ -16,32 +16,41 @@ interface Debug {
 class BinaryContext {
   buffer: number[]
   types: HashMap<wasm.Signature, number>
-  funcs: Map<string, number>
+  names: Map<string, number>
 
-  constructor(buffer: number[], types: HashMap<wasm.Signature, number>, funcs: Map<string, number>) {
+  constructor(
+    buffer: number[],
+    types: HashMap<wasm.Signature, number>,
+    funcs: Map<string, number>,
+  ) {
     this.buffer = buffer
     this.types = types
-    this.funcs = funcs
+    this.names = funcs
   }
 
   static from(buffer: number[], cx: BinaryContext): BinaryContext {
-    return new BinaryContext(buffer, cx.types, cx.funcs)
+    return new BinaryContext(buffer, cx.types, cx.names)
   }
 
   static fromModule(buffer: number[], m: wasm.Module): BinaryContext {
     const types = new HashMap<wasm.Signature, number>()
-    const funcs = new Map<string, number>()
+    const names = new Map<string, number>()
     const sigs = wasm.signatures(m) // assign ids to type signatures
     for (let i = 0; i < sigs.length; i++) types.set(sigs[i], i)
     let i = 0 // assign ids to function names
     for (const f of [...m.imports, ...m.funcs]) {
       if (f.sig.kind !== 'signature') continue
       const name = f.kind === 'import' ? f.as : f.name
-      if (funcs.has(name)) throw new Error(`Duplicate function name: ${name}`)
-      funcs.set(name, i)
+      if (names.has(name)) throw new Error(`Duplicate function name: ${name}`)
+      names.set(name, i)
       i++
     }
-    return new BinaryContext(buffer, types, funcs)
+    let g = 0
+    for (const gl of [...m.imports.filter(x => x.sig.kind === 'global').map(x => x.sig), ...m.globals] as wasm.Global[]) {
+      if (names.has(gl.name)) throw new Error(`Duplicate global name: ${gl.name}`)
+      names.set(gl.name, g++)
+    }
+    return new BinaryContext(buffer, types, names)
   }
 
   write(x: number | string | Uint8Array | number[]): void {
@@ -137,7 +146,7 @@ function instr(cx: BinaryContext, inst: wasm.Instruction, lt: dwarf.LineTable): 
       break
     case 'call':
       cx.write(0x10)
-      cx.leb128(some(cx.funcs.get(inst.name)))
+      cx.leb128(some(cx.names.get(inst.name)))
       break
     case 'call_indirect':
       cx.write(0x11)
@@ -157,11 +166,11 @@ function instr(cx: BinaryContext, inst: wasm.Instruction, lt: dwarf.LineTable): 
       break
     case 'get_global':
       cx.write(0x23)
-      cx.leb128(inst.id)
+      cx.leb128(some(cx.names.get(inst.id)))
       break
     case 'set_global':
       cx.write(0x24)
-      cx.leb128(inst.id)
+      cx.leb128(some(cx.names.get(inst.id)))
       break
     case 'const':
       const typeOffset = [i32, i64, f32, f64].indexOf(inst.type)
@@ -344,7 +353,7 @@ function wexports(cx: BinaryContext, m: wasm.Module): void {
   const offset = m.imports.filter(x => x.sig.kind === 'global').length
   const named = [[offset, m.globals], [0, m.mems], [0, m.tables]] as const
   const n = m.exports.length + named.reduce((sum, [, xs]) =>
-    sum + xs.filter(x => x.name).length, 0)
+    sum + xs.filter(x => x.exported).length, 0)
   if (n === 0) return
   cx.write(0x07)
   withsize(cx, cx => {
@@ -352,13 +361,13 @@ function wexports(cx: BinaryContext, m: wasm.Module): void {
     for (const ex of m.exports) {
       name(cx, ex.as)
       cx.write(0x00) // func export
-      cx.leb128(some(cx.funcs.get(ex.name)))
+      cx.leb128(some(cx.names.get(ex.name)))
     }
     for (const [offset, xs] of named) {
       for (let i = 0; i < xs.length; i++) {
         const x = xs[i]
-        if (!x.name) continue
-        name(cx, x.name)
+        if (!x.exported) continue
+        name(cx, x.name!)
         cx.write(exportcode(x as any))
         cx.leb128(i + offset)
       }
@@ -378,7 +387,7 @@ function elems(cx: BinaryContext, es: wasm.Elem[]): void {
       cx.leb128(e.data.length)
       for (const f of e.data) {
         // TODO hacky, but handles invalidated code appearing within tables.
-        cx.leb128(cx.funcs.get(f) || 0)
+        cx.leb128(cx.names.get(f) || 0)
       }
     }
   })
@@ -422,6 +431,7 @@ function code(cx: BinaryContext, funcs: wasm.Func[]): Debug {
 
 function names(cx: BinaryContext, m: wasm.Module): void {
   const fs = [...m.imports, ...m.funcs].filter(f => f.sig.kind === 'signature')
+  const gs = [...m.imports.filter(x => x.sig.kind === 'global').map(x => (x.sig as wasm.Global).name), ...m.globals.map(x => x.name)]
   custom(cx, 'name', cx => {
     cx.write(0x01) // func map
     withsize(cx, cx => {
@@ -429,6 +439,15 @@ function names(cx: BinaryContext, m: wasm.Module): void {
       for (let i = 0; i < fs.length; i++) {
         cx.leb128(i)
         name(cx, fs[i].kind === 'import' ? (fs[i] as wasm.Import).as : fs[i].name)
+      }
+    })
+    if (gs.length === 0) return
+    cx.write(0x07) // global map
+    withsize(cx, cx => {
+      cx.leb128(gs.length)
+      for (let i = 0; i < gs.length; i++) {
+        cx.leb128(i)
+        name(cx, gs[i])
       }
     })
   })

@@ -56,24 +56,27 @@ function wparts(T: Anno<Type>): wasm.ValueType[] {
   return T === unreachable ? [] : wlayout(T)
 }
 
-const USER_GLOBAL_BASE = 1 << 20
-
 class WGlobals implements Caching {
-  types: wasm.ValueType[]
-  globals: Cache<Binding, number[]>
+  types: [string, wasm.ValueType][]
+  globals: Cache<Binding, string[]>
   constructor(defs: Definitions) {
     this.types = []
-    this.globals = new Cache<Binding, number[]>(b => {
+    // TODO pretty sure this is wrong; binding chains lead to duplicated globals
+    this.globals = new Cache<Binding, string[]>(b => {
       let T: Anno<Type> | Binding = b
       while (T instanceof Binding) T = defs.global(T)
-      const start = this.types.length
       const l = wparts(T)
-      this.types.push(...l)
-      return Array.from({ length: l.length }, (_, i) => USER_GLOBAL_BASE + start + i)
+      const names: string[] = []
+      for (let i = 0; i < l.length; i++) {
+        const name = `${b.mod.path}.${b.name}:${this.types.length}`
+        this.types.push([name, l[i]])
+        names.push(name)
+      }
+      return names
     })
   }
   get subcaches() { return [this.globals] }
-  get(b: Binding): number[] { return this.globals.get(b) }
+  get(b: Binding): string[] { return this.globals.get(b) }
 }
 
 function tableid<T>(xs: T[], x: T): number {
@@ -86,7 +89,10 @@ function tableid<T>(xs: T[], x: T): number {
 class Tables {
   strings: string[] = []
   funcs: string[] = []
-  string(s: string): number { return tableid(this.strings, s) }
+  string(s: string): string {
+    tableid(this.strings, s)
+    return s
+  }
   func(f: string): number { return tableid(this.funcs, f) }
 }
 
@@ -299,26 +305,9 @@ function startfunc(main: string[]): wasm.Func {
 }
 
 function stringImports(strings: string[]): wasm.Import[] {
-  return strings.map((value, i) =>
-    wasm.Import('strings', value, `string_${i}`, wasm.Global(wasm.externref, { mut: false })))
-}
-
-function rebaseGlobals(mod: wasm.Module, stringCount: number) {
-  const adjust = (instr: wasm.Instruction) => {
-    switch (instr.kind) {
-      case 'get_global':
-      case 'set_global':
-        if (instr.id >= USER_GLOBAL_BASE)
-          instr.id = instr.id - USER_GLOBAL_BASE + stringCount
-        break
-      case 'block':
-      case 'loop':
-        instr.body.forEach(adjust)
-        break
-    }
-  }
-  for (const fn of mod.funcs) adjust(fn.body)
-  for (const gl of mod.globals) adjust(gl.init)
+  // TODO names from table
+  return strings.map(value =>
+    wasm.Import('strings', value, value, wasm.Global(value, wasm.externref, { mut: false })))
 }
 
 function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.Module {
@@ -330,12 +319,11 @@ function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.M
       wasm.Export('_start', '_start'),
       wasm.Export('_start', 'cm32p2|wasi:cli/run@0.2|run')
     ],
-    globals: globals.types.map(t => wasm.Global(t)),
+    globals: globals.types.map(g => wasm.Global(...g)),
     tables: [wasm.Table(tables.funcs.length)],
     elems: [wasm.Elem(0, tables.funcs)],
     mems: [wasm.Mem(0, undefined, 'cm32p2_memory')]
   })
-  rebaseGlobals(mod, tables.strings.length)
   return mod
 }
 
@@ -397,11 +385,13 @@ class StreamEmitter implements Emitter {
     fs.unshift(startfunc([func.name]))
     const iimports = setdiff(imports, fs.map(f => f.name)).map(f => wimport(mod, f))
     const gimports: wasm.Import[] = []
-    for (let i = 1; i <= this.globals; i++)
-      gimports.push(wasm.Import('wasm', `global${i - 1}`, `global${i - 1}`, wasm.Global(mod.globals.types[i - 1])))
+    for (let i = 1; i <= this.globals; i++) {
+      const [name, type] = mod.globals.types[i - 1]
+      gimports.push(wasm.Import('wasm', name, name, wasm.Global(name, type)))
+    }
     const globals: wasm.Global[] = []
     for (let i = this.globals + 1; i <= mod.globals.types.length; i++)
-      globals.push(wasm.Global(mod.globals.types[i - 1], { name: `global${i - 1}` }))
+      globals.push(wasm.Global(...mod.globals.types[i - 1], { exported: true }))
     if (!first) iimports.push(wasm.Import('wasm', 'memory', 'memory', wasm.Mem(0)))
     // TODO shared table
     const wmod = wasm.Module({
@@ -413,7 +403,6 @@ class StreamEmitter implements Emitter {
       elems: [wasm.Elem(0, Array.from(mod.tables.funcs))],
       mems: first ? [wasm.Mem(0, undefined, 'memory')] : []
     })
-    rebaseGlobals(wmod, mod.tables.strings.length)
     this.queue.push(wmod)
     this.globals = mod.globals.types.length
   }
