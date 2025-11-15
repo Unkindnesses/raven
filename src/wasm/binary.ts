@@ -489,7 +489,9 @@ function binary(m: wasm.Module, strip = false): Uint8Array {
   elems(cx, m.elems)
   customSections(cx, m.customs)
   const dbg = code(cx, m.funcs)
-  names(cx, m)
-  if (!strip) emitDwarf(cx, dbg)
+  if (!strip) {
+    names(cx, m)
+    emitDwarf(cx, dbg)
+  }
   return new Uint8Array(buf)
 }
