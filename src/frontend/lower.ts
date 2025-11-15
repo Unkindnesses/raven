@@ -48,8 +48,8 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
     body.push(
       ast.Syntax(s('fn'),
         ast.Call(tag('common.matchTrait'), T,
-          ast.Operator(s(':'), s('val'), ast.Call(tag('common.core.pack'), T, ...argNames))),
-        ast.Block(ast.Call(s('Some'), s('val')))))
+          ast.Operator(s(':'), s('_val'), ast.Call(tag('common.core.pack'), T, ...argNames))),
+        ast.Block(ast.Call(s('Some'), s('_val')))))
     body.push(
       ast.Syntax(s('fn'), ast.Call(tag('common.constructorPattern'), T, ...argNames),
         ast.Block(
@@ -80,9 +80,9 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
     body.push(
       ast.Syntax(s('fn'),
         ast.Call(tag('common.matchTrait'), superTag,
-          ast.Operator(symbol(':'), s('val'),
+          ast.Operator(symbol(':'), s('_val'),
             ast.Operator(symbol('|'), ...names))),
-        ast.Block(ast.Call(s('Some'), s('val')))))
+        ast.Block(ast.Call(s('Some'), s('_val')))))
   }
   return ast.Group(...body)
 }
@@ -459,21 +459,24 @@ function lowerList(sc: Scope, code: LIR, ex: ast.Expr): Val<LIR> {
 }
 
 function lowerTemplate(sc: Scope, code: LIR, ex: ast.Expr): Val<LIR> {
-  const templateType = asSymbol(ex.args[0]).toString()
-  if (templateType === 'tag') {
+  const template = asSymbol(ex.args[0]).toString()
+  if (template === 'tag') {
     const tagName = asString(ex.args[1])
     return modtag(sc.mod(), tagName)
-  } else if (templateType === 'bits') {
+  } else if (template === 'bits') {
     const bitString = asString(ex.args[1])
     const value = bitString === '' ? 0n : BigInt('0b' + bitString)
     return bits(bitString.length, value)
-  } else if (templateType === 'hex') {
+  } else if (template === 'hex') {
     const digits = asString(ex.args[1])
     const value = BigInt('0x' + digits)
     let size = Math.pow(2, Math.ceil(Math.log2(digits.length * 4)))
     return pack(tag('common.UInt'), bits(Math.max(size, 8), value))
+  } else if (template === 'c') {
+    const val = some(asString(ex.args[1]).codePointAt(0))
+    return pack(tag('common.Char'), pack(tag('common.UInt'), bits(21, BigInt(val))))
   }
-  throw new Error(`Unimplemented template type: ${templateType}`)
+  throw new Error(`Unimplemented template type: ${template}`)
 }
 
 const nonNullExternref: ValueType = { null: false, type: { kind: 'abstract', type: AbsHeapType.extern } }

@@ -5,6 +5,8 @@ export {
 
 fn matchTrait(tag"common.core.Ref", x: pack(tag"common.core.Ref", _)) { Some(x) }
 
+fn show(x: Ref) { print("Ref(...)") }
+
 bundle JSObject(ref: Ref)
 
 fn js(x: JSObject) { x }

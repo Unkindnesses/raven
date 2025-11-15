@@ -1,4 +1,26 @@
-export { String, string, concat, compare, utf16 }
+export { Char, String, string, concat, compare, utf16 }
+
+# Chars
+
+bundle Char(val: UInt[21])
+
+fn Char(x: Int | UInt) { Char(oftype(uint 21, x)) }
+
+fn Char(x: UInt[21]) { pack(Char, x) }
+
+fn string(Char(val)) {
+  ref = wasm call("wasm:js-string".fromCodePoint, widen(bits(val)): i32): ref!
+  return unsafeString(ref)
+}
+
+fn print(ch: Char) { print(string(ch)) }
+
+fn show(ch: Char) {
+  print(`c`)
+  show(string(ch))
+}
+
+# Strings
 
 bundle String(ref: Ref)
 
@@ -26,7 +48,7 @@ fn length(s: String) { count(s) }
 
 fn concat(String(a), String(b)) {
   ref = wasm call("wasm:js-string".concat, a: ref, b: ref): ref!
-  return String(ref)
+  return unsafeString(ref)
 }
 
 fn String(a) == String(b) {
@@ -63,3 +85,9 @@ fn UTF16View(s)[i] {
 fn string(x: Tag) { tagstring(x) }
 
 fn (a: Tag) == (b: Tag) { shortcutEquals(a, b) }
+
+fn show(x: Tag) {
+  print(`tag"`)
+  print(string(x))
+  print(`"`)
+}

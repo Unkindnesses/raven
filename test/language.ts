@@ -26,6 +26,13 @@ test('hex literals', async () => {
   `)
 })
 
+test('char literals', async () => {
+  await rv(`
+    test c"🔥" == Char(0x1F525)
+    test string(c"🔥") == "🔥"
+  `)
+})
+
 test('undefined variable errors', async () => {
   await rv('println(x)', { error: true, output: 'x is not defined' })
 })

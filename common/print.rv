@@ -27,12 +27,6 @@ fn showPack(x) {
   print(")")
 }
 
-fn show(x: Tag) {
-  print("tag\"")
-  print(string(x))
-  print("\"")
-}
-
 fn replshow(x) {
   show(x)
   println()
