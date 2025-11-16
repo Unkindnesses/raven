@@ -26,7 +26,7 @@ import { MIR, Method, Value, xstring, Global, Invoke, Wasm } from '../frontend/m
 import { Def } from '../dwarf/index.js'
 import { Inferred, Redirect, Sig, sig as resolveSig } from './abstract.js'
 import { wasmPartials } from '../backend/wasm.js'
-import isEqual from 'lodash/isEqual.js'
+import { isEqual } from '../utils/isEqual.js'
 import { Pipe, Block, Fragment, expr, Branch, Val, Anno, unreachable, asType } from '../utils/ir.js'
 import { some } from '../utils/map.js'
 import { xcall, xtuple } from '../frontend/lower.js'

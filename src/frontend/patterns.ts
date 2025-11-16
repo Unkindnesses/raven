@@ -1,4 +1,4 @@
-import isEqual from "lodash/isEqual.js"
+import { isEqual } from '../utils/isEqual.js'
 import * as ast from "./ast.js"
 import { asSymbol, Symbol, symbol } from "./ast.js"
 import { Type, Tag, tag, pack, part, parts, tagOf, asTag } from "./types.js"

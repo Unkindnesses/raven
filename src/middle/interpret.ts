@@ -6,7 +6,7 @@ import { CycleCache } from '../utils/cache.js'
 import { partial_match } from './patterns.js'
 import { wasmPartials } from '../backend/wasm.js'
 import { invoke_method } from './primitives.js'
-import isEqual from 'lodash/isEqual.js'
+import { isEqual } from '../utils/isEqual.js'
 import { some } from '../utils/map.js'
 import { Instruction } from '../wasm/wasm.js'
 

@@ -33,7 +33,7 @@ import { some } from '../utils/map.js'
 import { options } from '../utils/options.js'
 import { part_method, isnil_method, notnil_method, partial_isnil, string } from './primitives.js'
 import { EagerCache } from '../utils/cache.js'
-import isEqual from 'lodash/isEqual.js'
+import { isEqual } from '../utils/isEqual.js'
 
 export { MatchMethods, partial_match, indexer, icall, dispatch_arms, dispatcher }
 

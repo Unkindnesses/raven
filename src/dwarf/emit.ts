@@ -2,7 +2,7 @@ import { Form } from './enums.js'
 import { HashMap, some } from '../utils/map.js'
 import { Attr, Tag } from './enums.js'
 import { DIE, Abbrev, LineTable, abbrev, Value, Source, Def, Function, LineInfo } from './structs.js'
-import isEqual from 'lodash/isEqual.js'
+import { isEqual } from '../utils/isEqual.js'
 
 export {
   buildInlineTree, functionDie,

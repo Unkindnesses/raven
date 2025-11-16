@@ -7,7 +7,7 @@ import { lower_toplevel, bundlemacro, lowerfn, source, annos } from "../frontend
 import { lowerpattern } from "../frontend/patterns.js"
 import { symbolValues } from "./primitives.js"
 import * as ast from "../frontend/ast.js"
-import isEqual from "lodash/isEqual.js"
+import { isEqual } from '../utils/isEqual.js'
 import { parse } from "../frontend/parse.js"
 import { emit } from "../backend/compiler.js"
 

@@ -2,7 +2,7 @@ import { asNumber } from "../utils/map.js"
 import { HashMap, some } from "./map.js"
 import { Def, Source } from "../dwarf/structs.js"
 import { WorkQueue } from "./fixpoint.js"
-import isEqual from "lodash/isEqual.js"
+import { isEqual } from '../utils/isEqual.js'
 
 export {
   Anno, Unreachable, unreachable, asType, Source, Slot, slot, Expr, expr,

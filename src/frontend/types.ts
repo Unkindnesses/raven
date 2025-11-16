@@ -1,4 +1,4 @@
-import isEqual from 'lodash/isEqual.js'
+import { isEqual } from '../utils/isEqual.js'
 import { hash } from '../utils/map.js'
 import { Fixpoint, Accessor } from '../utils/fixpoint.js'
 import { Symbol } from './ast.js'

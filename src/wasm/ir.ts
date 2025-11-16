@@ -1,4 +1,4 @@
-import isEqual from 'lodash/isEqual.js'
+import { isEqual } from '../utils/isEqual.js'
 import * as wasm from './wasm.js'
 import { Func, NumType, ValueType } from './wasm.js'
 import { Pipe, liveness, Branch, Expr, expr, Source, CFG, Component, components, entry, Val } from '../utils/ir.js'

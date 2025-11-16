@@ -8,7 +8,7 @@ import { Def } from '../dwarf/index.js'
 import { WorkQueue } from '../utils/fixpoint.js'
 import { hash, HashSet, some } from '../utils/map.js'
 import { trackdeps, Map as CacheMap, fingerprint, Caching, withtime } from '../utils/cache.js'
-import isEqual from 'lodash/isEqual.js'
+import { isEqual } from '../utils/isEqual.js'
 import { Instruction } from '../wasm/wasm.js'
 
 const recursionLimit = 10

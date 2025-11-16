@@ -1,4 +1,4 @@
-import isEqual from "lodash/isEqual.js"
+import { isEqual } from '../utils/isEqual.js'
 import * as ast from "./ast.js"
 import * as ir from "../utils/ir.js"
 import { Val, fuseblocks, prune, ssa } from "../utils/ir.js"

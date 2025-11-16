@@ -1,4 +1,4 @@
-import isEqual from "lodash/isEqual.js"
+import { isEqual } from '../utils/isEqual.js'
 import { WorkQueue, Accessor } from "./fixpoint.js"
 import { HashMap } from "./map.js"
 import { now } from "../utils/bench.js"
