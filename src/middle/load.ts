@@ -25,7 +25,7 @@ class LoadState {
   constructor(readonly comp: Modules, readonly mod: Module) { }
 }
 
-const common = path.resolve(dirname, "../common")
+const common = path.resolve(dirname, "../../common")
 
 interface SourceString {
   path: string
@@ -166,14 +166,5 @@ function reload(comp: Modules, src: SourceString | string): Modules {
   const common = comp.module(tag("common"))
   main.import(common, [...common.exports])
   loadmodule(comp, main, src)
-  return comp
-}
-
-function load(src: SourceString | string): Modules {
-  const comp = new Modules()
-  comp.module(core())
-  loadmodule(comp, tag("common.core"), path.join(common, "core.rv"))
-  loadmodule(comp, tag("common"), path.join(common, "common.rv"))
-  reload(comp, src)
   return comp
 }

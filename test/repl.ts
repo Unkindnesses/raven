@@ -1,7 +1,7 @@
 import { PassThrough } from 'node:stream'
 import * as assert from 'assert'
 import { test } from 'uvu'
-import { REPL } from '../src/backend/repl'
+import { REPL } from '../src/cli/repl'
 
 test('basic eval', async () => {
   const repl = await REPL.create({ stdout: new PassThrough() })

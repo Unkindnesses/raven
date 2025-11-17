@@ -173,7 +173,7 @@ async function run(cmd: string, args: readonly string[] = [], options: SpawnOpti
   })
 }
 
-const execPath = path.join(dirname, '../build/backend/exec.js')
+const execPath = path.join(dirname, '../../dist/cli/exec.js')
 
 async function exec(file: string, args: string[] = [], config?: CompileConfig): Promise<void> {
   if (path.extname(file).toLowerCase() !== '.wasm') [, file] = await compile(file, config)

@@ -1,7 +1,7 @@
 import { parentPort, MessagePort } from 'node:worker_threads'
 import { Console } from 'node:console'
 import { Writable } from 'node:stream'
-import { loadWasm, support } from './support'
+import { loadWasm, support } from '../backend/support'
 
 export { WorkerCommand, WorkerRequest, WorkerResponse }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env -S node --enable-source-maps --experimental-wasm-jspi
-import { loadWasm, table } from './support'
+import { loadWasm, table } from '../backend/support'
 
 let binary: string | undefined
 

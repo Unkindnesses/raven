@@ -125,7 +125,7 @@ function formatStack(err: Error, frames: NodeJS.CallSite[]): string {
     }
     lines.push(frame.toString())
   }
-  lines = lines.filter(l => !/backend\/(exec|worker)/.test(l))
+  lines = lines.filter(l => !/cli\/(exec|worker)/.test(l))
   while (lines.length && /common\.abort.*wasm\/js\.rv/.test(lines[0])) lines.shift()
   const header = err.toString()
   return [header, ...lines.map(x => `    at ${x}`)].join('\n')

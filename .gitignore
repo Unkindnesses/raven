@@ -9,7 +9,7 @@
 /*.jl
 /*.rv
 node_modules
-build
+dist
 /old
 test/*/*.js
 /wasi-cli

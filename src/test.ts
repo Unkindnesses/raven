@@ -9,7 +9,7 @@ import { dirname } from './dirname'
 
 export { run, test, runNode }
 
-const execPath = path.join(dirname, '../build/backend/exec.js')
+const execPath = path.join(dirname, '../../dist/cli/exec.js')
 
 let compiler = new Compiler()
 

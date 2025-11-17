@@ -1,17 +1,14 @@
 {
   "name": "@unkindnesses/raven",
   "version": "0.3.0",
-  "files": [
-    "build",
-    "common"
-  ],
+  "files": ["dist", "common"],
   "bin": {
-    "raven": "build/index.js"
+    "raven": "dist/cli/index.js"
   },
   "scripts": {
-    "build": "esbuild --platform=node --sourcemap --bundle --outdir=build src/index.ts src/backend/worker.ts src/backend/exec.ts",
+    "build": "esbuild --platform=node --sourcemap --bundle --outdir=dist/cli src/cli/index.ts src/cli/worker.ts src/cli/exec.ts",
     "watch": "npm run build -- --watch",
-    "start": "npm run build && node --enable-source-maps --experimental-wasm-jspi build/index.js",
+    "start": "npm run build && node --enable-source-maps --experimental-wasm-jspi dist/cli/index.js",
     "test": "npm run build && node --max-old-space-size=8192 --enable-source-maps --experimental-wasm-jspi ./node_modules/uvu/bin.js -r tsm test -i '^(?!.*\\.ts$).*'"
   },
   "devDependencies": {

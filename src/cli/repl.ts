@@ -3,8 +3,8 @@ import * as path from 'node:path'
 import { dirname } from '../dirname'
 import type { Writable } from 'node:stream'
 import { binary as wasmBinary } from '../wasm/binary'
-import { StreamEmitter } from './wasm'
-import { Pipeline, withEmit } from './compiler'
+import { StreamEmitter } from '../backend/wasm'
+import { Pipeline, withEmit } from '../backend/compiler'
 import { reset } from '../utils/cache'
 import { LoadState, vload, reload, source } from '../middle/load'
 import { tag } from '../frontend/types'
@@ -40,7 +40,7 @@ class REPL {
     this.stderr = opts.stderr ?? process.stderr
     this.pipe = new Pipeline()
     this.emitter = new StreamEmitter()
-    this.worker = new Worker(path.join(dirname, '../build/backend/worker.js'), { name: 'raven-repl' })
+    this.worker = new Worker(path.join(dirname, '../../dist/cli/worker.js'), { name: 'raven-repl' })
     this.attachIO()
   }
 
