@@ -17,7 +17,7 @@ import * as path from 'path'
 import { only } from '../utils/map'
 import { chmod, mkdir, readFile, writeFile } from 'fs/promises'
 import { spawn, SpawnOptions } from 'node:child_process'
-import { dirname } from '../dirname'
+import { dirname } from '../cli/dirname'
 
 export { Pipeline, Compiler, emit, withEmit, compile, compileJS, exec, run }
 

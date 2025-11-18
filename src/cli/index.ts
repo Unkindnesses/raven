@@ -7,6 +7,7 @@ import * as fs from 'fs/promises'
 import { compile, compileJS, Compiler, exec } from '../backend/compiler'
 import { REPL } from './repl'
 import { Caching, time } from '../utils/cache'
+import { version } from '../../package.json'
 
 function formatTime(ns: bigint): string {
   const ms = Number(ns) / 1_000_000
@@ -64,11 +65,10 @@ async function startRepl() {
 }
 
 async function main() {
-  const packageJson = JSON.parse(await fs.readFile(path.join(__dirname, '../../package.json'), 'utf-8'))
   const program = new commander.Command()
   program
     .name('raven')
-    .version(packageJson.version)
+    .version(version)
     .description('The Raven Programming Language')
 
   program

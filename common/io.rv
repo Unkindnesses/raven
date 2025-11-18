@@ -5,6 +5,6 @@ fn args() {
 }
 
 fn readFile(f: String) {
-  fs = require("fs/promises")
+  fs = import("fs/promises")
   return String(await(fs.readFile(f, "utf8")))
 }

@@ -1,6 +1,6 @@
 import { Worker } from 'node:worker_threads'
 import * as path from 'node:path'
-import { dirname } from '../dirname'
+import { dirname } from './dirname'
 import type { Writable } from 'node:stream'
 import { binary as wasmBinary } from '../wasm/binary'
 import { StreamEmitter } from '../backend/wasm'

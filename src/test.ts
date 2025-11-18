@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process'
 import * as assert from 'assert'
 import { compile, Compiler } from './backend/compiler'
 import { type Options } from './utils/options'
-import { dirname } from './dirname'
+import { dirname } from './cli/dirname'
 
 export { run, test, runNode }
 

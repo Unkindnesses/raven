@@ -12,7 +12,7 @@ import * as fs from "fs"
 import isEqual from "lodash/isEqual"
 import { parse } from "../frontend/parse"
 import { emit } from "../backend/compiler"
-import { dirname } from "../dirname"
+import { dirname } from "../cli/dirname"
 
 export { LoadState, SourceString, src as source, loadmodule, reload, common, vload }
 

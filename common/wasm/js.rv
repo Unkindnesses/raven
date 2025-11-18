@@ -173,8 +173,8 @@ fn next(&x: JSObject) {
   if not(val.done) { Some(val.value) }
 }
 
-fn require(s) {
-  return js().require(s)
+fn import(s) {
+  return await(js().import(s))
 }
 
 fn sleep(n) {

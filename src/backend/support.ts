@@ -59,7 +59,7 @@ function abort(obj: any, cause: any) {
   throw new Error(obj, cause ? { cause: cause } : {})
 }
 
-(globalThis as any).require = require;
+(globalThis as any).import = (module: string) => import(module);
 
 (globalThis as any).sleep = function (n: number) {
   return new Promise<void>(resolve => {
