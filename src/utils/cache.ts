@@ -1,6 +1,7 @@
 import isEqual from "lodash/isEqual.js"
 import { WorkQueue, Accessor } from "./fixpoint.js"
 import { HashMap } from "./map.js"
+import { now } from "../utils/bench.js"
 
 export {
   nft, trackdeps, track, withtime,
@@ -16,7 +17,7 @@ function nft() { return ++nft_id }
 let timestack: bigint[] = []
 
 function withtime<T>(f: () => T): [T, bigint] {
-  const start = process.hrtime.bigint()
+  const start = now()
   timestack.push(0n)
   let result: T, offset: bigint
   try {
@@ -24,7 +25,7 @@ function withtime<T>(f: () => T): [T, bigint] {
   } finally {
     offset = timestack.pop()!
   }
-  const span = process.hrtime.bigint() - start
+  const span = now() - start
   if (timestack.length > 0) timestack[timestack.length - 1] += span
   return [result, span - offset]
 }

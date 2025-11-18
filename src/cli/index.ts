@@ -3,8 +3,7 @@ import * as commander from 'commander'
 import * as nodeRepl from 'node:repl'
 import * as os from 'os'
 import * as path from 'path'
-import * as fs from 'fs/promises'
-import { compile, compileJS, Compiler, exec } from '../backend/compiler.js'
+import { Compiler, compile, compileJS, exec } from './compile.js'
 import { REPL } from './repl.js'
 import { Caching, time } from '../utils/cache.js'
 import pkg from '../../package.json' with { type: 'json' }
@@ -80,6 +79,7 @@ async function main() {
     .option('--time', 'Print compiler phase timing information')
     .action(async (source, { output, js, time }) => {
       let { inline, memcheck, strip } = program.optsWithGlobals()
+      source = path.resolve(process.cwd(), source)
       let [compiler] = await (js ? compileJS : compile)(source, { options: { inline, memcheck }, output, strip })
       if (time) printTiming(compiler)
     })
@@ -92,8 +92,9 @@ async function main() {
     .action(async (xs) => {
       let { inline, memcheck, strip } = program.optsWithGlobals()
       let [source, ...args] = xs
-      if (source) await exec(source, args, { options: { inline, memcheck }, strip })
-      else await startRepl()
+      if (!source) return await startRepl()
+      source = path.resolve(process.cwd(), source)
+      await exec(source, args, { options: { inline, memcheck }, strip })
     })
 
   await program.parseAsync()

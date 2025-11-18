@@ -3,15 +3,15 @@ import * as path from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawn } from 'node:child_process'
 import * as assert from 'assert'
-import { compile, Compiler } from './backend/compiler.js'
-import { type Options } from './utils/options.js'
-import { dirname } from './cli/dirname.js'
+import { compile, Compiler, load } from '../cli/compile.js'
+import { type Options } from '../utils/options.js'
+import { dirname } from './dirname.js'
 
 export { run, test, runNode }
 
 const execPath = path.join(dirname, '../../dist/cli/exec.js')
 
-let compiler = new Compiler()
+let compiler: Compiler | undefined
 
 interface Result {
   code: number
@@ -32,6 +32,7 @@ async function runNode(wasm: string, args: string[] = []): Promise<Result> {
 }
 
 async function run(code: string, options?: Partial<Options>): Promise<Result> {
+  if (!compiler) compiler = new Compiler(load)
   const comp = options === undefined ? compiler : undefined
   const dir = await mkdtemp(path.join(tmpdir(), 'raven-test-'))
   const rvPath = path.join(dir, 'test.rv')

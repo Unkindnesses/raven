@@ -1,8 +1,7 @@
 import * as types from '../frontend/types.js'
 import { Type, Bits, asBits, bits } from '../frontend/types.js'
 import * as wasm from '../wasm/wasm.js'
-import { binary as wasmBinary } from '../wasm/binary.js'
-import { writeFile } from 'fs/promises'
+import { binary } from '../wasm/binary.js'
 import { irfunc, Instr, setdiff, Value, WIR, asValue } from '../wasm/ir.js'
 import { unreachable, Anno, Pipe, expr, Val, Branch, Expr, asType } from '../utils/ir.js'
 import isEqual from 'lodash/isEqual.js'
@@ -15,7 +14,7 @@ import { Accessor } from '../utils/fixpoint.js'
 import { xtuple } from '../frontend/lower.js'
 import { asArray, some } from '../utils/map.js'
 
-export { wasmPartials, Wasm, BatchEmitter, StreamEmitter, Emitter, emitwasm, emitwasmBinary, lowerwasm, lowerwasm_globals }
+export { wasmPartials, Wasm, BatchEmitter, StreamEmitter, Emitter, emitwasm, lowerwasm, lowerwasm_globals }
 
 type PartialFn = (...args: Type[]) => Type
 
@@ -328,16 +327,8 @@ function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.M
   return mod
 }
 
-async function binary(m: wasm.Module, file: string, strip = false): Promise<void> {
-  await writeFile(file, wasmBinary(m, strip))
-}
-
-async function emitwasm(em: BatchEmitter, mod: Wasm, out: string, strip = false): Promise<void> {
-  await binary(wasmmodule(em, mod.globals, mod.tables), out, strip)
-}
-
-function emitwasmBinary(em: BatchEmitter, mod: Wasm, strip = false): Uint8Array {
-  return wasmBinary(wasmmodule(em, mod.globals, mod.tables), strip)
+function emitwasm(em: BatchEmitter, mod: Wasm, strip = false): Uint8Array {
+  return binary(wasmmodule(em, mod.globals, mod.tables), strip)
 }
 
 // Stream emitter, for REPL

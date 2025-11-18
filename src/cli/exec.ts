@@ -1,11 +1,11 @@
 #!/usr/bin/env -S node --enable-source-maps --experimental-wasm-jspi
+import * as fs from 'fs/promises'
 import { loadWasm, table } from '../backend/support.js'
 
 let binary: string | undefined
 
 async function main() {
-  let wasm: string | Uint8Array = process.argv[2]
-  if (binary) wasm = Buffer.from(binary, 'base64')
+  const wasm = binary ? Buffer.from(binary, 'base64') : await fs.readFile(process.argv[2])
   let { _start } = await loadWasm(wasm)
   _start = (WebAssembly as any).promising(_start)
   try {

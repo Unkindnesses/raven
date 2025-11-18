@@ -5,27 +5,24 @@ import { Anno, unreachable } from "../utils/ir.js"
 import { modtag } from "../frontend/patterns.js"
 import { lower_toplevel, bundlemacro, lowerfn, source, annos } from "../frontend/lower.js"
 import { lowerpattern } from "../frontend/patterns.js"
-import { symbolValues, core } from "./primitives.js"
+import { symbolValues } from "./primitives.js"
 import * as ast from "../frontend/ast.js"
-import * as path from "path"
-import * as fs from "fs"
 import isEqual from "lodash/isEqual.js"
 import { parse } from "../frontend/parse.js"
 import { emit } from "../backend/compiler.js"
-import { dirname } from "../cli/dirname.js"
 
-export { LoadState, SourceString, src as source, loadmodule, reload, common, vload }
+export { LoadState, Loader, SourceString, src as source, loadmodule, reload, vload }
 
 function pathtag(p: string): Tag {
   if (!p.endsWith('.rv')) throw new Error(`Invalid path: ${p}`)
   return tag(p.slice(0, -3).split('/').join('.'))
 }
 
-class LoadState {
-  constructor(readonly comp: Modules, readonly mod: Module) { }
-}
+type Loader = (path: string) => [string, string]
 
-const common = path.resolve(dirname, "../../common")
+class LoadState {
+  constructor(readonly comp: Modules, readonly mod: Module, readonly load: Loader) { }
+}
 
 interface SourceString {
   path: string
@@ -81,8 +78,7 @@ function load_clear(cx: LoadState, x: ast.Expr): void {
 
 function load_include(cx: LoadState, x: ast.Expr): void {
   const filename = ast.asString(x.args[1])
-  const filepath = path.join(common, filename)
-  loadfile(cx, filepath)
+  loadfile(cx, filename)
 }
 
 function load_expr(cx: LoadState, x: ast.Tree): void {
@@ -148,23 +144,23 @@ function vload(cx: LoadState, x: ast.Tree, extend = false): void {
 function loadfile(cx: LoadState, path: SourceString | string, content?: string): void {
   if (typeof path !== 'string')
     [path, content] = [path.path, path.source]
-  if (content === undefined) content = fs.readFileSync(path, 'utf8')
+  if (content === undefined) [path, content] = cx.load(path)
   const exprs = parse(path, content)
   for (const expr of exprs) vload(cx, expr)
 }
 
-function loadmodule(comp: Modules, mod: Module | Tag, src: SourceString | string): Module {
+function loadmodule(comp: Modules, mod: Module | Tag, src: SourceString | string, load: Loader): Module {
   if (mod instanceof Tag) mod = comp.module(mod)
-  const cx = new LoadState(comp, mod)
+  const cx = new LoadState(comp, mod, load)
   loadfile(cx, src)
   return mod
 }
 
-function reload(comp: Modules, src: SourceString | string): Modules {
+function reload(comp: Modules, src: SourceString | string, load: Loader): Modules {
   const main = comp.module(tag(""))
   main.clear()
   const common = comp.module(tag("common"))
   main.import(common, [...common.exports])
-  loadmodule(comp, main, src)
+  loadmodule(comp, main, src, load)
   return comp
 }

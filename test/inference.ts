@@ -1,13 +1,13 @@
 import { test } from 'uvu'
 import * as assert from 'assert'
-import { Compiler } from '../src/backend/compiler.js'
+import { Compiler, load } from '../src/cli/compile.js'
 import { tag, list, pack, int64, int32, bits } from '../src/frontend/types.js'
 import { Sig } from '../src/middle/abstract.js'
 import { source } from '../src/middle/load.js'
 import { Binding } from '../src/frontend/modules.js'
 import { asArray } from '../src/utils/map.js'
 
-const compiler = new Compiler()
+const compiler = new Compiler(load)
 
 function result(comp: Compiler, sig: Sig) {
   let [, ret] = asArray(comp.pipe.inferred.get(sig))

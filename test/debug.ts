@@ -1,10 +1,10 @@
 import { test as _test } from 'uvu'
 import * as assert from 'assert'
-import { compile } from '../src/backend/compiler.js'
+import { compile } from '../src/cli/compile.js'
 import { spawnSync } from 'node:child_process'
 import * as path from 'node:path'
 import { only, some } from '../src/utils/map.js'
-import { test as ravenTest } from '../src/test.js'
+import { test as ravenTest } from '../src/cli/test.js'
 
 type LineInfo = {
   file: string

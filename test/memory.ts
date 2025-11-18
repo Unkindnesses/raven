@@ -1,5 +1,5 @@
 import { test } from 'uvu'
-import { test as rv } from '../src/test.js'
+import { test as rv } from '../src/cli/test.js'
 
 test('Ptr', async () => {
   await rv(`

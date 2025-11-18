@@ -1,9 +1,9 @@
 import { test } from 'uvu'
 import * as assert from 'assert'
 import * as types from '../src/frontend/types.js'
-import { Compiler } from '../src/backend/compiler.js'
+import { Compiler, load } from '../src/cli/compile.js'
 
-const compiler = new Compiler()
+const compiler = new Compiler(load)
 
 test('interpret core pack literal params', () => {
   const int = compiler.pipe.interp

@@ -9,17 +9,13 @@ import { refcounts } from '../middle/refcount.js'
 import * as wasm from './wasm.js'
 import { irfunc } from '../wasm/ir.js'
 import { reset, pipe, Caching, withtime } from '../utils/cache.js'
-import { loadmodule, reload, common, SourceString } from '../middle/load.js'
-import { binding, Options, options, withOptions } from '../utils/options.js'
+import { Loader, loadmodule, reload, SourceString } from '../middle/load.js'
+import { binding, options } from '../utils/options.js'
 import { assigned_globals } from '../frontend/lower.js'
 import { core } from '../middle/primitives.js'
-import * as path from 'path'
 import { only } from '../utils/map.js'
-import { chmod, mkdir, readFile, writeFile } from 'fs/promises'
-import { spawn, SpawnOptions } from 'node:child_process'
-import { dirname } from '../cli/dirname.js'
 
-export { Pipeline, Compiler, emit, withEmit, compile, compileJS, exec, run }
+export { Pipeline, Compiler, emit, withEmit }
 
 class Pipeline implements Caching {
   readonly sources: mods.Modules
@@ -65,7 +61,7 @@ class Pipeline implements Caching {
     em.emit(this.wasm, fn)
   }
 
-  loadcommon(emitter: wasm.Emitter): this {
+  loadcommon(emitter: wasm.Emitter, load: Loader): this {
     const emit = (m: mods.Method) => {
       reset(this)
       this.emit(m, emitter)
@@ -75,8 +71,8 @@ class Pipeline implements Caching {
       // TODO toplevel exprs should compile in the context of the relevant module,
       // rather than main. Which would make the following unnecessary.
       this.sources.module(tag('')).import(this.sources.module(tag('common')))
-      loadmodule(this.sources, tag('common.core'), path.join(common, 'core.rv'))
-      loadmodule(this.sources, tag('common'), path.join(common, 'common.rv'))
+      loadmodule(this.sources, tag('common.core'), 'core.rv', load)
+      loadmodule(this.sources, tag('common'), 'common.rv', load)
     })
     return this
   }
@@ -90,7 +86,7 @@ class Compiler {
   readonly emitter: wasm.Emitter
   time = 0n
 
-  constructor(src?: string | SourceString) {
+  constructor(readonly load: Loader, src?: string | SourceString) {
     this.pipe = new Pipeline()
     this.emitter = new wasm.BatchEmitter()
     this.loadcommon()
@@ -99,7 +95,7 @@ class Compiler {
 
   loadcommon(): this {
     const [, t] = withtime(() => {
-      this.pipe.loadcommon(this.emitter)
+      this.pipe.loadcommon(this.emitter, this.load)
     })
     this.time += t
     return this
@@ -113,7 +109,7 @@ class Compiler {
         reset(this.pipe)
         this.pipe.emit(m, em)
       }
-      withEmit(emitIR, () => { reload(this.pipe.sources, src) })
+      withEmit(emitIR, () => { reload(this.pipe.sources, src, this.load) })
       reset(this.pipe)
       if (options().memcheck && em.funcs.some(fn => fn.name.startsWith('common.malloc!'))) {
         const checks = this.pipe.defs.methods(tag('common.checkAllocations'))
@@ -123,59 +119,4 @@ class Compiler {
     this.time += t
     return em
   }
-}
-
-interface CompileConfig {
-  dir?: string
-  compiler?: Compiler
-  options?: Partial<Options>
-  output?: string
-  strip?: boolean
-}
-
-async function compile(file: string, config: CompileConfig = {}): Promise<[Compiler, string]> {
-  let { dir = path.dirname(file), compiler, options = {}, output, strip = false } = config
-  const base = path.basename(file, path.extname(file))
-  const wasmPath = output ?? path.join(dir, `${base}.wasm`)
-  await mkdir(path.dirname(wasmPath), { recursive: true })
-  await withOptions(options, async () => {
-    compiler ??= new Compiler()
-    const em = compiler.reload(file)
-    if (!(em instanceof wasm.BatchEmitter)) throw new Error('nope')
-    await wasm.emitwasm(em, compiler.pipe.wasm, wasmPath, strip)
-  })
-  return [compiler!, wasmPath]
-}
-
-async function compileJS(file: string, config: CompileConfig = {}): Promise<[Compiler, string]> {
-  let { dir = path.dirname(file), compiler, options = {}, output, strip = false } = config
-  const base = path.basename(file, path.extname(file))
-  const jsPath = output ?? path.join(dir, `${base}.js`)
-  await mkdir(path.dirname(jsPath), { recursive: true })
-  await withOptions(options, async () => {
-    compiler ??= new Compiler()
-    const em = compiler.reload(file)
-    if (!(em instanceof wasm.BatchEmitter)) throw new Error('nope')
-    const bytes = wasm.emitwasmBinary(em, compiler.pipe.wasm, strip)
-    const base64 = Buffer.from(bytes).toString('base64')
-    const runtime = await readFile(execPath, 'utf8')
-    await writeFile(jsPath, `${runtime}\nbinary = Buffer.from('${base64}', 'base64')\n`)
-    await chmod(jsPath, 0o755)
-  })
-  return [compiler!, jsPath]
-}
-
-async function run(cmd: string, args: readonly string[] = [], options: SpawnOptions = {}) {
-  return await new Promise<[number | null, NodeJS.Signals | null]>((resolve, reject) => {
-    const child = spawn(cmd, [...args], options)
-    child.on('error', reject)
-    child.on('close', (code, signal) => resolve([code, signal]))
-  })
-}
-
-const execPath = path.join(dirname, '../../dist/cli/exec.js')
-
-async function exec(file: string, args: string[] = [], config?: CompileConfig): Promise<void> {
-  if (path.extname(file).toLowerCase() !== '.wasm') [, file] = await compile(file, config)
-  await run('node', ['--enable-source-maps', '--experimental-wasm-jspi', execPath, file, ...args], { stdio: 'inherit' })
 }

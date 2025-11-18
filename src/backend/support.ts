@@ -1,4 +1,3 @@
-import * as fs from 'fs/promises'
 import { DebugModule, locate, Source } from '../dwarf/parse.js'
 import { Def } from '../dwarf/index.js'
 
@@ -65,16 +64,24 @@ function abort(obj: any, cause: any) {
   return new Promise<void>(resolve => {
     setTimeout(() => { resolve() }, n * 1000)
   })
-};
+}
 
-(globalThis as any).readline = function () {
-  process.stdin.resume()
-  return new Promise(resolve => {
-    process.stdin.once('data', data => {
-      process.stdin.pause()
-      resolve(data.toString().trim())
+const process = (globalThis as any).process
+const isNode =
+  typeof process !== 'undefined' &&
+  process.versions != null &&
+  process.versions.node != null
+
+if (isNode) {
+  (globalThis as any).readline = function () {
+    process.stdin.resume()
+    return new Promise(resolve => {
+      process.stdin.once('data', (data: any) => {
+        process.stdin.pause()
+        resolve(data.toString().trim())
+      })
     })
-  })
+  }
 };
 
 // TODO: used for testing, remove
@@ -108,7 +115,7 @@ function formatFrame(def: Def, loc: Source): string {
   return `${def.name} (${src})`
 }
 
-function formatStack(err: Error, frames: NodeJS.CallSite[]): string {
+function formatStack(err: Error, frames: any[]): string {
   let lines: string[] = []
   for (const frame of frames) {
     const script = frame.getScriptNameOrSourceURL()
@@ -131,12 +138,12 @@ function formatStack(err: Error, frames: NodeJS.CallSite[]): string {
   return [header, ...lines.map(x => `    at ${x}`)].join('\n')
 }
 
-Error.prepareStackTrace = (err, frames) => formatStack(err, frames)
-Error.stackTraceLimit = 100
+if (isNode) {
+  (Error as any).prepareStackTrace = formatStack;
+  (Error as any).stackTraceLimit = 100
+}
 
-async function loadWasm(buf: string | Uint8Array, imports: any = {}) {
-  if (typeof buf === 'string')
-    buf = await fs.readFile(buf)
+async function loadWasm(buf: Uint8Array, imports: any = {}) {
   imports = { ...imports, support: support() }
   const res = await (WebAssembly.instantiate as any)(new Uint8Array(buf), imports, { builtins: ['js-string'], importedStringConstants: "strings" })
   const debug = DebugModule(buf)

@@ -1,6 +1,6 @@
 import { test } from 'uvu'
 import * as assert from 'assert'
-import { Compiler } from '../src/backend/compiler.js'
+import { Compiler, load } from '../src/cli/compile.js'
 import { Binding } from '../src/frontend/modules.js'
 import * as types from '../src/frontend/types.js'
 import { tag } from '../src/frontend/types.js'
@@ -10,7 +10,7 @@ import { asArray } from '../src/utils/map.js'
 import { key, Sig } from '../src/middle/abstract.js'
 
 test('globals', () => {
-  const compiler = new Compiler(source('', 'foo = 1, bar = 1'))
+  const compiler = new Compiler(load, source('', 'foo = 1, bar = 1'))
   const defs = compiler.pipe.defs
   const foo = new Binding(tag(''), 'foo')
   const bar = new Binding(tag(''), 'bar')
@@ -32,7 +32,7 @@ test('globals', () => {
 })
 
 test('methods', () => {
-  const compiler = new Compiler(source('', 'fn foo(x) { x+1 }'))
+  const compiler = new Compiler(load, source('', 'fn foo(x) { x+1 }'))
   const defs = compiler.pipe.defs
 
   assert.equal(defs.methods(tag('foo')).length, 1)
@@ -50,7 +50,7 @@ test('methods', () => {
 })
 
 test('inference', () => {
-  const compiler = new Compiler(source('', 'n = 1, fn foo(x) { x+n }, foo(5)'))
+  const compiler = new Compiler(load, source('', 'n = 1, fn foo(x) { x+n }, foo(5)'))
   const inf = compiler.pipe.inferred
   let [, fooType] = asArray(inf.get([tag('foo'), types.list(types.int64(5))]))
   assert.deepEqual(fooType, types.list(types.int64(6)))
@@ -66,7 +66,7 @@ test('inference', () => {
 })
 
 test('compiler', () => {
-  const compiler = new Compiler()
+  const compiler = new Compiler(load,)
   reset(compiler.pipe)
   compiler.pipe.wasm.get([tag('common.malloc!'), types.list(types.int32())])
   const before = fingerprint(compiler.pipe)
@@ -79,7 +79,7 @@ test('compiler', () => {
 })
 
 test('match method', () => {
-  const compiler = new Compiler()
+  const compiler = new Compiler(load,)
   const sig: Sig = [tag('common.matchTrait'), types.list(tag('common.Int64'), types.int64())]
 
   assert.ok(!compiler.pipe.inferred.results.iscached(key(sig)))

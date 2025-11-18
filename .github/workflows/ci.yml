@@ -39,7 +39,7 @@ jobs:
       run: npm ci
 
     - name: Type check
-      run: npx tsc
+      run: npx tsc -b
 
     - name: Run tests
       run: npm test

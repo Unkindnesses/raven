@@ -5,6 +5,7 @@ import type { Writable } from 'node:stream'
 import { binary as wasmBinary } from '../wasm/binary.js'
 import { StreamEmitter } from '../backend/wasm.js'
 import { Pipeline, withEmit } from '../backend/compiler.js'
+import { load } from './compile.js'
 import { reset } from '../utils/cache.js'
 import { LoadState, vload, reload, source } from '../middle/load.js'
 import { tag } from '../frontend/types.js'
@@ -59,12 +60,12 @@ class REPL {
   }
 
   private async init() {
-    this.pipe.loadcommon(this.emitter)
+    this.pipe.loadcommon(this.emitter, load)
     await withEmit(m => {
       reset(this.pipe)
       this.pipe.emit(m, this.emitter)
     }, () => {
-      reload(this.pipe.sources, source('repl', ''))
+      reload(this.pipe.sources, source('repl', ''), load)
     })
     reset(this.pipe)
     await this.flush()
@@ -78,7 +79,7 @@ class REPL {
     }, () => {
       const defs = this.pipe.sources
       const module = defs.module(tag(''))
-      const cx = new LoadState(defs, module)
+      const cx = new LoadState(defs, module, load)
       const exprs = parse('repl', src)
       for (const expr of exprs) vload(cx, wrapPrint(expr))
     })

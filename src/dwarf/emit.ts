@@ -1,5 +1,4 @@
 import { Form } from './enums.js'
-import * as path from 'node:path'
 import { HashMap, some } from '../utils/map.js'
 import { Attr, Tag } from './enums.js'
 import { DIE, Abbrev, LineTable, abbrev, Value, Source, Def, Function, LineInfo } from './structs.js'
@@ -231,8 +230,7 @@ function debug_line(out: number[], lt: LineTable) {
       // dirs go here
       writeU8(hdr, 0x00) // dirs
       for (const file of files) {
-        const abs = path.isAbsolute(file) ? file : path.resolve(process.cwd(), file)
-        putStringZ(hdr, abs)
+        putStringZ(hdr, file)
         leb128U(0, hdr) // dir
         leb128U(0, hdr) // last modified
         leb128U(0, hdr) // file size
