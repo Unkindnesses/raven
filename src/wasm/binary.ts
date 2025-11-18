@@ -1,7 +1,7 @@
-import * as wasm from './wasm'
-import { HashMap, some } from '../utils/map'
-import { opcodes } from './opcodes'
-import * as dwarf from '../dwarf'
+import * as wasm from './wasm.js'
+import { HashMap, some } from '../utils/map.js'
+import { opcodes } from './opcodes.js'
+import * as dwarf from '../dwarf/index.js'
 
 export { binary }
 

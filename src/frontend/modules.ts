@@ -1,13 +1,13 @@
-import { hash, HashMap, some } from "../utils/map"
-import { Anno, unreachable } from "../utils/ir"
-import { Type, Tag, tag, repr } from "./types"
-import * as types from "./types"
-import * as cache from "../utils/cache"
-import * as ir from "../utils/ir"
-import { Pattern } from "./patterns"
-import { Def } from "../dwarf"
-import { Value, asValue } from "../wasm/ir"
-import { Instruction, Op, ValueType } from "../wasm/wasm"
+import { hash, HashMap, some } from "../utils/map.js"
+import { Anno, unreachable } from "../utils/ir.js"
+import { Type, Tag, tag, repr } from "./types.js"
+import * as types from "./types.js"
+import * as cache from "../utils/cache.js"
+import * as ir from "../utils/ir.js"
+import { Pattern } from "./patterns.js"
+import { Def } from "../dwarf/index.js"
+import { Value, asValue } from "../wasm/ir.js"
+import { Instruction, Op, ValueType } from "../wasm/wasm.js"
 
 export {
   Module, Method, Signature, Binding, asBinding, asValue, Modules,

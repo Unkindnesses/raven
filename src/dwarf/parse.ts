@@ -1,6 +1,6 @@
-import { Attr, Tag, Form } from '../dwarf/enums'
-import { Source, Abbrev, DIE, Value, Def, Function, Stack } from '../dwarf/structs'
-import { asBool, asNumber, asString, some } from '../utils/map'
+import { Attr, Tag, Form } from '../dwarf/enums.js'
+import { Source, Abbrev, DIE, Value, Def, Function, Stack } from '../dwarf/structs.js'
+import { asBool, asNumber, asString, some } from '../utils/map.js'
 
 export { DebugModule, Source, sections, locate }
 

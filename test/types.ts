@@ -3,8 +3,8 @@ import * as assert from 'assert'
 import {
   Type, tag, pack, vpack, bits, float64, float32, recursive,
   recurrence, onion, issubset, union, recur, unroll, finite, simplify, Any
-} from '../src/frontend/types'
-import * as types from '../src/frontend/types'
+} from '../src/frontend/types.js'
+import * as types from '../src/frontend/types.js'
 
 test('', () => {
   const T1 = onion(pack(tag('Empty')), pack(tag('Prepend'), pack(tag('Empty')), float64()))

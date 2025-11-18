@@ -1,9 +1,9 @@
-import { Form } from './enums'
+import { Form } from './enums.js'
 import * as path from 'node:path'
-import { HashMap, some } from '../utils/map'
-import { Attr, Tag } from './enums'
-import { DIE, Abbrev, LineTable, abbrev, Value, Source, Def, Function, LineInfo } from './structs'
-import isEqual from 'lodash/isEqual'
+import { HashMap, some } from '../utils/map.js'
+import { Attr, Tag } from './enums.js'
+import { DIE, Abbrev, LineTable, abbrev, Value, Source, Def, Function, LineInfo } from './structs.js'
+import isEqual from 'lodash/isEqual.js'
 
 export {
   buildInlineTree, functionDie,

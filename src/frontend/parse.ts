@@ -1,6 +1,6 @@
-import * as ast from './ast'
-import { some, only } from '../utils/map'
-import { binding } from '../utils/options'
+import * as ast from './ast.js'
+import { some, only } from '../utils/map.js'
+import { binding } from '../utils/options.js'
 
 export { Prec, PrecTable, table, inverse, parse, expr }
 

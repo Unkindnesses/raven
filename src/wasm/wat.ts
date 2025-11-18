@@ -1,4 +1,4 @@
-import * as wasm from './wasm'
+import * as wasm from './wasm.js'
 
 export { instructionToString }
 

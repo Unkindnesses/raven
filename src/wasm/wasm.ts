@@ -1,5 +1,5 @@
-import { HashSet } from '../utils/map'
-import { Def, LineInfo } from '../dwarf'
+import { HashSet } from '../utils/map.js'
+import { Def, LineInfo } from '../dwarf/index.js'
 
 export {
   NumType, RefType, ValueType, HeapType, AbsHeapType, sizeof, f64, f32, i64, i32, externref, asNumType,

@@ -1,4 +1,4 @@
-import { Tag } from './types'
+import { Tag } from './types.js'
 
 export interface Cursor {
   line: number

@@ -1,13 +1,13 @@
 import { test } from 'uvu'
 import * as assert from 'assert'
-import { Compiler } from '../src/backend/compiler'
-import { Binding } from '../src/frontend/modules'
-import * as types from '../src/frontend/types'
-import { tag } from '../src/frontend/types'
-import { source } from '../src/middle/load'
-import { fingerprint, reset } from '../src/utils/cache'
-import { asArray } from '../src/utils/map'
-import { key, Sig } from '../src/middle/abstract'
+import { Compiler } from '../src/backend/compiler.js'
+import { Binding } from '../src/frontend/modules.js'
+import * as types from '../src/frontend/types.js'
+import { tag } from '../src/frontend/types.js'
+import { source } from '../src/middle/load.js'
+import { fingerprint, reset } from '../src/utils/cache.js'
+import { asArray } from '../src/utils/map.js'
+import { key, Sig } from '../src/middle/abstract.js'
 
 test('globals', () => {
   const compiler = new Compiler(source('', 'foo = 1, bar = 1'))

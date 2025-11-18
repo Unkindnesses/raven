@@ -1,12 +1,12 @@
-import * as ir from '../utils/ir'
-import { MIR, callargs } from '../frontend/modules'
-import { Redirect, type Sig } from './abstract'
-import { options } from '../utils/options'
-import { CycleCache } from '../utils/cache'
-import { layout } from './expand'
-import { some, only } from '../utils/map'
-import { Accessor } from '../utils/fixpoint'
-import { Stack } from '../dwarf'
+import * as ir from '../utils/ir.js'
+import { MIR, callargs } from '../frontend/modules.js'
+import { Redirect, type Sig } from './abstract.js'
+import { options } from '../utils/options.js'
+import { CycleCache } from '../utils/cache.js'
+import { layout } from './expand.js'
+import { some, only } from '../utils/map.js'
+import { Accessor } from '../utils/fixpoint.js'
+import { Stack } from '../dwarf/index.js'
 
 export { Inlined, opcount }
 

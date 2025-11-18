@@ -1,7 +1,7 @@
 import { test } from 'uvu'
 import * as assert from 'assert'
-import * as types from '../src/frontend/types'
-import { Compiler } from '../src/backend/compiler'
+import * as types from '../src/frontend/types.js'
+import { Compiler } from '../src/backend/compiler.js'
 
 const compiler = new Compiler()
 

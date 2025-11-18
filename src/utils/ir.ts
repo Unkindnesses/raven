@@ -1,8 +1,8 @@
-import { asNumber } from "../utils/map"
-import { HashMap, some } from "./map"
-import { Def, Source } from "../dwarf/structs"
-import { WorkQueue } from "./fixpoint"
-import isEqual from "lodash/isEqual"
+import { asNumber } from "../utils/map.js"
+import { HashMap, some } from "./map.js"
+import { Def, Source } from "../dwarf/structs.js"
+import { WorkQueue } from "./fixpoint.js"
+import isEqual from "lodash/isEqual.js"
 
 export {
   Anno, Unreachable, unreachable, asType, Source, Slot, slot, Expr, expr,

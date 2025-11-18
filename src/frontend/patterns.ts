@@ -1,8 +1,8 @@
-import isEqual from "lodash/isEqual"
-import * as ast from "./ast"
-import { asSymbol, Symbol, symbol } from "./ast"
-import { Type, Tag, tag, pack, part, parts, tagOf, asTag } from "./types"
-import { Signature, IRValue } from "./modules"
+import isEqual from "lodash/isEqual.js"
+import * as ast from "./ast.js"
+import { asSymbol, Symbol, symbol } from "./ast.js"
+import { Type, Tag, tag, pack, part, parts, tagOf, asTag } from "./types.js"
+import { Signature, IRValue } from "./modules.js"
 
 export { Pattern, IRValue, modtag, lowerpattern, patternType, pattern }
 

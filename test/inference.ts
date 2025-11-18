@@ -1,11 +1,11 @@
 import { test } from 'uvu'
 import * as assert from 'assert'
-import { Compiler } from '../src/backend/compiler'
-import { tag, list, pack, int64, int32, bits } from '../src/frontend/types'
-import { Sig } from '../src/middle/abstract'
-import { source } from '../src/middle/load'
-import { Binding } from '../src/frontend/modules'
-import { asArray } from '../src/utils/map'
+import { Compiler } from '../src/backend/compiler.js'
+import { tag, list, pack, int64, int32, bits } from '../src/frontend/types.js'
+import { Sig } from '../src/middle/abstract.js'
+import { source } from '../src/middle/load.js'
+import { Binding } from '../src/frontend/modules.js'
+import { asArray } from '../src/utils/map.js'
 
 const compiler = new Compiler()
 

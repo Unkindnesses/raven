@@ -1,6 +1,6 @@
-import { Type } from '../frontend/types'
-import { IRValue, Invoke, MIR } from '../frontend/modules'
-import { Fragment, Statement, Val } from '../utils/ir'
+import { Type } from '../frontend/types.js'
+import { IRValue, Invoke, MIR } from '../frontend/modules.js'
+import { Fragment, Statement, Val } from '../utils/ir.js'
 
 export { InvokeSt, inlinePrimitive, outlinePrimitive }
 

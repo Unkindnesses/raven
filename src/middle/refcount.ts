@@ -25,20 +25,20 @@
 // that the block only sometimes releases a preceding variable. For now this case
 // is an error.
 
-import * as ir from '../utils/ir'
-import * as types from '../frontend/types'
-import { Type, tag, tagOf } from '../frontend/types'
-import { MIR, Value, IRValue, Method, asValue, Invoke, xwasm } from '../frontend/modules'
-import { Def } from '../dwarf'
-import { Redirect, type Sig } from './abstract'
-import { Cache } from '../utils/cache'
-import { primitive } from './primitives'
-import isEqual from 'lodash/isEqual'
-import { HashMap, asNumber, some, setdiff, filter as filter, only } from '../utils/map'
-import { layout, call, indexer, load, sizeof, union_cases, unbox, heapType } from './expand'
-import { unreachable } from '../utils/ir'
-import { xcall, xtuple } from '../frontend/lower'
-import { Accessor } from '../utils/fixpoint'
+import * as ir from '../utils/ir.js'
+import * as types from '../frontend/types.js'
+import { Type, tag, tagOf } from '../frontend/types.js'
+import { MIR, Value, IRValue, Method, asValue, Invoke, xwasm } from '../frontend/modules.js'
+import { Def } from '../dwarf/index.js'
+import { Redirect, type Sig } from './abstract.js'
+import { Cache } from '../utils/cache.js'
+import { primitive } from './primitives.js'
+import isEqual from 'lodash/isEqual.js'
+import { HashMap, asNumber, some, setdiff, filter as filter, only } from '../utils/map.js'
+import { layout, call, indexer, load, sizeof, union_cases, unbox, heapType } from './expand.js'
+import { unreachable } from '../utils/ir.js'
+import { xcall, xtuple } from '../frontend/lower.js'
+import { Accessor } from '../utils/fixpoint.js'
 
 export { isreftype, CountMode, retain_method, release_method, refcounts }
 

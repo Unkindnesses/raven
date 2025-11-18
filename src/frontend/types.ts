@@ -1,7 +1,7 @@
-import isEqual from 'lodash/isEqual'
-import { hash } from '../utils/map'
-import { Fixpoint, Accessor } from '../utils/fixpoint'
-import { Symbol } from './ast'
+import isEqual from 'lodash/isEqual.js'
+import { hash } from '../utils/map.js'
+import { Fixpoint, Accessor } from '../utils/fixpoint.js'
+import { Symbol } from './ast.js'
 
 export {
   Tag, Bits, Type,

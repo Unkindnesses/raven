@@ -4,10 +4,10 @@ import * as nodeRepl from 'node:repl'
 import * as os from 'os'
 import * as path from 'path'
 import * as fs from 'fs/promises'
-import { compile, compileJS, Compiler, exec } from '../backend/compiler'
-import { REPL } from './repl'
-import { Caching, time } from '../utils/cache'
-import { version } from '../../package.json'
+import { compile, compileJS, Compiler, exec } from '../backend/compiler.js'
+import { REPL } from './repl.js'
+import { Caching, time } from '../utils/cache.js'
+import pkg from '../../package.json' with { type: 'json' }
 
 function formatTime(ns: bigint): string {
   const ms = Number(ns) / 1_000_000
@@ -68,7 +68,7 @@ async function main() {
   const program = new commander.Command()
   program
     .name('raven')
-    .version(version)
+    .version(pkg.version)
     .description('The Raven Programming Language')
 
   program

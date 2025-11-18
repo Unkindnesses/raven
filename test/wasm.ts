@@ -1,9 +1,9 @@
 import { test } from 'uvu'
 import * as assert from 'assert'
-import { leb128U, leb128S, Def } from '../src/dwarf'
-import * as wasm from '../src/wasm/wasm'
-import { Locals, stackshuffle } from '../src/wasm/ir'
-import { HashSet } from '../src/utils/map'
+import { leb128U, leb128S, Def } from '../src/dwarf/index.js'
+import * as wasm from '../src/wasm/wasm.js'
+import { Locals, stackshuffle } from '../src/wasm/ir.js'
+import { HashSet } from '../src/utils/map.js'
 
 test('leb128 unsigned', () => {
   assert.deepEqual(leb128U(0), [0x00])
@@ -31,7 +31,7 @@ test('stack shuffling', () => {
   assert.deepEqual(stackshuffle(state, target)[0], [])
 })
 
-import { binary } from '../src/wasm/binary'
+import { binary } from '../src/wasm/binary.js'
 import { spawnSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'

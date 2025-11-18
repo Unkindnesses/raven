@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises'
-import { DebugModule, locate, Source } from '../dwarf/parse'
-import { Def } from '../dwarf'
+import { DebugModule, locate, Source } from '../dwarf/parse.js'
+import { Def } from '../dwarf/index.js'
 
 export { loadWasm, support, table }
 

@@ -3,9 +3,9 @@ import * as path from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawn } from 'node:child_process'
 import * as assert from 'assert'
-import { compile, Compiler } from './backend/compiler'
-import { type Options } from './utils/options'
-import { dirname } from './cli/dirname'
+import { compile, Compiler } from './backend/compiler.js'
+import { type Options } from './utils/options.js'
+import { dirname } from './cli/dirname.js'
 
 export { run, test, runNode }
 

@@ -1,13 +1,13 @@
 import { test } from 'uvu'
 import * as assert from 'assert'
-import { parse, PrecTable, Prec, inverse, table } from '../src/frontend/parse'
-import { lowerfn, lower_toplevel } from '../src/frontend/lower'
-import { lowerpattern } from '../src/frontend/patterns'
-import { tag, Type } from '../src/frontend/types'
-import { asSymbol } from '../src/frontend/ast'
-import * as ast from '../src/frontend/ast'
-import { Module } from '../src/frontend/modules'
-import { Def } from '../src/dwarf'
+import { parse, PrecTable, Prec, inverse, table } from '../src/frontend/parse.js'
+import { lowerfn, lower_toplevel } from '../src/frontend/lower.js'
+import { lowerpattern } from '../src/frontend/patterns.js'
+import { tag, Type } from '../src/frontend/types.js'
+import { asSymbol } from '../src/frontend/ast.js'
+import * as ast from '../src/frontend/ast.js'
+import { Module } from '../src/frontend/modules.js'
+import { Def } from '../src/dwarf/index.js'
 
 test('parse simple function definition', () => {
   const tree = parse('test', 'def foo(x) { while (true) { println(1 + 2) } }')

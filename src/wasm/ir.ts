@@ -1,11 +1,11 @@
-import isEqual from 'lodash/isEqual'
-import * as wasm from './wasm'
-import { Func, NumType, ValueType } from './wasm'
-import { Pipe, liveness, Branch, Expr, expr, Source, CFG, Component, components, entry, Val } from '../utils/ir'
-import { asArray, HashSet, HashMap, some, asNumber } from '../utils/map'
-import { LineInfo, Def } from '../dwarf'
-import { instructionToString } from './wat'
-import * as ir from '../utils/ir'
+import isEqual from 'lodash/isEqual.js'
+import * as wasm from './wasm.js'
+import { Func, NumType, ValueType } from './wasm.js'
+import { Pipe, liveness, Branch, Expr, expr, Source, CFG, Component, components, entry, Val } from '../utils/ir.js'
+import { asArray, HashSet, HashMap, some, asNumber } from '../utils/map.js'
+import { LineInfo, Def } from '../dwarf/index.js'
+import { instructionToString } from './wat.js'
+import * as ir from '../utils/ir.js'
 
 export { Locals, stackshuffle, locals, shiftbps, irfunc, Instr, setdiff, union, intersect, Value, asValue, isValue, WIR }
 

@@ -3,8 +3,8 @@ import * as fs from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { test } from 'uvu'
 import assert from 'assert'
-import { test as rv, runNode } from '../src/test'
-import { compile } from '../src/backend/compiler'
+import { test as rv, runNode } from '../src/test.js'
+import { compile } from '../src/backend/compiler.js'
 
 test('show', async () => {
   await rv('show 2+2', { output: '(2 + 2) = 4' })

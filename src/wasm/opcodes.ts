@@ -1,5 +1,5 @@
 export { opcodes }
-import { leb128U } from '../dwarf'
+import { leb128U } from '../dwarf/index.js'
 
 const opcodes = new Map<string, number[]>()
 

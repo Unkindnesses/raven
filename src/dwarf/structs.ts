@@ -1,5 +1,5 @@
-import { HashSet } from '../utils/map'
-import { Tag, Attr, Form } from './enums'
+import { HashSet } from '../utils/map.js'
+import { Tag, Attr, Form } from './enums.js'
 
 export {
   Source, Def, Frame, Stack, LineInfo, Function, Value, DIE, Abbrev, LineTable, offset, abbrev, abbrevs

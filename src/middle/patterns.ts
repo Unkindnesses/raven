@@ -22,18 +22,18 @@
 // matches the signature, we'll generate code for the dispatcher that behaves
 // like `match`.
 
-import * as types from '../frontend/types'
-import * as ir from '../utils/ir'
-import { MIR, IRValue, Method, Definitions } from '../frontend/modules'
-import { Def } from '../dwarf'
-import { xlist, xpart, xcall } from '../frontend/lower'
-import { Pattern, patternType, pattern } from '../frontend/patterns'
-import { Inference, Sig, inferexpr, infercall, issubset, maybe_union } from './abstract'
-import { some } from '../utils/map'
-import { options } from '../utils/options'
-import { part_method, isnil_method, notnil_method, partial_isnil, string } from './primitives'
-import { EagerCache } from '../utils/cache'
-import isEqual from 'lodash/isEqual'
+import * as types from '../frontend/types.js'
+import * as ir from '../utils/ir.js'
+import { MIR, IRValue, Method, Definitions } from '../frontend/modules.js'
+import { Def } from '../dwarf/index.js'
+import { xlist, xpart, xcall } from '../frontend/lower.js'
+import { Pattern, patternType, pattern } from '../frontend/patterns.js'
+import { Inference, Sig, inferexpr, infercall, issubset, maybe_union } from './abstract.js'
+import { some } from '../utils/map.js'
+import { options } from '../utils/options.js'
+import { part_method, isnil_method, notnil_method, partial_isnil, string } from './primitives.js'
+import { EagerCache } from '../utils/cache.js'
+import isEqual from 'lodash/isEqual.js'
 
 export { MatchMethods, partial_match, indexer, icall, dispatch_arms, dispatcher }
 

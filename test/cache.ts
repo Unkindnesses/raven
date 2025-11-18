@@ -1,7 +1,7 @@
 import { test } from 'uvu'
 import * as assert from 'assert'
-import { Fixpoint } from '../src/utils/fixpoint'
-import { Map, Cache, EagerCache, pipe, reset, fingerprint, CycleCache } from '../src/utils/cache'
+import { Fixpoint } from '../src/utils/fixpoint.js'
+import { Map, Cache, EagerCache, pipe, reset, fingerprint, CycleCache } from '../src/utils/cache.js'
 
 test('Fixpoint square root', () => {
   const fp = new Fixpoint<number, number>(

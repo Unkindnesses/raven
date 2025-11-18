@@ -1,9 +1,9 @@
 import { test } from 'uvu'
 import * as assert from 'assert'
-import { CFG, components, expand, prune, expr, unreachable, renumber, Val } from '../src/utils/ir'
-import { looped, unloop } from '../src/middle/loop'
-import { MIR } from '../src/frontend/modules'
-import { Def } from '../src/dwarf'
+import { CFG, components, expand, prune, expr, unreachable, renumber, Val } from '../src/utils/ir.js'
+import { looped, unloop } from '../src/middle/loop.js'
+import { MIR } from '../src/frontend/modules.js'
+import { Def } from '../src/dwarf/index.js'
 
 test('components: acyclic chain', () => {
   const ir = MIR(Def('test'))
