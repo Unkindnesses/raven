@@ -13,3 +13,4 @@ dist
 /old
 test/*/*.js
 /wasi-cli
+src/**/*.json

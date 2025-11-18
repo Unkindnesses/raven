@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Raven Web Compiler Demo</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; max-width: 800px; }
+    textarea { width: 100%; min-height: 200px; font-family: monospace; }
+    button { margin-top: 0.5rem; padding: 0.5rem 1rem; }
+    pre { background: #111; color: #0f0; padding: 1rem; overflow: auto; min-height: 100px; }
+  </style>
+</head>
+<body>
+  <h1>Raven Web Compiler</h1>
+  <p>Type some Raven source and compile it to WebAssembly bytes directly in your browser.</p>
+  <textarea id="source">println("hello, world")</textarea>
+  <div>
+    <button id="compile">Compile</button>
+  </div>
+  <pre id="output">Run the compiler to see the byte output.</pre>
+  <script type="module">
+    import { compile } from './dist/index.js'
+
+    const source = document.getElementById('source')
+    const output = document.getElementById('output')
+    const button = document.getElementById('compile')
+
+    const formatBytes = (bytes) => {
+      const hex = Array.from(bytes.slice(0, 48)).map(x => x.toString(16).padStart(2, '0')).join(' ')
+      return `Compiled ${bytes.length} bytes\n${hex}${bytes.length > 48 ? ' ...' : ''}`
+    }
+
+    button.addEventListener('click', () => {
+      output.textContent = 'Compiling...'
+      try {
+        const bytes = compile(source.value)
+        output.textContent = formatBytes(bytes)
+      } catch (err) {
+        output.textContent = `Compilation failed: ${err instanceof Error ? err.message : err}`
+      }
+    })
+  </script>
+</body>
+</html>

@@ -36,10 +36,10 @@ jobs:
     - uses: bytecodealliance/actions/wasmtime/setup@v1
 
     - name: Install dependencies
-      run: npm ci
+      run: npm ci && npx playwright install chromium
 
-    - name: Type check
-      run: npx tsc -b
+    - name: Check and compile
+      run: npm run build
 
     - name: Run tests
       run: npm test

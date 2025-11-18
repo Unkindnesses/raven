@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Raven Web Test</title>
+</head>
+<body>
+  <script type="module">
+    import { compiler } from '../dist/index.js'
+
+    try {
+      const source = 'println("hello, world")'
+      const modules = compiler().compile(source)
+      if (modules.length && modules.every(mod => mod instanceof Uint8Array)) {
+        window.testResult = { success: true }
+      } else {
+        window.testResult = { success: false, error: 'Invalid output' }
+      }
+    } catch (err) {
+      window.testResult = { success: false, error: err.message }
+    }
+  </script>
+</body>
+</html>
