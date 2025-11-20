@@ -37,7 +37,7 @@ fn String(obj: JSObject) { String(jsref(obj)) }
 fn js(String(r)) { JSObject(r) }
 
 fn show(x: String) {
-  print(js().JSON.stringify(x))
+  print(js.JSON.stringify(x))
 }
 
 fn iterator(x: String) {
@@ -97,7 +97,7 @@ fn show(x: Tag) {
 bundle Regex(r: JSObject)
 
 # TODO flags
-fn Regex(r: String) { Regex(js().RegExp(r, "vg")) }
+fn Regex(r: String) { Regex(js.RegExp(r, "vg")) }
 
 fn js(Regex(r)) { r }
 

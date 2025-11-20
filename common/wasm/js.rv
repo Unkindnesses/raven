@@ -9,7 +9,7 @@ fn show(x: Ref) { print("Ref(...)") }
 
 bundle JSObject(ref: Ref)
 
-fn JSObject() { new(js().Object) }
+fn JSObject() { new(js.Object) }
 
 fn js(x: JSObject) { x }
 
@@ -34,6 +34,8 @@ fn set(&obj: JSObject, x: JSObject, prop: JSObject) {
   return obj
 }
 
+fn field(tag".js", f: Tag) { field(js(), f) }
+
 fn field(obj: JSObject, f: Tag) { obj[string(f)] }
 
 fn call(obj: JSObject, meth, args...) { apply(obj, js(meth), js(args)) }
@@ -55,6 +57,10 @@ fn call(obj: JSObject, meth, x) { call(obj, js(meth), js(x)) }
 fn call(obj: JSObject, meth: JSObject, x: JSObject) {
   ref = wasm call(support.call, jsref(obj): ref, jsref(meth): ref, jsref(x): ref): ref
   return JSObject(ref)
+}
+
+fn method(tag".js", meth: Tag, args...) {
+  method(js(), meth, args...)
 }
 
 fn method(obj: JSObject, meth: Tag, args...) {
@@ -96,7 +102,7 @@ fn (a: JSObject) == (b: JSObject) {
 }
 
 fn new(T: JSObject, args...) {
-  js().Reflect.construct(T, args)
+  js.Reflect.construct(T, args)
 }
 
 fn js(x: Float64) {
@@ -147,7 +153,7 @@ fn string(x: (Float32 | Float64)) {
 }
 
 fn print(x: String) {
-  js().process.stdout.write(x)
+  js.process.stdout.write(x)
   return
 }
 
@@ -156,7 +162,7 @@ fn show(x: JSObject) {
 }
 
 fn println(x: JSObject) {
-  js().console.log(x)
+  js.console.log(x)
   return
 }
 
@@ -165,7 +171,7 @@ fn replshow(x: JSObject) {
 }
 
 fn iterator(x: JSObject) {
-  x[js().Symbol.iterator].call(x)
+  x[js.Symbol.iterator].call(x)
 }
 
 fn next(&x: JSObject) {
@@ -174,14 +180,14 @@ fn next(&x: JSObject) {
 }
 
 fn import(s) {
-  return await(js().import(s))
+  return await(js.import(s))
 }
 
 fn sleep(n) {
-  await(js().sleep(n))
+  await(js.sleep(n))
   return
 }
 
 fn readline() {
-  return String(await(js().readline()))
+  return String(await(js.readline()))
 }

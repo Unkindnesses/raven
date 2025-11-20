@@ -68,7 +68,7 @@ fn eval(&tape: Tape, instr: Instr) {
     let Right() { right(&tape) }
     let Inc()   { inc(&tape) }
     let Dec()   { dec(&tape) }
-    let Write() { print(js().String.fromCharCode(tape[])) }
+    let Write() { print(js.String.fromCharCode(tape[])) }
     let Loop(body) {
       while tape[] != 0 {
         interpret(&tape, body)

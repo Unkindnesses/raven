@@ -65,7 +65,7 @@ fn map(f, xs) {
 }
 
 fn js(xs: List) {
-  ys = js().Array.of()
+  ys = js.Array.of()
   for x = xs { ys.push(x) }
   return ys
 }
