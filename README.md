@@ -2,6 +2,8 @@
 <img width="400px" src=".github/logo.png"/>
 </p>
 
+Check out the [language tour](https://code.mikeinnes.io/)!
+
 [Raven](https://mikeinnes.io/posts/raven/) is a small but smart language that compiles to WebAssembly. It combines a simple, functional data model, powerful type inference, and flexible syntax. It's currently in the proof-of-concept stage: you're welcome to play with it, but expect bugs to appear before long! Check out the [docs](DOCS.md) (such as they are) for more detail.
 
 You'll need [Node.js](https://nodejs.org/en) on your system, then you can install the compiler using `npm install -g @unkindnesses/raven`, which will make `raven` available in your terminal.
