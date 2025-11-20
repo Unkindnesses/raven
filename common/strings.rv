@@ -37,7 +37,7 @@ fn String(obj: JSObject) { String(jsref(obj)) }
 fn js(String(r)) { JSObject(r) }
 
 fn show(x: String) {
-  print(js.JSON.stringify(x))
+  print(String(js.JSON.stringify(x)))
 }
 
 fn iterator(x: String) {

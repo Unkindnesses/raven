@@ -1,6 +1,6 @@
 export {
   JSObject, debugger, abort, js, call, errcall, await, new, sleep
-  readline, require
+  readline, require, typeof
 }
 
 fn matchTrait(tag"common.core.Ref", x: pack(tag"common.core.Ref", _)) { Some(x) }
@@ -144,6 +144,14 @@ fn abort(s: JSObject, cause: JSObject) {
 fn abort(s: String) { abort(js(s)) }
 fn abort(s: String, cause) { abort(js(s), js(cause)) }
 
+fn typeof(x: JSObject) {
+  String(wasm call(support.typeof, jsref(x): ref): ref)
+}
+
+fn isPrimitive(x: JSObject) {
+  ((typeof(x) == "string") || (typeof(x) == "number")) || (typeof(x) == "boolean")
+}
+
 fn string(x: JSObject) {
   String(x.toString())
 }
@@ -157,8 +165,18 @@ fn print(x: String) {
   return
 }
 
-fn show(x: JSObject) {
+fn print(x: JSObject) {
   print(string(x))
+}
+
+fn show(x: JSObject) {
+  if isPrimitive(x) {
+    print("js(")
+    print(String(js.JSON.stringify(x)))
+    print(")")
+  } else {
+    print(string(x))
+  }
 }
 
 fn println(x: JSObject) {
@@ -167,7 +185,12 @@ fn println(x: JSObject) {
 }
 
 fn replshow(x: JSObject) {
-  println(x)
+  if isPrimitive(x) {
+    show(x)
+    println()
+  } else {
+    println(x)
+  }
 }
 
 fn iterator(x: JSObject) {

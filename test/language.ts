@@ -723,7 +723,7 @@ test('show result ok', async () => {
       x = errcall(js(), "dummyPromise", 7)
       show x
     }
-  `, { output: 'x = Ok(7)' })
+  `, { output: 'x = Ok(js(7))' })
 })
 
 test('unwrap ok', async () => {

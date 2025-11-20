@@ -121,7 +121,7 @@ fn (a: Int) / (b: Int) { Float64(a) / Float64(b) }
 
 fn js(x: Int) { js(Float64(x)) }
 
-fn string(x: Int, base: Int) { js(x).toString(base) }
+fn string(x: Int, base: Int) { String(js(x).toString(base)) }
 fn string(x: Int) { string(x, 10) }
 
 fn print(x: Int) { print(js(x)) }

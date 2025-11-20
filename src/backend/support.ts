@@ -101,6 +101,7 @@ function support() {
     get: (x: any, p: any) => x[p],
     set: (x: any, p: any, v: any) => { x[p] = v },
     identity: (x: any) => x,
+    typeof: (x: any) => typeof x,
     await: new (WebAssembly as any).Suspending((x: any) => x),
     errcall: new (WebAssembly as any).Suspending(errcall),
     debugger: () => { debugger }
