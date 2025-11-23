@@ -2,7 +2,7 @@
 <img width="400px" src=".github/logo.png"/>
 </p>
 
-Check out the [language tour](https://code.mikeinnes.io/)!
+Check out the [language tour](https://mikeinnes.io/posts/raven-tour/)!
 
 [Raven](https://mikeinnes.io/posts/raven/) is a small but smart language that compiles to WebAssembly. It combines a simple, functional data model, powerful type inference, and flexible syntax. It's currently in the proof-of-concept stage: you're welcome to play with it, but expect bugs to appear before long! Check out the [docs](DOCS.md) (such as they are) for more detail.
 
