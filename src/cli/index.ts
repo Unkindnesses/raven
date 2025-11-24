@@ -97,7 +97,7 @@ async function main() {
       await exec(source, args, { options: { inline, memcheck }, strip })
     })
 
-  await program.parseAsync()
+  await program.parseAsync(process.argv)
 }
 
 main().catch(err => {
