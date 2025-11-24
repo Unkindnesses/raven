@@ -1,5 +1,7 @@
 #!/usr/bin/env -S node --enable-source-maps --experimental-wasm-jspi
 import * as commander from 'commander'
+import * as fs from 'fs/promises'
+import { randomUUID } from 'crypto'
 import * as nodeRepl from 'node:repl'
 import * as os from 'os'
 import * as path from 'path'
@@ -32,6 +34,44 @@ function printTiming(c: Compiler) {
   }
   const total = time(c.pipe) + c.time
   console.log(`Total       ${formatTime(total).padStart(10)} `)
+}
+
+const installDir = path.join(os.homedir(), '.raven')
+const installFile = path.join(installDir, 'id')
+
+const ciEnvVars = [
+  'CI', 'CONTINUOUS_INTEGRATION', 'BUILD_NUMBER', 'RUN_ID', 'GITHUB_ACTIONS',
+  'GITHUB_RUN_ID', 'GITHUB_WORKFLOW', 'GITLAB_CI', 'TEAMCITY_VERSION',
+  'BUILDKITE', 'TF_BUILD'
+]
+
+async function installID(): Promise<string> {
+  try {
+    const existing = (await fs.readFile(installFile, 'utf8')).trim()
+    if (existing) return existing
+  } catch (err) {
+    if ((err as any).code !== 'ENOENT') throw err
+  }
+  const id = randomUUID()
+  await fs.mkdir(installDir, { recursive: true })
+  await fs.writeFile(installFile, `${id}\n`)
+  return id
+}
+
+async function checkUpdate() {
+  if (ciEnvVars.some(x => process.env[x])) return
+  try {
+    const id = await installID()
+    const res = await fetch('https://mikeinnes.io/api/update', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id, version: pkg.version })
+    })
+    if (!res.ok) throw new Error(`Update request failed with status ${res.status}`)
+    await res.json()
+  } catch (err) {
+    console.error('Unable to update Raven installation', err)
+  }
 }
 
 async function startRepl() {
@@ -67,8 +107,12 @@ async function main() {
   const program = new commander.Command()
   program
     .name('raven')
-    .version(pkg.version)
     .description('The Raven Programming Language')
+
+  program
+    .command('version')
+    .description('Print the Raven version')
+    .action(() => { console.log(`${pkg.version}`) })
 
   program
     .command('build')
@@ -97,10 +141,7 @@ async function main() {
       await exec(source, args, { options: { inline, memcheck }, strip })
     })
 
-  await program.parseAsync(process.argv)
+  await Promise.all([checkUpdate(), program.parseAsync(process.argv)])
 }
 
-main().catch(err => {
-  console.error(err)
-  process.exit(1)
-})
+await main()
