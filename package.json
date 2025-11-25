@@ -3,8 +3,9 @@
   "version": "0.3.1",
   "type": "module",
   "files": [
-    "dist",
-    "common"
+    "common",
+    "src",
+    "dist"
   ],
   "bin": {
     "raven": "dist/cli/index.js"
