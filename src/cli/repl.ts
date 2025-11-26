@@ -12,12 +12,14 @@ import { tag } from '../frontend/types.js'
 import { parse } from '../frontend/parse.js'
 import * as ast from '../frontend/ast.js'
 import { WorkerCommand, WorkerRequest, WorkerResponse } from './worker.js'
+import { Options, withOptions } from '../utils/options.js'
 
 export { REPL }
 
 interface ReplOptions {
   stdout?: Writable
   stderr?: Writable
+  options?: Partial<Options>
 }
 
 interface Pending {
@@ -32,6 +34,7 @@ class REPL {
   private readonly pending = new Map<number, Pending>()
   private readonly stdout: Writable
   private readonly stderr: Writable
+  private readonly options: Partial<Options>
   private nextId = 0
   private output = ''
   private closed = false
@@ -39,6 +42,7 @@ class REPL {
   private constructor(opts: ReplOptions = {}) {
     this.stdout = opts.stdout ?? process.stdout
     this.stderr = opts.stderr ?? process.stderr
+    this.options = opts.options ?? {}
     this.pipe = new Pipeline()
     this.emitter = new StreamEmitter()
     this.worker = new Worker(path.join(dirname, '../../dist/cli/worker.js'), { name: 'raven-repl' })
@@ -60,32 +64,36 @@ class REPL {
   }
 
   private async init() {
-    await this.pipe.loadcommon(this.emitter, load)
-    await withEmit(m => {
+    await withOptions(this.options, async () => {
+      await this.pipe.loadcommon(this.emitter, load)
+      await withEmit(m => {
+        reset(this.pipe)
+        this.pipe.emit(m, this.emitter)
+      }, async () => {
+        await reload(this.pipe.sources, source('repl', ''), load)
+      })
       reset(this.pipe)
-      this.pipe.emit(m, this.emitter)
-    }, async () => {
-      await reload(this.pipe.sources, source('repl', ''), load)
+      await this.flush()
     })
-    reset(this.pipe)
-    await this.flush()
   }
 
   async eval(src: string) {
     this.output = ''
-    await withEmit(m => {
+    await withOptions(this.options, async () => {
+      await withEmit(m => {
+        reset(this.pipe)
+        this.pipe.emit(m, this.emitter)
+      }, async () => {
+        const defs = this.pipe.sources
+        const module = defs.module(tag(''))
+        const cx = new LoadState(defs, module, load)
+        const exprs = parse('repl', src)
+        if (exprs.length) exprs[exprs.length - 1] = wrapPrint(exprs[exprs.length - 1])
+        for (const expr of exprs) await vload(cx, expr)
+      })
       reset(this.pipe)
-      this.pipe.emit(m, this.emitter)
-    }, async () => {
-      const defs = this.pipe.sources
-      const module = defs.module(tag(''))
-      const cx = new LoadState(defs, module, load)
-      const exprs = parse('repl', src)
-      if (exprs.length) exprs[exprs.length - 1] = wrapPrint(exprs[exprs.length - 1])
-      for (const expr of exprs) await vload(cx, expr)
+      await this.flush()
     })
-    reset(this.pipe)
-    await this.flush()
     return this.output
   }
 

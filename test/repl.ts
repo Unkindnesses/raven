@@ -11,7 +11,7 @@ test('basic eval', async () => {
   assert.strictEqual((await repl.eval('xs')).trim(), '[1, 2, 3, 4]')
   assert.strictEqual((await repl.eval('x = widen(5)')).trim(), '5')
   assert.strictEqual((await repl.eval('x + 2')).trim(), '7')
-  repl.close()
+  await repl.close()
 })
 
 test.run()

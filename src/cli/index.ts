@@ -9,6 +9,7 @@ import { Compiler, compile, compileJS, exec } from './compile.js'
 import { REPL } from './repl.js'
 import { Caching, time } from '../utils/cache.js'
 import pkg from '../../package.json' with { type: 'json' }
+import { Options } from '../utils/options.js'
 
 function formatTime(ns: bigint): string {
   const ms = Number(ns) / 1_000_000
@@ -74,8 +75,8 @@ async function checkUpdate() {
   }
 }
 
-async function startRepl() {
-  const raven = await REPL.create()
+async function startRepl(options: Partial<Options>) {
+  const raven = await REPL.create({ options })
   try {
     const server = nodeRepl.start({
       prompt: '> ',
@@ -136,7 +137,7 @@ async function main() {
     .action(async (xs) => {
       let { inline, memcheck, strip } = program.optsWithGlobals()
       let [source, ...args] = xs
-      if (!source) return await startRepl()
+      if (!source) return await startRepl({ inline, memcheck })
       source = path.resolve(process.cwd(), source)
       await exec(source, args, { options: { inline, memcheck }, strip })
     })
