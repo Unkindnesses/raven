@@ -37,6 +37,78 @@ test('escaped string extended delimiter', () => {
   assert.equal(ast.asToken(tree).unwrap(), 'a quote " a newline \n a backslash \\n')
 })
 
+test('triple-quoted string basic', () => {
+  const src = '"""hello world"""'
+  const tree = parse('test', src)[0]
+  assert.equal(ast.asToken(tree).unwrap(), 'hello world')
+})
+
+test('triple-quoted string multiline', () => {
+  const src = `"""
+    hello
+    world
+    """`
+  const tree = parse('test', src)[0]
+  assert.equal(ast.asToken(tree).unwrap(), 'hello\nworld')
+})
+
+test('escaped newlines', () => {
+  const src = `"""
+    hello \\
+    world
+    """`
+  const tree = parse('test', src)[0]
+  assert.equal(ast.asToken(tree).unwrap(), 'hello world')
+})
+
+test('escaped newline preserves following indent', () => {
+  const src = `"""
+  hello\\n  world
+  """`
+  const tree = parse('test', src)[0]
+  assert.equal(ast.asToken(tree).unwrap(), 'hello\n  world')
+})
+
+test('triple-quoted string preserves relative indent', () => {
+  const src = `"""
+    line1
+      indented
+    line2
+    """`
+  const tree = parse('test', src)[0]
+  assert.equal(ast.asToken(tree).unwrap(), 'line1\n  indented\nline2')
+})
+
+test('triple-quoted string with embedded quotes', () => {
+  const src = '"""say "hello" to the world"""'
+  const tree = parse('test', src)[0]
+  assert.equal(ast.asToken(tree).unwrap(), 'say "hello" to the world')
+})
+
+test('triple-quoted string escape sequences', () => {
+  const src = '"""hello\\nworld"""'
+  const tree = parse('test', src)[0]
+  assert.equal(ast.asToken(tree).unwrap(), 'hello\nworld')
+})
+
+test('triple-quoted raw string', () => {
+  const src = '\`\`\`hello\\nworld\`\`\`'
+  const tree = parse('test', src)[0]
+  assert.equal(ast.asToken(tree).unwrap(), 'hello\\nworld')
+})
+
+test('triple-quoted string extended delimiter', () => {
+  const src = String.raw`\\"""contains """ triple quotes"""\\`
+  const tree = parse('test', src)[0]
+  assert.equal(ast.asToken(tree).unwrap(), 'contains """ triple quotes')
+})
+
+test('triple-quoted escape with extended delimiter', () => {
+  const src = String.raw`\\"""a newline \\n here"""\\`
+  const tree = parse('test', src)[0]
+  assert.equal(ast.asToken(tree).unwrap(), 'a newline \n here')
+})
+
 test('precedence table transitivity', () => {
   function transitive(t: PrecTable): boolean {
     let trans = true

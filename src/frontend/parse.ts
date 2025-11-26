@@ -170,7 +170,60 @@ const escapes = new Map([
   ['"', '\"'],
   ["'", '\''],
   ['\\', '\\'],
+  ['\n', ''],
 ])
+
+function processEscapes(s: string, escape: string): string {
+  let result = ''
+  let i = 0
+  while (i < s.length) {
+    if (s.startsWith(escape, i)) {
+      i += escape.length
+      result += some(escapes.get(s[i++]))
+    } else {
+      result += s[i++]
+    }
+  }
+  return result
+}
+
+function trimCommonIndent(s: string): string {
+  const lines = s.split('\n')
+  if (!lines[0].trim()) lines.shift()
+  if (lines.length === 1) return s
+  const indent = lines.at(-1)!
+  if (indent.trim()) return s
+  lines.pop()
+  for (const line of lines)
+    if (line.trim() && !line.startsWith(indent))
+      throw new Error('insufficient indent in triple-quoted string')
+  return lines.map(l => l.slice(indent.length)).join('\n')
+}
+
+function tripleString(r: Reader): string | undefined {
+  let slashes = 0
+  while (!r.eof() && r.peek === '\\') { r.read(); slashes++ }
+  if (r.eof()) return
+  const q = r.peek
+  if (q !== '"' && q !== '`') return
+  if (!r.parse(r => exact(r, q + q + q))) return
+  const raw = q === '`'
+  const escape = '\\'.repeat(raw ? 0 : Math.max(1, slashes))
+  const close = q + q + q + '\\'.repeat(slashes)
+  let s = ''
+  while (!r.eof()) {
+    if (r.parse(r => exact(r, close))) {
+      const trimmed = trimCommonIndent(s)
+      return raw ? trimmed : processEscapes(trimmed, escape)
+    }
+    if (!raw && r.parse(r => exact(r, escape))) {
+      s += escape + r.read()
+      continue
+    }
+    s += r.read()
+  }
+  throw new Error('unterminated triple-quoted string')
+}
 
 function string(r: Reader): string | undefined {
   let slashes = 0
@@ -182,9 +235,10 @@ function string(r: Reader): string | undefined {
   const escape = '\\'.repeat(raw ? 0 : Math.max(1, slashes))
   let s = ''
   while (!r.eof()) {
-    if (r.parse(r => exact(r, open + '\\'.repeat(slashes))) !== undefined) return s
+    if (r.parse(r => exact(r, open + '\\'.repeat(slashes))))
+      return raw ? s : processEscapes(s, escape)
     if (!raw && r.parse(r => exact(r, escape))) {
-      s += some(escapes.get(r.read()))
+      s += escape + r.read()
       continue
     }
     s += r.read()
@@ -236,7 +290,7 @@ function block(r: Reader) { return bracketsTo(r, '{', '}', ast.Block) }
 function item(r: Reader): ast.Tree {
   r.skipWhitespace()
   const pos = r.cursor()
-  const ex = r.parse<ast.Tree | ast.Atom | undefined>(template, symbol, swap, string, number, opsymbol, group, list, block)
+  const ex = r.parse<ast.Tree | ast.Atom | undefined>(template, symbol, swap, tripleString, string, number, opsymbol, group, list, block)
   if (ex === undefined) throw new Error(`unexpected character ${r.peek} at ${curstring(pos)}`)
   const tree = ast.isAtom(ex) ? new ast.Token(ex) : ex
   return tree.withmeta({ file: path(), loc: pos })
