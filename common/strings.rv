@@ -1,4 +1,4 @@
-export { Char, String, Regex, string, concat, compare, utf16, contains?, matches }
+export { Char, String, Regex, string, concat, compare, chars, utf8, utf16, contains?, matches }
 
 # Chars
 
@@ -7,6 +7,8 @@ bundle Char(val: UInt[21])
 fn Char(x: Int | UInt) { Char(oftype(uint 21, x)) }
 
 fn Char(x: UInt[21]) { pack(Char, x) }
+
+fn UInt32(Char(x)) { UInt32(x) }
 
 fn string(Char(val)) {
   ref = wasm call("wasm:js-string".fromCodePoint, widen(bits(val)): i32): ref!
@@ -56,6 +58,8 @@ fn next(&itr: StringItr(s, i)) {
 
 fn length(s: String) { count(s) }
 
+fn (s: String)[i] { nth(s, i) }
+
 fn concat(String(a), String(b)) {
   ref = wasm call("wasm:js-string".concat, a: ref, b: ref): ref!
   return unsafeString(ref)
@@ -72,6 +76,43 @@ fn compare(String(a), String(b)) {
 }
 
 # Data views
+
+bundle Chars(data: List)
+
+fn chars(s: String) { Chars(collect(s)) }
+
+fn Chars(data)[i] { data[i] }
+fn length(Chars(data)) { length(data) }
+fn iterator(Chars(data)) { iterator(data) }
+
+bundle UTF8View(data: List)
+
+fn utf8(s: String) {
+  bytes = []
+  for ch = s {
+    ch = UInt32(ch)
+    if ch <= 0x007F {
+      append(&bytes, UInt8(ch))
+    } else if ch <= 0x07FF {
+      append(&bytes, UInt8(0x00C0 | div(ch, 0x0040)))
+      append(&bytes, UInt8(0x0080 | (ch & 0x003F)))
+    } else if ch <= 0xFFFF {
+      append(&bytes, UInt8(0x00E0 | div(ch, 0x1000)))
+      append(&bytes, UInt8(0x0080 | (div(ch, 0x0040) & 0x003F)))
+      append(&bytes, UInt8(0x0080 | (ch & 0x003F)))
+    } else {
+      append(&bytes, UInt8(0x00F0 | div(ch, 0x40000)))
+      append(&bytes, UInt8(0x0080 | (div(ch, 0x1000) & 0x003F)))
+      append(&bytes, UInt8(0x0080 | (div(ch, 0x0040) & 0x003F)))
+      append(&bytes, UInt8(0x0080 | (ch & 0x003F)))
+    }
+  }
+  return UTF8View(bytes)
+}
+
+fn UTF8View(data)[i] { data[i] }
+fn length(UTF8View(data)) { length(data) }
+fn iterator(UTF8View(data)) { iterator(data) }
 
 bundle UTF16View(s: String)
 

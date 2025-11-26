@@ -801,8 +801,27 @@ test('collect string', async () => {
 
 test('string indexing', async () => {
   await rv(`
-    show utf16("foo")[1]
-  `, { output: '0x0066' })
+    test utf16("foo")[1] == 0x0066
+    test "foo"[1] == c"f"
+  `)
+})
+
+test('utf8 view', async () => {
+  await rv(`
+    {
+      bs = utf8("hi")
+      test length(bs) == 2
+      test bs[1] == UInt8(0x68)
+      test bs[2] == UInt8(0x69)
+
+      bs = utf8("🌍")
+      test length(bs) == 4
+      test Int64(bs[1]) == Int64(0xF0) # TODO byte comparison breaks
+      test Int64(bs[2]) == Int64(0x9F)
+      test Int64(bs[3]) == Int64(0x8C)
+      test Int64(bs[4]) == Int64(0x8D)
+    }
+  `)
 })
 
 test('regex contains', async () => {

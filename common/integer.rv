@@ -191,6 +191,12 @@ fn (a: UInt) + (b: UInt) { UInt(intop(bitadd, a, b)) }
 fn (a: UInt) - (b: UInt) { UInt(intop(bitsub, a, b)) }
 fn (a: UInt) * (b: UInt) { UInt(intop(bitmul, a, b)) }
 
+fn div(a: UInt, b: UInt) { UInt(intop(bitdiv_u, a, b)) }
+fn rem(a: UInt, b: UInt) { Int(intop(bitrem_u, a, b)) }
+
+fn (a: UInt) | (b: UInt) { UInt(intop(bitor, a, b)) }
+fn (a: UInt) & (b: UInt) { UInt(intop(bitand, a, b)) }
+
 fn (a: UInt) == (b: UInt) { Bool(intop(biteq, a, b)) }
 fn (a: UInt) != (b: UInt) { Bool(intop(bitne, a, b)) }
 
