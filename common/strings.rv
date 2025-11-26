@@ -29,7 +29,7 @@ bundle String(ref: Ref)
 fn unsafeString(ref: Ref) { pack(String, ref) }
 
 fn String(ref: Ref) {
-  ref = wasm call("wasm:js-string".cast, ref: ref): ref!
+  ref = wasm call("wasm:js-string".cast, ref): ref!
   ref = jsref(JSObject(ref).toWellFormed())
   return unsafeString(ref)
 }
@@ -50,7 +50,7 @@ fn iterator(x: String) { StringItr(x, 0) }
 fn next(&itr: StringItr(s, i)) {
   if i >= length(utf16(s)) { return }
   idx = widen(bits(Int32(i)))
-  cp = UInt32(wasm call("wasm:js-string".codePointAt, jsref(s): ref, idx: i32): i32)
+  cp = UInt32(wasm call("wasm:js-string".codePointAt, jsref(s), idx: i32): i32)
   ch = Char(cp)
   itr = StringItr(s, if cp >= 0x10000 { i + 2 } else { i + 1 })
   return Some(ch)
@@ -61,17 +61,17 @@ fn length(s: String) { count(s) }
 fn (s: String)[i] { nth(s, i) }
 
 fn concat(String(a), String(b)) {
-  ref = wasm call("wasm:js-string".concat, a: ref, b: ref): ref!
+  ref = wasm call("wasm:js-string".concat, a, b): ref!
   return unsafeString(ref)
 }
 
 fn String(a) == String(b) {
-  r = wasm call("wasm:js-string".equals, a: ref, b: ref): i32
+  r = wasm call("wasm:js-string".equals, a, b): i32
   return Bool(r)
 }
 
 fn compare(String(a), String(b)) {
-  r = wasm call("wasm:js-string".compare, a: ref, b: ref): i32
+  r = wasm call("wasm:js-string".compare, a, b): i32
   return Int64(Int32(r))
 }
 
@@ -120,14 +120,14 @@ fn utf16(s: String) { UTF16View(s) }
 
 fn length(UTF16View(s)) {
   String(x) = s # TODO fix nested constructor pattern
-  len = wasm call("wasm:js-string".length, x: ref): i32
+  len = wasm call("wasm:js-string".length, x): i32
   return Int64(len)
 }
 
 fn UTF16View(s)[i] {
   String(x) = s
   i = widen(bits(Int32(i-1))) # TODO remove widen
-  ch = wasm call("wasm:js-string".charCodeAt, x: ref, i: i32): i32
+  ch = wasm call("wasm:js-string".charCodeAt, x, i: i32): i32
   return UInt16(ch)
 }
 

@@ -522,9 +522,11 @@ function intrinsic(ex: ast.Tree): [string | [string, string], ir.Anno<Type>, Val
 function intrinsic_args(ex: ast.Tree): ast.Tree[] {
   if (ast.isExpr(ex, 'Operator') && isEqual(ex.args[0].unwrap(), ast.symbol(':')))
     return intrinsic_args(ex.args[1])
-  const args = ast.asExpr(ex).args.slice(1).filter(x =>
-    ast.isExpr(x, 'Operator') && isEqual(x.args[0].unwrap(), ast.symbol(':'))) as ast.Expr[]
-  return args.map(x => x.args[1])
+  const e = ast.asExpr(ex)
+  const op = e.args[0].ungroup()
+  const start = isEqual(op.unwrap(), ast.symbol('call')) ? 2 : 1
+  return e.args.slice(start).map(x =>
+    ast.isExpr(x, 'Operator') && isEqual(x.args[0].unwrap(), ast.symbol(':')) ? x.args[1] : x)
 }
 
 function lowerSyntax(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
