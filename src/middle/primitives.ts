@@ -415,7 +415,7 @@ outlinePrimitive.set(nparts_method.id, (x: Type): MIR => {
 
 function constValue(T: Type): Value | undefined {
   if (T.kind === 'bits' && T.value !== undefined)
-    return Value.from(asNumType(only(wlayout(types.abstract(T)))), BigInt.asIntN(T.size, T.value))
+    return Value.from(asNumType(only(wlayout(types.abstract(T)))), T.value)
   if (T.kind === 'float32' && T.value !== undefined)
     return Value.f32(T.value)
   if (T.kind === 'float64' && T.value !== undefined)

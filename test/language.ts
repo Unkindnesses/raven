@@ -816,10 +816,10 @@ test('utf8 view', async () => {
 
       bs = utf8("🌍")
       test length(bs) == 4
-      test Int64(bs[1]) == Int64(0xF0) # TODO byte comparison breaks
-      test Int64(bs[2]) == Int64(0x9F)
-      test Int64(bs[3]) == Int64(0x8C)
-      test Int64(bs[4]) == Int64(0x8D)
+      test bs[1] == 0xF0
+      test bs[2] == 0x9F
+      test bs[3] == 0x8C
+      test bs[4] == 0x8D
     }
   `)
 })

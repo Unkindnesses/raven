@@ -187,7 +187,7 @@ function instr(cx: BinaryContext, inst: wasm.Instruction, lt: dwarf.LineTable): 
       const typeOffset = [i32, i64, f32, f64].indexOf(inst.type)
       cx.write(0x41 + typeOffset)
       if (inst.type === i32 || inst.type === i64) {
-        cx.leb128S(inst.val)
+        cx.leb128S(BigInt.asIntN(inst.type === i32 ? 32 : 64, BigInt(inst.val)))
       } else {
         const bytes = new ArrayBuffer(inst.type === f32 ? 4 : 8)
         const view = new DataView(bytes)

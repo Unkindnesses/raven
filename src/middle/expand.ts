@@ -298,7 +298,6 @@ function copyir(S: Type, D: Type): MIR {
   let src = code.argument(types.int32())
   let dst = code.argument(types.int32())
   let len = code.argument(types.int32())
-  call(code, types.tag('common.debugger'), [], types.nil)
 
   let before = code.block()
   let header = code.newBlock()
