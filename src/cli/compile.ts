@@ -1,7 +1,6 @@
 import * as wasm from '../backend/wasm.js'
 import { Options, withOptions } from '../utils/options.js'
 import * as path from 'path'
-import * as fs from 'fs'
 import { chmod, mkdir, readFile, writeFile } from 'fs/promises'
 import { spawn, SpawnOptions } from 'node:child_process'
 import { dirname } from './dirname.js'
@@ -11,9 +10,9 @@ export { Compiler, compile, compileJS, exec, load }
 
 const common = path.resolve(dirname, "../../common")
 
-function load(file: string): [string, string] {
+async function load(file: string): Promise<[string, string]> {
   if (!path.isAbsolute(file)) file = path.join(common, file)
-  return [file, fs.readFileSync(file, 'utf8')]
+  return [file, await readFile(file, 'utf8')]
 }
 
 interface CompileConfig {
@@ -30,8 +29,8 @@ async function compile(file: string, config: CompileConfig = {}): Promise<[Compi
   const wasmPath = output ?? path.join(dir, `${base}.wasm`)
   await mkdir(path.dirname(wasmPath), { recursive: true })
   await withOptions(options, async () => {
-    compiler ??= new Compiler(load)
-    const em = compiler.reload(file)
+    compiler ??= await Compiler.create(load)
+    const em = await compiler.reload(file)
     if (!(em instanceof wasm.BatchEmitter)) throw new Error('nope')
     const bytes = wasm.emitwasm(em, compiler.pipe.wasm, strip)
     await writeFile(wasmPath, Buffer.from(bytes))
@@ -45,8 +44,8 @@ async function compileJS(file: string, config: CompileConfig = {}): Promise<[Com
   const jsPath = output ?? path.join(dir, `${base}.js`)
   await mkdir(path.dirname(jsPath), { recursive: true })
   await withOptions(options, async () => {
-    compiler ??= new Compiler(load)
-    const em = compiler.reload(file)
+    compiler ??= await Compiler.create(load)
+    const em = await compiler.reload(file)
     if (!(em instanceof wasm.BatchEmitter)) throw new Error('nope')
     const bytes = wasm.emitwasm(em, compiler.pipe.wasm, strip)
     const base64 = Buffer.from(bytes).toString('base64')

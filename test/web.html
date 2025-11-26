@@ -10,7 +10,7 @@
 
     try {
       const source = 'println("hello, world")'
-      const modules = compiler().compile(source)
+      const modules = await (await compiler()).compile(source)
       if (modules.length && modules.every(mod => mod instanceof Uint8Array)) {
         window.testResult = { success: true }
       } else {

@@ -16,18 +16,30 @@ function nft() { return ++nft_id }
 
 let timestack: bigint[] = []
 
-function withtime<T>(f: () => T): [T, bigint] {
+function withtime<T>(f: () => T): [T, bigint]
+function withtime<T>(f: () => Promise<T>): Promise<[T, bigint]>
+function withtime<T>(f: () => T | Promise<T>): [T, bigint] | Promise<[T, bigint]> {
   const start = now()
   timestack.push(0n)
-  let result: T, offset: bigint
-  try {
-    result = f()
-  } finally {
-    offset = timestack.pop()!
+  const finish = (result: T): [T, bigint] => {
+    const offset = timestack.pop()!
+    const span = now() - start
+    if (timestack.length > 0) timestack[timestack.length - 1] += span
+    return [result, span - offset]
   }
-  const span = now() - start
-  if (timestack.length > 0) timestack[timestack.length - 1] += span
-  return [result, span - offset]
+  try {
+    const result = f()
+    if (result instanceof Promise) {
+      return result.then(finish, err => {
+        timestack.pop()
+        throw err
+      })
+    }
+    return finish(result)
+  } catch (err) {
+    timestack.pop()
+    throw err
+  }
 }
 
 // Track dependencies through the call stack

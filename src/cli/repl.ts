@@ -60,12 +60,12 @@ class REPL {
   }
 
   private async init() {
-    this.pipe.loadcommon(this.emitter, load)
+    await this.pipe.loadcommon(this.emitter, load)
     await withEmit(m => {
       reset(this.pipe)
       this.pipe.emit(m, this.emitter)
-    }, () => {
-      reload(this.pipe.sources, source('repl', ''), load)
+    }, async () => {
+      await reload(this.pipe.sources, source('repl', ''), load)
     })
     reset(this.pipe)
     await this.flush()
@@ -76,13 +76,13 @@ class REPL {
     await withEmit(m => {
       reset(this.pipe)
       this.pipe.emit(m, this.emitter)
-    }, () => {
+    }, async () => {
       const defs = this.pipe.sources
       const module = defs.module(tag(''))
       const cx = new LoadState(defs, module, load)
       const exprs = parse('repl', src)
       if (exprs.length) exprs[exprs.length - 1] = wrapPrint(exprs[exprs.length - 1])
-      for (const expr of exprs) vload(cx, expr)
+      for (const expr of exprs) await vload(cx, expr)
     })
     reset(this.pipe)
     await this.flush()

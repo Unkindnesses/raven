@@ -9,8 +9,8 @@ import { fingerprint, reset } from '../src/utils/cache.js'
 import { asArray } from '../src/utils/map.js'
 import { key, Sig } from '../src/middle/abstract.js'
 
-test('globals', () => {
-  const compiler = new Compiler(load, source('', 'foo = 1, bar = 1'))
+test('globals', async () => {
+  const compiler = await Compiler.create(load, source('', 'foo = 1, bar = 1'))
   const defs = compiler.pipe.defs
   const foo = new Binding(tag(''), 'foo')
   const bar = new Binding(tag(''), 'bar')
@@ -21,7 +21,7 @@ test('globals', () => {
   const fooId = defs.globals.id(foo)
   const barId = defs.globals.id(bar)
 
-  compiler.reload(source('', 'foo = 1, bar = 2'))
+  await compiler.reload(source('', 'foo = 1, bar = 2'))
   reset(defs, [compiler.pipe.sources])
 
   assert.deepEqual(defs.global(foo), types.int64(1))
@@ -31,8 +31,8 @@ test('globals', () => {
   assert.notEqual(barId, defs.globals.id(bar))
 })
 
-test('methods', () => {
-  const compiler = new Compiler(load, source('', 'fn foo(x) { x+1 }'))
+test('methods', async () => {
+  const compiler = await Compiler.create(load, source('', 'fn foo(x) { x+1 }'))
   const defs = compiler.pipe.defs
 
   assert.equal(defs.methods(tag('foo')).length, 1)
@@ -41,7 +41,7 @@ test('methods', () => {
   const fooId = defs.table.id(tag('foo'))
   const mainId = defs.table.id(tag('common.core.main'))
 
-  compiler.reload(source('', 'fn foo(x) { x+2 }'))
+  await compiler.reload(source('', 'fn foo(x) { x+2 }'))
   reset(compiler.pipe)
 
   assert.equal(defs.methods(tag('foo')).length, 1)
@@ -49,8 +49,8 @@ test('methods', () => {
   assert.equal(mainId, defs.table.id(tag('common.core.main')))
 })
 
-test('inference', () => {
-  const compiler = new Compiler(load, source('', 'n = 1, fn foo(x) { x+n }, foo(5)'))
+test('inference', async () => {
+  const compiler = await Compiler.create(load, source('', 'n = 1, fn foo(x) { x+n }, foo(5)'))
   const inf = compiler.pipe.inferred
   let [, fooType] = asArray(inf.get([tag('foo'), types.list(types.int64(5))]))
   assert.deepEqual(fooType, types.list(types.int64(6)))
@@ -58,15 +58,15 @@ test('inference', () => {
   inf.get([tag('common.+'), types.list(types.int64(), types.int64())])
   const plusId = inf.results.id(key([tag('common.+'), types.list(types.int64(), types.int64())]))
 
-  compiler.reload(source('', 'n = 2, fn foo(x) { x+n }, foo(5)'));
+  await compiler.reload(source('', 'n = 2, fn foo(x) { x+n }, foo(5)'));
 
   [, fooType] = asArray(inf.get([tag('foo'), types.list(types.int64(5))]))
   assert.deepEqual(fooType, types.list(types.int64(7)))
   assert.equal(plusId, inf.results.id(key([tag('common.+'), types.list(types.int64(), types.int64())])))
 })
 
-test('compiler', () => {
-  const compiler = new Compiler(load,)
+test('compiler', async () => {
+  const compiler = await Compiler.create(load)
   reset(compiler.pipe)
   compiler.pipe.wasm.get([tag('common.malloc!'), types.list(types.int32())])
   const before = fingerprint(compiler.pipe)
@@ -78,15 +78,15 @@ test('compiler', () => {
   assert.deepEqual(before, after)
 })
 
-test('match method', () => {
-  const compiler = new Compiler(load,)
+test('match method', async () => {
+  const compiler = await Compiler.create(load)
   const sig: Sig = [tag('common.matchTrait'), types.list(tag('common.Int64'), types.int64())]
 
   assert.ok(!compiler.pipe.inferred.results.iscached(key(sig)))
   const matchResult = compiler.pipe.inferred.get(sig)
   assert.ok(Array.isArray(matchResult))
 
-  compiler.reload(source('', `
+  await compiler.reload(source('', `
     @extend, fn matchTrait(tag"Lit", x: pack(tag"Lit", val)) { Some(x) }
   `))
 

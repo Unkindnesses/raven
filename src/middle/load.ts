@@ -18,7 +18,7 @@ function pathtag(p: string): Tag {
   return tag(p.slice(0, -3).split('/').join('.'))
 }
 
-type Loader = (path: string) => [string, string]
+type Loader = (path: string) => Promise<[string, string]>
 
 class LoadState {
   constructor(readonly comp: Modules, readonly mod: Module, readonly load: Loader) { }
@@ -76,9 +76,9 @@ function load_clear(cx: LoadState, x: ast.Expr): void {
   }
 }
 
-function load_include(cx: LoadState, x: ast.Expr): void {
+async function load_include(cx: LoadState, x: ast.Expr): Promise<void> {
   const filename = ast.asString(x.args[1])
-  loadfile(cx, filename)
+  await loadfile(cx, filename)
 }
 
 function load_expr(cx: LoadState, x: ast.Tree): void {
@@ -111,7 +111,7 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
   cx.mod.method(fnTag, sigPattern, ir)
 }
 
-function vload(cx: LoadState, x: ast.Tree, extend = false): void {
+async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> {
   let [ex] = annos(x)
   if (ast.isExpr(ex, 'Syntax')) {
     x = x as ast.Expr
@@ -125,7 +125,7 @@ function vload(cx: LoadState, x: ast.Tree, extend = false): void {
     return load_expr(cx, x)
   }
   if (ast.isExpr(x, 'Group')) {
-    for (const item of x.args) vload(cx, item)
+    for (const item of x.args) await vload(cx, item)
     return
   }
   if (ast.isExpr(x, 'Operator')) {
@@ -141,26 +141,26 @@ function vload(cx: LoadState, x: ast.Tree, extend = false): void {
   load_expr(cx, x)
 }
 
-function loadfile(cx: LoadState, path: SourceString | string, content?: string): void {
+async function loadfile(cx: LoadState, path: SourceString | string, content?: string): Promise<void> {
   if (typeof path !== 'string')
     [path, content] = [path.path, path.source]
-  if (content === undefined) [path, content] = cx.load(path)
+  if (content === undefined) [path, content] = await cx.load(path)
   const exprs = parse(path, content)
-  for (const expr of exprs) vload(cx, expr)
+  for (const expr of exprs) await vload(cx, expr)
 }
 
-function loadmodule(comp: Modules, mod: Module | Tag, src: SourceString | string, load: Loader): Module {
+async function loadmodule(comp: Modules, mod: Module | Tag, src: SourceString | string, load: Loader): Promise<Module> {
   if (mod instanceof Tag) mod = comp.module(mod)
   const cx = new LoadState(comp, mod, load)
-  loadfile(cx, src)
+  await loadfile(cx, src)
   return mod
 }
 
-function reload(comp: Modules, src: SourceString | string, load: Loader): Modules {
+async function reload(comp: Modules, src: SourceString | string, load: Loader): Promise<Modules> {
   const main = comp.module(tag(""))
   main.clear()
   const common = comp.module(tag("common"))
   main.import(common, [...common.exports])
-  loadmodule(comp, main, src, load)
+  await loadmodule(comp, main, src, load)
   return comp
 }

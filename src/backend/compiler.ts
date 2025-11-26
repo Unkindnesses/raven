@@ -61,18 +61,18 @@ class Pipeline implements Caching {
     em.emit(this.wasm, fn)
   }
 
-  loadcommon(emitter: wasm.Emitter, load: Loader): this {
+  async loadcommon(emitter: wasm.Emitter, load: Loader): Promise<this> {
     const emit = (m: mods.Method) => {
       reset(this)
       this.emit(m, emitter)
     }
-    withEmit(emit, () => {
+    await withEmit(emit, async () => {
       this.sources.module(core())
       // TODO toplevel exprs should compile in the context of the relevant module,
       // rather than main. Which would make the following unnecessary.
       this.sources.module(tag('')).import(this.sources.module(tag('common')))
-      loadmodule(this.sources, tag('common.core'), 'core.rv', load)
-      loadmodule(this.sources, tag('common'), 'common.rv', load)
+      await loadmodule(this.sources, tag('common.core'), 'core.rv', load)
+      await loadmodule(this.sources, tag('common'), 'common.rv', load)
     })
     return this
   }
@@ -86,30 +86,35 @@ class Compiler {
   readonly emitter: wasm.Emitter
   time = 0n
 
-  constructor(readonly load: Loader, src?: string | SourceString) {
+  private constructor(readonly load: Loader) {
     this.pipe = new Pipeline()
     this.emitter = new wasm.BatchEmitter()
-    this.loadcommon()
-    if (src) this.reload(src)
   }
 
-  loadcommon(): this {
-    const [, t] = withtime(() => {
-      this.pipe.loadcommon(this.emitter, this.load)
+  static async create(load: Loader, src?: string | SourceString): Promise<Compiler> {
+    const compiler = new Compiler(load)
+    await compiler.loadcommon()
+    if (src) await compiler.reload(src)
+    return compiler
+  }
+
+  async loadcommon(): Promise<this> {
+    const [, t] = await withtime(async () => {
+      await this.pipe.loadcommon(this.emitter, this.load)
     })
     this.time += t
     return this
   }
 
-  reload(src: string | SourceString): wasm.Emitter {
+  async reload(src: string | SourceString): Promise<wasm.Emitter> {
     if (!(this.emitter instanceof wasm.BatchEmitter)) throw new Error('nope')
     const em = this.emitter.clone()
-    const [, t] = withtime(() => {
+    const [, t] = await withtime(async () => {
       const emitIR = (m: mods.Method) => {
         reset(this.pipe)
         this.pipe.emit(m, em)
       }
-      withEmit(emitIR, () => { reload(this.pipe.sources, src, this.load) })
+      await withEmit(emitIR, async () => { await reload(this.pipe.sources, src, this.load) })
       reset(this.pipe)
       if (options().memcheck && em.funcs.some(fn => fn.name.startsWith('common.malloc!'))) {
         const checks = this.pipe.defs.methods(tag('common.checkAllocations'))

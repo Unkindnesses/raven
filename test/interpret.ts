@@ -3,7 +3,11 @@ import * as assert from 'assert'
 import * as types from '../src/frontend/types.js'
 import { Compiler, load } from '../src/cli/compile.js'
 
-const compiler = new Compiler(load)
+let compiler: Compiler
+
+test.before(async () => {
+  compiler = await Compiler.create(load)
+})
 
 test('interpret core pack literal params', () => {
   const int = compiler.pipe.interp

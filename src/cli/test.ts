@@ -32,7 +32,7 @@ async function runNode(wasm: string, args: string[] = []): Promise<Result> {
 }
 
 async function run(code: string, options?: Partial<Options>): Promise<Result> {
-  if (!compiler) compiler = new Compiler(load)
+  if (!compiler) compiler = await Compiler.create(load)
   const comp = options === undefined ? compiler : undefined
   const dir = await mkdtemp(path.join(tmpdir(), 'raven-test-'))
   const rvPath = path.join(dir, 'test.rv')

@@ -37,7 +37,7 @@ const canonical = (path: string): string => {
   return normalized
 }
 
-const load: Loader = path => {
+const load: Loader = async path => {
   const key = canonical(path)
   const contents = lookupBundled(key)
   if (contents !== undefined) return [`common/${key}`, contents]
@@ -59,39 +59,44 @@ class StreamCompiler {
   private readonly emitter: wasm.StreamEmitter
   private ready = false
 
-  constructor(private readonly load: Loader) {
+  private constructor(private readonly load: Loader) {
     this.pipe = new Pipeline()
     this.emitter = new wasm.StreamEmitter()
-    this.pipe.loadcommon(this.emitter, this.load)
   }
 
-  compile(src: string): Uint8Array[] {
+  static async create(load: Loader): Promise<StreamCompiler> {
+    const compiler = new StreamCompiler(load)
+    await compiler.pipe.loadcommon(compiler.emitter, load)
+    return compiler
+  }
+
+  async compile(src: string): Promise<Uint8Array[]> {
     const modules: Uint8Array[] = []
     const strip = true
-    modules.push(...this.init(strip))
-    withEmit(m => {
+    modules.push(...await this.init(strip))
+    await withEmit(m => {
       reset(this.pipe)
       this.pipe.emit(m, this.emitter)
-    }, () => {
+    }, async () => {
       const defs = this.pipe.sources
       const module = defs.module(tag(''))
       const cx = new LoadState(defs, module, load)
       const exprs = parse('repl', src)
       if (exprs.length) exprs[exprs.length - 1] = wrapPrint(exprs[exprs.length - 1])
-      for (const expr of exprs) vload(cx, expr)
+      for (const expr of exprs) await vload(cx, expr)
     })
     reset(this.pipe)
     modules.push(...this.flush(strip))
     return modules
   }
 
-  private init(strip: boolean): Uint8Array[] {
+  private async init(strip: boolean): Promise<Uint8Array[]> {
     if (this.ready) return []
-    withEmit(m => {
+    await withEmit(m => {
       reset(this.pipe)
       this.pipe.emit(m, this.emitter)
-    }, () => {
-      reload(this.pipe.sources, source('repl', ''), this.load)
+    }, async () => {
+      await reload(this.pipe.sources, source('repl', ''), this.load)
     })
     reset(this.pipe)
     this.ready = true
@@ -107,9 +112,9 @@ class StreamCompiler {
 }
 
 export interface Compiler {
-  compile(src: string): Uint8Array[]
+  compile(src: string): Promise<Uint8Array[]>
 }
 
-function compiler(): Compiler {
-  return new StreamCompiler(load)
+async function compiler(): Promise<Compiler> {
+  return StreamCompiler.create(load)
 }
