@@ -35,13 +35,23 @@ fn String(ref: Ref) {
 fn String(obj: JSObject) { String(jsref(obj)) }
 
 fn js(String(r)) { JSObject(r) }
+fn jsref(String(r)) { r }
 
 fn show(x: String) {
   print(String(js.JSON.stringify(x)))
 }
 
-fn iterator(x: String) {
-  mapping(String, js(x))
+bundle StringItr(s: String, i: Int64)
+
+fn iterator(x: String) { StringItr(x, 0) }
+
+fn next(&itr: StringItr(s, i)) {
+  if i >= length(utf16(s)) { return }
+  idx = widen(bits(Int32(i)))
+  cp = UInt32(wasm call("wasm:js-string".codePointAt, jsref(s): ref, idx: i32): i32)
+  ch = Char(cp)
+  itr = StringItr(s, if cp >= 0x10000 { i + 2 } else { i + 1 })
+  return Some(ch)
 }
 
 fn length(s: String) { count(s) }

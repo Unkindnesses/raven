@@ -796,7 +796,7 @@ test('rounding', async () => {
 test('collect string', async () => {
   await rv(`
     show collect("foo")
-  `, { output: '["f", "o", "o"]' })
+  `, { output: '[c"f", c"o", c"o"]' })
 })
 
 test('string indexing', async () => {

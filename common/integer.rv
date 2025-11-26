@@ -194,10 +194,10 @@ fn (a: UInt) * (b: UInt) { UInt(intop(bitmul, a, b)) }
 fn (a: UInt) == (b: UInt) { Bool(intop(biteq, a, b)) }
 fn (a: UInt) != (b: UInt) { Bool(intop(bitne, a, b)) }
 
-fn (a: UInt) >  (b: UInt) { Bool(intop(bitgt, a, b)) }
-fn (a: UInt) >= (b: UInt) { Bool(intop(bitge, a, b)) }
-fn (a: UInt) <  (b: UInt) { Bool(intop(bitlt, a, b)) }
-fn (a: UInt) <= (b: UInt) { Bool(intop(bitle, a, b)) }
+fn (a: UInt) >  (b: UInt) { Bool(intop(bitgt_u, a, b)) }
+fn (a: UInt) >= (b: UInt) { Bool(intop(bitge_u, a, b)) }
+fn (a: UInt) <  (b: UInt) { Bool(intop(bitlt_u, a, b)) }
+fn (a: UInt) <= (b: UInt) { Bool(intop(bitle_u, a, b)) }
 
 fn zero?(x: UInt) { Bool(biteqz(bits(x))) }
 

@@ -10,22 +10,22 @@ fn parse(code) {
   body = []
   for ch = code {
     # TODO cleaner dictionary lookup
-    if ch == "<" {
+    if ch == c"<" {
       append(&body, Left())
-    } else if ch == ">" {
+    } else if ch == c">" {
       append(&body, Right())
-    } else if ch == "+" {
+    } else if ch == c"+" {
       append(&body, Inc())
-    } else if ch == "-" {
+    } else if ch == c"-" {
       append(&body, Dec())
-    } else if ch == "," {
+    } else if ch == c"," {
       append(&body, Read())
-    } else if ch == "." {
+    } else if ch == c"." {
       append(&body, Write())
-    } else if ch == "[" {
+    } else if ch == c"[" {
       append(&stack, body)
       body = []
-    } else if ch == "]" {
+    } else if ch == c"]" {
       loop = Loop(body)
       body = pop(&stack)
       append(&body, loop)
