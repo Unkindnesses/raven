@@ -13,6 +13,7 @@ fn JSObject() { new(js.Object) }
 
 fn js(x: JSObject) { x }
 
+fn jsref(x) { jsref(js(x)) }
 fn jsref(JSObject(ref)) { ref }
 
 fn js() {

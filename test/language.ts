@@ -14,6 +14,14 @@ test('print js', async () => {
   await rv('println(js(1))', { output: '1' })
 })
 
+test('js template string', async () => {
+  await rv('println(js`return 42`)', { output: '42' })
+})
+
+test('js template with interpolation', async () => {
+  await rv('x = 10\nprintln(js`return \\x + 1`)', { output: '11' })
+})
+
 test('print float', async () => {
   await rv('println(2.0)', { output: '2' })
 })

@@ -1,4 +1,4 @@
-import { DebugModule, locate, Source } from '../dwarf/parse.js'
+import { DebugModule, locate, Source, sections } from '../dwarf/parse.js'
 import { Def } from '../dwarf/index.js'
 
 export { loadWasm, support, table }
@@ -93,8 +93,13 @@ if (isNode) {
   throw new Error('dummy error')
 }
 
+interface JSEntry {
+  code: string
+  params: string[]
+}
+
 function support() {
-  return {
+  const base: Record<string, any> = {
     global, call, apply,
     createRef, fromRef, abort,
     equal, release,
@@ -106,6 +111,25 @@ function support() {
     errcall: new (WebAssembly as any).Suspending(errcall),
     debugger: () => { debugger }
   }
+  return base
+}
+
+function inline(js: JSEntry[]) {
+  const inline: Record<string, Function> = {}
+  for (let i = 0; i < js.length; i++)
+    inline[`js_${i}`] = new Function(...js[i].params, js[i].code)
+  return inline
+}
+
+interface RavenMeta {
+  js: JSEntry[]
+}
+
+function parseRavenMeta(buf: Uint8Array): RavenMeta | undefined {
+  const [, table] = sections(buf)
+  const data = table.get('raven.meta')
+  if (!data) return
+  return JSON.parse(new TextDecoder().decode(data))
 }
 
 const debugModules = new Map<WebAssembly.Instance, DebugModule>()
@@ -145,7 +169,8 @@ if (isNode) {
 }
 
 async function loadWasm(buf: Uint8Array, imports: any = {}) {
-  imports = { ...imports, support: support() }
+  const meta = parseRavenMeta(buf)
+  imports = { ...imports, support: support(), inline: inline(meta?.js ?? []) }
   const res = await (WebAssembly.instantiate as any)(new Uint8Array(buf), imports, { builtins: ['js-string'], importedStringConstants: "strings" })
   const debug = DebugModule(buf)
   if (debug) debugModules.set(res.instance, debug)

@@ -1,7 +1,7 @@
 import { parentPort, MessagePort } from 'node:worker_threads'
 import { Console } from 'node:console'
 import { Writable } from 'node:stream'
-import { loadWasm, support } from '../backend/support.js'
+import { loadWasm } from '../backend/support.js'
 
 export { WorkerCommand, WorkerRequest, WorkerResponse }
 
@@ -19,7 +19,7 @@ type WorkerResponse =
 const port = parentPort
 if (!port) throw new Error('REPL worker requires a parent port')
 
-const imports = { support, wasm: {} }
+const imports = { wasm: {} }
 let current = Promise.resolve()
 
 port.on('message', (msg: WorkerRequest) => {

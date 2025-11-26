@@ -7,7 +7,7 @@ import { unreachable, Anno, Pipe, expr, Val, Branch, Expr, asType } from '../uti
 import { isEqual } from '../utils/isEqual.js'
 import { wlayout } from '../middle/expand.js'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe } from '../utils/cache.js'
-import { Binding, Definitions, MIR, Method, StringRef, Global, SetGlobal, Wasm as WasmCall, callargs } from '../frontend/modules.js'
+import { Binding, Definitions, MIR, Method, StringRef, JS, Global, SetGlobal, Wasm as WasmCall, callargs } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
 import { Redirect, type Sig } from '../middle/abstract.js'
 import { Accessor } from '../utils/fixpoint.js'
@@ -85,14 +85,23 @@ function tableid<T>(xs: T[], x: T): number {
   return xs.length - 1
 }
 
+interface JSInline {
+  code: string
+  params: string[]
+}
+
 class Tables {
   strings: string[] = []
   funcs: string[] = []
+  js: JSInline[] = []
   string(s: string): string {
     tableid(this.strings, s)
     return s
   }
   func(f: string): number { return tableid(this.funcs, f) }
+  jsinline(code: string, params: string[]): number {
+    return tableid(this.js, { code, params })
+  }
 }
 
 function instr<T>(instr: wasm.Instruction, ...args: (T | number)[]): Instr<T> {
@@ -119,6 +128,12 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
     for (const [v, st] of block) {
       if (st.expr instanceof StringRef) {
         env.set(v, out.push({ ...st, expr: instr(wasm.GetGlobal(tables.string(st.expr.value))), type: [wasm.externref] }))
+      } else if (st.expr instanceof JS) {
+        const id = tables.jsinline(st.expr.code, st.expr.params)
+        const argTypes = st.expr.params.map(() => wasm.externref)
+        const fname = names.get([['inline', `js_${id}`], argTypes, [wasm.externref]])
+        const args = st.expr.body.map(rename)
+        env.set(v, out.push({ ...st, expr: instr(wasm.Call(fname), ...args), type: [wasm.externref] }))
       } else if (st.expr.head === 'func') {
         const [f, I, O] = st.expr.body
         const name = names.get([types.asTag(f), asType(ir.type(I))])
@@ -309,6 +324,12 @@ function stringImports(strings: string[]): wasm.Import[] {
     wasm.Import('strings', value, wasm.Global(value, wasm.externref, { mut: false })))
 }
 
+function metaSection(tables: Tables): wasm.CustomSection[] {
+  if (tables.js.length === 0) return []
+  const meta = { js: tables.js }
+  return [wasm.CustomSection('raven.meta', new TextEncoder().encode(JSON.stringify(meta)))]
+}
+
 function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.Module {
   em.funcs.unshift(startfunc(em.main))
   const mod = wasm.Module({
@@ -322,7 +343,8 @@ function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.M
     globals: globals.types.map(g => wasm.Global(...g)),
     tables: [wasm.Table('funcs', tables.funcs.length)],
     elems: [wasm.Elem(0, tables.funcs)],
-    mems: [wasm.Mem('cm32p2_memory', 0)]
+    mems: [wasm.Mem('cm32p2_memory', 0)],
+    customs: metaSection(tables)
   })
   return mod
 }
@@ -393,7 +415,8 @@ class StreamEmitter implements Emitter {
       globals,
       tables: [wasm.Table('funcs', mod.tables.funcs.length)],
       elems: [wasm.Elem(0, Array.from(mod.tables.funcs))],
-      mems: first ? [wasm.Mem('memory', 0)] : []
+      mems: first ? [wasm.Mem('memory', 0)] : [],
+      customs: metaSection(mod.tables)
     })
     this.queue.push(wmod)
     this.globals = mod.globals.types.length

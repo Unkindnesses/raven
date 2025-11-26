@@ -14,3 +14,4 @@ dist
 test/*/*.js
 /wasi-cli
 src/**/*.json
+.claude

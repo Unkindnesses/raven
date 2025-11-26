@@ -6,7 +6,7 @@ import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast.js"
 import * as types from "./types.js"
 import { Type, Tag, tag, pack, bits, nil } from "./types.js"
 import { ValueType, AbsHeapType, i32, i64, f32, f64, externref } from "../wasm/wasm.js"
-import { Module, Signature, Binding, MIR, xstring, Method, xglobal, xset, SetGlobal, Invoke, Wasm } from "./modules.js"
+import { Module, Signature, Binding, MIR, xstring, xjs, Method, xglobal, xset, SetGlobal, Invoke, Wasm } from "./modules.js"
 import { Def } from "../dwarf/index.js"
 import { asBigInt, some } from "../utils/map.js"
 import { binding } from "../utils/options.js"
@@ -478,6 +478,11 @@ function lowerTemplate(sc: Scope, code: LIR, ex: ast.Expr): Val<LIR> {
   } else if (template === 'r') {
     const pattern = asString(ex.args[1])
     return rcall(code, tag('common.Regex'), [string(code, pattern)], { src: ex.meta })
+  } else if (template === 'js') {
+    const [js, params] = jsinline(ex)
+    const args = params.map(name => rcall(code, tag('common.jsref'), [sc.get(name)], { src: ex.meta }))
+    const ref = _push(code, xjs(js, params, args), { type: types.Ref, src: ex.meta })
+    return rcall(code, tag('common.JSObject'), [ref], { src: ex.meta })
   }
   throw new Error(`Unimplemented template type: ${template}`)
 }
@@ -527,6 +532,17 @@ function intrinsic_args(ex: ast.Tree): ast.Tree[] {
   const start = isEqual(op.unwrap(), ast.symbol('call')) ? 2 : 1
   return e.args.slice(start).map(x =>
     ast.isExpr(x, 'Operator') && isEqual(x.args[0].unwrap(), ast.symbol(':')) ? x.args[1] : x)
+}
+
+function jsinline(ex: ast.Expr): [string, string[]] {
+  const js = asString(ex.args[1])
+  const params: string[] = []
+  // TODO don't parse within string/regex/comment
+  const code = js.replace(/\\([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, name) => {
+    if (!params.includes(name)) params.push(name)
+    return `(${name})`
+  })
+  return [code, params]
 }
 
 function lowerSyntax(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {

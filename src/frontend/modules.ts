@@ -12,7 +12,7 @@ import { Instruction, Op, ValueType } from "../wasm/wasm.js"
 export {
   Module, Method, Signature, Binding, asBinding, asValue, Modules,
   Definitions, Value, MIR, IRValue, showIRValue,
-  StringRef, xstring, Global, SetGlobal, xglobal, xset, Invoke, Wasm, xwasm, callargs
+  StringRef, xstring, JS, xjs, Global, SetGlobal, xglobal, xset, Invoke, Wasm, xwasm, callargs
 }
 
 class Binding {
@@ -56,6 +56,23 @@ class StringRef<T> extends ir.Expr<T> {
 }
 
 function xstring<T>(s: string): StringRef<T> { return new StringRef<T>(s) }
+
+class JS<T> extends ir.Expr<T> {
+  constructor(readonly code: string, readonly params: string[] = [], args: (T | number)[] = []) {
+    super('js', args)
+  }
+  map(f: (x: T | number) => T | number): JS<T> {
+    return new JS(this.code, this.params, this.body.map(f))
+  }
+  show(pr: (x: T | number) => string): string {
+    const args = this.body.length > 0 ? `, ${this.body.map(pr).join(', ')}` : ''
+    return `js\`${this.code}\`${args}`
+  }
+}
+
+function xjs<T>(code: string, params: string[] = [], args: (T | number)[] = []): JS<T> {
+  return new JS<T>(code, params, args)
+}
 
 class Global<T> extends ir.Expr<T> {
   constructor(readonly binding: Binding) { super('global') }

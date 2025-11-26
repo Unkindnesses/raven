@@ -1,9 +1,9 @@
 import { unreachable, expand, Anno, Block, Expr, Branch, prune, asType } from '../utils/ir.js'
 import { LoopIR, looped, Path, block, nextpath, nextpathTo, pin, blockargs, loop, unloop } from './loop.js'
 import { MatchMethods, dispatcher } from './patterns.js'
-import { Tag, Type, repr, union, issubset as iss, isValue, pack, tag, tagOf, String as RString } from '../frontend/types.js'
+import { Tag, Type, repr, union, issubset as iss, isValue, pack, tag, tagOf, String as RString, Ref } from '../frontend/types.js'
 import { wasmPartials } from '../backend/wasm.js'
-import { MIR, IRValue, Binding, Method, Definitions, StringRef, Global, SetGlobal, Wasm, callargs } from '../frontend/modules.js'
+import { MIR, IRValue, Binding, Method, Definitions, StringRef, JS, Global, SetGlobal, Wasm, callargs } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
 import { WorkQueue } from '../utils/fixpoint.js'
 import { hash, HashSet, some } from '../utils/map.js'
@@ -282,6 +282,8 @@ function update(inf: Inference, k: string): void {
         if (!isValue(asType(st.type))) throw new Error('tuple without type')
       } else if (ex instanceof StringRef) {
         bl.ir.setType(v, RString())
+      } else if (ex instanceof JS) {
+        bl.ir.setType(v, Ref)
       } else throw new Error(`Unknown expr type ${ex.head}`)
     }
     while (true) {
