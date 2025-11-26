@@ -109,6 +109,16 @@ test('triple-quoted escape with extended delimiter', () => {
   assert.equal(ast.asToken(tree).unwrap(), 'a newline \n here')
 })
 
+test('triple-quoted tagged template', () => {
+  const src = `"""js
+  console.log("hello")
+  """`
+  const tree = parse('test', src)[0]
+  assert.ok(ast.isExpr(tree, 'Template'))
+  assert.equal(asSymbol(tree.args[0].unwrap()).toString(), 'js')
+  assert.equal(ast.asToken(tree.args[1]).unwrap(), 'console.log("hello")')
+})
+
 test('precedence table transitivity', () => {
   function transitive(t: PrecTable): boolean {
     let trans = true

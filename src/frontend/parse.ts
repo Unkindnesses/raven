@@ -200,7 +200,7 @@ function trimCommonIndent(s: string): string {
   return lines.map(l => l.slice(indent.length)).join('\n')
 }
 
-function tripleString(r: Reader): string | undefined {
+function tripleString(r: Reader): string | ast.Tree | undefined {
   let slashes = 0
   while (!r.eof() && r.peek === '\\') { r.read(); slashes++ }
   if (r.eof()) return
@@ -210,11 +210,16 @@ function tripleString(r: Reader): string | undefined {
   const raw = q === '`'
   const escape = '\\'.repeat(raw ? 0 : Math.max(1, slashes))
   const close = q + q + q + '\\'.repeat(slashes)
+  const mark = r.mark()
+  let tag = symbol(r)
+  if (tag !== undefined && r.peek === '\n') r.read()
+  else { tag = undefined; r.reset(mark) }
   let s = ''
   while (!r.eof()) {
     if (r.parse(r => exact(r, close))) {
       const trimmed = trimCommonIndent(s)
-      return raw ? trimmed : processEscapes(trimmed, escape)
+      const t = raw ? trimmed : processEscapes(trimmed, escape)
+      return tag ? ast.Template(tag, t) : t
     }
     if (!raw && r.parse(r => exact(r, escape))) {
       s += escape + r.read()
