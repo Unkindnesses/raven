@@ -39,7 +39,7 @@ class REPL {
   private output = ''
   private closed = false
 
-  private constructor(opts: ReplOptions = {}) {
+  constructor(opts: ReplOptions = {}) {
     this.stdout = opts.stdout ?? process.stdout
     this.stderr = opts.stderr ?? process.stderr
     this.options = opts.options ?? {}
@@ -63,7 +63,7 @@ class REPL {
     await this.worker.terminate()
   }
 
-  private async init() {
+  async init() {
     await withOptions(this.options, async () => {
       await this.pipe.loadcommon(this.emitter, load)
       await withEmit(m => {
