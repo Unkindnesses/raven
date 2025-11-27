@@ -1,5 +1,39 @@
 # The Raven Programming Language
 
+## Getting Started
+
+Start by trying out the [language tour](https://mikeinnes.io/posts/raven-tour/). Once you've got a feel, you may want to get Raven set up on your own machine, so you can build and debug bigger programs.
+
+### With VS Code
+
+The easiest way to set up Raven is using the [VS Code](https://code.visualstudio.com) editor extension. Install [the Raven plugin](https://marketplace.visualstudio.com/items?itemName=unkindnesses.raven-lang). Then open the command palette (`View -> Command Palette...`) and run `Raven: Add Terminal Command`. The `raven` command will then be available in new terminals (if you already have a terminal open, you may need to relaunch it). See [below](#the-cli) for how to use the `raven` command.
+
+### With Node.js
+
+Slightly more advanced: If you want to use Raven outside of VS Code, you can install [Node.js](https://nodejs.org/en) and then add the Raven package globally. It doesn't matter how you install Node, but here's my recommended setup:
+
+* **Windows**: Run `winget install -e --id OpenJS.NodeJS` in a terminal.
+* **MacOS**: Set up [Homebrew](https://brew.sh) and run `brew install node`.
+* **Linux**: Set up [fnm](https://github.com/Schniz/fnm) with `curl -fsSL https://fnm.vercel.app/install | bash`, restart shell, `fnm install 25`.
+
+Once you have node, it's just `npm i -g @unkindnesses/raven`, and you'll be able to use `raven` from there! See [below](#the-cli) for guidance.
+
+### From source
+
+For experts who want the latest and greatest, or to tweak Raven's code, it's pretty easy to clone the repo and go; you'll still need Node as above.
+
+```
+git clone https://github.com/Unkindnesses/raven
+cd raven
+npm install
+npm run build
+npm i -g .
+```
+
+The `npm i` command will put `raven` on your path, just like the packaged install. You can use `npm run watch` to live-update as you make changes to the source code.
+
+Raven has no other run-time dependencies, but does rely on a few other tools for the full test suite: [wasm-tools](https://github.com/bytecodealliance/wasm-tools), [wasmtime](https://github.com/bytecodealliance/wasmtime) and [llvm](https://llvm.org) (MacOS/Linux only). On MacOS these are all a `brew install` away. You'll also need to `npx playwright install chromium`. Then you can run `npm test`.
+
 ## The CLI
 
 Use `raven --help` for a command reference. On its own, the `raven` command launches a REPL.
@@ -265,6 +299,21 @@ The identity function.
 fn identity(x) { x }
 ```
 
+Raven also has template strings, which use a prefix to alter how the string is interpreted (like a macro). Single-quote strings use a prefix, like for regexes or JavaScript:
+
+```ruby
+r`\d`
+js`return 2+2`
+```
+
+Triple-quote templates put the tag just after the opening quote, like so:
+
+````
+```js
+console.log("hello, world")
+```
+````
+
 ## Strings
 
 Strings in double quotes, `"hello, world"`, understand escapes like `\n`, `\t`, `\\` and `\"`. Backticks avoid escaping.
@@ -296,6 +345,18 @@ hello,
  world
 ```
 
+Triple-quote strings, with both `"` and backticks, support escaping and extended delimiters in the same way. They remove indentation from the beginning of the string.
+
+```
+{
+  a = """
+  hello, world
+  """
+  b = "hello, world"
+  test a == b
+}
+```
+
 Regular expressions use the `r"..."` string macro. Test a string with `contains?` and iterate over matches (and capture groups) with `matches`.
 
 ```
@@ -303,4 +364,103 @@ Regular expressions use the `r"..."` string macro. Test a string with `contains?
 true
 > collect(matches("1, 2, 3", r`\d`))
 [["1"], ["2"], ["3"]]
+```
+
+Strings are sequences of unicode scalar values, represented as 21-bit integers in the `Char` type.
+
+```ruby
+> collect("hello 🔥")
+[c"h", c"e", c"l", c"l", c"o", c" ", c"🔥"]
+> "hello 🔥"[7] == c"🔥"
+true
+> UInt32("hello 🔥"[7])
+0x0001f525
+```
+
+Strings are abstracted from the storage format, and indexing is linear-time. You can get data views with constant-time access to code points, in a given encoding, with `chars`, `utf16` and `utf8`.
+
+```ruby
+> map(UInt32, chars("A"))
+[0x00000041]
+> collect(utf16("A"))
+[0x0041]
+> collect(utf8("A"))
+[0x41]
+
+> map(UInt32, chars("🔥"))
+[0x0001f525]
+> collect(utf16("🔥"))
+[0xd83d, 0xdd25]
+> collect(utf8("🔥"))
+[0xf0, 0x9f, 0x94, 0xa5]
+```
+
+Note that graphemes may be composed from multiple `Char`s.
+
+```ruby
+> collect("🤦🏼‍♂️")
+[c"🤦", c"🏼", c"‍", c"♂", c"️"]
+```
+
+## Calling JavaScript
+
+The `js` function can be used to convert Raven objects to JavaScript ones. Use these largely as you would in JS proper.
+
+```ruby
+> js("hello")
+js("hello")
+> js("hello").toUpperCase()
+js("HELLO")
+```
+
+You can also use `js` like a namespace; it represents `globalThis`.
+
+```ruby
+> js.Math.sqrt(5)
+js(2.23606797749979)
+```
+
+Note that calling JS will result in (boxed) JS objects, not Raven ones, so you'll usually want to convert back.
+
+```ruby
+> String(js("hello").toUpperCase())
+"HELLO"
+> Float64(js.Math.sqrt(5))
+2.23606797749979
+```
+
+You can write JavaScript inline, too.
+
+```ruby
+fn mysqrt(x) {
+  result = js`return Math.sqrt(\x)`
+  return Float64(result)
+}
+```
+
+You can interpolate Raven values with `\`. The code is evaluated in a function context, so you need to `return` to get a value back. Here's how `sleep` is written.
+
+````ruby
+fn sleep(n) {
+  p = ```js
+  return new Promise(resolve => {
+    setTimeout(() => { resolve() }, \n * 1000)
+  })
+  ```
+  await(p)
+  return
+}
+````
+
+Unlike JS, Raven has no `async`/`await` keywords, or any distinction between async and sync functions. We still need to unwrap JS promises with `await`, but this is a normal function call.
+
+Here's two other ways to get the UTF8 bytes from a string.
+
+```ruby
+> s = "foo"
+"foo"
+> map(UInt8, new(js.TextEncoder).encode(s))
+[0x66, 0x6f, 0x6f]
+> map(UInt8, js`return new TextEncoder().encode(\s)`)
+[0x66, 0x6f, 0x6f]
 ```

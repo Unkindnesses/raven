@@ -4,11 +4,9 @@
 
 Check out the [language tour](https://mikeinnes.io/posts/raven-tour/)!
 
-[Raven](https://mikeinnes.io/posts/raven/) is a small but smart language that compiles to WebAssembly. It combines a simple, functional data model, powerful type inference, and flexible syntax. It's currently in the proof-of-concept stage: you're welcome to play with it, but expect bugs to appear before long! Check out the [docs](DOCS.md) (such as they are) for more detail.
+[Raven](https://mikeinnes.io/posts/raven/) is a small but smart language that compiles to WebAssembly. It combines a simple, functional data model, powerful type inference, and flexible syntax. It's currently in the proof-of-concept stage: you're welcome to play with it, but expect bugs to appear before long! Check out the [docs](DOCS.md) (such as they are) for more detail, including how to get started with the `raven` command on your system.
 
-You'll need [Node.js](https://nodejs.org/en) on your system, then you can install the compiler using `npm install -g @unkindnesses/raven`, which will make `raven` available in your terminal. You can get syntax highlighting via the [VS Code extension](https://marketplace.visualstudio.com/items?itemName=unkindnesses.raven-lang).
-
-You can use the command to launch a repl:
+You can launch a repl:
 
 ```bash
 $ raven
@@ -170,15 +168,3 @@ Hello World!
 ```
 
 For more code samples, see [complex numbers](common/numbers/complex.rv) or [malloc](common/wasm/malloc.rv).
-
-## Local Setup
-
-```
-git clone https://github.com/Unkindnesses/raven
-cd raven
-npm install
-npm run build
-npm i -g .
-```
-
-This will put `raven` on your path, just like the packaged install. You can use `npm run watch` to live-update as you make changes to the source code.

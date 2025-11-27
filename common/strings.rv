@@ -129,6 +129,8 @@ fn UTF16View(s)[i] {
   return UInt16(ch)
 }
 
+fn iterate(v: UTF16View) { IndexIterator(v) }
+
 # Tags
 
 fn string(x: Tag) { tagstring(x) }
