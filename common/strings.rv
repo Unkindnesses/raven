@@ -60,18 +60,18 @@ fn length(s: String) { count(s) }
 
 fn (s: String)[i] { nth(s, i) }
 
-fn concat(String(a), String(b)) {
-  ref = wasm call("wasm:js-string".concat, a, b): ref!
+fn concat(a: String, b: String) {
+  ref = wasm call("wasm:js-string".concat, jsref(a), jsref(b)): ref!
   return unsafeString(ref)
 }
 
-fn String(a) == String(b) {
-  r = wasm call("wasm:js-string".equals, a, b): i32
+fn (a: String) == (b: String) {
+  r = wasm call("wasm:js-string".equals, jsref(a), jsref(b)): i32
   return Bool(r)
 }
 
-fn compare(String(a), String(b)) {
-  r = wasm call("wasm:js-string".compare, a, b): i32
+fn compare(a: String, b: String) {
+  r = wasm call("wasm:js-string".compare, jsref(a), jsref(b)): i32
   return Int64(Int32(r))
 }
 
@@ -119,15 +119,13 @@ bundle UTF16View(s: String)
 fn utf16(s: String) { UTF16View(s) }
 
 fn length(UTF16View(s)) {
-  String(x) = s # TODO fix nested constructor pattern
-  len = wasm call("wasm:js-string".length, x): i32
+  len = wasm call("wasm:js-string".length, jsref(s)): i32
   return Int64(len)
 }
 
 fn UTF16View(s)[i] {
-  String(x) = s
   i = widen(bits(Int32(i-1))) # TODO remove widen
-  ch = wasm call("wasm:js-string".charCodeAt, x, i: i32): i32
+  ch = wasm call("wasm:js-string".charCodeAt, jsref(s), i: i32): i32
   return UInt16(ch)
 }
 

@@ -123,6 +123,14 @@ fn Int32(obj: JSObject) {
   return Int32(x)
 }
 
+fn oftype(to: Int, from: JSObject) {
+  oftype(to, Int32(from))
+}
+
+fn oftype(to: UInt, from: JSObject) {
+  oftype(to, bits(Int32(from)))
+}
+
 fn Bool(obj: JSObject) { Bool(Int32(obj)) }
 
 fn condition(obj: JSObject) { condition(Bool(obj)) }
