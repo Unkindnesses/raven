@@ -21,16 +21,8 @@ function release(ref: number) {
   delete table[ref]
 }
 
-function global() {
-  return globalThis
-}
-
 function call(obj: any, meth: any, ...args: any[]) {
-  const func = obj[meth]
-  if (func === undefined) {
-    throw new Error(`No such method ${meth}`)
-  }
-  return func.call(obj, ...args)
+  return obj[meth].call(obj, ...args)
 }
 
 function apply(obj: any, meth: any, args: any) {
@@ -38,32 +30,16 @@ function apply(obj: any, meth: any, args: any) {
 }
 
 async function errcall(obj: any, meth: any, ...args: any[]) {
-  const func = obj[meth]
-  if (func === undefined) {
-    throw new Error(`No such method ${meth}`)
-  }
   try {
-    let result = await func.call(obj, ...args)
+    let result = await obj[meth].call(obj, ...args)
     return [0, result]
   } catch (e) {
     return [1, e]
   }
 }
 
-function equal(a: any, b: any) {
-  return a === b
-}
-
 function abort(obj: any, cause: any) {
   throw new Error(obj, cause ? { cause: cause } : {})
-}
-
-(globalThis as any).import = (module: string) => import(module);
-
-(globalThis as any).sleep = function (n: number) {
-  return new Promise<void>(resolve => {
-    setTimeout(() => { resolve() }, n * 1000)
-  })
 }
 
 const process = (globalThis as any).process
@@ -72,27 +48,6 @@ const isNode =
   process.versions != null &&
   process.versions.node != null
 
-if (isNode) {
-  (globalThis as any).readline = function () {
-    process.stdin.resume()
-    return new Promise(resolve => {
-      process.stdin.once('data', (data: any) => {
-        process.stdin.pause()
-        resolve(data.toString().trim())
-      })
-    })
-  }
-};
-
-// TODO: used for testing, remove
-(globalThis as any).dummyPromise = function (n: any) {
-  return new Promise(resolve => resolve(n))
-};
-
-(globalThis as any).dummyErr = function () {
-  throw new Error('dummy error')
-}
-
 interface JSEntry {
   code: string
   params: string[]
@@ -100,13 +55,8 @@ interface JSEntry {
 
 function support() {
   const base: Record<string, any> = {
-    global, call, apply,
-    createRef, fromRef, abort,
-    equal, release,
-    get: (x: any, p: any) => x[p],
-    set: (x: any, p: any, v: any) => { x[p] = v },
+    createRef, fromRef, release, call, apply, abort,
     identity: (x: any) => x,
-    typeof: (x: any) => typeof x,
     await: new (WebAssembly as any).Suspending((x: any) => x),
     errcall: new (WebAssembly as any).Suspending(errcall),
     debugger: () => { debugger }

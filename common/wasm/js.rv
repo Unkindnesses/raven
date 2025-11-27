@@ -1,6 +1,6 @@
 export {
   JSObject, debugger, abort, js, call, errcall, await, new, sleep
-  readline, require, typeof
+  readline, import, typeof
 }
 
 fn matchTrait(tag"common.core.Ref", x: pack(tag"common.core.Ref", _)) { Some(x) }
@@ -17,21 +17,19 @@ fn jsref(x) { jsref(js(x)) }
 fn jsref(JSObject(ref)) { ref }
 
 fn js() {
-  ref = wasm call(support.global): ref
-  return JSObject(ref)
+  js`return globalThis`
 }
 
 fn (obj: JSObject)[prop] { obj[js(prop)] }
 
 fn (obj: JSObject)[prop: JSObject] {
-  ref = wasm call(support.get, jsref(obj), jsref(prop)): ref
-  return JSObject(ref)
+  js`return \obj[\prop]`
 }
 
 fn set(&obj: JSObject, x, prop) { obj[js(prop)] = js(x) }
 
 fn set(&obj: JSObject, x: JSObject, prop: JSObject) {
-  wasm call(support.set, jsref(obj), jsref(prop), jsref(x)): ref
+  js`\obj[\prop] = \x`
   return obj
 }
 
@@ -146,7 +144,7 @@ fn abort(s: String) { abort(js(s)) }
 fn abort(s: String, cause) { abort(js(s), js(cause)) }
 
 fn typeof(x: JSObject) {
-  String(wasm call(support.typeof, jsref(x)): ref)
+  String(js`return typeof \x`)
 }
 
 fn isPrimitive(x: JSObject) {
@@ -154,7 +152,7 @@ fn isPrimitive(x: JSObject) {
 }
 
 fn string(x: JSObject) {
-  String(x.toString())
+  String(js\`return `${\x}``\)
 }
 
 fn string(x: (Float32 | Float64)) {
@@ -204,14 +202,15 @@ fn next(&x: JSObject) {
 }
 
 fn import(s) {
-  return await(js.import(s))
+  return await(js`return import(\s)`)
 }
 
 fn sleep(n) {
-  await(js.sleep(n))
+  p = ```js
+  return new Promise(resolve => {
+    setTimeout(() => { resolve() }, \n * 1000)
+  })
+  ```
+  await(p)
   return
-}
-
-fn readline() {
-  return String(await(js.readline()))
 }

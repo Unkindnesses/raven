@@ -105,6 +105,11 @@ function exact(r: Reader, s: string): string | undefined {
   return s
 }
 
+function newline(r: Reader): boolean {
+  if (r.peek === '\r') r.read()
+  return r.read() === '\n'
+}
+
 function num(r: Reader): number | bigint | undefined {
   let num = '', float = false
   if (!/\d|\./.test(r.peek)) return
@@ -212,8 +217,10 @@ function tripleString(r: Reader): string | ast.Tree | undefined {
   const close = q + q + q + '\\'.repeat(slashes)
   const mark = r.mark()
   let tag = symbol(r)
-  if (tag !== undefined && r.peek === '\n') r.read()
-  else { tag = undefined; r.reset(mark) }
+  if (tag === undefined || !r.parse(newline)) {
+    tag = undefined
+    r.reset(mark)
+  }
   let s = ''
   while (!r.eof()) {
     if (r.parse(r => exact(r, close))) {

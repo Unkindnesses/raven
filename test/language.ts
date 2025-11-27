@@ -673,7 +673,8 @@ test('prime sieve', async () => {
 test('await', async () => {
   await rv(`
     {
-      obj = await(call(js(), "dummyPromise", 5))
+      p = js\`return new Promise(resolve => resolve(5))\`
+      obj = await(p)
       test Float64(obj) == Float64(5)
     }
   `)
@@ -717,7 +718,8 @@ test('int/string union', async () => {
 test('result ok pattern', async () => {
   await rv(`
     {
-      Ok(x) = errcall(js(), "dummyPromise", 5)
+      f = js\`return { meth: n => new Promise(resolve => resolve(n)) }\`
+      Ok(x) = errcall(f, "meth", 5)
       test Float64(x) == 5.0
     }
   `)
@@ -728,7 +730,8 @@ test('result ok pattern', async () => {
 test('show result ok', async () => {
   await rv(`
     {
-      x = errcall(js(), "dummyPromise", 7)
+      f = js\`return { meth: n => new Promise(resolve => resolve(n)) }\`
+      x = errcall(f, "meth", 7)
       show x
     }
   `, { output: 'x = Ok(js(7))' })
@@ -737,7 +740,8 @@ test('show result ok', async () => {
 test('unwrap ok', async () => {
   await rv(`
     {
-      x = unwrap(errcall(js(), "dummyPromise", 5))
+      f = js\`return { meth: n => new Promise(resolve => resolve(n)) }\`
+      x = unwrap(errcall(f, "meth", 5))
       test Float64(x) == 5.0
     }
   `)
@@ -745,7 +749,8 @@ test('unwrap ok', async () => {
 
 test('unwrap err', async () => {
   await rv(`
-    unwrap(errcall(js(), "dummyErr"))
+    f = js\`return { meth: () => { throw new Error('dummy error') } }\`
+    unwrap(errcall(f, "meth"))
   `, { error: true, output: ['unwrap Err', 'dummy error'] })
 })
 
