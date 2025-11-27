@@ -113,7 +113,7 @@ function formacro(ex: ast.Expr): ast.Expr {
   const [x, xs, body] = [assign.args[1], assign.args[2], forExpr.args[2]]
   const [itr, val] = [gensym("itr"), gensym("val")]
   return ast.Block(
-    ast.Operator(s("="), itr, ast.Call(tag("common.iterator"), xs)),
+    ast.Operator(s("="), itr, ast.Call(tag("common.iterate"), xs)),
     withAnnos(ast.Syntax(s("while"), s("true"), ast.Block(
       ast.Operator(s("="), val, ast.Call(tag("common.next"), ast.Swap(itr))),
       ast.Syntax(s("if"), ast.Call(symbol("nil?"), val), ast.Block(s("break"))),

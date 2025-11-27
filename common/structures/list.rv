@@ -33,7 +33,7 @@ fn pop(&xs: List) {
   return last
 }
 
-fn iterator(xs: List) { IndexIterator(xs) }
+fn iterate(xs: List) { IndexIterator(xs) }
 
 fn rest(xs: List) {
   if empty?(xs) { abort("List is empty")  }

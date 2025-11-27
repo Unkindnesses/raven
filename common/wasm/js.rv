@@ -200,7 +200,7 @@ fn replshow(x: JSObject) {
   }
 }
 
-fn iterator(x: JSObject) {
+fn iterate(x: JSObject) {
   x[js.Symbol.iterator].call(x)
 }
 

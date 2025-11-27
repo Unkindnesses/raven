@@ -1,10 +1,10 @@
-export { iterator, next, count, nth, Range, range, Mapping, mapping }
+export { iterate, next, count, nth, Range, range, Mapping, mapping }
 
 bundle IndexIterator(xs, i: Int64)
 
 fn IndexIterator(xs) { IndexIterator(xs, 1) }
 
-fn iterator(i: IndexIterator) { i }
+fn iterate(i: IndexIterator) { i }
 
 fn next(&itr: IndexIterator(xs, i)) {
   if i > length(xs) {
@@ -40,11 +40,11 @@ fn length(Range(start, stop)) { (stop-start)+1 }
 
 fn Range(start, stop)[i] { (i - 1) + start }
 
-fn iterator(xs: Range) { IndexIterator(xs) }
+fn iterate(xs: Range) { IndexIterator(xs) }
 
 bundle Mapping(func, itr)
 
-fn iterator(m: Mapping) { m }
+fn iterate(m: Mapping) { m }
 
 fn next(&m: Mapping(func, itr)) {
   next = next(&itr)
@@ -52,4 +52,4 @@ fn next(&m: Mapping(func, itr)) {
   if let Some(x) = next { Some(func(x)) }
 }
 
-fn mapping(func, itr) { Mapping(func, iterator(itr)) }
+fn mapping(func, itr) { Mapping(func, iterate(itr)) }

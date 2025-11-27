@@ -324,7 +324,7 @@ test('lower for loop', () => {
   assert.equal(ir.toString(), `Function test at undefined
 1: (%1)
   %2 = pack tag"common.List", %1
-  %3 = call tag"common.iterator", %2
+  %3 = call tag"common.iterate", %2
   %4 = call Method(tag"common.core.part"), %3, 1
   %5 = br 2 (%4)
 2: (%6)

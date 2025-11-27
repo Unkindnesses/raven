@@ -348,7 +348,7 @@ test('iterator protocol', async () => {
   await rv(`
     {
       xs = range(widen(5), widen(6))
-      itr = iterator(xs)
+      itr = iterate(xs)
 
       val = next(&itr)
       test not(nil?(val))

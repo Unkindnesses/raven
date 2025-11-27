@@ -45,7 +45,7 @@ fn show(x: String) {
 
 bundle StringItr(s: String, i: Int64)
 
-fn iterator(x: String) { StringItr(x, 0) }
+fn iterate(x: String) { StringItr(x, 0) }
 
 fn next(&itr: StringItr(s, i)) {
   if i >= length(utf16(s)) { return }
@@ -83,7 +83,7 @@ fn chars(s: String) { Chars(collect(s)) }
 
 fn Chars(data)[i] { data[i] }
 fn length(Chars(data)) { length(data) }
-fn iterator(Chars(data)) { iterator(data) }
+fn iterate(Chars(data)) { iterate(data) }
 
 bundle UTF8View(data: List)
 
@@ -112,7 +112,7 @@ fn utf8(s: String) {
 
 fn UTF8View(data)[i] { data[i] }
 fn length(UTF8View(data)) { length(data) }
-fn iterator(UTF8View(data)) { iterator(data) }
+fn iterate(UTF8View(data)) { iterate(data) }
 
 bundle UTF16View(s: String)
 
@@ -168,6 +168,6 @@ fn matches(s: String, r: Regex) { Matches(s, r) }
 # TODO lambdas
 fn collectStrings(xs) { map(String, xs) }
 
-fn iterator(Matches(s, r)) {
+fn iterate(Matches(s, r)) {
   mapping(collectStrings, js(s).matchAll(r))
 }
