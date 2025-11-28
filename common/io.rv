@@ -1,7 +1,7 @@
 export { args, readFile }
 
 fn args() {
-  return map(String, js.process.argv)
+  return map(js.process.argv, String)
 }
 
 fn readFile(f: String) {

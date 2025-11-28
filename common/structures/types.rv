@@ -28,4 +28,4 @@ fn constant(Pack(parts...)) { all(constant, parts) }
 fn constant(Literal(_)) { true }
 
 fn value(Literal(x)) { x }
-fn value(Pack(parts...)) { pack(map(value, parts)...) }
+fn value(Pack(parts...)) { pack(map(parts, value)...) }

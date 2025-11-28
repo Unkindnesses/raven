@@ -42,14 +42,14 @@ fn Range(start, stop)[i] { (i - 1) + start }
 
 fn iterate(xs: Range) { IndexIterator(xs) }
 
-bundle Mapping(func, itr)
+bundle Mapping(itr, func)
 
 fn iterate(m: Mapping) { m }
 
-fn next(&m: Mapping(func, itr)) {
+fn next(&m: Mapping(itr, func)) {
   next = next(&itr)
-  m = Mapping(func, itr)
+  m = Mapping(itr, func)
   if let Some(x) = next { Some(func(x)) }
 }
 
-fn mapping(func, itr) { Mapping(func, iterate(itr)) }
+fn mapping(itr, func) { Mapping(iterate(itr), func) }

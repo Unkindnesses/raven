@@ -380,14 +380,14 @@ true
 Strings are abstracted from the storage format, and indexing is linear-time. You can get data views with constant-time access to code points, in a given encoding, with `chars`, `utf16` and `utf8`.
 
 ```ruby
-> map(UInt32, chars("A"))
+> map(chars("A"), UInt32)
 [0x00000041]
 > collect(utf16("A"))
 [0x0041]
 > collect(utf8("A"))
 [0x41]
 
-> map(UInt32, chars("🔥"))
+> map(chars("🔥"), UInt32)
 [0x0001f525]
 > collect(utf16("🔥"))
 [0xd83d, 0xdd25]
@@ -459,8 +459,8 @@ Here's two other ways to get the UTF8 bytes from a string.
 ```ruby
 > s = "foo"
 "foo"
-> map(UInt8, new(js.TextEncoder).encode(s))
+> map(new(js.TextEncoder).encode(s), UInt8)
 [0x66, 0x6f, 0x6f]
-> map(UInt8, js`return new TextEncoder().encode(\s)`)
+> map(js`return new TextEncoder().encode(\s)`, UInt8)
 [0x66, 0x6f, 0x6f]
 ```

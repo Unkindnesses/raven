@@ -60,7 +60,7 @@ fn collect(xs) {
   for x = xs { x }
 }
 
-fn map(f, xs) {
+fn map(xs, f) {
   for x = xs { f(x) }
 }
 
