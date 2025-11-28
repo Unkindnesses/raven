@@ -7,11 +7,11 @@ import { Method, MIR, Module, Value, xstring } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
 import { xtuple, xcall } from '../frontend/lower.js'
 import { xwasm } from '../frontend/modules.js'
-import { inlinePrimitive, outlinePrimitive, primitive } from './prim_map.js'
+import { inlinePrimitive, InvokeSt, outlinePrimitive, primitive } from './prim_map.js'
 import { abort, call, layout, wlayout, sizeof, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir, copyir } from './expand.js'
 import { isreftype } from './refcount.js'
 import { maybe_union } from './abstract.js'
-import { asNumType } from '../wasm/wasm.js'
+import { asNumType, GetGlobal, SetGlobal } from '../wasm/wasm.js'
 
 export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, copy_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, constValue }
 
@@ -269,6 +269,9 @@ const tagstring_method = primitive('common.core.tagstring', '[x]', partial_tagst
 const function_method = primitive('common.core.function', '[f, I, O]', partial_function)
 const invoke_method = primitive('common.core.invoke', '[f, I, O, xs...]', partial_invoke)
 
+const allocs_method = primitive('common.core.allocs', '[n]', (n: Type) => isInt(n, 32) ? types.int32() : unreachable)
+const frees_method = primitive('common.core.frees', '[n]', (n: Type) => isInt(n, 32) ? types.int32() : unreachable)
+
 function primitives(): Method[] {
   return [
     pack_method,
@@ -290,6 +293,8 @@ function primitives(): Method[] {
     tagstring_method,
     function_method,
     invoke_method,
+    allocs_method,
+    frees_method,
   ]
 }
 
@@ -608,6 +613,19 @@ inlinePrimitive.set(invoke_method.id, (code, st) => {
   const args = cast(code, asType(code.type(args0)), I, args0)
   return code.push({ ...st, expr: expr('call_indirect', f, args) })
 })
+
+function counter(code: Fragment<MIR>, st: InvokeSt, global: string): Val<MIR> {
+  let n = st.expr.body[0]
+  let T = asType(code.type(n))
+  if (types.isValue(T)) n = some(constValue(types.part(T, 1)))
+  const current = code.push(code.stmt(xwasm(GetGlobal(global)), { type: types.int32() }))
+  const next = code.push(code.stmt(xwasm('i32.add', current, n), { type: types.int32() }))
+  code.push(code.stmt(xwasm(SetGlobal(global), next), { type: types.nil }))
+  return next
+}
+
+inlinePrimitive.set(allocs_method.id, (code, st) => counter(code, st, 'allocs'))
+inlinePrimitive.set(frees_method.id, (code, st) => counter(code, st, 'frees'))
 
 // Core module
 

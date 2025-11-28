@@ -313,7 +313,11 @@ class BatchEmitter implements Emitter {
 
 const refTable = 'jsrefs'
 const refCounter = 'jsrefs.next'
-const refGlobals: [string, wasm.ValueType][] = [[refCounter, wasm.i32]]
+const refGlobals: [string, wasm.ValueType][] = [
+  [refCounter, wasm.i32],
+  ['allocs', wasm.i32],
+  ['frees', wasm.i32]
+]
 
 function startfunc(main: string[]): wasm.Func {
   const meta = Def('_start')
@@ -350,7 +354,9 @@ function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.M
       wasm.Export('_start'),
       wasm.Export('_start', 'cm32p2|wasi:cli/run@0.2|run'),
       wasm.Export('cm32p2_memory'),
-      wasm.Export(refTable)
+      wasm.Export(refTable),
+      wasm.Export('allocs'),
+      wasm.Export('frees')
     ],
     globals: [...globals.types, ...refGlobals].map(g => wasm.Global(...g)),
     tables: moduleTables(tables),
@@ -411,7 +417,7 @@ class StreamEmitter implements Emitter {
     fs.unshift(startfunc([func.name]))
     const iimports = setdiff(imports, fs.map(f => f.name)).map(f => wimport(mod, f))
     const gimports: wasm.Import[] = []
-    const globalTypes = [...mod.globals.types, ...refGlobals]
+    const globalTypes = [...refGlobals, ...mod.globals.types]
     for (let i = 1; i <= this.globals; i++) {
       const [name, type] = globalTypes[i - 1]
       gimports.push(wasm.Import('wasm', name, wasm.Global(name, type)))
@@ -432,6 +438,6 @@ class StreamEmitter implements Emitter {
       customs: metaSection(mod.tables)
     })
     this.queue.push(wmod)
-    this.globals = mod.globals.types.length
+    this.globals = globalTypes.length
   }
 }

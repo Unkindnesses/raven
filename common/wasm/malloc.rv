@@ -119,12 +119,14 @@ fn malloc!(n: Int32) {
   bl = findFreeBlock(n)
   trim(&bl, n)
   setBlockUsed!(bl, Int32(true))
+  allocs(Int32(1))
   return publicPtr(bl)
 }
 
 fn free!(p: Ptr) {
   p = p - headerSize
   setBlockUsed!(p, Int32(false))
+  frees(Int32(1))
   return
 }
 
@@ -160,6 +162,7 @@ fn release!(p: Ptr, f: Int32) {
   }
   # Setting to 0 equates to freeing
   setBlockUsed!(p, n-Int32(1))
+  if n == Int32(1) frees(Int32(1))
 }
 
 fn release!(p: Ptr) { release!(p, widen(Int32(-1))) }
