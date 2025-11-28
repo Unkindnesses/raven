@@ -920,6 +920,13 @@ test('array values', async () => {
   `, { output: '[[1], [1, 2], [1, 2, 3]]' })
 })
 
+test('allocs', async () => {
+  await rv(`
+    test (allocs 1 + 2) == 0
+    test (allocs collect("hello")) == 6
+  `)
+})
+
 test('wasi', async () => {
   await compile(path.join(__dirname, 'language', 'wasi.rv'),
     { options: { memcheck: false } })

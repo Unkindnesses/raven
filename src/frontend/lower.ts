@@ -158,6 +158,16 @@ function testmacro(ex: ast.Expr): ast.Tree {
   ))
 }
 
+function allocsmacro(ex: ast.Expr): ast.Expr {
+  const arg = ex.args[1]
+  const before = gensym("before")
+  return ast.Group(
+    ast.Operator(s('='), before, ast.Call(tag('common.core.allocs'), ast.Call(s('Int32'), 0n))),
+    arg,
+    ast.Operator(s('-'), ast.Call(tag('common.core.allocs'), ast.Call(s('Int32'), 0n)), before)
+  )
+}
+
 const macros = new Map<string, (ex: ast.Expr) => ast.Tree>([
   ['bundle', bundlemacro],
   ['for', formacro],
@@ -165,6 +175,7 @@ const macros = new Map<string, (ex: ast.Expr) => ast.Tree>([
   ['showPack', ex => showmacro(ex, true)],
   ['test', testmacro],
   ['match', matchmacro],
+  ['allocs', allocsmacro],
 ])
 
 // Expr -> IR lowering
