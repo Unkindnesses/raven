@@ -87,7 +87,7 @@ type Instruction =
   | { kind: 'convert'; to: NumType; from: NumType; name: string }
   | { kind: 'branch'; cond: boolean; level: number }
   | { kind: 'call'; name: string }
-  | { kind: 'call_indirect'; sig: Signature; table: number }
+  | { kind: 'call_indirect'; sig: Signature; table: string }
   | { kind: 'return' }
   | { kind: 'unreachable' }
   | { kind: 'block'; body: Instruction[]; srcs: LineInfo[] }
@@ -147,7 +147,7 @@ function Call(name: string): Instruction {
   return { kind: 'call', name }
 }
 
-function CallIndirect(sig: Signature, table: number = 0): Instruction {
+function CallIndirect(sig: Signature, table: string): Instruction {
   return { kind: 'call_indirect', sig, table }
 }
 

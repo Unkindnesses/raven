@@ -162,7 +162,7 @@ function instr(cx: BinaryContext, inst: wasm.Instruction, lt: dwarf.LineTable): 
     case 'call_indirect':
       cx.write(0x11)
       cx.leb128(some(cx.types.get(inst.sig)))
-      cx.leb128(inst.table)
+      cx.leb128(some(cx.names.get(inst.table))[1])
       break
     case 'drop':
       cx.write(0x1a)

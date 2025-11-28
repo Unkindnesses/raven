@@ -36,8 +36,7 @@ function instructionToString(i: wasm.Instruction, level: number = 0): string {
     case 'return': return 'return'
     case 'unreachable': return 'unreachable'
     case 'call_indirect':
-      // TODO table idx
-      let s = 'call_indirect'
+      let s = `call_indirect (table $${i.table})`
       s += varsToString('param', i.sig.params)
       s += varsToString('result', i.sig.result)
       return s

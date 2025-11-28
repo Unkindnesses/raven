@@ -177,7 +177,7 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
         const [f, args] = st.expr.body
         const I = wlayout(asType(ir.type(args)))
         const O = wlayout(asType(st.type))
-        env.set(v, out.push({ ...st, expr: instr(wasm.CallIndirect(wasm.Signature(I, O), 0), rename(args), rename(f)), type: O }))
+        env.set(v, out.push({ ...st, expr: instr(wasm.CallIndirect(wasm.Signature(I, O), 'funcs'), rename(args), rename(f)), type: O }))
       } else if (st.expr instanceof Branch) {
         const expr = st.expr.map(coerce)
         env.set(v, out.push({ ...st, expr, type: unreachable }))
