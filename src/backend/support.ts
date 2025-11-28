@@ -1,25 +1,7 @@
 import { DebugModule, locate, Source, sections } from '../dwarf/parse.js'
 import { Def } from '../dwarf/index.js'
 
-export { loadWasm, support, table }
-
-let idcounter = 0
-const table: any = {}
-
-function createRef(obj: unknown) {
-  if (idcounter >= 4294967295) throw new Error("too many JSRefs")
-  const ref = idcounter++
-  table[ref] = obj
-  return ref
-}
-
-function fromRef(ref: number) {
-  return table[ref]
-}
-
-function release(ref: number) {
-  delete table[ref]
-}
+export { loadWasm, support }
 
 function call(obj: any, meth: any, ...args: any[]) {
   return obj[meth].call(obj, ...args)
@@ -54,14 +36,13 @@ interface JSEntry {
 }
 
 function support() {
-  const base: Record<string, any> = {
-    createRef, fromRef, release, call, apply, abort,
+  return {
+    call, apply, abort,
     identity: (x: any) => x,
     await: new (WebAssembly as any).Suspending((x: any) => x),
     errcall: new (WebAssembly as any).Suspending(errcall),
     debugger: () => { debugger }
   }
-  return base
 }
 
 function inline(js: JSEntry[]) {

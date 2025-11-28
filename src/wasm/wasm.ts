@@ -2,9 +2,9 @@ import { HashSet } from '../utils/map.js'
 import { Def, LineInfo } from '../dwarf/index.js'
 
 export {
-  NumType, RefType, ValueType, HeapType, AbsHeapType, sizeof, f64, f32, i64, i32, externref, asNumType,
+  NumType, RefType, ValueType, HeapType, AbsHeapType, sizeof, f64, f32, i64, i32, externref, funcref, asNumType,
   Signature, LineInfo, Instruction,
-  Const, RefNull, nop, GetLocal, SetLocal, GetGlobal, SetGlobal, Op, Drop, Select, Convert, Branch, Call, CallIndirect, Return, unreachable, Block, Loop, instr,
+  Const, RefNull, nop, GetLocal, SetLocal, GetGlobal, SetGlobal, TableOp, Op, Drop, Select, Convert, Branch, Call, CallIndirect, Return, unreachable, Block, Loop, instr,
   Func, Table, Mem, Global, Elem, Data, Import, Export, CustomSection, Module,
   signatures, callees, zero
 }
@@ -41,6 +41,7 @@ const f32 = NumType.f32
 const i64 = NumType.i64
 const i32 = NumType.i32
 const externref: RefType = { null: true, type: { kind: 'abstract', type: AbsHeapType.extern } }
+const funcref: RefType = { null: true, type: { kind: 'abstract', type: AbsHeapType.func } }
 
 function asNumType(t: any): NumType {
   if ([f64, f32, i64, i32].includes(t)) return t
@@ -88,6 +89,7 @@ type Instruction =
   | { kind: 'branch'; cond: boolean; level: number }
   | { kind: 'call'; name: string }
   | { kind: 'call_indirect'; sig: Signature; table: string }
+  | { kind: 'table'; op: string; table: string }
   | { kind: 'return' }
   | { kind: 'unreachable' }
   | { kind: 'block'; body: Instruction[]; srcs: LineInfo[] }
@@ -121,6 +123,10 @@ function GetGlobal(id: string): Instruction {
 
 function SetGlobal(id: string): Instruction {
   return { kind: 'set_global', id }
+}
+
+function TableOp(op: string, table: string): Instruction {
+  return { kind: 'table', op, table }
 }
 
 function Op(name: string): Instruction {
@@ -192,11 +198,14 @@ function Func(name: string, sig: Signature, locals: ValueType[], body: Block, me
 interface Table {
   kind: 'table'
   name: string
+  type: RefType
   min: number
+  max?: number
 }
 
-function Table(name: string, min: number): Table {
-  return { kind: 'table', name, min }
+function Table(name: string, type: RefType, min: number, options: { max?: number } = {}): Table {
+  const { max } = options
+  return { kind: 'table', name, type, min, max }
 }
 
 interface Mem {
@@ -228,11 +237,11 @@ function Global(name: string, type: ValueType, options: { mut?: boolean; init?: 
 }
 
 interface Elem {
-  table: number
+  table: string
   data: string[]
 }
 
-function Elem(table: number, data: string[]): Elem {
+function Elem(table: string, data: string[]): Elem {
   return { table, data }
 }
 

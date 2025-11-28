@@ -7,15 +7,13 @@ import { Method, MIR, Module, Value, xstring } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
 import { xtuple, xcall } from '../frontend/lower.js'
 import { xwasm } from '../frontend/modules.js'
-import { lowerpattern } from '../frontend/patterns.js'
-import * as parse from '../frontend/parse.js'
-import { inlinePrimitive, outlinePrimitive } from './prim_map.js'
+import { inlinePrimitive, outlinePrimitive, primitive } from './prim_map.js'
 import { abort, call, layout, wlayout, sizeof, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir, copyir } from './expand.js'
 import { isreftype } from './refcount.js'
 import { maybe_union } from './abstract.js'
 import { asNumType } from '../wasm/wasm.js'
 
-export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, copy_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue }
+export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, copy_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, constValue }
 
 const i64 = Value.i64
 
@@ -229,10 +227,6 @@ function partial_function(f: Type, I: Type, O: Type): Type {
 
 function partial_invoke(f: Type, I: Type, O: Type, ...xs: Type[]): Type {
   return rvtype(O)
-}
-
-function primitive(name: string, pattern: string, func: (...args: Type[]) => Anno<Type>): Method {
-  return new Method(tag('common.core'), tag(name), lowerpattern(parse.expr(pattern)), func)
 }
 
 const pack_method = primitive('common.core.pack', 'args', (args: Type) => types.pack(...types.parts(args)))

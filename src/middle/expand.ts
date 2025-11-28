@@ -33,10 +33,14 @@ import { xcall, xtuple } from '../frontend/lower.js'
 import { xwasm } from '../frontend/modules.js'
 import { isreftype } from './refcount.js'
 import { partial_part, getIntValue, nparts, constValue, partial_set, copy_method } from './primitives.js'
-import { inlinePrimitive, InvokeSt, outlinePrimitive } from './prim_map.js'
+import { inlinePrimitive, InvokeSt, outlinePrimitive, primitive } from './prim_map.js'
 import { Cache } from '../utils/cache.js'
 
-export { abort, call, layout, wlayout, sizeof, store, load, box, unbox, union_downcast, union_cases, cast, copyir, partir, packir, set_pack, indexer, setir, Expanded, heapType }
+export {
+  abort, call, layout, wlayout, sizeof, store, load, box, unbox, union_downcast,
+  union_cases, cast, copyir, partir, packir, set_pack, indexer, setir, Expanded,
+  heapType, refRelease_method
+}
 
 const i32 = Value.i32
 const i64 = Value.i64
@@ -460,12 +464,53 @@ function lowerdata(code: MIR): MIR {
   return pr.finish()
 }
 
+// Externref handles
+
+const refTable = 'jsrefs'
+const refNext = 'jsrefs.next'
+
+const refHandle_method = primitive('common.core.refHandle', '[x]')
+const refFromHandle_method = primitive('common.core.refFromHandle', '[h]')
+const refRelease_method = primitive('common.core.refRelease', '[h]')
+
+function refNull(code: Fragment<MIR>): Val<MIR> {
+  return code.push(code.stmt(xwasm(wasm.RefNull(wasm.externref.type)), { type: types.Ref }))
+}
+
+outlinePrimitive.set(refHandle_method.id, (): MIR => {
+  const code = MIR(Def('common.core.refHandle'))
+  const ref = code.argument(types.Ref)
+  const idx = code.push(code.stmt(xwasm(wasm.GetGlobal(refNext)), { type: types.bits(32) }))
+  const next = code.push(code.stmt(xwasm('i32.add', idx, i32(1)), { type: types.bits(32) }))
+  code.push(code.stmt(xwasm(wasm.SetGlobal(refNext), next), { type: types.nil }))
+  code.push(code.stmt(xwasm(wasm.TableOp('grow', refTable), refNull(code), i32(1)), { type: types.bits(32) }))
+  code.push(code.stmt(xwasm(wasm.TableOp('set', refTable), idx, ref), { type: types.nil }))
+  code.return(idx)
+  return code
+})
+
+outlinePrimitive.set(refFromHandle_method.id, (): MIR => {
+  const code = MIR(Def('common.core.refFromHandle'))
+  const idx: Val<MIR> = code.argument(types.bits(32))
+  const out = code.push(code.stmt(xwasm<Val<MIR>>(wasm.TableOp('get', refTable), idx), { type: types.Ref }))
+  code.return(out)
+  return code
+})
+
+outlinePrimitive.set(refRelease_method.id, (): MIR => {
+  const code = MIR(Def('common.core.refRelease'))
+  const idx = code.argument(types.bits(32))
+  code.push(code.stmt(xwasm(wasm.TableOp('set', refTable), idx, refNull(code)), { type: types.nil }))
+  code.return(types.nil)
+  return code
+})
+
 // Casts
 
 function storeAtom(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, x: Val<MIR>): void {
   if (T.kind === 'ref') {
     T = types.bits(32)
-    x = pr.push(pr.stmt(xwasm(['support', 'createRef'], x), { type: T }))
+    x = pr.push(pr.stmt(xcall(refHandle_method, x), { type: T }))
   }
   pr.push(pr.stmt(xwasm(`${wtype(T)}.store`, ptr, x), { type: types.nil }))
 }
@@ -486,7 +531,7 @@ function loadAtom(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, heap = false): Val<
   const t = T.kind === 'ref' ? types.bits(32) : T
   let val = pr.push(pr.stmt(xwasm(`${wtype(t)}.load`, ptr), { type: t }))
   if (T.kind === 'ref' && !heap)
-    val = pr.push(pr.stmt(xwasm(['support', 'fromRef'], val), { type: types.Ref }))
+    val = pr.push(pr.stmt(xcall(refFromHandle_method, val), { type: types.Ref }))
   return val
 }
 

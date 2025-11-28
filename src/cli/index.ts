@@ -70,9 +70,7 @@ async function checkUpdate() {
     })
     if (!res.ok) throw new Error(`Update request failed with status ${res.status}`)
     await res.json()
-  } catch (err) {
-    console.error('Unable to update Raven installation', err)
-  }
+  } catch (err) { }
 }
 
 async function startRepl(options: Partial<Options>) {

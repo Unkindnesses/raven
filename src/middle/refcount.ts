@@ -32,10 +32,10 @@ import { MIR, Value, IRValue, Method, asValue, Invoke, xwasm } from '../frontend
 import { Def } from '../dwarf/index.js'
 import { Redirect, type Sig } from './abstract.js'
 import { Cache } from '../utils/cache.js'
-import { primitive } from './primitives.js'
+import { primitive } from './prim_map.js'
 import { isEqual } from '../utils/isEqual.js'
 import { HashMap, asNumber, some, setdiff, filter as filter, only } from '../utils/map.js'
-import { layout, call, indexer, load, sizeof, union_cases, unbox, heapType } from './expand.js'
+import { layout, call, indexer, load, sizeof, union_cases, unbox, heapType, refRelease_method } from './expand.js'
 import { unreachable } from '../utils/ir.js'
 import { xcall, xtuple } from '../frontend/lower.js'
 import { Accessor } from '../utils/fixpoint.js'
@@ -99,7 +99,7 @@ function count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: Cou
 function ref_count_inline(code: ir.Fragment<MIR>, x: ir.Val<MIR>, mode: CountMode, heap = false): void {
   if (!heap) return
   if (mode === 'retain') throw new Error('heap refs should not be retained')
-  code.push(code.stmt(xwasm(['support', 'release'], x), { type: types.nil }))
+  code.push(code.stmt(xcall(refRelease_method, x), { type: types.nil }))
 }
 
 function pack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode, heap = false): void {

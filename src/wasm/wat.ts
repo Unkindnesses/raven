@@ -40,6 +40,8 @@ function instructionToString(i: wasm.Instruction, level: number = 0): string {
       s += varsToString('param', i.sig.params)
       s += varsToString('result', i.sig.result)
       return s
+    case 'table':
+      return `table.${i.op} $${i.table}`
     case 'ref_null':
       return `ref.null ${i.type}`
     case 'block':

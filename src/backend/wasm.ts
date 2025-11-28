@@ -311,6 +311,10 @@ class BatchEmitter implements Emitter {
   }
 }
 
+const refTable = 'jsrefs'
+const refCounter = 'jsrefs.next'
+const refGlobals: [string, wasm.ValueType][] = [[refCounter, wasm.i32]]
+
 function startfunc(main: string[]): wasm.Func {
   const meta = Def('_start')
   const instrs = [...main.map(m => wasm.Call(m)), wasm.Const(wasm.NumType.i32, 0)]
@@ -322,6 +326,13 @@ function stringImports(strings: string[]): wasm.Import[] {
   // TODO names from table
   return strings.map(value =>
     wasm.Import('strings', value, wasm.Global(value, wasm.externref, { mut: false })))
+}
+
+function moduleTables(tables: Tables): wasm.Table[] {
+  return [
+    wasm.Table('funcs', wasm.funcref, tables.funcs.length),
+    wasm.Table(refTable, wasm.externref, 0)
+  ]
 }
 
 function metaSection(tables: Tables): wasm.CustomSection[] {
@@ -338,11 +349,12 @@ function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.M
     exports: [
       wasm.Export('_start'),
       wasm.Export('_start', 'cm32p2|wasi:cli/run@0.2|run'),
-      wasm.Export('cm32p2_memory')
+      wasm.Export('cm32p2_memory'),
+      wasm.Export(refTable)
     ],
-    globals: globals.types.map(g => wasm.Global(...g)),
-    tables: [wasm.Table('funcs', tables.funcs.length)],
-    elems: [wasm.Elem(0, tables.funcs)],
+    globals: [...globals.types, ...refGlobals].map(g => wasm.Global(...g)),
+    tables: moduleTables(tables),
+    elems: [wasm.Elem('funcs', tables.funcs)],
     mems: [wasm.Mem('cm32p2_memory', 0)],
     customs: metaSection(tables)
   })
@@ -399,22 +411,23 @@ class StreamEmitter implements Emitter {
     fs.unshift(startfunc([func.name]))
     const iimports = setdiff(imports, fs.map(f => f.name)).map(f => wimport(mod, f))
     const gimports: wasm.Import[] = []
+    const globalTypes = [...mod.globals.types, ...refGlobals]
     for (let i = 1; i <= this.globals; i++) {
-      const [name, type] = mod.globals.types[i - 1]
+      const [name, type] = globalTypes[i - 1]
       gimports.push(wasm.Import('wasm', name, wasm.Global(name, type)))
     }
     const globals: wasm.Global[] = []
-    for (let i = this.globals + 1; i <= mod.globals.types.length; i++)
-      globals.push(wasm.Global(...mod.globals.types[i - 1]))
+    for (let i = this.globals + 1; i <= globalTypes.length; i++)
+      globals.push(wasm.Global(...globalTypes[i - 1]))
     if (!first) iimports.push(wasm.Import('wasm', 'memory', wasm.Mem('memory', 0)))
     // TODO shared table
     const wmod = wasm.Module({
       funcs: fs,
       imports: [...stringImports(mod.tables.strings), ...gimports, ...iimports],
-      exports: [wasm.Export('memory'), ...fs.map(f => wasm.Export(f.name, f.name)), ...globals.map(g => wasm.Export(g.name, g.name))],
+      exports: [wasm.Export('memory'), wasm.Export(refTable), ...fs.map(f => wasm.Export(f.name, f.name)), ...globals.map(g => wasm.Export(g.name, g.name))],
       globals,
-      tables: [wasm.Table('funcs', mod.tables.funcs.length)],
-      elems: [wasm.Elem(0, Array.from(mod.tables.funcs))],
+      tables: moduleTables(mod.tables),
+      elems: [wasm.Elem('funcs', Array.from(mod.tables.funcs))],
       mems: first ? [wasm.Mem('memory', 0)] : [],
       customs: metaSection(mod.tables)
     })

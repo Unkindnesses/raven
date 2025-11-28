@@ -21,7 +21,7 @@
     "build:cli": "esbuild --platform=node --sourcemap --bundle --format=esm --external:commander --outdir=dist/cli src/cli/index.ts src/cli/worker.ts src/cli/exec.ts",
     "watch": "npm run build:cli -- --watch",
     "start": "npm run build:cli && node --enable-source-maps --experimental-wasm-jspi dist/cli/index.js",
-    "test": "npm run build:cli && node --max-old-space-size=8192 --enable-source-maps --experimental-wasm-jspi ./node_modules/uvu/bin.js -r tsx test -i '^(?!.*\\.ts$).*'",
+    "test": "tsc && npm run build:cli && node --max-old-space-size=8192 --enable-source-maps --experimental-wasm-jspi ./node_modules/uvu/bin.js -r tsx test -i '^(?!.*\\.ts$).*'",
     "build": "node scripts/bundle-common.js && tsc -b && npm run build:cli"
   },
   "devDependencies": {

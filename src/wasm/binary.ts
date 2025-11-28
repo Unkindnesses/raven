@@ -183,6 +183,26 @@ function instr(cx: BinaryContext, inst: wasm.Instruction, lt: dwarf.LineTable): 
       cx.write(0x24)
       cx.leb128(some(cx.names.get(inst.id))[1])
       break
+    case 'table':
+      switch (inst.op) {
+        case 'get':
+          cx.write(0x25)
+          break
+        case 'set':
+          cx.write(0x26)
+          break
+        case 'grow':
+          cx.write(0xfc)
+          cx.write(0x0f)
+          break
+        case 'size':
+          cx.write(0xfc)
+          cx.write(0x10)
+          break
+        default: throw new Error('unrecognised table instr')
+      }
+      cx.leb128(some(cx.names.get(inst.table))[1])
+      break
     case 'const':
       const typeOffset = [i32, i64, f32, f64].indexOf(inst.type)
       cx.write(0x41 + typeOffset)
@@ -301,9 +321,15 @@ function functions(cx: BinaryContext, funcs: wasm.Func[]): void {
 }
 
 function table(cx: BinaryContext, t: wasm.Table): void {
-  cx.write(0x70) // funcref
-  cx.write(0x00)
-  cx.leb128(t.min)
+  valuetype(cx, t.type)
+  if (t.max === undefined) {
+    cx.write(0x00)
+    cx.leb128(t.min)
+  } else {
+    cx.write(0x01)
+    cx.leb128(t.min)
+    cx.leb128(t.max)
+  }
 }
 
 function tables(cx: BinaryContext, ts: wasm.Table[]): void {
@@ -383,8 +409,10 @@ function elems(cx: BinaryContext, es: wasm.Elem[]): void {
   withsize(cx, cx => {
     cx.leb128(es.length)
     for (const e of es) {
-      if (e.table !== 0) throw new Error('Only table 0 supported')
-      cx.leb128(0)
+      const table = some(cx.names.get(e.table))[1]
+      const flags = table === 0 ? 0 : 2
+      cx.leb128(flags)
+      if (flags === 2) cx.leb128(table)
       expr(cx, wasm.Const(i32, 0), { lines: [] })
       cx.leb128(e.data.length)
       for (const f of e.data) {
