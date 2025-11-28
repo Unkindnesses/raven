@@ -7,7 +7,7 @@ import * as os from 'os'
 import * as path from 'path'
 import { Compiler, compile, compileJS, exec } from './compile.js'
 import { REPL } from './repl.js'
-import { Caching, time } from '../utils/cache.js'
+import { Caching, time, size } from '../utils/cache.js'
 import pkg from '../../package.json' with { type: 'json' }
 import { Options } from '../utils/options.js'
 
@@ -35,6 +35,8 @@ function printTiming(c: Compiler) {
   }
   const total = time(c.pipe) + c.time
   console.log(`Total       ${formatTime(total).padStart(10)} `)
+  const totalSize = size(c.pipe)
+  console.log(`Cache Size  ${totalSize.toLocaleString('en-UK').padStart(10)} `)
 }
 
 const installDir = path.join(os.homedir(), '.raven')

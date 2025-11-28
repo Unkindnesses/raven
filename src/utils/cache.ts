@@ -6,7 +6,7 @@ import { now } from "../utils/bench.js"
 export {
   nft, trackdeps, track, withtime,
   Caching, Ref, Map, Cache, EagerCache, DualCache, CycleCache,
-  fingerprint, reset, pipe, time
+  fingerprint, reset, pipe, time, size
 }
 
 let nft_id = 0n
@@ -69,6 +69,7 @@ interface Caching {
   fingerprint?: () => Set<bigint>
   reset?: (deps: Set<bigint>) => void
   time?: bigint
+  size?: number
 }
 
 function fingerprint(ch: Caching): Set<bigint> {
@@ -92,6 +93,12 @@ function time(ch: Caching): bigint {
   return t
 }
 
+function size(ch: Caching): number {
+  let n = ch.size ?? 0
+  for (const sub of ch.subcaches ?? []) n += size(sub)
+  return n
+}
+
 class Pipe implements Caching {
   constructor(readonly subcaches: Caching[]) { }
   reset(deps: Set<bigint>) {
@@ -111,6 +118,7 @@ class Ref<T> implements Caching {
   private id: bigint = nft()
   constructor(private value: T) { }
   fingerprint() { return new Set([this.id]) }
+  get size() { return 1 }
   get() { track(this.id); return this.value }
   set(x: T) { this.id = nft(); this.value = x; return this }
 }
@@ -123,6 +131,7 @@ class Map<K, V> implements Caching {
   private haskey: HashMap<K, bigint> = new HashMap()
 
   fingerprint() { return this.print }
+  get size() { return this.data.size + this.haskey.size }
 
   keys() { return this.data.keys() }
   iscached(k: K) { return this.data.has(k) }
@@ -189,6 +198,7 @@ class Cache<K, V> implements Caching {
   constructor(private init: (k: K) => V) { }
 
   fingerprint() { return this.print }
+  get size() { return this.data.size }
   keys() { return this.data.keys() }
 
   iscached(k: K) { return this.data.has(k) }
@@ -295,6 +305,7 @@ class CycleCache<K, V> implements Caching {
   constructor(private init: (k: K) => V, private iter: (ch: Accessor<K, V>, k: K) => V) { }
 
   fingerprint() { return this.print }
+  get size() { return this.data.size }
   key(k: K | bigint): K { return typeof k === 'bigint' ? this.keys.get(k)! : k }
   iscached(k: K) { return this.data.has(k) }
   cached(k: K): V { return this.data.get(k)!.value }

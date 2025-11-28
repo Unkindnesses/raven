@@ -376,6 +376,8 @@ class Inferred implements Caching {
     this.results = new CacheMap()
   }
 
+  get size() { return this.results.size }
+
   iscached(k: string): boolean { return this.results.iscached(k) }
 
   _get(sig: Sig): [MIR, Anno<Type>] | Redirect {
