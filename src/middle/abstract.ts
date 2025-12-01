@@ -17,7 +17,7 @@ export { key, Sig, Inference, Inferred, Redirect, sig, inferexpr, infercall, iss
 
 function key(sig: Sig): string {
   const [f, ...Ts] = sig
-  return `${f[hash]}${Ts.map(repr).join(', ')}`
+  return `${f[hash]}:${Ts.map(repr).join(', ')}`
 }
 
 function maybe_union(x: Anno<Type>, y: Anno<Type>): Anno<Type> {
