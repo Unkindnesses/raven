@@ -927,6 +927,13 @@ test('allocs', async () => {
   `)
 })
 
+test('js int conversion', async () => {
+  await rv(`
+    test Int64(js(2828255673)) == 2828255673
+    test Int32(js(2828255673)) == -1466711623
+  `)
+})
+
 test('wasi', async () => {
   await compile(path.join(__dirname, 'language', 'wasi.rv'),
     { options: { memcheck: false } })

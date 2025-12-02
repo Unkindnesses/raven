@@ -117,14 +117,8 @@ fn Float64(obj: JSObject) {
   return x
 }
 
-@extend
-fn Int32(obj: JSObject) {
-  x = wasm call(support.identity, jsref(obj)): i32
-  return Int32(x)
-}
-
 fn oftype(to: Int, from: JSObject) {
-  oftype(to, Int32(from))
+  oftype(to, Float64(from))
 }
 
 fn oftype(to: UInt, from: JSObject) {

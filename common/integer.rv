@@ -117,6 +117,11 @@ fn Float64(Int(x)) {
   wasm f64.convert_i64_s(x: i64): f64
 }
 
+fn oftype(to: Int, x: Float64) {
+  # TODO catch out of range
+  oftype(to, wasm i64.trunc_f64_s(x): i64)
+}
+
 fn (a: Int) / (b: Int) { Float64(a) / Float64(b) }
 
 fn js(x: Int) { js(Float64(x)) }
