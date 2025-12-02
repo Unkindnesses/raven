@@ -38,6 +38,7 @@ interface JSEntry {
 function support() {
   return {
     call, apply, abort,
+    equal: (x: any, y: any) => x === y,
     identity: (x: any) => x,
     await: new (WebAssembly as any).Suspending((x: any) => x),
     errcall: new (WebAssembly as any).Suspending(errcall),
