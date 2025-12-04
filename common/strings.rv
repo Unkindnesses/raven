@@ -22,6 +22,8 @@ fn show(ch: Char) {
   show(string(ch))
 }
 
+fn js(ch: Char) { js(string(ch)) }
+
 # Strings
 
 bundle String(ref: Ref)
