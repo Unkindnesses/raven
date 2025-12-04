@@ -425,14 +425,21 @@ class StreamEmitter implements Emitter {
     const globals: wasm.Global[] = []
     for (let i = this.globals + 1; i <= globalTypes.length; i++)
       globals.push(wasm.Global(...globalTypes[i - 1]))
-    if (!first) iimports.push(wasm.Import('wasm', 'memory', wasm.Mem('memory', 0)))
-    // TODO shared table
+    if (!first) {
+      iimports.push(wasm.Import('wasm', 'memory', wasm.Mem('memory', 0)))
+      for (const t of moduleTables(mod.tables))
+        iimports.push(wasm.Import('wasm', t.name, t))
+    }
     const wmod = wasm.Module({
       funcs: fs,
       imports: [...stringImports(mod.tables.strings), ...gimports, ...iimports],
-      exports: [wasm.Export('memory'), wasm.Export(refTable), ...fs.map(f => wasm.Export(f.name, f.name)), ...globals.map(g => wasm.Export(g.name, g.name))],
+      exports: [
+        wasm.Export('memory'),
+        ...moduleTables(mod.tables).map(x => wasm.Export(x.name)),
+        ...fs.map(f => wasm.Export(f.name, f.name)),
+        ...globals.map(g => wasm.Export(g.name, g.name))],
       globals,
-      tables: moduleTables(mod.tables),
+      tables: first ? moduleTables(mod.tables) : [],
       elems: [wasm.Elem('funcs', Array.from(mod.tables.funcs))],
       mems: first ? [wasm.Mem('memory', 0)] : [],
       customs: metaSection(mod.tables)
