@@ -55,29 +55,6 @@ function wparts(T: Anno<Type>): wasm.ValueType[] {
   return T === unreachable ? [] : wlayout(T)
 }
 
-class WGlobals implements Caching {
-  types: [string, wasm.ValueType][]
-  globals: Cache<Binding, string[]>
-  constructor(defs: Definitions) {
-    this.types = []
-    // TODO pretty sure this is wrong; binding chains lead to duplicated globals
-    this.globals = new Cache<Binding, string[]>(b => {
-      let T: Anno<Type> | Binding = b
-      while (T instanceof Binding) T = defs.global(T)
-      const l = wparts(T)
-      const names: string[] = []
-      for (let i = 0; i < l.length; i++) {
-        const name = `${b.mod.path}.${b.name}:${this.types.length}`
-        this.types.push([name, l[i]])
-        names.push(name)
-      }
-      return names
-    })
-  }
-  get subcaches() { return [this.globals] }
-  get(b: Binding): string[] { return this.globals.get(b) }
-}
-
 function tableid<T>(xs: T[], x: T): number {
   const i = xs.findIndex(y => isEqual(y, x))
   if (i !== -1) return i
@@ -91,6 +68,7 @@ interface JSInline {
 }
 
 class Tables {
+  globals: [string, wasm.ValueType][] = []
   strings: string[] = []
   funcs: string[] = []
   js: JSInline[] = []
@@ -108,7 +86,7 @@ function instr<T>(instr: wasm.Instruction, ...args: (T | number)[]): Instr<T> {
   return new Instr(instr, args)
 }
 
-function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlobals, tables: Tables): WIR {
+function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: Cache<Binding, string[]>, tables: Tables): WIR {
   const out = WIR(ir.meta)
   const env = new Map<number, Val<WIR>>()
   // TODO deprecate array types
@@ -190,7 +168,7 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: WGlob
   return out
 }
 
-function lowerwasm_globals(ir: WIR, globals: WGlobals): WIR {
+function lowerwasm_globals(ir: WIR, globals: Cache<Binding, string[]>): WIR {
   const pr = new Pipe(ir)
   for (const [v, st] of pr) {
     if (!(st.expr instanceof SetGlobal)) continue
@@ -222,13 +200,25 @@ function wname(f: types.Tag | Method | [string, string]): string {
 }
 
 class Wasm implements Caching {
-  globals: WGlobals
   tables: Tables
+  globals: Cache<Binding, string[]>
   names: DualCache<Sig | WSig, string>
   funcs: Cache<Sig, wasm.Func>
   constructor(defs: Definitions, code: Accessor<Sig, Redirect | MIR>) {
-    this.globals = new WGlobals(defs)
     this.tables = new Tables()
+    // TODO pretty sure this is wrong; binding chains lead to duplicated globals
+    this.globals = new Cache<Binding, string[]>(b => {
+      let T: Anno<Type> | Binding = b
+      while (T instanceof Binding) T = defs.global(T)
+      const l = wparts(T)
+      const names: string[] = []
+      for (let i = 0; i < l.length; i++) {
+        const name = `${b.mod.path}.${b.name}:${this.tables.globals.length}`
+        this.tables.globals.push([name, l[i]])
+        names.push(name)
+      }
+      return names
+    })
     const count = new Map<string, number>()
     // TODO should be `funcs`, not `code`, to make global redefs of the same type
     // more efficient. But that creates an awkward cycle between names and funcs.
@@ -345,7 +335,7 @@ function metaSection(tables: Tables): wasm.CustomSection[] {
   return [wasm.CustomSection('raven.meta', new TextEncoder().encode(JSON.stringify(meta)))]
 }
 
-function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.Module {
+function wasmmodule(em: BatchEmitter, tables: Tables): wasm.Module {
   em.funcs.unshift(startfunc(em.main))
   const mod = wasm.Module({
     funcs: em.funcs,
@@ -358,7 +348,7 @@ function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.M
       wasm.Export('allocs'),
       wasm.Export('frees')
     ],
-    globals: [...globals.types, ...refGlobals].map(g => wasm.Global(...g)),
+    globals: [...tables.globals, ...refGlobals].map(g => wasm.Global(...g)),
     tables: moduleTables(tables),
     elems: [wasm.Elem('funcs', tables.funcs)],
     mems: [wasm.Mem('cm32p2_memory', 0)],
@@ -368,7 +358,7 @@ function wasmmodule(em: BatchEmitter, globals: WGlobals, tables: Tables): wasm.M
 }
 
 function emitwasm(em: BatchEmitter, mod: Wasm, strip = false): Uint8Array {
-  return binary(wasmmodule(em, mod.globals, mod.tables), strip)
+  return binary(wasmmodule(em, mod.tables), strip)
 }
 
 // Stream emitter, for REPL
@@ -417,7 +407,7 @@ class StreamEmitter implements Emitter {
     fs.unshift(startfunc([func.name]))
     const iimports = setdiff(imports, fs.map(f => f.name)).map(f => wimport(mod, f))
     const gimports: wasm.Import[] = []
-    const globalTypes = [...refGlobals, ...mod.globals.types]
+    const globalTypes = [...refGlobals, ...mod.tables.globals]
     for (let i = 1; i <= this.globals; i++) {
       const [name, type] = globalTypes[i - 1]
       gimports.push(wasm.Import('wasm', name, wasm.Global(name, type)))
