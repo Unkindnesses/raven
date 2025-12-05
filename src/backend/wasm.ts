@@ -14,7 +14,7 @@ import { Accessor } from '../utils/fixpoint.js'
 import { xtuple } from '../frontend/lower.js'
 import { asArray, some } from '../utils/map.js'
 
-export { wasmPartials, Wasm, BatchEmitter, StreamEmitter, Emitter, emitwasm, lowerwasm, lowerwasm_globals }
+export { wasmPartials, Wasm, BatchEmitter, StreamEmitter, Emitter, emitwasm, lowerwasm, lowerwasm_globals, calltree }
 
 type PartialFn = (...args: Type[]) => Type
 
@@ -237,30 +237,37 @@ class Wasm implements Caching {
   }
   lower(ir: MIR) { return lowerwasm(ir, this.names, this.globals, this.tables) }
   get(sig: Sig): wasm.Func { return this.funcs.get(sig) }
-  haskey(name: string): boolean {
-    return this.names.hasvalue(name) && !Array.isArray(this.names.getkey(name)[0])
-  }
-
-  getByName(name: string): wasm.Func {
-    const sig = this.names.getkey(name)
-    if (Array.isArray(sig[0])) throw new Error('nope')
-    return this.get(sig as Sig)
-  }
-
   get subcaches() { return [this.globals, this.names, this.funcs] }
   reset(deps: Set<bigint>) { resetCaches(pipe(this.globals, this.names, this.funcs), deps) }
 }
 
+function calltree(mod: Wasm, root: wasm.Func): Map<string, wasm.Func | WSig> {
+  const calls = new Map<string, wasm.Func | WSig>()
+  const visit = (f: string) => {
+    if (calls.has(f)) return
+    const sig = mod.names.getkey(f)
+    if (Array.isArray(sig[0])) return calls.set(f, sig as WSig)
+    const func = mod.get(sig as Sig)
+    calls.set(f, func)
+    for (const g of wasm.callees(func)) visit(g)
+  }
+  for (const f of wasm.callees(root)) visit(f)
+  for (const f of mod.tables.funcs) visit(f)
+  return calls
+}
+
 // Batch emitter, for AOT compilation
 
-type Emitter = { emit(mod: Wasm, func: wasm.Func): void }
+type Emitter = { emit(calls: Map<string, wasm.Func | WSig>, func: wasm.Func): void }
 
 class BatchEmitter implements Emitter {
+  tables: Tables
   main: string[]
   seen: Set<string>
   funcs: wasm.Func[]
   imports: wasm.Import[]
-  constructor() {
+  constructor(tables: Tables) {
+    this.tables = tables
     this.main = []
     this.seen = new Set()
     this.funcs = []
@@ -268,7 +275,7 @@ class BatchEmitter implements Emitter {
   }
 
   clone(): BatchEmitter {
-    const em = new BatchEmitter()
+    const em = new BatchEmitter(this.tables)
     em.main = [...this.main]
     em.seen = new Set(this.seen)
     em.funcs = [...this.funcs]
@@ -276,27 +283,24 @@ class BatchEmitter implements Emitter {
     return em
   }
 
-  private emitFunc(mod: Wasm, func: wasm.Func) {
+  private emitFunc(calls: Map<string, wasm.Func | WSig>, func: wasm.Func) {
     this.funcs.push(func)
-    for (const f of wasm.callees(func)) this.emitName(mod, f)
+    for (const f of wasm.callees(func)) this.emitName(calls, f)
   }
 
-  private emitName(mod: Wasm, f: string) {
+  private emitName(calls: Map<string, wasm.Func | WSig>, f: string) {
     if (this.seen.has(f)) return
     this.seen.add(f)
-    if (!mod.names.hasvalue(f)) return
-    const key = mod.names.getkey(f)
-    if (Array.isArray(key[0])) {
-      const [imp, I, O] = key as WSig
+    const fn = some(calls.get(f))
+    if (Array.isArray(fn)) {
+      const [imp, I, O] = fn
       this.imports.push(wasm.Import(...imp, wasm.Signature(I, O, f)))
-    } else {
-      this.emitFunc(mod, mod.get(key as Sig))
-    }
+    } else this.emitFunc(calls, fn)
   }
 
-  emit(mod: Wasm, func: wasm.Func) {
-    this.emitFunc(mod, func)
-    for (const f of mod.tables.funcs) this.emitName(mod, f)
+  emit(calls: Map<string, wasm.Func | WSig>, func: wasm.Func) {
+    this.emitFunc(calls, func)
+    for (const f of this.tables.funcs) this.emitName(calls, f)
     this.main.push(func.name)
   }
 }
@@ -335,11 +339,11 @@ function metaSection(tables: Tables): wasm.CustomSection[] {
   return [wasm.CustomSection('raven.meta', new TextEncoder().encode(JSON.stringify(meta)))]
 }
 
-function wasmmodule(em: BatchEmitter, tables: Tables): wasm.Module {
+function wasmmodule(em: BatchEmitter): wasm.Module {
   em.funcs.unshift(startfunc(em.main))
   const mod = wasm.Module({
     funcs: em.funcs,
-    imports: [...stringImports(tables.strings), ...em.imports],
+    imports: [...stringImports(em.tables.strings), ...em.imports],
     exports: [
       wasm.Export('_start'),
       wasm.Export('_start', 'cm32p2|wasi:cli/run@0.2|run'),
@@ -348,66 +352,67 @@ function wasmmodule(em: BatchEmitter, tables: Tables): wasm.Module {
       wasm.Export('allocs'),
       wasm.Export('frees')
     ],
-    globals: [...tables.globals, ...refGlobals].map(g => wasm.Global(...g)),
-    tables: moduleTables(tables),
-    elems: [wasm.Elem('funcs', tables.funcs)],
+    globals: [...em.tables.globals, ...refGlobals].map(g => wasm.Global(...g)),
+    tables: moduleTables(em.tables),
+    elems: [wasm.Elem('funcs', em.tables.funcs)],
     mems: [wasm.Mem('cm32p2_memory', 0)],
-    customs: metaSection(tables)
+    customs: metaSection(em.tables)
   })
   return mod
 }
 
 function emitwasm(em: BatchEmitter, mod: Wasm, strip = false): Uint8Array {
-  return binary(wasmmodule(em, mod.tables), strip)
+  return binary(wasmmodule(em), strip)
 }
 
 // Stream emitter, for REPL
 
-function wimport(mod: Wasm, f: string): wasm.Import {
-  const sig = mod.names.getkey(f)
-  if (Array.isArray(sig[0])) {
-    const [imp, I, O] = sig as WSig
+function wimport(mod: Map<string, wasm.Func | WSig>, f: string): wasm.Import {
+  const sig = some(mod.get(f))
+  if (Array.isArray(sig)) {
+    const [imp, I, O] = sig
     return wasm.Import(...imp, wasm.Signature(I, O, f))
   } else {
-    const fn = mod.get(sig as Sig)
-    return wasm.Import('wasm', f, { ...fn.sig, name: f })
+    return wasm.Import('wasm', f, { ...sig.sig, name: f })
   }
 }
 
 class StreamEmitter implements Emitter {
+  tables: Tables
   seen: Set<string>
   queue: wasm.Module[]
   globals: number
-  constructor() {
+  constructor(tables: Tables) {
+    this.tables = tables
     this.seen = new Set()
     this.queue = []
     this.globals = -1
   }
 
-  private emitFunc(mod: Wasm, func: wasm.Func, fs: wasm.Func[], imports: string[]) {
+  private emitFunc(calls: Map<string, wasm.Func | WSig>, func: wasm.Func, fs: wasm.Func[], imports: string[]) {
     fs.push(func)
-    for (const f of wasm.callees(func)) this.emitName(mod, f, fs, imports)
+    for (const f of wasm.callees(func)) this.emitName(calls, f, fs, imports)
   }
 
-  private emitName(mod: Wasm, f: string, fs: wasm.Func[], imports: string[]) {
+  private emitName(calls: Map<string, wasm.Func | WSig>, f: string, fs: wasm.Func[], imports: string[]) {
     imports.push(f)
     if (this.seen.has(f)) return
     this.seen.add(f)
-    if (mod.haskey(f)) this.emitFunc(mod, mod.getByName(f), fs, imports)
-    else imports.push(f)
+    const fn = some(calls.get(f))
+    if (!Array.isArray(fn)) this.emitFunc(calls, fn, fs, imports)
   }
 
-  emit(mod: Wasm, func: wasm.Func) {
+  emit(calls: Map<string, wasm.Func | WSig>, func: wasm.Func) {
     const first = this.globals === -1
     if (first) this.globals = 0
     const fs: wasm.Func[] = []
     const imports: string[] = []
-    this.emitFunc(mod, func, fs, imports)
-    for (const f of mod.tables.funcs) this.emitName(mod, f, fs, imports)
+    this.emitFunc(calls, func, fs, imports)
+    for (const f of this.tables.funcs) this.emitName(calls, f, fs, imports)
     fs.unshift(startfunc([func.name]))
-    const iimports = setdiff(imports, fs.map(f => f.name)).map(f => wimport(mod, f))
+    const iimports = setdiff(imports, fs.map(f => f.name)).map(f => wimport(calls, f))
     const gimports: wasm.Import[] = []
-    const globalTypes = [...refGlobals, ...mod.tables.globals]
+    const globalTypes = [...refGlobals, ...this.tables.globals]
     for (let i = 1; i <= this.globals; i++) {
       const [name, type] = globalTypes[i - 1]
       gimports.push(wasm.Import('wasm', name, wasm.Global(name, type)))
@@ -417,22 +422,22 @@ class StreamEmitter implements Emitter {
       globals.push(wasm.Global(...globalTypes[i - 1]))
     if (!first) {
       iimports.push(wasm.Import('wasm', 'memory', wasm.Mem('memory', 0)))
-      for (const t of moduleTables(mod.tables))
+      for (const t of moduleTables(this.tables))
         iimports.push(wasm.Import('wasm', t.name, t))
     }
     const wmod = wasm.Module({
       funcs: fs,
-      imports: [...stringImports(mod.tables.strings), ...gimports, ...iimports],
+      imports: [...stringImports(this.tables.strings), ...gimports, ...iimports],
       exports: [
         wasm.Export('memory'),
-        ...moduleTables(mod.tables).map(x => wasm.Export(x.name)),
+        ...moduleTables(this.tables).map(x => wasm.Export(x.name)),
         ...fs.map(f => wasm.Export(f.name, f.name)),
         ...globals.map(g => wasm.Export(g.name, g.name))],
       globals,
-      tables: first ? moduleTables(mod.tables) : [],
-      elems: [wasm.Elem('funcs', Array.from(mod.tables.funcs))],
+      tables: first ? moduleTables(this.tables) : [],
+      elems: [wasm.Elem('funcs', Array.from(this.tables.funcs))],
       mems: first ? [wasm.Mem('memory', 0)] : [],
-      customs: metaSection(mod.tables)
+      customs: metaSection(this.tables)
     })
     this.queue.push(wmod)
     this.globals = globalTypes.length

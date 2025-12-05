@@ -41,6 +41,15 @@ test('char literals', async () => {
   `)
 })
 
+test('global invalidation', async () => {
+  await rv(`
+    x = 1
+    fn test() { x + 1 }
+    x = test()
+    test x == 2
+  `, { options: { inline: false } })
+})
+
 test('undefined variable errors', async () => {
   await rv('println(x)', { error: true, output: 'x is not defined' })
 })

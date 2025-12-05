@@ -61,7 +61,7 @@ class StreamCompiler {
 
   private constructor(private readonly load: Loader) {
     this.pipe = new Pipeline()
-    this.emitter = new wasm.StreamEmitter()
+    this.emitter = new wasm.StreamEmitter(this.pipe.wasm.tables)
   }
 
   static async create(load: Loader): Promise<StreamCompiler> {

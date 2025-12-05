@@ -255,6 +255,8 @@ function stack(ir: WIR): [WIR, wasm.ValueType[]] {
           pr.set(v, new Instr(wasm.Branch(ex.target, ex.isconditional()), []))
           stack = state.stack.slice(0, state.stack.length - cond.length)
         }
+      } else if (ex.head === 'setglobal') {
+        pr.delete(v) // `Pipeline.emit` fixes these up later
       } else {
         throw new Error(`Unrecognised expression ${ex.head}`)
       }

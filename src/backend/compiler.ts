@@ -50,15 +50,15 @@ class Pipeline implements Caching {
   emit(m: mods.Method, em: wasm.Emitter): void {
     let ir = this.counted.get([m])
     if (ir instanceof Redirect) throw new Error('nope')
-    const gs = assigned_globals(ir)
-    for (const [b, T] of gs) this.sources.set(b, T)
-    if (opcount(ir) <= 0) return
-    let wir = this.wasm.lower(ir)
-    if (gs.size > 0) reset(this)
-    wir = wasm.lowerwasm_globals(wir, this.wasm.globals)
     const name = this.wasm.names.get([m])
-    const fn = irfunc(name, wir)
-    em.emit(this.wasm, fn)
+    const gs = assigned_globals(ir)
+    let wir = this.wasm.lower(ir)
+    const fns = wasm.calltree(this.wasm, irfunc(name, wir))
+    for (const [b, T] of gs) this.sources.set(b, T)
+    if (gs.size > 0) reset(this)
+    if (opcount(ir) <= 0) return
+    wir = wasm.lowerwasm_globals(wir, this.wasm.globals)
+    em.emit(fns, irfunc(name, wir))
   }
 
   async loadcommon(emitter: wasm.Emitter, load: Loader): Promise<this> {
@@ -88,7 +88,7 @@ class Compiler {
 
   private constructor(readonly load: Loader) {
     this.pipe = new Pipeline()
-    this.emitter = new wasm.BatchEmitter()
+    this.emitter = new wasm.BatchEmitter(this.pipe.wasm.tables)
   }
 
   static async create(load: Loader, src?: string | SourceString): Promise<Compiler> {

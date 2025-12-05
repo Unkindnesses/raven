@@ -44,7 +44,7 @@ class REPL {
     this.stderr = opts.stderr ?? process.stderr
     this.options = opts.options ?? {}
     this.pipe = new Pipeline()
-    this.emitter = new StreamEmitter()
+    this.emitter = new StreamEmitter(this.pipe.wasm.tables)
     this.worker = new Worker(path.join(dirname, '../../dist/cli/worker.js'), { name: 'raven-repl' })
     this.attachIO()
   }
