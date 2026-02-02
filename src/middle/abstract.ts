@@ -181,6 +181,11 @@ function infercall(inf: Inference, P: Sig, F: Func, ...Ts: Anno<Type>[]): Anno<T
 }
 
 function inferexpr(inf: Inference, P: Sig, ir: MIR | Block<MIR>, ex: Expr<IRValue>): Anno<Type> | undefined {
+  if (ex.head === 'call') {
+    const calleeT = ir.type(ex.body[0])
+    if (calleeT === unreachable) return unreachable
+    if (!(calleeT instanceof Tag)) return unreachable
+  }
   let [F, Ts] = callargs(ir, ex)
   return infercall(inf, P, F, ...Ts.map(x => ir.type(x)))
 }

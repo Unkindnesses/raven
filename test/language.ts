@@ -58,6 +58,12 @@ test('undefined function errors', async () => {
   await rv('foo()', { error: true, output: 'foo is not defined' })
 })
 
+test('non-tag call errors', async () => {
+  await rv(`
+    x = 1, x()
+  `, { error: true, output: "Only tags (top-level functions) are callable." })
+})
+
 test('non boolean condition fails', async () => {
   await rv(`if "true" { println("hi") }`,
     { error: true, output: 'Non-boolean used as a condition' })

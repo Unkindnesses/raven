@@ -446,6 +446,13 @@ function lowerdata(code: MIR): MIR {
     if (ex.head === 'pack') {
       const args = ex.body.filter(x => !types.isValue(asType(code.type(x))))
       args.length ? pr.set(v, xtuple(...args)) : pr.replace(v, asType(st.type))
+    } else if (ex.head === 'call') {
+      const calleeT = pr.type(ex.body[0])
+      if (calleeT !== ir.unreachable && !(calleeT instanceof types.Tag)) {
+        pr.delete(v)
+        const msg = `Only tags (top-level functions) are callable. Tried to call: ${types.repr(calleeT)}`
+        pr.replace(v, abort(pr, msg))
+      }
     } else if (ex instanceof Wasm && !ex.isImport()) {
       const instr = ex.callee as wasm.Instruction
       const op = instr.kind === 'op' ? instr.name : ''
