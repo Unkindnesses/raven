@@ -935,6 +935,14 @@ test('array values', async () => {
   `, { output: '[[1], [1, 2], [1, 2, 3]]' })
 })
 
+test('global list release', async () => {
+  await rv(`
+    xs = collect(range(1, widen(3)))
+    xs = collect(range(1, widen(3)))
+    test length(xs) == 3
+  `)
+})
+
 test('allocs', async () => {
   await rv(`
     test (allocs 1 + 2) == 0

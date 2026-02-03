@@ -1,3 +1,4 @@
+import * as types from '../frontend/types.js'
 import { tag } from '../frontend/types.js'
 import * as mods from '../frontend/modules.js'
 import { Interpreter, interpreter } from '../middle/interpret.js'
@@ -5,7 +6,7 @@ import { MatchMethods } from '../middle/patterns.js'
 import { Inferred, Redirect } from '../middle/abstract.js'
 import { Expanded } from '../middle/expand.js'
 import { Inlined, opcount } from '../middle/inline.js'
-import { refcounts } from '../middle/refcount.js'
+import { isreftype, release_method, refcounts } from '../middle/refcount.js'
 import * as wasm from './wasm.js'
 import { irfunc } from '../wasm/ir.js'
 import { reset, pipe, Caching, withtime } from '../utils/cache.js'
@@ -14,6 +15,7 @@ import { binding, options } from '../utils/options.js'
 import { assigned_globals } from '../frontend/lower.js'
 import { core } from '../middle/primitives.js'
 import { only } from '../utils/map.js'
+import { Def } from '../dwarf/index.js'
 
 export { Pipeline, Compiler, emit, withEmit }
 
@@ -57,8 +59,24 @@ class Pipeline implements Caching {
     for (const [b, T] of gs) this.sources.set(b, T)
     if (gs.size > 0) reset(this)
     if (opcount(ir) <= 0) return
+    if (em instanceof wasm.BatchEmitter) this.destructors(gs, em)
     wir = wasm.lowerwasm_globals(wir, this.wasm.globals)
     em.emit(fns, irfunc(name, wir))
+  }
+
+  private destructors(gs: Map<mods.Binding, types.Type>, em: wasm.BatchEmitter) {
+    for (const [b, T] of gs) {
+      if (!isreftype(T)) continue
+      const ids = this.wasm.globals.get(b)
+      const fname = `__release_global.${ids[0]}`
+      const code = mods.MIR(Def(fname))
+      const value = code.push(code.stmt(mods.xglobal(b), { type: T }))
+      code.return(code.push(code.stmt(new mods.Invoke(release_method, [value]), { type: types.nil })))
+      const wir = this.wasm.lower(code)
+      const func = irfunc(fname, wir)
+      const calls = wasm.calltree(this.wasm, func)
+      em.destructor(calls, func)
+    }
   }
 
   async loadcommon(emitter: wasm.Emitter, load: Loader): Promise<this> {
@@ -117,6 +135,7 @@ class Compiler {
       await withEmit(emitIR, async () => { await reload(this.pipe.sources, src, this.load) })
       reset(this.pipe)
       if (options().memcheck && em.funcs.some(fn => fn.name.startsWith('common.malloc!'))) {
+        em.main.push(...em.destructors)
         const checks = this.pipe.defs.methods(tag('common.checkAllocations'))
         this.pipe.emit(only(checks), em)
       }

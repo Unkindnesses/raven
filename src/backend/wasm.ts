@@ -263,12 +263,14 @@ type Emitter = { emit(calls: Map<string, wasm.Func | WSig>, func: wasm.Func): vo
 class BatchEmitter implements Emitter {
   tables: Tables
   main: string[]
+  destructors: string[]
   seen: Set<string>
   funcs: wasm.Func[]
   imports: wasm.Import[]
   constructor(tables: Tables) {
     this.tables = tables
     this.main = []
+    this.destructors = []
     this.seen = new Set()
     this.funcs = []
     this.imports = []
@@ -277,6 +279,7 @@ class BatchEmitter implements Emitter {
   clone(): BatchEmitter {
     const em = new BatchEmitter(this.tables)
     em.main = [...this.main]
+    em.destructors = [...this.destructors]
     em.seen = new Set(this.seen)
     em.funcs = [...this.funcs]
     em.imports = [...this.imports]
@@ -302,6 +305,12 @@ class BatchEmitter implements Emitter {
     this.emitFunc(calls, func)
     for (const f of this.tables.funcs) this.emitName(calls, f)
     this.main.push(func.name)
+  }
+
+  destructor(calls: Map<string, wasm.Func | WSig>, func: wasm.Func) {
+    this.emitFunc(calls, func)
+    for (const f of this.tables.funcs) this.emitName(calls, f)
+    this.destructors.push(func.name)
   }
 }
 
