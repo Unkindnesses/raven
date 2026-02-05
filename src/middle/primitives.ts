@@ -393,7 +393,6 @@ inlinePrimitive.set(nparts_method.id, (code, st) => {
   if (T.kind === 'union')
     return code.push({ ...st, expr: xcall(nparts_method, x) })
   const y = nparts(code, T, x)
-  if (isreftype(T)) code.push(code.stmt(expr('release', x)))
   return y
 })
 
@@ -406,7 +405,6 @@ outlinePrimitive.set(nparts_method.id, (x: Type): MIR => {
     // TODO possibly insert `nparts_method` calls and redo lowering
     let ret = nparts(code, T, val)
     ret = cast(code, partial_nparts(T), retT, ret)
-    if (isreftype(T)) code.push(code.stmt(expr('release', val)))
     return ret
   })
   return code
