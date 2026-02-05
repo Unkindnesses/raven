@@ -18,4 +18,45 @@ test('basic eval', async () => {
   }
 })
 
+test('undo restores globals', async () => {
+  const repl = new REPL({ stdout: new PassThrough() })
+  try {
+    await repl.init()
+    assert.strictEqual((await repl.eval('x = 1')).trim(), '1')
+    assert.strictEqual((await repl.eval('x = 2')).trim(), '2')
+    assert.strictEqual((await repl.eval('undo')).trim(), '# undo x = 2')
+    assert.strictEqual((await repl.eval('x')).trim(), '1')
+  } finally {
+    await repl.close()
+  }
+})
+
+test('undo restores function definitions', async () => {
+  const repl = new REPL({ stdout: new PassThrough() })
+  try {
+    await repl.init()
+    await repl.eval('fn inc(x) { x + 1 }')
+    assert.strictEqual((await repl.eval('inc(1)')).trim(), '2')
+    await repl.eval('fn inc(x) { x + 2 }')
+    assert.strictEqual((await repl.eval('undo')).trim(), '# undo fn inc(x) { x + 2 }')
+    assert.strictEqual((await repl.eval('inc(1)')).trim(), '2')
+  } finally {
+    await repl.close()
+  }
+})
+
+test('undo n restores multiple entries', async () => {
+  const repl = new REPL({ stdout: new PassThrough() })
+  try {
+    await repl.init()
+    assert.strictEqual((await repl.eval('x = 1')).trim(), '1')
+    assert.strictEqual((await repl.eval('x = 2')).trim(), '2')
+    assert.strictEqual((await repl.eval('x = 3')).trim(), '3')
+    assert.strictEqual((await repl.eval('undo 2')).trim(), '# undo x = 3\n# undo x = 2')
+    assert.strictEqual((await repl.eval('x')).trim(), '1')
+  } finally {
+    await repl.close()
+  }
+})
+
 test.run()

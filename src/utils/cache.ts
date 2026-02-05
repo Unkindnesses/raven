@@ -6,7 +6,7 @@ import { now } from "../utils/bench.js"
 export {
   nft, trackdeps, track, withtime,
   Caching, Ref, Map, Cache, EagerCache, DualCache, CycleCache,
-  fingerprint, reset, pipe, time, size
+  fingerprint, reuse, reset, pipe, time, size
 }
 
 let nft_id = 0n
@@ -66,10 +66,23 @@ function track(t: bigint) {
 
 interface Caching {
   subcaches?: Iterable<Caching>
-  fingerprint?: () => Set<bigint>
-  reset?: (deps: Set<bigint>) => void
+  fingerprint?(): Set<bigint>
+  reuse?(ch: this): this
+  reset?(deps: Set<bigint>): void
   time?: bigint
   size?: number
+}
+
+// `reuse` should really take a fingerprint. The intent is to copy only valid
+// results from `b` into `a` (which may already contain results). But for now
+// we assume `a` is empty and `b` is complete, which lets us copy caches.
+function reuse<T extends Caching>(a: T, b: T): T {
+  if (a.reuse) return a.reuse(b)
+  const xs = Array.from(a.subcaches ?? [])
+  const ys = Array.from(b.subcaches ?? [])
+  if (xs.length !== ys.length) throw new Error('Cache reuse shape mismatch')
+  for (let i = 0; i < xs.length; i++) reuse(xs[i], ys[i])
+  return a
 }
 
 function fingerprint(ch: Caching): Set<bigint> {
@@ -121,6 +134,7 @@ class Ref<T> implements Caching {
   get size() { return 1 }
   get() { track(this.id); return this.value }
   set(x: T) { this.id = nft(); this.value = x; return this }
+  clone(): Ref<T> { const ref = new Ref(this.value); ref.id = this.id; return ref }
 }
 
 // Just a map, with tracking enabled for `Cache`s.
@@ -182,6 +196,14 @@ class Map<K, V> implements Caching {
     for (const k of this.keys()) {
       this.delete(k)
     }
+  }
+
+  clone(): Map<K, V> {
+    const out = new Map<K, V>()
+    out.print = new Set(this.print)
+    out.data = new HashMap(this.data)
+    out.haskey = new HashMap(this.haskey)
+    return out
   }
 }
 
@@ -245,6 +267,12 @@ class Cache<K, V> implements Caching {
     }
   }
 
+  reuse(ch: this) {
+    this.print = new Set(ch.print)
+    this.data = new HashMap(ch.data)
+    return this
+  }
+
   reset(deps: Set<bigint>) {
     for (const k of this.invalid(deps)) this.delete(k)
   }
@@ -272,6 +300,11 @@ class DualCache<K, V> extends Cache<K, V> {
     let v = super._get(k)
     this.dual.set(v, k)
     return v
+  }
+  reuse(ch: this) {
+    super.reuse(ch)
+    this.dual = new HashMap(ch.dual)
+    return this
   }
   reset(deps: Set<bigint>) {
     for (const k of this.invalid(deps)) {
@@ -365,6 +398,16 @@ class CycleCache<K, V> implements Caching {
     const [v, time] = withtime(() => this._get(k, loop))
     this.time += time
     return v
+  }
+
+  reuse(ch: this): this {
+    this.print = new Set(ch.print)
+    this.keys = new globalThis.Map(ch.keys)
+    this.data = new HashMap()
+    for (const [k, v] of ch.data)
+      this.data.set(k, { value: v.value, id: v.id, deps: new Set(v.deps), edges: new Set(v.edges) })
+    this.queue = new WorkQueue<bigint>()
+    return this
   }
 
   reset(deps: Set<bigint>) {

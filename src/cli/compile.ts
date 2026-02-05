@@ -31,8 +31,7 @@ async function compile(file: string, config: CompileConfig = {}): Promise<[Compi
   await withOptions(options, async () => {
     compiler ??= await Compiler.create(load)
     const em = await compiler.reload(file)
-    if (!(em instanceof wasm.BatchEmitter)) throw new Error('nope')
-    const bytes = wasm.emitwasm(em, compiler.pipe.wasm, strip)
+    const bytes = wasm.emitwasm(em, strip)
     await writeFile(wasmPath, Buffer.from(bytes))
   })
   return [compiler!, wasmPath]
@@ -46,8 +45,7 @@ async function compileJS(file: string, config: CompileConfig = {}): Promise<[Com
   await withOptions(options, async () => {
     compiler ??= await Compiler.create(load)
     const em = await compiler.reload(file)
-    if (!(em instanceof wasm.BatchEmitter)) throw new Error('nope')
-    const bytes = wasm.emitwasm(em, compiler.pipe.wasm, strip)
+    const bytes = wasm.emitwasm(em, strip)
     const base64 = Buffer.from(bytes).toString('base64')
     const runtime = await readFile(execPath, 'utf8')
     await writeFile(jsPath, `${runtime}\nbinary = Buffer.from('${base64}', 'base64')\n`)

@@ -13,6 +13,7 @@ import { parse } from '../frontend/parse.js'
 import * as ast from '../frontend/ast.js'
 import { WorkerCommand, WorkerRequest, WorkerResponse } from './worker.js'
 import { Options, withOptions } from '../utils/options.js'
+import { isEqual } from '../utils/isEqual.js'
 
 export { REPL }
 
@@ -29,8 +30,9 @@ interface Pending {
 
 class REPL {
   private readonly worker: Worker
-  private readonly pipe: Pipeline
+  private pipe: Pipeline
   private readonly emitter: StreamEmitter
+  private readonly history: { pipe: Pipeline, input: string }[] = []
   private readonly pending = new Map<number, Pending>()
   private readonly stdout: Writable
   private readonly stderr: Writable
@@ -80,19 +82,26 @@ class REPL {
   async eval(src: string) {
     this.output = ''
     await withOptions(this.options, async () => {
+      const exprs = parse('repl', src)
+      const undoCount = getUndoCount(exprs)
+      if (undoCount !== null) return this.undo(undoCount)
+      if (!exprs.length) return
+      const prev = this.pipe
+      const pipe = this.pipe.fork()
+      exprs[exprs.length - 1] = wrapPrint(exprs[exprs.length - 1])
       await withEmit(m => {
-        reset(this.pipe)
-        this.pipe.emit(m, this.emitter)
+        reset(pipe)
+        pipe.emit(m, this.emitter)
       }, async () => {
-        const defs = this.pipe.sources
+        const defs = pipe.sources
         const module = defs.module(tag(''))
         const cx = new LoadState(defs, module, load)
-        const exprs = parse('repl', src)
-        if (exprs.length) exprs[exprs.length - 1] = wrapPrint(exprs[exprs.length - 1])
         for (const expr of exprs) await vload(cx, expr)
       })
-      reset(this.pipe)
+      reset(pipe)
       await this.flush()
+      this.history.push({ pipe: prev, input: src })
+      this.pipe = pipe
     })
     return this.output
   }
@@ -149,6 +158,17 @@ class REPL {
       else this.worker.postMessage(payload)
     })
   }
+
+  private undo(count: number) {
+    for (let i = 0; i < count; i++) {
+      const entry = this.history.pop()
+      if (!entry) return
+      this.pipe = entry.pipe
+      const line = `# undo ${entry.input}\n`
+      this.output += line
+      this.stdout?.write(line)
+    }
+  }
 }
 
 function wrapPrint(ex: ast.Tree) {
@@ -158,4 +178,18 @@ function wrapPrint(ex: ast.Tree) {
       return ex
   }
   return ast.Call(ast.Template(ast.symbol('tag'), 'common.replshow'), ex)
+}
+
+function getUndoCount(exprs: ast.Tree[]): number | null {
+  if (exprs.length !== 1) return null
+  const node = exprs[0].ungroup()
+  if (node instanceof ast.Token)
+    return isEqual(node.unwrap(), ast.symbol('undo')) ? 1 : null
+  if (!ast.isExpr(node, 'Syntax')) return null
+  const [head, ...args] = node.args
+  if (!isEqual(head.unwrap(), ast.symbol('undo'))) return null
+  if (args.length !== 1) return null
+  const count = args[0].ungroup().unwrap()
+  if (typeof count === 'bigint') return Number(count)
+  return null
 }

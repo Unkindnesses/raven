@@ -9,7 +9,7 @@ import { Inlined, opcount } from '../middle/inline.js'
 import { isreftype, release_method, refcounts } from '../middle/refcount.js'
 import * as wasm from './wasm.js'
 import { irfunc } from '../wasm/ir.js'
-import { reset, pipe, Caching, withtime } from '../utils/cache.js'
+import { reset, reuse, pipe, Caching, withtime } from '../utils/cache.js'
 import { Loader, loadmodule, reload, SourceString } from '../middle/load.js'
 import { binding, options } from '../utils/options.js'
 import { assigned_globals } from '../frontend/lower.js'
@@ -30,8 +30,8 @@ class Pipeline implements Caching {
   readonly counted: ReturnType<typeof refcounts>
   readonly wasm: wasm.Wasm
 
-  constructor() {
-    this.sources = new mods.Modules()
+  constructor(sources = new mods.Modules()) {
+    this.sources = sources
     this.defs = new mods.Definitions(this.sources)
     this.interp = interpreter(this.defs)
     this.methods = MatchMethods(this.defs, this.interp)
@@ -44,6 +44,10 @@ class Pipeline implements Caching {
 
   get subcaches(): Caching[] {
     return [this.sources, this.defs, this.methods, this.inferred, this.expanded, this.inlined, this.counted, this.wasm]
+  }
+
+  fork(): Pipeline {
+    return reuse(new Pipeline(this.sources.clone()), this)
   }
 
   reset(deps: Set<bigint>): void { reset(pipe(...this.subcaches), deps) }
@@ -101,7 +105,7 @@ function emit(m: mods.Method): void { return getEmit()(m) }
 
 class Compiler {
   readonly pipe: Pipeline
-  readonly emitter: wasm.Emitter
+  readonly emitter: wasm.BatchEmitter
   time = 0n
 
   private constructor(readonly load: Loader) {
@@ -124,8 +128,7 @@ class Compiler {
     return this
   }
 
-  async reload(src: string | SourceString): Promise<wasm.Emitter> {
-    if (!(this.emitter instanceof wasm.BatchEmitter)) throw new Error('nope')
+  async reload(src: string | SourceString): Promise<wasm.BatchEmitter> {
     const em = this.emitter.clone()
     const [, t] = await withtime(async () => {
       const emitIR = (m: mods.Method) => {

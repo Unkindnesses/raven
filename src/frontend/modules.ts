@@ -196,13 +196,30 @@ class Methods implements cache.Caching {
       if (m instanceof Method) this.code.delete(m)
     return this.methods.delete(k)
   }
+
+  clone(): Methods {
+    const out = new Methods()
+    out.imports = this.imports.clone()
+    out.methods = this.methods.clone()
+    out.code = this.code.clone()
+    return out
+  }
 }
 
 class Module implements cache.Caching {
-  readonly defs = new cache.Map<string, Anno<Type> | Binding>()
-  readonly exports = new Set<string>()
-  readonly methods = new Methods()
-  constructor(readonly name: Tag) { }
+  readonly defs: cache.Map<string, Anno<Type> | Binding>
+  readonly exports: Set<string>
+  readonly methods: Methods
+  constructor(
+    readonly name: Tag,
+    defs: cache.Map<string, Anno<Type> | Binding> = new cache.Map(),
+    exports: Set<string> = new Set<string>(),
+    methods: Methods = new Methods(),
+  ) {
+    this.defs = defs
+    this.exports = exports
+    this.methods = methods
+  }
 
   get subcaches() { return [this.defs, this.methods] }
   method(name: Tag, sig: Signature, ir: MIR) { return this.methods.method(new Method(this.name, name, sig), ir) }
@@ -224,6 +241,10 @@ class Module implements cache.Caching {
       if (!from.exports.has(v)) throw new Error(`Module ${from.name} does not export ${v} `)
       this.set(v, new Binding(from.name, v))
     }
+  }
+
+  clone(): Module {
+    return new Module(this.name, this.defs.clone(), new Set(this.exports), this.methods.clone())
   }
 }
 
@@ -247,6 +268,13 @@ class Modules implements cache.Caching {
     const val = this.get(b)
     if (val === undefined) throw new Error(`Binding ${b.name} not found in module ${b.mod} `)
     return val instanceof Binding ? this.resolve_static(val) : val
+  }
+
+  clone(): Modules {
+    const out = new Modules()
+    for (const [k, mod] of this.mods)
+      out.mods.set(k, mod.clone())
+    return out
   }
 }
 

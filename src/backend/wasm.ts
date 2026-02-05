@@ -6,7 +6,7 @@ import { irfunc, Instr, setdiff, Value, WIR, asValue } from '../wasm/ir.js'
 import { unreachable, Anno, Pipe, expr, Val, Branch, Expr, asType } from '../utils/ir.js'
 import { isEqual } from '../utils/isEqual.js'
 import { wlayout } from '../middle/expand.js'
-import { Cache, Caching, DualCache, reset as resetCaches, pipe } from '../utils/cache.js'
+import { Cache, Caching, DualCache, reset as resetCaches, pipe, reuse } from '../utils/cache.js'
 import { Binding, Definitions, MIR, Method, StringRef, JS, Global, SetGlobal, Wasm as WasmCall, callargs } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
 import { Redirect, type Sig } from '../middle/abstract.js'
@@ -201,11 +201,13 @@ function wname(f: types.Tag | Method | [string, string]): string {
 
 class Wasm implements Caching {
   tables: Tables
+  count: Map<string, number>
   globals: Cache<Binding, string[]>
   names: DualCache<Sig | WSig, string>
   funcs: Cache<Sig, wasm.Func>
   constructor(defs: Definitions, code: Accessor<Sig, Redirect | MIR>) {
     this.tables = new Tables()
+    this.count = new Map<string, number>()
     // TODO pretty sure this is wrong; binding chains lead to duplicated globals
     this.globals = new Cache<Binding, string[]>(b => {
       let T: Anno<Type> | Binding = b
@@ -219,14 +221,13 @@ class Wasm implements Caching {
       }
       return names
     })
-    const count = new Map<string, number>()
     // TODO should be `funcs`, not `code`, to make global redefs of the same type
     // more efficient. But that creates an awkward cycle between names and funcs.
     this.names = new DualCache<Sig | WSig, string>(sig => {
       if (!Array.isArray(sig[0])) code.get(sig as Sig) // new name if code changes
       const id = wname(sig[0])
-      const c = (count.get(id) ?? 0) + 1
-      count.set(id, c)
+      const c = (this.count.get(id) ?? 0) + 1
+      this.count.set(id, c)
       return `${id}:${c}`
     })
     this.funcs = new Cache<Sig, wasm.Func>(sig => {
@@ -237,6 +238,14 @@ class Wasm implements Caching {
   }
   lower(ir: MIR) { return lowerwasm(ir, this.names, this.globals, this.tables) }
   get(sig: Sig): wasm.Func { return this.funcs.get(sig) }
+
+  reuse(ch: this) {
+    this.tables = ch.tables
+    this.count = ch.count
+    reuse(pipe(this.globals, this.names, this.funcs), pipe(ch.globals, ch.names, ch.funcs))
+    return this
+  }
+
   get subcaches() { return [this.globals, this.names, this.funcs] }
   reset(deps: Set<bigint>) { resetCaches(pipe(this.globals, this.names, this.funcs), deps) }
 }
@@ -370,7 +379,7 @@ function wasmmodule(em: BatchEmitter): wasm.Module {
   return mod
 }
 
-function emitwasm(em: BatchEmitter, mod: Wasm, strip = false): Uint8Array {
+function emitwasm(em: BatchEmitter, strip = false): Uint8Array {
   return binary(wasmmodule(em), strip)
 }
 
