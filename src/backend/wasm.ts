@@ -276,6 +276,7 @@ class BatchEmitter implements Emitter {
   seen: Set<string>
   funcs: wasm.Func[]
   imports: wasm.Import[]
+  exports: wasm.Export[]
   constructor(tables: Tables) {
     this.tables = tables
     this.main = []
@@ -283,6 +284,7 @@ class BatchEmitter implements Emitter {
     this.seen = new Set()
     this.funcs = []
     this.imports = []
+    this.exports = []
   }
 
   clone(): BatchEmitter {
@@ -292,6 +294,7 @@ class BatchEmitter implements Emitter {
     em.seen = new Set(this.seen)
     em.funcs = [...this.funcs]
     em.imports = [...this.imports]
+    em.exports = [...this.exports]
     return em
   }
 
@@ -320,6 +323,11 @@ class BatchEmitter implements Emitter {
     this.emitFunc(calls, func)
     for (const f of this.tables.funcs) this.emitName(calls, f)
     this.destructors.push(func.name)
+  }
+
+  export(name: string, as = name) {
+    const existing = this.exports.some(ex => ex.name === name && ex.as === as)
+    if (!existing) this.exports.push(wasm.Export(name, as))
   }
 }
 
@@ -368,7 +376,8 @@ function wasmmodule(em: BatchEmitter): wasm.Module {
       wasm.Export('cm32p2_memory'),
       wasm.Export(refTable),
       wasm.Export('allocs'),
-      wasm.Export('frees')
+      wasm.Export('frees'),
+      ...em.exports
     ],
     globals: [...em.tables.globals, ...refGlobals].map(g => wasm.Global(...g)),
     tables: moduleTables(em.tables),

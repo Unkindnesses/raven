@@ -1,10 +1,19 @@
 import * as wasm from '../backend/wasm.js'
+import * as types from '../frontend/types.js'
+import * as ast from '../frontend/ast.js'
+import { Binding, MIR, Method } from '../frontend/modules.js'
+import { lowerpattern } from '../frontend/patterns.js'
+import { xcall, xlist, xpart } from '../frontend/lower.js'
 import { Options, withOptions } from '../utils/options.js'
+import { unreachable } from '../utils/ir.js'
+import { reset } from '../utils/cache.js'
 import * as path from 'path'
 import { chmod, mkdir, readFile, writeFile } from 'fs/promises'
 import { spawn, SpawnOptions } from 'node:child_process'
 import { dirname } from './dirname.js'
 import { Compiler } from '../backend/compiler.js'
+import type { Sig } from '../middle/abstract.js'
+import { Def } from '../dwarf/index.js'
 
 export { Compiler, compile, compileJS, exec, load }
 
@@ -20,6 +29,7 @@ interface CompileConfig {
   compiler?: Compiler
   options?: Partial<Options>
   output?: string
+  embed?: boolean
   strip?: boolean
 }
 
@@ -37,21 +47,110 @@ async function compile(file: string, config: CompileConfig = {}): Promise<[Compi
   return [compiler!, wasmPath]
 }
 
+function isJSIdentifier(name: string): boolean {
+  return /^[$A-Z_][0-9A-Z_$]*$/i.test(name)
+}
+
+function buildPaths(file: string, dir: string, output?: string): { js: string, wasm: string } {
+  if (!output) {
+    const base = path.basename(file, path.extname(file))
+    return {
+      js: path.join(dir, `${base}.js`),
+      wasm: path.join(dir, `${base}.wasm`)
+    }
+  }
+  const { dir: outDir, name, ext } = path.parse(output)
+  const wasmBase = ext ? path.join(outDir, name) : output
+  return { js: output, wasm: `${wasmBase}.wasm` }
+}
+
+function exportedFunctions(compiler: Compiler): [string, types.Tag][] {
+  const mod = compiler.pipe.sources.module(types.tag(''))
+  const out: [string, types.Tag][] = []
+  for (const name of [...mod.exports].sort()) {
+    const value = compiler.pipe.defs.resolve_static(new Binding(types.tag(''), name))
+    if (!(value instanceof types.Tag)) continue
+    out.push([name, value])
+  }
+  return out
+}
+
+// TODO better to have a generic means for converting to JS functions. Exported
+// globals can implicitly convert to JS, and we don't need to wrap.
+function libWrapperIR(name: string, f: types.Tag): MIR {
+  const rcall = (code: MIR, fn: types.Tag | Method, args: any[]) => {
+    const arglist = code.push(code.stmt(xlist(...args)))
+    const result = code.push(code.stmt(xcall(fn, arglist)))
+    return code.push(code.stmt(xpart(result, types.Type(1n))))
+  }
+  const code = MIR(Def(name))
+  const args = code.argument(unreachable)
+  const jsargs = rcall(code, types.tag('common.JSObject'), [args])
+  const rvargs = rcall(code, types.tag('common.collect'), [jsargs])
+  const result = code.push(code.stmt(xcall(f, rvargs)))
+  const value = code.push(code.stmt(xpart(result, types.Type(1n))))
+  const jsresult = rcall(code, types.tag('common.js'), [value])
+  code.return(code.push(code.stmt(xpart(jsresult, types.Type(1n)))))
+  return code
+}
+
+function emitSig(compiler: Compiler, em: wasm.BatchEmitter, sig: Sig, main = true): string {
+  reset(compiler.pipe)
+  const func = compiler.pipe.wasm.get(sig)
+  const calls = wasm.calltree(compiler.pipe.wasm, func)
+  const start = em.main.length
+  em.emit(calls, func)
+  if (!main) em.main.length = start
+  return func.name
+}
+
+function jsRuntime(exports: [string, string][], runtime: string, config: { wasmFile?: string, base64?: string, memcheck?: boolean }): string {
+  const { wasmFile, base64, memcheck = false } = config
+  const init = base64
+    ? `\nconst __raven = await __ravenInline(${JSON.stringify(base64)}, ${memcheck})\n`
+    : `\nconst __raven = await __ravenLib(${JSON.stringify(wasmFile)}, ${memcheck})\n`
+  const wrappers = exports.map(([name, wasmName], i) => {
+    const fn = `__raven_fn_${i}`
+    return `const ${fn} = __raven(${JSON.stringify(wasmName)})
+export const ${name} = (...args) => ${fn}(args)`
+  }).join('\n')
+  return `${runtime}${init}${wrappers}\n`
+}
+
 async function compileJS(file: string, config: CompileConfig = {}): Promise<[Compiler, string]> {
-  let { dir = path.dirname(file), compiler, options = {}, output, strip = false } = config
-  const base = path.basename(file, path.extname(file))
-  const jsPath = output ?? path.join(dir, `${base}.js`)
-  await mkdir(path.dirname(jsPath), { recursive: true })
-  await withOptions(options, async () => {
+  let { dir = path.dirname(file), compiler, options = {}, output, embed: inlineWasm = false, strip = false } = config
+  const memcheck = options.memcheck ?? false
+  const paths = buildPaths(file, dir, output)
+  await mkdir(path.dirname(paths.js), { recursive: true })
+  if (!inlineWasm) await mkdir(path.dirname(paths.wasm), { recursive: true })
+  await withOptions({ ...options, memcheck }, async () => {
     compiler ??= await Compiler.create(load)
     const em = await compiler.reload(file)
+    const exports: [string, string][] = []
+    const runtime = await readFile(libPath, 'utf8')
+    const mod = compiler.pipe.sources.module(types.tag(''))
+    for (const [i, [name, fn]] of exportedFunctions(compiler).entries()) {
+      if (!isJSIdentifier(name))
+        throw new Error(`Cannot export ${JSON.stringify(name)} as a JS binding`)
+      const tag = types.tag(`__raven.lib.${i}`)
+      const sig = lowerpattern(ast.List(ast.symbol('args')))
+      const method = mod.method(tag, sig, libWrapperIR(tag.path, fn))
+      const fname = emitSig(compiler, em, [method, types.Ref], false)
+      const wname = `raven.lib.${name}`
+      em.export(fname, wname)
+      exports.push([name, wname])
+    }
     const bytes = wasm.emitwasm(em, strip)
-    const base64 = Buffer.from(bytes).toString('base64')
-    const runtime = await readFile(execPath, 'utf8')
-    await writeFile(jsPath, `${runtime}\nbinary = Buffer.from('${base64}', 'base64')\n`)
-    await chmod(jsPath, 0o755)
+    if (inlineWasm) {
+      const base64 = Buffer.from(bytes).toString('base64')
+      await writeFile(paths.js, jsRuntime(exports, runtime, { base64, memcheck }))
+    } else {
+      await writeFile(paths.wasm, Buffer.from(bytes))
+      await writeFile(paths.js, jsRuntime(exports, runtime, { wasmFile: path.basename(paths.wasm), memcheck }))
+    }
+    await chmod(paths.js, 0o755)
   })
-  return [compiler!, jsPath]
+  return [compiler!, paths.js]
 }
 
 async function run(cmd: string, args: readonly string[] = [], options: SpawnOptions = {}) {
@@ -62,6 +161,7 @@ async function run(cmd: string, args: readonly string[] = [], options: SpawnOpti
   })
 }
 
+const libPath = path.join(dirname, '../../dist/cli/lib.js')
 const execPath = path.join(dirname, '../../dist/cli/exec.js')
 
 async function exec(file: string, args: string[] = [], config?: CompileConfig): Promise<void> {

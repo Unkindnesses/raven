@@ -50,7 +50,7 @@ fibSequence(10) = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55]
 It may entertain you to create a self-contained JS file (with the shebang and permissions needed to run like a binary).
 
 ```bash
-$ raven build --js hello.rv -o hello
+$ raven build --js --embed hello.rv -o hello
 $ ./hello
 Cacaw, World!
 ```
@@ -160,7 +160,7 @@ fn interpret(code) {
 </details>
 
 ```bash
-$ raven build --js brainfuck.rv -o bf
+$ raven build --js --embed brainfuck.rv -o bf
 $ cat hello.bf
 ++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.
 $ ./bf hello.bf

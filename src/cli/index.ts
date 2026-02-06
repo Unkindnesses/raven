@@ -119,13 +119,20 @@ async function main() {
     .command('build')
     .description('Compile a Raven source file')
     .argument('<source>', 'Source file to compile')
-    .option('--js', 'Emit JS')
+    .option('--js', 'Emit JS wrapper')
+    .option('--embed', 'Embed WASM into emitted JS')
     .option('-o, --output <file>', 'Rename output file')
     .option('--time', 'Print compiler phase timing information')
-    .action(async (source, { output, js, time }) => {
+    .action(async (source, { output, js, embed, time }) => {
       let { inline, memcheck, strip } = program.optsWithGlobals()
       source = path.resolve(process.cwd(), source)
-      let [compiler] = await (js ? compileJS : compile)(source, { options: { inline, memcheck }, output, strip })
+      const build = js ? compileJS : compile
+      let [compiler] = await build(source, {
+        options: { inline, memcheck: js ? false : memcheck },
+        output,
+        embed: js && !!embed,
+        strip
+      })
       if (time) printTiming(compiler)
     })
 

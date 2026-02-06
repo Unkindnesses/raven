@@ -71,11 +71,25 @@ $ ./hello.js
 Cacaw, World!
 ```
 
-To run with Node.js directly, you need the `--experimental-wasm-jspi` option.
+You can embed the wasm into a single JS script with `--embed`.
+
+You can run with node directly (prior to v25, you need `--experimental-wasm-jspi`).
 
 ```bash
-$ node --experimental-wasm-jspi hello.js
+$ node hello.js
 Cacaw, World!
+```
+
+Exported Raven functions are emitted as async JS ones.
+
+```rust
+export { add }
+fn add(a: JSObject, b: JSObject) { Int32(a) + Int32(b) }
+```
+
+```js
+import { add } from './math.js'
+console.log(await add(2, 3))
 ```
 
 Profile the compiler:
