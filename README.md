@@ -168,3 +168,24 @@ Hello World!
 ```
 
 For more code samples, see [complex numbers](common/numbers/complex.rv) or [malloc](common/wasm/malloc.rv).
+
+## Architecture
+
+```mermaid
+flowchart TD
+  CLI["CLI (`raven build`)"] --> PARSE["Parsing (frontend/parse.ts, middle/load.ts)"]
+  SRC["Raven source (.rv)"] --> PARSE
+
+  PARSE --> LOWER["AST -> MIR lowering (frontend/lower.ts)"]
+
+  LOWER --> INTERP["Interpreter + method matching (middle/interpret.ts, middle/patterns.ts)"]
+  INTERP --> INFER["Type inference (middle/abstract.ts)"]
+  INFER --> EXPAND["Expansion (middle/expand.ts)"]
+  EXPAND --> INLINE["Inlining (middle/inline.ts)"]
+  INLINE --> RC["Refcounting (middle/refcount.ts)"]
+  RC --> WASMIR["WASM lowering (backend/wasm.ts)"]
+  WASMIR --> EMIT["Emitter (backend/compiler.ts)"]
+
+  EMIT --> BIN["WASM binary (.wasm)"]
+  EMIT --> JS["Optional JS wrapper (compileJS)"]
+```
