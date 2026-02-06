@@ -15,7 +15,7 @@ import { lowerpattern, modtag, patternType } from "./patterns.js"
 
 export {
   lower_toplevel, bundlemacro, lowerfn, source,
-  globals, assigned_globals, xlist, xpart, xcall, xtuple, annos
+  globals, assigned_globals, xlist, xpart, xcall, xtuple, attrs
 }
 
 // Built-in macros
@@ -87,25 +87,25 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
   return ast.Group(...body)
 }
 
-function annos(x: ast.Tree, as = new Map<string, ast.Tree[]>()): [ast.Tree, Map<string, ast.Tree[]>] {
-  if (!ast.isExpr(x, 'Annotation')) return [x, as]
+function attrs(x: ast.Tree, as = new Map<string, ast.Tree[]>()): [ast.Tree, Map<string, ast.Tree[]>] {
+  if (!ast.isExpr(x, 'Attribute')) return [x, as]
   const name = asSymbol(x.args[0]).toString()
   const args = x.args.slice(1, -1)
   as.set(name, args)
-  const [inner] = annos(x.args[x.args.length - 1], as)
+  const [inner] = attrs(x.args[x.args.length - 1], as)
   return [inner, as]
 }
 
-function withAnnos(target: ast.Tree, as: Map<string, ast.Tree[]>): ast.Tree {
+function withAttrs(target: ast.Tree, as: Map<string, ast.Tree[]>): ast.Tree {
   let result = target
   for (const [name, args] of [...as].reverse()) {
-    result = ast.Annotation(symbol(name), ...args, result)
+    result = ast.Attribute(symbol(name), ...args, result)
   }
   return result
 }
 
 function formacro(ex: ast.Expr): ast.Expr {
-  let [forExpr, as] = annos(ex)
+  let [forExpr, as] = attrs(ex)
   forExpr = ast.asExpr(forExpr, 'Syntax')
   const assign = ast.asExpr(forExpr.args[1], 'Operator')
   if (!isEqual(assign.args[0].unwrap(), symbol('=')))
@@ -114,7 +114,7 @@ function formacro(ex: ast.Expr): ast.Expr {
   const [itr, val] = [gensym("itr"), gensym("val")]
   return ast.Block(
     ast.Operator(s("="), itr, ast.Call(tag("common.iterate"), xs)),
-    withAnnos(ast.Syntax(s("while"), s("true"), ast.Block(
+    withAttrs(ast.Syntax(s("while"), s("true"), ast.Block(
       ast.Operator(s("="), val, ast.Call(tag("common.next"), ast.Swap(itr))),
       ast.Syntax(s("if"), ast.Call(symbol("nil?"), val), ast.Block(s("break"))),
       ast.Syntax(s("let"),
@@ -348,7 +348,7 @@ function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): Va
   }
 
   if (x instanceof ast.Expr) {
-    let [ex, _] = annos(x)
+    let [ex, _] = attrs(x)
     ex = ast.asExpr(ex)
     if (ex.head === 'Group') return lower(sc, code, ex.args, value)
     if (ex.head === 'Block') return lowerBlock(sc, code, x, value)
@@ -557,7 +557,7 @@ function jsinline(ex: ast.Expr): [string, string[]] {
 }
 
 function lowerSyntax(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
-  const syntax = asSymbol(ast.asExpr(annos(ex)[0]).args[0]).toString()
+  const syntax = asSymbol(ast.asExpr(attrs(ex)[0]).args[0]).toString()
   if (syntax === 'bits') {
     const size = Number(asBigInt(ex.args[1].unwrap()))
     return bits(size, 0n)
@@ -652,7 +652,7 @@ function rewriteJumps(sc: Scope, code: LIR, header: [number, Val<LIR>[]], after:
 
 function lowerWhile(sc: Scope, code: LIR, _ex: ast.Expr, value = true): Val<LIR> {
   sc = Scope(sc)
-  let [ex, as] = annos(_ex)
+  let [ex, as] = attrs(_ex)
   const label = as.get('label')?.[0]?.toString()
   ex = ast.asExpr(ex)
   const prevBlock = code.block()
@@ -678,7 +678,7 @@ function lowerWhile(sc: Scope, code: LIR, _ex: ast.Expr, value = true): Val<LIR>
 }
 
 function lowerBlock(sc: Scope, code: LIR, _ex: ast.Expr, value = true): Val<LIR> {
-  let [ex, as] = annos(_ex)
+  let [ex, as] = attrs(_ex)
   const label = as.get('label')?.[0]?.toString()
   ex = ast.asExpr(ex)
   if (!label) return lower(Scope(sc), code, ex.args, value)
@@ -698,7 +698,7 @@ function lowerBlock(sc: Scope, code: LIR, _ex: ast.Expr, value = true): Val<LIR>
 
 // TODO support pattern matching
 function lowerLet(sc: Scope, code: LIR, _ex: ast.Expr, value = true): Val<LIR> {
-  let [ex, as] = annos(_ex)
+  let [ex, as] = attrs(_ex)
   ex = ast.asExpr(ex)
   const assignments = ex.args.slice(1, -1)
   if (!assignments.every(x => ast.isExpr(x, 'Operator') && asSymbol(x.args[0].unwrap()).toString() === '='))
@@ -709,7 +709,7 @@ function lowerLet(sc: Scope, code: LIR, _ex: ast.Expr, value = true): Val<LIR> {
   for (const v of vars) sc.set(v, ir.slot(gensym(v).toString()))
   for (let i = 0; i < vars.length; i++)
     _push(code, ir.expr('set', sc.get(vars[i]), vals[i]))
-  return lower(sc, code, withAnnos(ex.args[ex.args.length - 1], as), value)
+  return lower(sc, code, withAttrs(ex.args[ex.args.length - 1], as), value)
 }
 
 function lowerIf(sc: Scope, code: LIR, ex: IfStmt, value = true): Val<LIR> {

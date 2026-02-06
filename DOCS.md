@@ -277,7 +277,7 @@ x = 3
 show x
 ```
 
-The `@foo` annotation syntax is general. Annotations are somewhat like macros, and read arguments up to the end of the line and apply to the next line. However, unlike macros they are passive; they get passed as metadata to the relevant macro (in this case the `for` loop), which decides how to interpret them.
+The `@foo` attribute syntax is general. Attributes are somewhat like macros, reading arguments up to the end of the line and applying to the next line. However, unlike macros they are passive: they get passed as metadata to the relevant macro (in this case the `for` loop), which decides how to interpret them.
 
 A couple other examples are `@extend`, which is used to add methods to functions from other modules:
 

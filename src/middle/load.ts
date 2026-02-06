@@ -3,7 +3,7 @@ import { Module, Modules, Binding } from "../frontend/modules.js"
 import { Def } from "../dwarf/index.js"
 import { Anno, unreachable } from "../utils/ir.js"
 import { modtag } from "../frontend/patterns.js"
-import { lower_toplevel, bundlemacro, lowerfn, source, annos } from "../frontend/lower.js"
+import { lower_toplevel, bundlemacro, lowerfn, source, attrs } from "../frontend/lower.js"
 import { lowerpattern } from "../frontend/patterns.js"
 import { symbolValues } from "./primitives.js"
 import * as ast from "../frontend/ast.js"
@@ -89,7 +89,7 @@ function load_expr(cx: LoadState, x: ast.Tree): void {
 }
 
 function load_fn(cx: LoadState, ex: ast.Tree): void {
-  let [x, as] = annos(ex)
+  let [x, as] = attrs(ex)
   x = ast.asExpr(x)
   const extend = as.has('extend')
   const [sig, body] = x.args.slice(1)
@@ -112,7 +112,7 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
 }
 
 async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> {
-  let [ex] = annos(x)
+  let [ex] = attrs(x)
   if (ast.isExpr(ex, 'Syntax')) {
     x = x as ast.Expr
     const first = ex.args[0].unwrap()

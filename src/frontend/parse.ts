@@ -393,7 +393,7 @@ function syntax(r: Reader): ast.Tree {
   return ast.Syntax(name, ...args).withmeta({ file: path(), loc: pos })
 }
 
-function anno(r: Reader): ast.Tree | undefined {
+function attr(r: Reader): ast.Tree | undefined {
   const pos = r.cursor()
   if (r.read() !== '@') return
   const name = symbol(r)
@@ -406,14 +406,14 @@ function anno(r: Reader): ast.Tree | undefined {
     args.push(arg)
   }
   r.skip()
-  let body = r.parse(anno, syntax)!
-  return ast.Annotation(name, ...args, body).withmeta({ file: path(), loc: pos })
+  let body = r.parse(attr, syntax)!
+  return ast.Attribute(name, ...args, body).withmeta({ file: path(), loc: pos })
 }
 
 function statement(r: Reader): ast.Tree | undefined {
   r.skip()
   if (r.eof()) return
-  let ex = r.parse(anno, syntax)!
+  let ex = r.parse(attr, syntax)!
   r.skipWhitespace()
   if (!r.eof() && !terminators.has(r.peek)) throw new Error(`Expected statement end at ${curstring(r.cursor())}`)
   return ex

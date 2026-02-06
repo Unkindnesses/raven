@@ -54,7 +54,7 @@ export class Token {
 
 export type ExprHead =
   | 'Group' | 'List' | 'Splat' | 'Call' | 'Index' | 'Field'
-  | 'Operator' | 'Swap' | 'Block' | 'Syntax' | 'Quote' | 'Template' | 'Annotation'
+  | 'Operator' | 'Swap' | 'Block' | 'Syntax' | 'Quote' | 'Template' | 'Attribute'
 
 export class Expr {
   constructor(public head: ExprHead, public args: Tree[], public meta?: Meta) { }
@@ -89,8 +89,8 @@ export function token(x: Atom | Tree): Tree {
 
 const constructor = (head: ExprHead) => (...args: (Tree | Atom)[]) => new Expr(head, args.map(token))
 
-export const [Group, List, Splat, Call, Index, Field, Operator, Swap, Block, Syntax, Quote, Template, Annotation] =
-  (['Group', 'List', 'Splat', 'Call', 'Index', 'Field', 'Operator', 'Swap', 'Block', 'Syntax', 'Quote', 'Template', 'Annotation'] as const)
+export const [Group, List, Splat, Call, Index, Field, Operator, Swap, Block, Syntax, Quote, Template, Attribute] =
+  (['Group', 'List', 'Splat', 'Call', 'Index', 'Field', 'Operator', 'Swap', 'Block', 'Syntax', 'Quote', 'Template', 'Attribute'] as const)
     .map(constructor)
 
 export function repr(item: Tree, indent: number = 0): string {
@@ -127,7 +127,7 @@ export function repr(item: Tree, indent: number = 0): string {
         let syntaxStr = _repr(item.args[0])
         for (const arg of item.args.slice(1)) syntaxStr += ` ${_repr(arg)}`
         return syntaxStr
-      case 'Annotation': {
+      case 'Attribute': {
         const params = item.args.slice(0, -1).map(_repr)
         const target = _repr(item.args[item.args.length - 1])
         return `@${params.join(' ')}\n${target}`
