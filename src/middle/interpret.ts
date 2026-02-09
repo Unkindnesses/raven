@@ -2,7 +2,7 @@ import * as types from '../frontend/types.js'
 import { Tag, Type } from '../frontend/types.js'
 import { Method, Definitions, IRValue, MIR, Global, SetGlobal, Invoke, Wasm, Value } from '../frontend/modules.js'
 import { IR, unreachable, Branch, asType } from '../utils/ir.js'
-import { CycleCache } from '../utils/cache.js'
+import { Caching, CycleCache } from '../utils/cache.js'
 import { partial_match } from './patterns.js'
 import { wasmPartials } from '../backend/wasm.js'
 import { invoke_method } from './primitives.js'
@@ -14,7 +14,7 @@ export { Interpreter, interpret, interpreter }
 
 type Func = Tag | Method
 
-class Interpreter {
+class Interpreter implements Caching {
   readonly results: { get: (k: [Func, ...Type[]]) => Type | undefined }
 
   constructor(readonly defs: Definitions, results?: { get: (k: [Func, ...Type[]]) => Type | undefined }) {
@@ -27,6 +27,8 @@ class Interpreter {
       })
     }
   }
+
+  get subcaches() { return [this.results as Caching] }
 
   get(func: Func, args: Type[]): Type | undefined { return this.results.get([func, ...args]) }
 }

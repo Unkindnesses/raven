@@ -21,7 +21,7 @@ function formatTime(ns: bigint): string {
 function printTiming(c: Compiler) {
   const phases: any = [
     ['Definitions', [c.pipe.defs, c.pipe.methods]],
-    ['Interpret  ', [c.pipe.interp.results]],
+    ['Interpret  ', [c.pipe.interp]],
     ['Inference  ', [c.pipe.inferred]],
     ['Expansion  ', [c.pipe.expanded]],
     ['Inlining   ', [c.pipe.inlined]],

@@ -43,7 +43,7 @@ class Pipeline implements Caching {
   }
 
   get subcaches(): Caching[] {
-    return [this.sources, this.defs, this.methods, this.inferred, this.expanded, this.inlined, this.counted, this.wasm]
+    return [this.sources, this.defs, this.interp, this.methods, this.inferred, this.expanded, this.inlined, this.counted, this.wasm]
   }
 
   fork(): Pipeline {
