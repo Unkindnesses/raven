@@ -11,7 +11,7 @@ import { inlinePrimitive, InvokeSt, outlinePrimitive, primitive } from './prim_m
 import { abort, call, layout, wlayout, sizeof, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir, copyir } from './expand.js'
 import { isreftype } from './refcount.js'
 import { maybe_union } from './abstract.js'
-import { asNumType, GetGlobal, SetGlobal } from '../wasm/wasm.js'
+import { GetGlobal, SetGlobal } from '../wasm/wasm.js'
 import { xref } from '../wasm/ir.js'
 
 export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, copy_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, constValue }
@@ -410,20 +410,16 @@ outlinePrimitive.set(nparts_method.id, (x: Type): MIR => {
 })
 
 function constValue(T: Type): Value | undefined {
-  if (T.kind === 'bits' && T.value !== undefined)
-    return Value.from(asNumType(only(wlayout(types.abstract(T)))), T.value)
-  if (T.kind === 'float32' && T.value !== undefined)
-    return Value.f32(T.value)
-  if (T.kind === 'float64' && T.value !== undefined)
-    return Value.f64(T.value)
+  if (['bits', 'float32', 'float64'].includes(T.kind) && (T as any).value !== undefined)
+    return Value.from(T)
 }
 
 inlinePrimitive.set(widen_method.id, (code, st) => {
   const x = st.expr.body[0]
   const T = asType(code.type(x))
   if (types.isAtom(T) && types.isValue(T)) return constValue(T) ?? T
-  if (tag('common.Int').isEqual(tagOf(T)) || tag('common.Bool').isEqual(tagOf(T)))
-    return constValue(types.part(T, 1)) ?? types.part(T, 1)
+  if ((tag('common.Int').isEqual(tagOf(T)) || tag('common.Bool').isEqual(tagOf(T))) && types.isValue(T))
+    return code.push(code.stmt(xtuple(some(constValue(types.part(T, 1)))), { type: asType(st.type) }))
   return x
 })
 

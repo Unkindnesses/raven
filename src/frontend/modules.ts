@@ -6,7 +6,6 @@ import * as cache from "../utils/cache.js"
 import * as ir from "../utils/ir.js"
 import { Pattern } from "./patterns.js"
 import { Def } from "../dwarf/index.js"
-import { Value, asValue } from "../wasm/ir.js"
 import { Instruction, Op, ValueType } from "../wasm/wasm.js"
 
 export {
@@ -25,23 +24,45 @@ function asBinding(x: unknown): Binding {
   throw new Error(`Expected Binding, got ${typeof x}`)
 }
 
+type Const =
+  | Type & { kind: 'bits'; value: bigint }
+  | Type & { kind: 'float32'; value: number }
+  | Type & { kind: 'float64'; value: number }
+
+class Value {
+  constructor(readonly type: Const) { }
+  static bits(size: number, value: bigint | number | boolean) {
+    return new Value(types.bits(size, value) as Const)
+  }
+  static f32(value: number) { return new Value(types.float32(value) as Const) }
+  static f64(value: number) { return new Value(types.float64(value) as Const) }
+  static from(x: Type) { return new Value(asConst(x)) }
+  get value() { return this.type.value }
+  toString() { return repr(this.type) }
+}
+
+function asConst(x: Type): Const {
+  if (x.kind === 'bits' && x.value !== undefined) return x as Const
+  if (x.kind === 'float32' && x.value !== undefined) return x as Const
+  if (x.kind === 'float64' && x.value !== undefined) return x as Const
+  throw new Error(`Expected constant bits/float, got ${repr(x)}`)
+}
+
+function asValue(x: unknown): Value {
+  if (x instanceof Value) return x
+  throw new Error(`Expected Value, got ${typeof x}`)
+}
+
 type IRValue = Type | Value
 type MIR = ir.IR<IRValue, Type>
 
 function irTypeOf(x: IRValue): Type {
-  if (x instanceof Value) {
-    if (x.type === 'i32') return types.int32()
-    if (x.type === 'i64') return types.int64()
-    if (x.type === 'f32') return types.float32()
-    if (x.type === 'f64') return types.float64()
-    throw new Error('unreachable')
-  }
+  if (x instanceof Value) return types.abstract(x.type)
   return x
 }
 
 function showIRValue(x: IRValue | Type): string {
-  if (x instanceof Value) return `${x.type}(${x.value.toString()})`
-  if (Array.isArray(x)) return `[${x.join(', ')}]`
+  if (x instanceof Value) return x.toString()
   return repr(x)
 }
 

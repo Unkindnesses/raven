@@ -66,6 +66,10 @@ type CountMode = 'retain' | 'release'
 const retain_method = primitive('common.core.retain', 'args', (_: Type) => unreachable)
 const release_method = primitive('common.core.release', 'args', (_: Type) => unreachable)
 
+function i32(code: ir.Fragment<MIR>, x: bigint | number | boolean): ir.Val<MIR> {
+  return code.push(code.stmt(ir.expr('tuple', Value.bits(32, x)), { type: types.int32() }))
+}
+
 function count(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode, heap = false): void {
   if (T.kind === 'ref' || T.kind === 'pack') return count_inline(code, T, x, mode, heap)
   let method = mode === 'retain' ? retain_method : release_method
@@ -132,14 +136,14 @@ function vpack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mod
 
     len = header.argument(types.int32())
     pos = header.argument(types.Ptr())
-    const done = call(header, tag('common.=='), [len, Value.i32(0)], types.int32())
+    const done = call(header, tag('common.=='), [len, i32(header, 0)], types.int32())
     header.branch(after, [], { when: done })
     header.branch(body)
 
     const el = load(body, elT, pos, { count: false, heap: true })
     release(body, elT, el, true)
-    const len2 = call(body, tag('common.-'), [len, Value.i32(1)], types.int32())
-    const pos2 = call(body, tag('common.+'), [pos, Value.i32(sizeof(elT))], types.Ptr())
+    const len2 = call(body, tag('common.-'), [len, i32(body, 1)], types.int32())
+    const pos2 = call(body, tag('common.+'), [pos, i32(body, sizeof(elT))], types.Ptr())
     body.branch(header, [len2, pos2])
   }
   countptr(code, ptr, mode)

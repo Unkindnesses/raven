@@ -2,12 +2,12 @@ import * as types from '../frontend/types.js'
 import { Type, Bits, asBits, bits } from '../frontend/types.js'
 import * as wasm from '../wasm/wasm.js'
 import { binary } from '../wasm/binary.js'
-import { irfunc, Instr, setdiff, Value, WIR, asValue, xref } from '../wasm/ir.js'
+import { irfunc, Instr, setdiff, Value as WValue, WIR, xref } from '../wasm/ir.js'
 import { unreachable, Anno, Pipe, expr, Val, Branch, Expr, asType } from '../utils/ir.js'
 import { isEqual } from '../utils/isEqual.js'
 import { wlayout } from '../middle/expand.js'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe, reuse } from '../utils/cache.js'
-import { Binding, Definitions, MIR, Method, StringRef, JS, Global, SetGlobal, Wasm as WasmCall, callargs } from '../frontend/modules.js'
+import { Binding, Definitions, MIR, Method, StringRef, JS, Global, SetGlobal, Wasm as WasmCall, callargs, Value as MValue, asValue } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
 import { Redirect, type Sig } from '../middle/abstract.js'
 import { Accessor } from '../utils/fixpoint.js'
@@ -86,14 +86,26 @@ function instr<T>(instr: wasm.Instruction, ...args: (T | number)[]): Instr<T> {
   return new Instr(instr, args)
 }
 
+function lowerconst(x: MValue): WValue {
+  const T = x.type
+  if (T.kind === 'bits') {
+    if (T.size <= 32) return WValue.i32(T.value)
+    if (T.size <= 64) return WValue.i64(T.value)
+    throw new Error(`Unsupported bit width ${T.size}`)
+  }
+  if (T.kind === 'float32') return WValue.f32(T.value)
+  if (T.kind === 'float64') return WValue.f64(T.value)
+  throw new Error(`Expected bits/float constant, got ${types.repr(T)}`)
+}
+
 function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: Cache<Binding, string[]>, tables: Tables): WIR {
   const out = WIR(ir.meta)
   const env = new Map<number, Val<WIR>>()
   // TODO deprecate array types
   const type = (t: Anno<Type>): Anno<wasm.ValueType[]> => t === unreachable ? [] : wlayout(t)
-  const rename = (x: Val<MIR>) => typeof x === 'number' ? some(env.get(x)) : asValue(x)
+  const rename = (x: Val<MIR>) => typeof x === 'number' ? some(env.get(x)) : lowerconst(asValue(x))
   const coerce = (x: Val<MIR>) =>
-    typeof x === 'number' || x instanceof Value ? rename(x) :
+    typeof x === 'number' || x instanceof MValue ? rename(x) :
       out.push(out.stmt(xtuple(), { type: [] })) // TODO just filter these out – or empty Const?
   for (const block of ir.blocks()) {
     if (block.id !== 0) out.newBlock()
@@ -115,9 +127,9 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: Cache
       } else if (st.expr.head === 'func') {
         const [f, I, O] = st.expr.body
         const name = names.get([types.asTag(f), asType(ir.type(I))])
-        env.set(v, out.push({ ...st, expr: xtuple(Value.i32(tables.func(name))), type: type(st.type) }))
+        env.set(v, out.push({ ...st, expr: xtuple(WValue.i32(tables.func(name))), type: type(st.type) }))
       } else if (['tuple', 'ref'].includes(st.expr.head)) {
-        env.set(v, out.push({ ...st, expr: st.expr.map(rename) as Expr<Value>, type: type(st.type) }))
+        env.set(v, out.push({ ...st, expr: st.expr.map(rename as any) as unknown as Expr<WValue>, type: type(st.type) }))
       } else if (st.expr.head === 'cast') { // TODO just use `tuple` instead
         const arg = st.expr.body[0]
         if (!isEqual(wlayout(asType(st.type)), wlayout(asType(ir.type(arg)))))
@@ -133,9 +145,9 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: Cache
         else env.set(v, out.push({ ...st, expr: xtuple(...ps), type: parts }))
       } else if (st.expr instanceof WasmCall) {
         const [callee, args] = [st.expr.callee, st.expr.body]
-        let expr: Expr<Value>
+        let expr: Expr<WValue>
         if (Array.isArray(callee)) {
-          const I = args.flatMap(a => wlayout(types.abstract(asType(ir.type(a))))) // TODO shouldn't get consts here
+          const I = args.flatMap(a => wlayout(asType(ir.type(a))))
           const O = st.expr.result ?? wparts(st.type)
           const name = names.get([callee, I, O])
           expr = instr(wasm.Call(name), ...args.map(rename))
@@ -160,7 +172,7 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: Cache
         const expr = st.expr.map(coerce)
         env.set(v, out.push({ ...st, expr, type: unreachable }))
       } else if (st.expr.head === 'setglobal') {
-        const expr = st.expr.map(coerce) as Expr<Value>
+        const expr = st.expr.map(coerce as any) as unknown as Expr<WValue>
         env.set(v, out.push({ ...st, expr, type: type(st.type) }))
       } else throw new Error(`unrecognised ${st.expr.head} expression`)
     }
