@@ -14,7 +14,7 @@ import { maybe_union } from './abstract.js'
 import { GetGlobal, SetGlobal } from '../wasm/wasm.js'
 import { xref } from '../wasm/ir.js'
 
-export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, copy_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, constValue }
+export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, tagcast_method, copy_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue }
 
 const bitopFuncs = new Map<string, (x: bigint, y: bigint) => bigint>([
   ['shl', (x, y) => x << y],
@@ -316,8 +316,11 @@ inlinePrimitive.set(pack_method.id, (code, st) => {
     // Arguments are turned into a tuple when calling any function, so this
     // is just a cast.
     const x = st.expr.body[0]
-    if (!isEqual(layout(T), layout(asType(code.type(x))))) throw new Error('pack: layout mismatch')
-    return x
+    const S = asType(code.type(x))
+    if (isEqual(T, S)) return x
+    if (!isEqual(layout(T), layout(S))) throw new Error('pack: layout mismatch')
+    if (types.isValue(T)) return T
+    return code.push({ ...st, expr: xtuple(x) })
   }
 })
 

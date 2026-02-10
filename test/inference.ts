@@ -2,10 +2,10 @@ import { test } from 'uvu'
 import * as assert from 'assert'
 import { Compiler, load } from '../src/cli/compile.js'
 import { tag, list, pack, int64, int32, bits } from '../src/frontend/types.js'
-import { Sig } from '../src/middle/abstract.js'
+import { key, Sig } from '../src/middle/abstract.js'
 import { source } from '../src/middle/load.js'
 import { Binding } from '../src/frontend/modules.js'
-import { asArray } from '../src/utils/map.js'
+import { asArray, only } from '../src/utils/map.js'
 
 let compiler: Compiler
 
@@ -91,6 +91,19 @@ test('infer fib sequence', async () => {
   `))
   let ret = result(compiler, [tag('fibSequence'), list(5n)])
   assert.deepEqual(ret, list(list(1n, 1n, 2n, 3n, 5n)))
+})
+
+test('infer traces straight-line code', async () => {
+  await compiler.reload(source('', `
+    fn plus1(x) { x + 1 }
+    fn chain(x) { plus1(plus1(plus1(x))) }
+  `))
+  const chain = only(compiler.pipe.defs.methods(tag('chain')))
+  const plus1 = only(compiler.pipe.defs.methods(tag('plus1')))
+  const [ir, ret] = asArray(compiler.pipe.inferred.get([chain, int64()]))
+  assert.deepEqual(ret, int64())
+  assert.ok(!compiler.pipe.inferred.inf.frames.has(key([plus1, int64()])))
+  assert.ok(!Array.from(ir).some(([_, st]) => st.expr.head === 'call'))
 })
 
 test.run()

@@ -1,7 +1,7 @@
 import * as types from '../frontend/types.js'
 import { tag } from '../frontend/types.js'
 import * as mods from '../frontend/modules.js'
-import { Interpreter, interpreter } from '../middle/interpret.js'
+import { Traced } from '../middle/tracer.js'
 import { MatchMethods } from '../middle/patterns.js'
 import { Inferred, Redirect } from '../middle/abstract.js'
 import { Expanded } from '../middle/expand.js'
@@ -22,7 +22,7 @@ export { Pipeline, Compiler, emit, withEmit }
 class Pipeline implements Caching {
   readonly sources: mods.Modules
   readonly defs: mods.Definitions
-  readonly interp: Interpreter
+  readonly interp: Traced
   readonly methods: MatchMethods
   readonly inferred: Inferred
   readonly expanded: ReturnType<typeof Expanded>
@@ -33,9 +33,9 @@ class Pipeline implements Caching {
   constructor(sources = new mods.Modules()) {
     this.sources = sources
     this.defs = new mods.Definitions(this.sources)
-    this.interp = interpreter(this.defs)
+    this.interp = new Traced(this.defs)
     this.methods = MatchMethods(this.defs, this.interp)
-    this.inferred = new Inferred(this.defs, this.methods)
+    this.inferred = new Inferred(this.defs, this.methods, this.interp)
     this.expanded = Expanded(this.inferred)
     this.inlined = Inlined(this.expanded)
     this.counted = refcounts(this.inlined)

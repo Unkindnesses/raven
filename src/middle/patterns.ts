@@ -35,7 +35,10 @@ import { part_method, isnil_method, notnil_method, partial_isnil, string } from 
 import { EagerCache } from '../utils/cache.js'
 import { isEqual } from '../utils/isEqual.js'
 
-export { MatchMethods, partial_match, indexer, icall, dispatch_arms, dispatcher }
+export {
+  Interpreter, MatchMethods, Path, Match, MatchResult, partial_match, indexer, icall,
+  dispatch_arms, dispatcherDef, dispatcher
+}
 
 type Path = (number | { start: number, end: number })[]
 
@@ -269,8 +272,12 @@ function icall(inf: Inference, code: MIR, sig: Sig, f: IRValue | Method, ...args
   return code.push(code.stmt(ex, { type: T }))
 }
 
+function dispatcherDef(func: types.Tag) {
+  return Def(`${func.path} (dispatcher)`)
+}
+
 function dispatcher(inf: Inference, func: types.Tag, Ts: types.Type): [MIR, ir.Anno<types.Type>] {
-  const code = MIR(Def(`${func.path}*`))
+  const code = MIR(dispatcherDef(func))
   const args = code.argument(Ts)
   let ret: ir.Anno<types.Type> = ir.unreachable
   let arms = dispatch_arms(Ts)

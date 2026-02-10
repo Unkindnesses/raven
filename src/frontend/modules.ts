@@ -287,7 +287,7 @@ class Modules implements cache.Caching {
   ir(m: Method) { return some(this.mods.get(m.mod)).ir(m) }
   resolve_static(b: Binding): Anno<Type> {
     const val = this.get(b)
-    if (val === undefined) throw new Error(`Binding ${b.name} not found in module ${b.mod} `)
+    if (val === undefined) return unreachable
     return val instanceof Binding ? this.resolve_static(val) : val
   }
 

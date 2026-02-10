@@ -10,6 +10,7 @@ import { hash, HashSet, some } from '../utils/map.js'
 import { trackdeps, Map as CacheMap, fingerprint, Caching, withtime } from '../utils/cache.js'
 import { isEqual } from '../utils/isEqual.js'
 import { Instruction } from '../wasm/wasm.js'
+import { Traced } from './tracer.js'
 
 const recursionLimit = 10
 
@@ -69,7 +70,7 @@ class Inference {
   frames = new Map<string, Frame | Redirect>()
   globals = new Map<string, GlobalFrame>()
   queue = new WorkQueue<string>()
-  constructor(readonly defs: Definitions, readonly meths: MatchMethods) { }
+  constructor(readonly defs: Definitions, readonly meths: MatchMethods, readonly traced: Traced) { }
 
   frame(T: Sig): Frame
   frame(T: Binding): GlobalFrame
@@ -123,7 +124,17 @@ function frame(inf: Inference, P: Parent, sig: Sig): Frame | Anno<Type> {
   if (f instanceof Method) {
     if (f.func) return f.func(...Ts)
     if (P.depth > recursionLimit) return mergeFrames(inf, some(P.sig), sig)
-    const [ir, deps] = trackdeps(() => some(inf.defs.ir(f)))
+    const [trace, deps] = trackdeps(() => inf.traced.trace(f, ...Ts))
+    if (trace) {
+      const [ir, ret] = trace
+      const fr = Frame.create(P, ir, f, ...Ts)
+      fr.rettype = ret
+      inf.deps.set(k, deps)
+      inf.frames.set(k, fr)
+      return inf.frame(sig)
+    }
+    const [ir, ideps] = trackdeps(() => some(inf.defs.ir(f)))
+    for (const dep of ideps) deps.add(dep)
     inf.deps.set(k, deps)
     inf.frames.set(k, Frame.create(P, ir, f, ...Ts))
     update(inf, k)
@@ -376,8 +387,8 @@ class Inferred implements Caching {
   readonly results: CacheMap<string, [MIR, Anno<Type>] | Redirect>
   time = 0n
 
-  constructor(defs: Definitions, meths: MatchMethods) {
-    this.inf = new Inference(defs, meths)
+  constructor(defs: Definitions, meths: MatchMethods, traced: Traced) {
+    this.inf = new Inference(defs, meths, traced)
     this.results = new CacheMap()
   }
 

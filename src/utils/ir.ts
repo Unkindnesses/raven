@@ -6,7 +6,7 @@ import { isEqual } from '../utils/isEqual.js'
 
 export {
   Anno, Unreachable, unreachable, asType, Source, Slot, slot, Expr, expr,
-  Statement, IR, Block, Pipe, Branch, CFG, Component, components, entry, rename,
+  Statement, StmtOpts, IR, Block, Pipe, Branch, CFG, Component, components, entry, rename,
   getIndent, withIndent, Val, Fragment, asIR,
   liveness_after, liveness,
   predecessors, fuseblocks, expand, prune, ssa, renumber, showVar
@@ -105,7 +105,7 @@ class IR<T, A> implements Fragment<IR<T, A>> {
     readonly typeOf: (x: T) => Anno<A>,
     readonly show: (x: any) => string = (x: any) => `${x}`) { }
 
-  get length() { return this._defs.reduce((acc, [_, i]) => acc + (i > 0 ? 1 : 0), 0) }
+  get length() { return this._defs.reduce((acc, [_, i]) => acc + (i >= 0 ? 1 : 0), 0) }
 
   empty() { return new IR(this.meta, this.typeOf, this.show) }
 
@@ -323,6 +323,11 @@ function showBlock<T, A>(block: Block<IR<T, A>>): string {
     result += ` (${block.ir._blocks[block.id].args.map(([arg, type]) => type === unreachable ? `%${arg}` : `%${arg} :: ${show(type)}`).join(', ')})`
 
   for (const [x, st] of block) {
+    // for (const [def, src] of st.src) {
+    //   result += '\n' + tab
+    //   result += `;; ${def.name}`
+    //   if (src) result += ` ${src.file}:${src.line}:${src.col}`
+    // }
     result += '\n' + tab
     result += `%${x} = `
     result += st.expr.show(x => showVar(x, block.ir.show))
@@ -590,14 +595,12 @@ class PipeBlock<I extends IR<any, any>> {
 class Pipe<I extends IR<any, any>> implements Fragment<I> {
   from: I
   to: I
-  map: Map<number, number | T<I>>
-  id: number
+  map = new Map<number, number | T<I>>()
+  id = 0
 
   constructor(ir: I) {
     this.from = ir
     this.to = new IR(ir.meta, ir.typeOf, ir.show) as I
-    this.map = new Map()
-    this.id = 0
   }
 
   var(): number { return this.id -= 1 }
@@ -633,7 +636,6 @@ class Pipe<I extends IR<any, any>> implements Fragment<I> {
   }
 
   type(x: T<I> | number): Anno<A<I>> {
-    if (typeof x !== 'number') return this.to.typeOf(x)
     return this.to.type(this.substitute(x))
   }
 

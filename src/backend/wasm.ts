@@ -24,32 +24,17 @@ type PartialFn = (...args: Type[]) => Type
 
 const wasmPartials = new Map<string, PartialFn>()
 
-function bin(n: number, op: (a: bigint, b: bigint) => bigint, signed = false): PartialFn {
+function bin(kind: 'float32' | 'float64', op: (a: number, b: number) => number): PartialFn {
   return (a, b) => {
-    const [x, y] = [asBits(a), asBits(b)]
-    if (x.size !== n || y.size !== n) throw new Error('Bit width mismatch')
-    const conv = (x: Bits) => signed ? x.signed() : x.value
-    return bits(n, op(conv(x), conv(y)))
+    if (!(a.kind === kind && b.kind === kind)) throw new Error(`Expected ${kind}`)
+    return kind === 'float32'
+      ? types.float32(op(some(a.value), some(b.value)))
+      : types.float64(op(some(a.value), some(b.value)))
   }
 }
 
-function cmp(n: number, op: (a: bigint, b: bigint) => boolean, signed = false): PartialFn {
-  return (a, b) => {
-    const [x, y] = [asBits(a), asBits(b)]
-    if (x.size !== n || y.size !== n) throw new Error('Bit width mismatch')
-    const conv = (x: Bits) => signed ? x.signed() : x.value
-    return bits(1, op(conv(x), conv(y)))
-  }
-}
-
-wasmPartials.set('i64.add', bin(64, (a, b) => a + b))
-wasmPartials.set('i64.sub', bin(64, (a, b) => a - b))
-wasmPartials.set('i64.mul', bin(64, (a, b) => a * b))
-
-wasmPartials.set('i64.eq', cmp(64, (a, b) => a === b))
-wasmPartials.set('i64.gt_s', cmp(64, (a, b) => a > b, true))
-wasmPartials.set('i64.lt_s', cmp(64, (a, b) => a < b, true))
-wasmPartials.set('i64.le_s', cmp(64, (a, b) => a <= b, true))
+wasmPartials.set('f32.add', bin('float32', (a, b) => a + b))
+wasmPartials.set('f64.add', bin('float64', (a, b) => a + b))
 
 function wparts(T: Anno<Type>): wasm.ValueType[] {
   return T === unreachable ? [] : wlayout(T)
