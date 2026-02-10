@@ -12,10 +12,9 @@ import { abort, call, layout, wlayout, sizeof, unbox, union_downcast, union_case
 import { isreftype } from './refcount.js'
 import { maybe_union } from './abstract.js'
 import { asNumType, GetGlobal, SetGlobal } from '../wasm/wasm.js'
+import { xref } from '../wasm/ir.js'
 
 export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, copy_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, constValue }
-
-const i64 = Value.i64
 
 const bitopFuncs = new Map<string, (x: bigint, y: bigint) => bigint>([
   ['shl', (x, y) => x << y],
@@ -307,11 +306,11 @@ inlinePrimitive.set(pack_method.id, (code, st) => {
   const T = asType(st.type)
   if (isEqual(T, types.float64())) {
     const arg = st.expr.body[0]
-    const ref = code.push(code.stmt(expr('ref', arg, i64(1)), { type: bits(64) }))
+    const ref = code.push(code.stmt(xref(arg, 1), { type: bits(64) }))
     return code.push({ ...st, expr: xwasm('f64.reinterpret_i64', ref) })
   } else if (isEqual(T, types.float32())) {
     const arg = st.expr.body[0]
-    const ref = code.push(code.stmt(expr('ref', arg, i64(1)), { type: bits(32) }))
+    const ref = code.push(code.stmt(xref(arg, 1), { type: bits(32) }))
     return code.push({ ...st, expr: xwasm('f32.reinterpret_i32', ref) })
   } else {
     // Arguments are turned into a tuple when calling any function, so this
@@ -374,7 +373,7 @@ function nparts(code: Fragment<MIR>, T: Type, x: Val<MIR>): Val<MIR> {
     x = unbox(code, T, x)
   }
   if (T.kind === 'vpack') {
-    const sz = code.push(code.stmt(expr('ref', x, i64(1)), { type: types.int32() }))
+    const sz = code.push(code.stmt(xref(x, 1), { type: types.int32() }))
     code.push(code.stmt(expr('release', x)))
     return call(code, types.tag('common.Int64'), [sz], types.int64())
   } else {
@@ -532,7 +531,7 @@ inlinePrimitive.set(shortcutEquals_method.id, (code, st) => {
   let B = asType(code.type(b))
   if (B.kind === 'union') [a, b, A, B] = [b, a, B, A]
   const ov = symOverlap(A, B)
-  const i = code.push(code.stmt(expr('ref', a, i64(1)), { type: bits(32) }))
+  const i = code.push(code.stmt(xref(a, 1), { type: bits(32) }))
   return code.push({ ...st, expr: xwasm('i32.eq', i, bits(32, only(ov))) })
 })
 
@@ -542,7 +541,7 @@ inlinePrimitive.set(isnil_method.id, (code, st) => {
   if (types.isValue(asType(st.type))) return asType(st.type)
   if (T.kind !== 'union') throw new Error('unimplemented')
   const i = T.options.findIndex(opt => isEqual(opt, types.nil)) + 1
-  const j = code.push(code.stmt(expr('ref', x, i64(1)), { type: bits(32) }))
+  const j = code.push(code.stmt(xref(x, 1), { type: bits(32) }))
   const result = code.push({ ...st, expr: xwasm('i32.eq', j, bits(32, i)) })
   if (isreftype(T)) code.push(code.stmt(expr('release', x)))
   return result

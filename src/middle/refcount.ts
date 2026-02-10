@@ -28,7 +28,7 @@
 import * as ir from '../utils/ir.js'
 import * as types from '../frontend/types.js'
 import { Type, tag, tagOf } from '../frontend/types.js'
-import { MIR, Value, IRValue, Method, asValue, Invoke, xwasm } from '../frontend/modules.js'
+import { MIR, Value, IRValue, Method, Invoke } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
 import { Redirect, type Sig } from './abstract.js'
 import { Cache } from '../utils/cache.js'
@@ -39,6 +39,7 @@ import { layout, call, indexer, load, sizeof, union_cases, unbox, heapType, refR
 import { unreachable } from '../utils/ir.js'
 import { xcall, xtuple } from '../frontend/lower.js'
 import { Accessor } from '../utils/fixpoint.js'
+import { Ref, xref } from '../wasm/ir.js'
 
 export { isreftype, CountMode, retain_method, release_method, refcounts }
 
@@ -115,8 +116,8 @@ function pack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode
 function vpack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode): void {
   if (!(code instanceof ir.IR)) throw new Error('nope')
   if (!isreftype(T)) return
-  let len = code.push(code.stmt(ir.expr('ref', x, Value.i64(1)), { type: types.int32() }))
-  const ptr = code.push(code.stmt(ir.expr('ref', x, Value.i64(2)), { type: types.Ptr() }))
+  let len = code.push(code.stmt(xref(x, 1), { type: types.int32() }))
+  const ptr = code.push(code.stmt(xref(x, 2), { type: types.Ptr() }))
   let pos: ir.Val<MIR> = ptr
   const elT = some(types.partial_eltype(T))
   if (mode === 'release' && isreftype(elT)) {
@@ -154,7 +155,7 @@ function union_count_inline(code: ir.Fragment<MIR>, T: Type & { kind: 'union' },
 
 function recursive_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode): void {
   if (!(code instanceof ir.IR)) throw new Error('nope')
-  const ptr = code.push(code.stmt(ir.expr('ref', x, Value.i64(1)), { type: types.Ptr() }))
+  const ptr = code.push(code.stmt(xref(x, 1), { type: types.Ptr() }))
   if (mode === 'release') {
     const before = code.block()
     const body = code.newBlock()
@@ -244,8 +245,8 @@ function aliases(code: MIR): Map<number, AliasItem[]> {
   for (const [v, st] of code) {
     if (st.expr.head === 'tuple')
       out.set(v, st.expr.body.flatMap(alias))
-    else if (st.expr.head === 'ref' && typeof st.expr.body[0] === 'number') {
-      out.set(v, [alias(st.expr.body[0])[Number(asValue(st.expr.body[1]).value) - 1]])
+    else if (st.expr instanceof Ref && typeof st.expr.x === 'number') {
+      out.set(v, [alias(st.expr.x)[st.expr.i - 1]])
     }
   }
   return out

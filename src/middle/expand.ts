@@ -23,6 +23,7 @@ import { Type } from '../frontend/types.js'
 import { ValueType, sizeof as wsizeof } from '../wasm/wasm.js'
 import * as wasm from '../wasm/wasm.js'
 import { MIR, Method, Value, xstring, Global, Invoke, Wasm, xwasm } from '../frontend/modules.js'
+import { xref } from '../wasm/ir.js'
 import { Def } from '../dwarf/index.js'
 import { Inferred, Redirect, Sig, sig as resolveSig } from './abstract.js'
 import { wasmPartials } from '../backend/wasm.js'
@@ -98,14 +99,14 @@ function union_downcast(pr: Fragment<MIR>, U: Type & { kind: 'union' }, i: numbe
   const offset = 1 + U.options.slice(0, i - 1).reduce((n, t) => n + layout(t).length, 0)
   const regs = layout(U.options[i - 1]).length
   const parts: Val<MIR>[] = []
-  for (let j = 1; j <= regs; j++) parts.push(pr.push(pr.stmt(expr('ref', x, i64(offset + j)))))
+  for (let j = 1; j <= regs; j++) parts.push(pr.push(pr.stmt(xref(x, offset + j))))
   return pr.push(pr.stmt(xtuple(...parts), { type: U.options[i - 1] }))
 }
 
 // `f` is reponsible for freeing its argument value, but not for freeing `x`
 // (since they are the same object)
 function union_cases(code: MIR, T: Type & { kind: 'union' }, x: Val<MIR>, f: (S: Type, val: Val<MIR>) => Val<MIR>): MIR {
-  const j = code.push(code.stmt(expr('ref', x, i64(1)), { type: types.bits(32) }))
+  const j = code.push(code.stmt(xref(x, 1), { type: types.bits(32) }))
   for (let caseIdx = 1; caseIdx <= T.options.length; caseIdx++) {
     const cond = code.push(code.stmt(xwasm('i32.eq', j, i32(caseIdx)), { type: types.bool() }))
     const before = code.block()
@@ -229,7 +230,7 @@ function partir(x: Type, i: Type): MIR {
   const vi = code.argument(i)
   const xlayout = layout(x)
   const part = (k: number): Val<MIR> =>
-    code.push(code.stmt(expr('ref', vx, i64(k)), { type: xlayout[k - 1] }))
+    code.push(code.stmt(xref(vx as Val<MIR>, k), { type: xlayout[k - 1] }))
   for (let idx = 1; idx <= types.nparts(x); idx++) {
     const cond = call(code, types.tag('common.=='), [i64(idx), vi], types.bool())
     const before = code.block()
@@ -261,7 +262,7 @@ function vpack_indexer(pr: Fragment<MIR>, Ts: Type, I: Type, x: Val<MIR>, i: Val
     i = call(pr, types.tag('common.*'), [i, i32(sizeof(T))], types.int32())
   }
   // TODO bounds check
-  let p = pr.push(pr.stmt(expr('ref', x, i64(2)), { type: types.int32() }))
+  let p = pr.push(pr.stmt(xref(x, 2), { type: types.int32() }))
   p = call(pr, types.tag('common.+'), [p, i], types.int32())
   return load(pr, T, p, { count: false })
 }
@@ -285,7 +286,7 @@ function indexer(pr: Fragment<MIR>, T: Type, I: Type, x: Val<MIR>, i: Val<MIR>):
       return abort(pr, `Invalid index ${idx} for ${types.repr(T)}`)
     const P = types.part(T, idx)
     const range = sublayout(T, idx)
-    const _part = (k: number): Val<MIR> => pr.push(pr.stmt(expr('ref', x, i64(k)), { type: layout(T)[k - 1] }))
+    const _part = (k: number): Val<MIR> => pr.push(pr.stmt(xref(x, k), { type: layout(T)[k - 1] }))
     return pr.push(pr.stmt(xtuple(...range.map(_part)), { type: P }))
   } else {
     throw new Error('unimplemented')
@@ -373,8 +374,8 @@ function packir(Ts: Type): MIR {
         pos = call(code, types.tag('common.+'), [pos, i32(sizeof(E))], types.int32())
       }
     } else if (P.kind === 'vpack') {
-      let len = code.push(code.stmt(expr('ref', ps[i - 1], i64(1)), { type: types.int32() }))
-      let src = code.push(code.stmt(expr('ref', ps[i - 1], i64(2)), { type: types.int32() }))
+      let len = code.push(code.stmt(xref(ps[i - 1], 1), { type: types.int32() }))
+      let src = code.push(code.stmt(xref(ps[i - 1], 2), { type: types.int32() }))
       pos = copy(code, types.partial_eltype(P), E, src, pos, len)
       code.push(code.stmt(expr('release', ps[i - 1])))
     } else throw new Error('unsupported')
@@ -410,8 +411,8 @@ function set_vpack(T: Type & { kind: 'vpack' }, I: Type, X: Type): MIR {
     code.return(xs)
     return code
   }
-  let size = code.push(code.stmt(expr('ref', xs, i64(1)), { type: types.int32() }))
-  let src = code.push(code.stmt(expr('ref', xs, i64(2)), { type: types.int32() }))
+  let size = code.push(code.stmt(xref(xs, 1), { type: types.int32() }))
+  let src = code.push(code.stmt(xref(xs, 2), { type: types.int32() }))
   let bytes = call(code, types.tag('common.*'), [size, i32(sizeof(E))], types.int32())
   let ptr = call(code, types.tag('common.malloc!'), [bytes], types.int32())
   let result = code.push(code.stmt(xtuple(size, ptr), { type: T }))
@@ -525,7 +526,7 @@ function store(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, x: Val<MIR>): void {
   if (!(isEqual(pr.type(ptr), types.Ptr()) || isEqual(pr.type(ptr), types.int32()))) throw new Error('store: expected RPtr or Int32')
   const regs = layout(T)
   for (let i = 0; i < regs.length; i++) {
-    const part = pr.push(pr.stmt(expr('ref', x, i64(i + 1)), { type: regs[i] }))
+    const part = pr.push(pr.stmt(xref(x, i + 1), { type: regs[i] }))
     storeAtom(pr, regs[i], ptr, part)
     // TODO could use constant offset here
     if (i + 1 < regs.length)
@@ -546,7 +547,7 @@ function load(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, { count = true, heap = 
   const regs = layout(T)
   const parts: Val<MIR>[] = []
   for (let i = 0; i < regs.length; i++) {
-    const bits = pr.push(pr.stmt(expr('ref', ptr, i64(1)), { type: types.bits(32) }))
+    const bits = pr.push(pr.stmt(xref(ptr, 1), { type: types.bits(32) }))
     parts.push(loadAtom(pr, regs[i], bits, heap))
     // TODO same as above
     if (i + 1 < regs.length)
@@ -564,7 +565,7 @@ function box(pr: Fragment<MIR>, T: Type, x: Val<MIR>): Val<MIR> {
 }
 
 function unbox(pr: Fragment<MIR>, T: Type, x: Val<MIR>, { count = true, heap = false }: { count?: boolean, heap?: boolean } = {}): Val<MIR> {
-  const ptr = pr.push(pr.stmt(expr('ref', x, i64(1)), { type: types.int32() }))
+  const ptr = pr.push(pr.stmt(xref(x, 1), { type: types.int32() }))
   const result = load(pr, T, ptr, { count, heap })
   if (count) pr.push(pr.stmt(expr('release', x)))
   return result

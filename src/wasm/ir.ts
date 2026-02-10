@@ -7,7 +7,7 @@ import { LineInfo, Def } from '../dwarf/index.js'
 import { instructionToString } from './wat.js'
 import * as ir from '../utils/ir.js'
 
-export { Locals, stackshuffle, locals, shiftbps, irfunc, Instr, setdiff, union, intersect, Value, asValue, isValue, WIR }
+export { Locals, stackshuffle, locals, shiftbps, irfunc, Instr, Ref, xref, setdiff, union, intersect, Value, asValue, isValue, WIR }
 
 class Value {
   constructor(
@@ -71,6 +71,22 @@ class Instr<T> extends Expr<T> {
   show(pr: (x: T | number) => string): string {
     return `(${instructionToString(this.instr)} ${this.body.map(pr).join(' ')})`
   }
+}
+
+class Ref<T> extends Expr<T> {
+  constructor(readonly x: T | number, readonly i: number) {
+    super('ref', [x])
+  }
+  map(f: (x: T | number) => T | number): Ref<T> {
+    return new Ref(f(this.x), this.i)
+  }
+  show(pr: (x: T | number) => string): string {
+    return `ref ${pr(this.x)}, ${this.i}`
+  }
+}
+
+function xref<T>(x: T | number, i: number): Ref<T> {
+  return new Ref(x, i)
 }
 
 interface Locals<T> {
@@ -213,8 +229,8 @@ function stack(ir: WIR): [WIR, wasm.ValueType[]] {
       if (ex.head === 'tuple') {
         env.set(v, ex.body.flatMap(parts))
         pr.delete(v)
-      } else if (ex.head === 'ref') {
-        env.set(v, [some(parts(ex.body[0])[Number(asValue(ex.body[1]).value) - 1])])
+      } else if (ex instanceof Ref) {
+        env.set(v, [some(parts(ex.x)[ex.i - 1])])
         pr.delete(v)
       } else if (ex instanceof Instr) {
         partsSet(v, asArray(st.type))

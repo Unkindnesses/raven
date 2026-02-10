@@ -2,7 +2,7 @@ import * as types from '../frontend/types.js'
 import { Type, Bits, asBits, bits } from '../frontend/types.js'
 import * as wasm from '../wasm/wasm.js'
 import { binary } from '../wasm/binary.js'
-import { irfunc, Instr, setdiff, Value, WIR, asValue } from '../wasm/ir.js'
+import { irfunc, Instr, setdiff, Value, WIR, asValue, xref } from '../wasm/ir.js'
 import { unreachable, Anno, Pipe, expr, Val, Branch, Expr, asType } from '../utils/ir.js'
 import { isEqual } from '../utils/isEqual.js'
 import { wlayout } from '../middle/expand.js'
@@ -177,7 +177,7 @@ function lowerwasm_globals(ir: WIR, globals: Cache<Binding, string[]>): WIR {
     for (let i = 0; i < ids.length; i++) {
       let p = st.expr.value
       if (asArray(st.type).length > 1)
-        p = pr.push(pr.stmt(expr('ref', p, Value.i64(i + 1))))
+        p = pr.push(pr.stmt(xref(p, i + 1)))
       pr.push(pr.stmt(instr(wasm.SetGlobal(ids[i]), p), { type: [] }))
     }
   }
