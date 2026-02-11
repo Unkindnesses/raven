@@ -174,7 +174,7 @@ class REPL {
 function wrapPrint(ex: ast.Tree) {
   if (ast.isExpr(ex, 'Syntax')) {
     const head = ex.args[0].unwrap()
-    if (head instanceof ast.Symbol && ['fn', 'bundle', 'show', 'showPack'].includes(head.toString()))
+    if (head instanceof ast.Symbol && ['fn', 'bundle', 'show', 'showPack', 'clear'].includes(head.toString()))
       return ex
   }
   return ast.Call(ast.Template(ast.symbol('tag'), 'common.replshow'), ex)

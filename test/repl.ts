@@ -59,4 +59,16 @@ test('undo n restores multiple entries', async () => {
   }
 })
 
+test('clear removes globals', async () => {
+  const repl = new REPL({ stdout: new PassThrough() })
+  try {
+    await repl.init()
+    assert.strictEqual((await repl.eval('x = 1')).trim(), '1')
+    assert.strictEqual(await repl.eval('clear x'), '')
+    await assert.rejects(() => repl.eval('x'), /x is not defined/)
+  } finally {
+    await repl.close()
+  }
+})
+
 test.run()
