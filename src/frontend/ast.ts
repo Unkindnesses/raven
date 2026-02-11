@@ -8,6 +8,9 @@ export interface Cursor {
 export class Symbol {
   constructor(public name: string) { }
   toString() { return this.name }
+  isEqual(other: unknown): other is Symbol {
+    return other instanceof Symbol && this.name === other.name
+  }
 }
 
 export function symbol(name: string): Symbol {

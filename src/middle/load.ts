@@ -7,7 +7,6 @@ import { lower_toplevel, bundlemacro, lowerfn, source, attrs } from "../frontend
 import { lowerpattern } from "../frontend/patterns.js"
 import { symbolValues } from "./primitives.js"
 import * as ast from "../frontend/ast.js"
-import { isEqual } from '../utils/isEqual.js'
 import { parse } from "../frontend/parse.js"
 import { emit } from "../backend/compiler.js"
 
@@ -44,7 +43,7 @@ function simpleconst(cx: LoadState, x: ast.Tree): Anno<Type> | Binding | undefin
   if (unwrapped instanceof ast.Symbol) return cx.mod.get(unwrapped.toString()) // TODO error if missing
   if (typeof unwrapped === 'number' || typeof unwrapped === 'bigint' || unwrapped instanceof Tag) return Type(unwrapped)
   if (ast.isExpr(x, 'Template') &&
-    isEqual(x.args[0].unwrap(), ast.symbol('tag')))
+    ast.symbol('tag').isEqual(x.args[0].unwrap()))
     return Type(modtag(cx.mod.name, x.args[1].unwrap() as string))
   return
 }
@@ -116,12 +115,12 @@ async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> 
   if (ast.isExpr(ex, 'Syntax')) {
     x = x as ast.Expr
     const first = ex.args[0].unwrap()
-    if (isEqual(first, ast.symbol('include'))) return load_include(cx, x)
-    if (isEqual(first, ast.symbol('export'))) return load_export(cx, x)
-    if (isEqual(first, ast.symbol('import'))) return load_import(cx, x)
-    if (isEqual(first, ast.symbol('clear'))) return load_clear(cx, x)
-    if (isEqual(first, ast.symbol('bundle'))) return vload(cx, bundlemacro(x))
-    if (isEqual(first, ast.symbol('fn'))) return load_fn(cx, x)
+    if (ast.symbol('include').isEqual(first)) return load_include(cx, x)
+    if (ast.symbol('export').isEqual(first)) return load_export(cx, x)
+    if (ast.symbol('import').isEqual(first)) return load_import(cx, x)
+    if (ast.symbol('clear').isEqual(first)) return load_clear(cx, x)
+    if (ast.symbol('bundle').isEqual(first)) return vload(cx, bundlemacro(x))
+    if (ast.symbol('fn').isEqual(first)) return load_fn(cx, x)
     return load_expr(cx, x)
   }
   if (ast.isExpr(x, 'Group')) {
@@ -129,7 +128,7 @@ async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> 
     return
   }
   if (ast.isExpr(x, 'Operator')) {
-    if (x.args.length >= 3 && isEqual(x.args[0].unwrap(), ast.symbol('=')) &&
+    if (x.args.length >= 3 && ast.symbol('=').isEqual(x.args[0].unwrap()) &&
       x.args[1].unwrap() instanceof ast.Symbol) {
       const c = simpleconst(cx, x.args[2])
       if (c !== undefined) {

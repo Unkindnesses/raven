@@ -1,4 +1,3 @@
-import { isEqual } from '../utils/isEqual.js'
 import * as ast from "./ast.js"
 import { asSymbol, Symbol, symbol } from "./ast.js"
 import { Type, Tag, tag, pack, part, parts, tagOf, asTag } from "./types.js"
@@ -69,7 +68,7 @@ function modtag(mod: Tag, tag: string): Tag {
 function resolvetags(ex: ast.Tree, mod: Tag): ast.Tree {
   if (ex instanceof ast.Token) return ex
   if (ex.head == 'Template') {
-    if (!isEqual(ex.args[0].unwrap(), symbol('tag'))) return ex
+    if (!symbol('tag').isEqual(ex.args[0].unwrap())) return ex
     return new ast.Token(modtag(mod, ast.asString(ex.args[1])), ex.meta)
   }
   return new ast.Expr(ex.head, ex.args.map(x => resolvetags(x, mod)), ex.meta)

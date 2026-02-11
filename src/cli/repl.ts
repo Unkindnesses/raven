@@ -13,7 +13,6 @@ import { parse } from '../frontend/parse.js'
 import * as ast from '../frontend/ast.js'
 import { WorkerCommand, WorkerRequest, WorkerResponse } from './worker.js'
 import { Options, withOptions } from '../utils/options.js'
-import { isEqual } from '../utils/isEqual.js'
 
 export { REPL }
 
@@ -184,10 +183,10 @@ function getUndoCount(exprs: ast.Tree[]): number | null {
   if (exprs.length !== 1) return null
   const node = exprs[0].ungroup()
   if (node instanceof ast.Token)
-    return isEqual(node.unwrap(), ast.symbol('undo')) ? 1 : null
+    return ast.symbol('undo').isEqual(node.unwrap()) ? 1 : null
   if (!ast.isExpr(node, 'Syntax')) return null
   const [head, ...args] = node.args
-  if (!isEqual(head.unwrap(), ast.symbol('undo'))) return null
+  if (!ast.symbol('undo').isEqual(head.unwrap())) return null
   if (args.length !== 1) return null
   const count = args[0].ungroup().unwrap()
   if (typeof count === 'bigint') return Number(count)

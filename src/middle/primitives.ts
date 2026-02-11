@@ -198,8 +198,8 @@ function partial_notnil(x: Type): Anno<Type> {
 function partial_tagcast(x: Type, t: Type): Anno<Type> {
   if (!(t instanceof types.Tag)) throw new Error('t must be a tag')
   x = types.unroll(x)
-  if (x.kind !== 'union') return isEqual(tagOf(x), t) ? x : unreachable
-  const ps = x.options.filter(opt => isEqual(tagOf(opt), t))
+  if (x.kind !== 'union') return t.isEqual(tagOf(x)) ? x : unreachable
+  const ps = x.options.filter(opt => t.isEqual(tagOf(opt)))
   return ps.length === 0 ? unreachable : only(ps)
 }
 
@@ -215,7 +215,7 @@ function rvtype(x: Type): Type {
     return types.pack(tagOf(x), ...types.parts(x).map(rvtype))
   if (tag('common.Pack').isEqual(tagOf(x)))
     return types.pack(...types.parts(x).map(rvtype))
-  if (isEqual(tagOf(x), tag('common.Literal')))
+  if (tag('common.Literal').isEqual(tagOf(x)))
     return types.part(x, 1)
   throw new Error(`Unrecognised type ${types.repr(x)}`)
 }
@@ -571,7 +571,7 @@ inlinePrimitive.set(tagcast_method.id, (code, st) => {
     x = unbox(code, T, x)
   }
   if (!(T.kind === 'union')) throw new Error('unimplemented')
-  const i = asType(T, 'union').options.findIndex(opt => isEqual(tagOf(opt), tg)) + 1
+  const i = asType(T, 'union').options.findIndex(opt => types.asTag(tg).isEqual(tagOf(opt))) + 1
   return union_downcast(code, T, i, x)
 })
 

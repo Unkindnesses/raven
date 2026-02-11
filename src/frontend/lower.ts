@@ -1,4 +1,3 @@
-import { isEqual } from '../utils/isEqual.js'
 import * as ast from "./ast.js"
 import * as ir from "../utils/ir.js"
 import { Val, fuseblocks, prune, ssa } from "../utils/ir.js"
@@ -108,7 +107,7 @@ function formacro(ex: ast.Expr): ast.Expr {
   let [forExpr, as] = attrs(ex)
   forExpr = ast.asExpr(forExpr, 'Syntax')
   const assign = ast.asExpr(forExpr.args[1], 'Operator')
-  if (!isEqual(assign.args[0].unwrap(), symbol('=')))
+  if (!symbol('=').isEqual(assign.args[0].unwrap()))
     throw new Error('for syntax expects `=` assignment')
   const [x, xs, body] = [assign.args[1], assign.args[2], forExpr.args[2]]
   const [itr, val] = [gensym("itr"), gensym("val")]
@@ -512,9 +511,9 @@ const wtypes = new Map<string, [Type, ValueType[]]>([
 function intrinsic(ex: ast.Tree): [string | [string, string], ir.Anno<Type>, ValueType[]?] {
   let T: ir.Anno<Type> = types.nil
   let ret: ValueType[] | undefined
-  if (ast.isExpr(ex, 'Operator') && isEqual(ex.args[0].unwrap(), ast.symbol(':'))) {
+  if (ast.isExpr(ex, 'Operator') && symbol(':').isEqual(ex.args[0].unwrap())) {
     const type = ex.args[2]
-    if (isEqual(type.unwrap(), ast.symbol('unreachable'))) T = ir.unreachable
+    if (symbol('unreachable').isEqual(type.unwrap())) T = ir.unreachable
     else if (ast.isExpr(type, 'Group')) {
       const specs = type.args.map(t => some(wtypes.get(ast.asSymbol(t).name)))
       T = types.list(...specs.map(s => s[0]))
@@ -525,7 +524,7 @@ function intrinsic(ex: ast.Tree): [string | [string, string], ir.Anno<Type>, Val
     ex = ex.args[1]
   }
   let op = ast.asExpr(ex).args[0].ungroup()
-  if (isEqual(op.unwrap(), ast.symbol('call'))) {
+  if (symbol('call').isEqual(op.unwrap())) {
     let name = ast.asExpr(ast.asExpr(ex).args[1], 'Field').args.map(t => t.unwrap().toString())
     return [[name[0], name[1]], T, ret]
   } else {
@@ -536,13 +535,13 @@ function intrinsic(ex: ast.Tree): [string | [string, string], ir.Anno<Type>, Val
 }
 
 function intrinsic_args(ex: ast.Tree): ast.Tree[] {
-  if (ast.isExpr(ex, 'Operator') && isEqual(ex.args[0].unwrap(), ast.symbol(':')))
+  if (ast.isExpr(ex, 'Operator') && symbol(':').isEqual(ex.args[0].unwrap()))
     return intrinsic_args(ex.args[1])
   const e = ast.asExpr(ex)
   const op = e.args[0].ungroup()
-  const start = isEqual(op.unwrap(), ast.symbol('call')) ? 2 : 1
+  const start = symbol('call').isEqual(op.unwrap()) ? 2 : 1
   return e.args.slice(start).map(x =>
-    ast.isExpr(x, 'Operator') && isEqual(x.args[0].unwrap(), ast.symbol(':')) ? x.args[1] : x)
+    ast.isExpr(x, 'Operator') && symbol(':').isEqual(x.args[0].unwrap()) ? x.args[1] : x)
 }
 
 function jsinline(ex: ast.Expr): [string, string[]] {
@@ -605,10 +604,10 @@ function parseIf(ex: ast.Expr): IfStmt {
   const body: ast.Tree[] = []
   const args = [...ex.args]
   while (args.length > 0) {
-    if (isEqual(args[0].unwrap(), symbol('if'))) {
+    if (symbol('if').isEqual(args[0].unwrap())) {
       args.shift()
       let c: IfCondition = args.shift()!
-      if (isEqual(c.unwrap(), symbol('let')))
+      if (symbol('let').isEqual(c.unwrap()))
         c = { kind: 'let', ex: args.shift()! }
       cond.push(c)
     } else cond.push(true)
