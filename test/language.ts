@@ -26,6 +26,12 @@ test('print float', async () => {
   await rv('println(2.0)', { output: '2' })
 })
 
+test('float multiply', async () => {
+  await rv(`
+    test (1.5 * 2.0) == 3.0
+  `)
+})
+
 test('hex literals', async () => {
   await rv(`
     test bitsize(0x1) == 8

@@ -35,6 +35,7 @@ function bin(kind: 'float32' | 'float64', op: (a: number, b: number) => number):
 
 wasmPartials.set('f32.add', bin('float32', (a, b) => a + b))
 wasmPartials.set('f64.add', bin('float64', (a, b) => a + b))
+wasmPartials.set('f64.mul', bin('float64', (a, b) => a * b))
 
 function wparts(T: Anno<Type>): wasm.ValueType[] {
   return T === unreachable ? [] : wlayout(T)
