@@ -1,6 +1,6 @@
 import { test } from 'uvu'
 import * as assert from 'assert'
-import { tag, list, int64, float64, bits, pack } from '../src/frontend/types.js'
+import { tag, list, int64, float64, bits, pack, String, nil } from '../src/frontend/types.js'
 import { Compiler, load } from '../src/cli/compile.js'
 import { Tracer } from '../src/middle/tracer.js'
 import { some } from '../src/utils/map.js'
@@ -54,6 +54,12 @@ test('trace const f64 +', () => {
   let [ir, ret] = some(tr._trace(tag('common.+'), list(float64(2), float64(2))))
   assert.deepEqual(ret, list(float64(4)))
   assert.ok(ir.length === 1)
+})
+
+test('trace print', () => {
+  let [ir, ret] = some(tr._trace(tag('common.println'), list(String())))
+  assert.deepEqual(ret, list(nil))
+  assert.ok(ir.length <= 50) // TODO shorten
 })
 
 test.run()
