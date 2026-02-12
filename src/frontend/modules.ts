@@ -173,13 +173,14 @@ class Method {
     readonly sig: Signature,
     readonly func?: (...args: Type[]) => Anno<Type>,
     readonly params: Type[] = [],
-    readonly id = cache.nft()
+    readonly id = cache.nft(),
+    readonly ts?: string
   ) { }
   get [hash]() { return `${this.id}${this.params.map(x => types.repr(x)).join()}` }
   toString() { return `Method(${this.name})` }
   isEqual(other: unknown): other is Method { return other instanceof Method && this.id === other.id }
   param(...Ts: Type[]) {
-    return new Method(this.mod, this.name, this.sig, this.func, Ts, this.id)
+    return new Method(this.mod, this.name, this.sig, this.func, Ts, this.id, this.ts)
   }
 }
 
@@ -243,7 +244,9 @@ class Module implements cache.Caching {
   }
 
   get subcaches() { return [this.defs, this.methods] }
-  method(name: Tag, sig: Signature, ir: MIR) { return this.methods.method(new Method(this.name, name, sig), ir) }
+  method(name: Tag, sig: Signature, ir: MIR, ts?: string) {
+    return this.methods.method(new Method(this.name, name, sig, undefined, [], undefined, ts), ir)
+  }
   ir(m: Method) { return this.methods.ir(m) }
   get(k: string) { return this.defs.get(k) }
   set(k: string, v: Anno<Type> | Binding) { this.defs.set(k, v) }

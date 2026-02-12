@@ -104,15 +104,29 @@ function emitSig(compiler: Compiler, em: wasm.BatchEmitter, sig: Sig, main = tru
   return func.name
 }
 
-function jsRuntime(exports: [string, string][], runtime: string, config: { wasmFile?: string, base64?: string, memcheck?: boolean }): string {
+function exportTSSignature(compiler: Compiler, fn: types.Tag): string | undefined {
+  const methods = compiler.pipe.defs.methods(fn)
+  if (!methods.length) return
+  const signatures: string[] = []
+  for (const method of methods) {
+    const ts = method.ts?.trim()
+    if (!ts) return
+    if (!signatures.includes(ts)) signatures.push(ts)
+  }
+  if (signatures.length === 1) return signatures[0]
+  return signatures.map(sig => `(${sig})`).join(' & ')
+}
+
+function jsRuntime(exports: [string, string, string | undefined][], runtime: string, config: { wasmFile?: string, base64?: string, memcheck?: boolean }): string {
   const { wasmFile, base64, memcheck = false } = config
   const init = base64
     ? `\nconst __raven = await __ravenInline(${JSON.stringify(base64)}, ${memcheck})\n`
     : `\nconst __raven = await __ravenLib(${JSON.stringify(wasmFile)}, ${memcheck})\n`
-  const wrappers = exports.map(([name, wasmName], i) => {
+  const wrappers = exports.map(([name, wasmName, ts], i) => {
     const fn = `__raven_fn_${i}`
+    const doc = ts ? `/** @type {${ts}} */\n` : ''
     return `const ${fn} = __raven(${JSON.stringify(wasmName)})
-export const ${name} = (...args) => ${fn}(args)`
+${doc}export const ${name} = (...args) => ${fn}(args)`
   }).join('\n')
   return `${runtime}${init}${wrappers}\n`
 }
@@ -126,7 +140,7 @@ async function compileJS(file: string, config: CompileConfig = {}): Promise<[Com
   await withOptions({ ...options, memcheck }, async () => {
     compiler ??= await Compiler.create(load)
     const em = await compiler.reload(file)
-    const exports: [string, string][] = []
+    const exports: [string, string, string | undefined][] = []
     const runtime = await readFile(libPath, 'utf8')
     const mod = compiler.pipe.sources.module(types.tag(''))
     for (const [i, [name, fn]] of exportedFunctions(compiler).entries()) {
@@ -138,7 +152,7 @@ async function compileJS(file: string, config: CompileConfig = {}): Promise<[Com
       const fname = emitSig(compiler, em, [method, types.Ref], false)
       const wname = `raven.lib.${name}`
       em.export(fname, wname)
-      exports.push([name, wname])
+      exports.push([name, wname, exportTSSignature(compiler, fn)])
     }
     const bytes = wasm.emitwasm(em, strip)
     if (inlineWasm) {

@@ -48,6 +48,14 @@ function simpleconst(cx: LoadState, x: ast.Tree): Anno<Type> | Binding | undefin
   return
 }
 
+function attrString(name: string, args?: ast.Tree[]): string | undefined {
+  if (!args) return
+  if (args.length !== 1) throw new Error(`@${name} expects one argument`)
+  const value = args[0].unwrap()
+  if (typeof value !== 'string') throw new Error(`@${name} expects a string literal`)
+  return value.trim()
+}
+
 function load_export(cx: LoadState, x: ast.Expr): void {
   const names = ast.asExpr(x.args[1], 'Block').args
   for (const name of names)
@@ -91,6 +99,7 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
   let [x, as] = attrs(ex)
   x = ast.asExpr(x)
   const extend = as.has('extend')
+  const ts = attrString('ts', as.get('ts'))
   const [sig, body] = x.args.slice(1)
   let signature = sig.ungroup()
   if (ast.isExpr(signature, 'Index')) signature = ast.Call(tag('common.get'), ...signature.args)
@@ -107,7 +116,7 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
   const sigPattern = lowerpattern(ast.List(...signature.args.slice(1)), cx.mod.name, resolve)
   const meta = Def(fnTag.path, x.meta && source(x.meta))
   const ir = lowerfn(cx.mod.name, sigPattern, body, resolve, meta)
-  cx.mod.method(fnTag, sigPattern, ir)
+  cx.mod.method(fnTag, sigPattern, ir, ts)
 }
 
 async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> {
