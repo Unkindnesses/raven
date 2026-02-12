@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Raven Web Lib Test</title>
+</head>
+<body>
+  <script type="module">
+    import { add1 } from './lib.js'
+
+    try {
+      window.testLibResult = { success: true, value: await add1(41) }
+    } catch (err) {
+      window.testLibResult = { success: false, error: err.message }
+    }
+  </script>
+</body>
+</html>

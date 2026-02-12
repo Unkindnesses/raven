@@ -6,16 +6,15 @@
 </head>
 <body>
   <script type="module">
-    import { compiler } from '../dist/index.js'
+    import { compiler } from '../../dist/index.js'
 
     try {
       const source = 'println("hello, world")'
       const modules = await (await compiler()).compile(source)
-      if (modules.length && modules.every(mod => mod instanceof Uint8Array)) {
+      if (modules.length && modules.every(mod => mod instanceof Uint8Array))
         window.testResult = { success: true }
-      } else {
+      else
         window.testResult = { success: false, error: 'Invalid output' }
-      }
     } catch (err) {
       window.testResult = { success: false, error: err.message }
     }

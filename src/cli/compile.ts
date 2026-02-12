@@ -122,7 +122,7 @@ function jsRuntime(exports: [string, string, string | undefined][], runtime: str
   const { wasmFile, base64, memcheck = false } = config
   const init = base64
     ? `\nconst __raven = await __ravenInline(${JSON.stringify(base64)}, ${memcheck})\n`
-    : `\nconst __raven = await __ravenLib(${JSON.stringify(wasmFile)}, ${memcheck})\n`
+    : `\nconst __raven = await __ravenLoad(new URL(${JSON.stringify(`./${wasmFile}`)}, import.meta.url), ${memcheck})\n`
   const wrappers = exports.map(([name, wasmName, ts], i) => {
     const fn = `__raven_fn_${i}`
     const doc = ts ? `/** @type {${ts}} */\n` : ''

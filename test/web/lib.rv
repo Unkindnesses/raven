@@ -1,0 +1,3 @@
+export { add1 }
+
+fn add1(x: JSObject) { Int64(x) + 1 }

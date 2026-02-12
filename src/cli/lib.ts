@@ -1,16 +1,10 @@
 #!/usr/bin/env -S node --enable-source-maps --experimental-wasm-jspi
-import * as fs from 'node:fs/promises'
 import { loadWasm } from '../backend/support.js'
 
-export { __ravenInline, __ravenLib }
+export { __ravenInline }
 
 async function __ravenInline(base64: string, check = false) {
   return await __ravenLoad(Buffer.from(base64, 'base64'), check)
-}
-
-async function __ravenLib(file: string, check = false) {
-  const wasm = await fs.readFile(new URL(`./${file}`, import.meta.url))
-  return await __ravenLoad(wasm, check)
 }
 
 function checkMemory({ allocs, frees, jsrefs }: any) {
@@ -21,7 +15,7 @@ function checkMemory({ allocs, frees, jsrefs }: any) {
       console.warn("Memory management fault: JSObject")
 }
 
-async function __ravenLoad(wasm: Uint8Array, check: boolean) {
+async function __ravenLoad(wasm: Uint8Array | URL, check: boolean) {
   const exports = await loadWasm(wasm)
   const _start = (WebAssembly as any).promising(exports._start)
   await _start()

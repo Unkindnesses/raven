@@ -99,11 +99,29 @@ if (isNode) {
   (Error as any).stackTraceLimit = 100
 }
 
-async function loadWasm(buf: Uint8Array, imports: any = {}) {
-  const module: WebAssembly.Module = await (WebAssembly.compile as any)(new Uint8Array(buf), { builtins: ['js-string'], importedStringConstants: 'strings' })
-  const meta = parseRavenMeta(module)
+const compileOptions = { builtins: ['js-string'], importedStringConstants: 'strings' }
+
+async function compile(source: Uint8Array | URL, imports: any = {}) {
+  let module: WebAssembly.Module
+  if (source instanceof URL) {
+    if (source.protocol === 'file:') {
+      const imp = (s: string) => import(s)
+      const fs = await imp('node:fs/promises')
+      source = await fs.readFile(source)
+    } else {
+      module = await (WebAssembly.compileStreaming as any)(fetch(source), compileOptions)
+    }
+  }
+  if (source instanceof Uint8Array)
+    module = await (WebAssembly.compile as any)(new Uint8Array(source), compileOptions)
+  const meta = parseRavenMeta(module!)
   imports = { ...imports, support: support(), inline: inline(meta?.js ?? []) }
-  const instance = await WebAssembly.instantiate(module, imports)
+  const instance = await WebAssembly.instantiate(module!, imports)
+  return { module: module!, instance }
+}
+
+async function loadWasm(source: Uint8Array | URL, imports: any = {}) {
+  const { module, instance } = await compile(source, imports)
   const debug = DebugModule(module)
   if (debug) debugModules.set(instance, debug)
   return instance.exports
