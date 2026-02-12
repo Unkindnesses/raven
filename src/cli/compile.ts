@@ -8,8 +8,9 @@ import { Options, withOptions } from '../utils/options.js'
 import { unreachable } from '../utils/ir.js'
 import { reset } from '../utils/cache.js'
 import * as path from 'path'
-import { chmod, mkdir, readFile, writeFile } from 'fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises'
 import { spawn, SpawnOptions } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import { dirname } from './dirname.js'
 import { Compiler } from '../backend/compiler.js'
 import type { Sig } from '../middle/abstract.js'
@@ -179,6 +180,17 @@ const libPath = path.join(dirname, '../../dist/cli/lib.js')
 const execPath = path.join(dirname, '../../dist/cli/exec.js')
 
 async function exec(file: string, args: string[] = [], config?: CompileConfig): Promise<void> {
-  if (path.extname(file).toLowerCase() !== '.wasm') [, file] = await compile(file, config)
-  await run('node', ['--enable-source-maps', '--experimental-wasm-jspi', execPath, file, ...args], { stdio: 'inherit' })
+  if (path.extname(file).toLowerCase() === '.wasm') {
+    await run('node', ['--enable-source-maps', '--experimental-wasm-jspi', execPath, file, ...args], { stdio: 'inherit' })
+    return
+  }
+  const dir = await mkdtemp(path.join(tmpdir(), 'raven-exec-'))
+  const base = path.basename(file, path.extname(file))
+  const output = path.join(dir, `${base}.wasm`)
+  try {
+    [, file] = await compile(file, { ...config, output })
+    await run('node', ['--enable-source-maps', '--experimental-wasm-jspi', execPath, file, ...args], { stdio: 'inherit' })
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 }
