@@ -2,7 +2,7 @@ import { Attr, Tag, Form } from '../dwarf/enums.js'
 import { Source, Abbrev, DIE, Value, Def, Function, Stack } from '../dwarf/structs.js'
 import { asBool, asNumber, asString, some } from '../utils/map.js'
 
-export { DebugModule, Source, sections, locate }
+export { DebugModule, Source, locate }
 
 const decoder = new TextDecoder()
 
@@ -245,6 +245,11 @@ function parseDebugInfo(section: Uint8Array, abbrevs: Map<number, Abbrev>): DIE 
   return some(parseDIE(unit, abbrevs))
 }
 
+function compileUnitBase(root: DIE): number | undefined {
+  const entry = attrValue(root.attrs, Attr.entry_pc)
+  if (entry !== undefined) return asNumber(entry)
+}
+
 function attrValue(attrs: [Attr, Value][], attr: Attr): Value[1] | undefined {
   for (const [name, value] of attrs)
     if (name === attr) return value[1]
@@ -344,37 +349,21 @@ function parseDebugLine(section: Uint8Array): { rows: LineRow[], files: string[]
   return { rows, files }
 }
 
-function sections(bytes: Uint8Array): [number, Map<string, Uint8Array>] {
-  let codeBase = 0
-  const table = new Map<string, Uint8Array>()
-  if (bytes.length < 8) return [codeBase, table]
-  const reader = new Reader(bytes)
-  reader.skip(8)
-  while (!reader.done) {
-    const id = reader.u8()
-    const size = reader.uleb()
-    const payload = reader.fork(size)
-    if (id === 0) {
-      const nameLen = payload.uleb()
-      const nameBytes = payload.chunk(nameLen)
-      const name = decoder.decode(nameBytes)
-      const data = payload.chunk(payload.remaining())
-      table.set(name, data)
-    } else if (id === 0x0a) codeBase = payload.start
+function DebugModule(module: WebAssembly.Module): DebugModule | undefined {
+  const section = <T>(name: string, parse: (bytes: Uint8Array) => T): T | undefined => {
+    const data = WebAssembly.Module.customSections(module, name)[0]
+    if (!data) return
+    return parse(new Uint8Array(data))
   }
-  return [codeBase, table]
-}
-
-function DebugModule(bytes: Uint8Array): DebugModule | undefined {
-  const [base, table] = sections(bytes)
-  const lineSection = table.get('.debug_line')
-  const infoSection = table.get('.debug_info')
-  const abbrevSection = table.get('.debug_abbrev')
-  if (!lineSection || !infoSection || !abbrevSection) return
-  const abbrevs = parseDebugAbbrev(abbrevSection)
-  const { rows: lines, files } = parseDebugLine(lineSection)
-  const functions = functionsFrom(parseDebugInfo(infoSection, abbrevs), files)
-  return { base, lines, functions }
+  const lines = section('.debug_line', parseDebugLine)
+  const info = section('.debug_info', x => x)
+  const abbrevs = section('.debug_abbrev', parseDebugAbbrev)
+  if (!lines || !info || !abbrevs) return
+  const root = parseDebugInfo(info, abbrevs)
+  const base = compileUnitBase(root)
+  if (base === undefined) return
+  const functions = functionsFrom(root, lines.files)
+  return { base, lines: lines.rows, functions }
 }
 
 function search<T>(items: T[], cmp: (item: T) => -1 | 0 | 1): T | undefined {

@@ -8,6 +8,7 @@ export { binary }
 const { i32, i64, f32, f64 } = wasm.NumType
 
 interface Debug {
+  base: number
   size: number
   lines: dwarf.LineTable
   functions: dwarf.Function[]
@@ -443,7 +444,8 @@ function func(cx: BinaryContext, f: wasm.Func): dwarf.LineTable {
 function code(cx: BinaryContext, funcs: wasm.Func[]): Debug {
   const table = new dwarf.LineTable([])
   const functions: dwarf.Function[] = []
-  if (funcs.length === 0) return { size: 0, lines: table, functions }
+  if (funcs.length === 0) return { base: 0, size: 0, lines: table, functions }
+  const sectionStart = cx.position
   cx.write(0x0a) // section id
   const size = withsize(cx, cx => {
     cx.leb128(funcs.length)
@@ -456,7 +458,10 @@ function code(cx: BinaryContext, funcs: wasm.Func[]): Debug {
       functions.push({ def: f.meta, range, inlines })
     }
   })
-  return { size, lines: table, functions }
+  const leb: number[] = []
+  dwarf.leb128U(size, leb)
+  const base = sectionStart + 1 + leb.length
+  return { base, size, lines: table, functions }
 }
 
 function names(cx: BinaryContext): void {
@@ -493,7 +498,9 @@ function emitDwarf(cx: BinaryContext, info: Debug): void {
       [dwarf.Attr.language, [dwarf.Form.data2, dwarf.Lang.LANG_C99]],
       [dwarf.Attr.stmt_list, [dwarf.Form.sec_offset, 0]],
       [dwarf.Attr.low_pc, [dwarf.Form.addr, 0]],
-      [dwarf.Attr.high_pc, [dwarf.Form.addr, info.size]]
+      [dwarf.Attr.high_pc, [dwarf.Form.addr, info.size]],
+      // Non-standard, but we store the base address here
+      [dwarf.Attr.entry_pc, [dwarf.Form.addr, info.base]]
     ],
     dies
   )
