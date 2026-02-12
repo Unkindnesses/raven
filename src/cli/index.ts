@@ -121,17 +121,16 @@ async function main() {
     .argument('<source>', 'Source file to compile')
     .option('--js', 'Emit JS wrapper')
     .option('--embed', 'Embed WASM into emitted JS')
+    .option('--esbuild', 'esbuild compatible wasm imports')
     .option('-o, --output <file>', 'Rename output file')
     .option('--time', 'Print compiler phase timing information')
-    .action(async (source, { output, js, embed, time }) => {
+    .action(async (source, { output, js, embed, esbuild, time }) => {
       let { inline, memcheck, strip } = program.optsWithGlobals()
       source = path.resolve(process.cwd(), source)
       const build = js ? compileJS : compile
       let [compiler] = await build(source, {
         options: { inline, memcheck: js ? false : memcheck },
-        output,
-        embed: js && !!embed,
-        strip
+        output, embed, esbuild, strip
       })
       if (time) printTiming(compiler)
     })

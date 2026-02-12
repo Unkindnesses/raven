@@ -31,6 +31,7 @@ interface CompileConfig {
   options?: Partial<Options>
   output?: string
   embed?: boolean
+  esbuild?: boolean
   strip?: boolean
 }
 
@@ -118,11 +119,14 @@ function exportTSSignature(compiler: Compiler, fn: types.Tag): string | undefine
   return signatures.map(sig => `(${sig})`).join(' & ')
 }
 
-function jsRuntime(exports: [string, string, string | undefined][], runtime: string, config: { wasmFile?: string, base64?: string, memcheck?: boolean }): string {
-  const { wasmFile, base64, memcheck = false } = config
+function jsRuntime(exports: [string, string, string | undefined][], runtime: string, config: { wasmFile?: string, base64?: string, memcheck?: boolean, esbuild?: boolean }): string {
+  const { wasmFile, base64, memcheck = false, esbuild = false } = config
+  if (esbuild && !base64) runtime += `import __raven_wasm from ${JSON.stringify(`./${wasmFile}`)}\n`
   const init = base64
     ? `\nconst __raven = await __ravenInline(${JSON.stringify(base64)}, ${memcheck})\n`
-    : `\nconst __raven = await __ravenLoad(new URL(${JSON.stringify(`./${wasmFile}`)}, import.meta.url), ${memcheck})\n`
+    : esbuild
+      ? `\nconst __raven = await __ravenLoad(new URL(__raven_wasm, import.meta.url), ${memcheck})\n`
+      : `\nconst __raven = await __ravenLoad(new URL(${JSON.stringify(`./${wasmFile}`)}, import.meta.url), ${memcheck})\n`
   const wrappers = exports.map(([name, wasmName, ts], i) => {
     const fn = `__raven_fn_${i}`
     const doc = ts ? `/** @type {${ts}} */\n` : ''
@@ -133,7 +137,7 @@ ${doc}export const ${name} = (...args) => ${fn}(args)`
 }
 
 async function compileJS(file: string, config: CompileConfig = {}): Promise<[Compiler, string]> {
-  let { dir = path.dirname(file), compiler, options = {}, output, embed: inlineWasm = false, strip = false } = config
+  let { dir = path.dirname(file), compiler, options = {}, output, embed: inlineWasm = false, esbuild = false, strip = false } = config
   const memcheck = options.memcheck ?? false
   const paths = buildPaths(file, dir, output)
   await mkdir(path.dirname(paths.js), { recursive: true })
@@ -161,7 +165,7 @@ async function compileJS(file: string, config: CompileConfig = {}): Promise<[Com
       await writeFile(paths.js, jsRuntime(exports, runtime, { base64, memcheck }))
     } else {
       await writeFile(paths.wasm, Buffer.from(bytes))
-      await writeFile(paths.js, jsRuntime(exports, runtime, { wasmFile: path.basename(paths.wasm), memcheck }))
+      await writeFile(paths.js, jsRuntime(exports, runtime, { wasmFile: path.basename(paths.wasm), memcheck, esbuild }))
     }
     await chmod(paths.js, 0o755)
   })
