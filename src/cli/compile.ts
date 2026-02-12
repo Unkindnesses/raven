@@ -108,11 +108,12 @@ function emitSig(compiler: Compiler, em: wasm.BatchEmitter, sig: Sig, main = tru
 
 function exportTSSignature(compiler: Compiler, fn: types.Tag): string | undefined {
   const methods = compiler.pipe.defs.methods(fn)
-  if (!methods.length) return
+  const tss = methods
+    .map(method => method.ts?.trim())
+    .filter((ts): ts is string => !!ts)
+  if (!tss.length) return '(...args: any[]) => Promise<any>'
   const signatures: string[] = []
-  for (const method of methods) {
-    const ts = method.ts?.trim()
-    if (!ts) return
+  for (const ts of tss) {
     if (!signatures.includes(ts)) signatures.push(ts)
   }
   if (signatures.length === 1) return signatures[0]
