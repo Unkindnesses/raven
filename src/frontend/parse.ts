@@ -17,7 +17,7 @@ class Reader {
   constructor(private src: string) { }
   eof() { return this.i >= this.src.length }
   cursor(): ast.Cursor { return { line: this.line, column: this.col } }
-  get peek() { return some(this.src[this.i]) }
+  get char() { return some(this.src[this.i]) }
   read() {
     const c = some(this.src[this.i++])
     if (c === '\n') { this.line++; this.col = 1 } else this.col++
@@ -36,12 +36,22 @@ class Reader {
     }
   }
 
-  skipLine() { while (!this.eof() && this.peek !== '\n') this.read() }
+  peek<T>(...fs: ((r: Reader) => T)[]): T | undefined {
+    if (this.eof()) return
+    const p = this.mark()
+    for (const f of [...fs]) {
+      const result = f(this)
+      this.reset(p)
+      if (result !== undefined) return result
+    }
+  }
+
+  skipLine() { while (!this.eof() && this.char !== '\n') this.read() }
 
   // Skip whitespace, not including newlines.
   skipWhitespace() {
     while (!this.eof()) {
-      const c = this.peek
+      const c = this.char
       if (c === ' ' || c === '\t' || c === '\r') this.read()
       else if (c === '#') this.skipLine()
       else break
@@ -77,23 +87,28 @@ class PrecTable {
     const i = this.ops.get(a)!, j = this.ops.get(b)!
     const cur = this.table[i][j]
     if (cur !== Prec.None && cur !== p) console.warn(`overwriting precedence for ${a}, ${b}`)
-    this.table[i][j] = p
     this.table[j][i] = inverse(p)
+    this.table[i][j] = p
   }
   precedence(...ops: string[]) {
     for (let k = 0; k + 1 < ops.length; ++k) this.set(ops[k], ops[k + 1], Prec.Left)
   }
   closure() {
     const n = this.ops.size
-    for (let i = 0; i < n; ++i)
-      for (let j = 0; j < n; ++j)
-        for (let k = 0; k < n; ++k) {
-          const ab = this.table[i][j], bc = this.table[j][k]
-          if (ab !== Prec.None && ab === bc) {
+    let changed = true
+    while (changed) {
+      changed = false
+      for (let i = 0; i < n; ++i)
+        for (let j = 0; j < n; ++j)
+          for (let k = 0; k < n; ++k) {
+            const ab = this.table[i][j], bc = this.table[j][k]
+            if (ab === Prec.None || ab !== bc) continue
+            if (this.table[i][k] === ab) continue
             this.table[i][k] = ab
             this.table[k][i] = inverse(ab)
+            changed = true
           }
-        }
+    }
   }
 }
 
@@ -106,15 +121,15 @@ function exact(r: Reader, s: string): string | undefined {
 }
 
 function newline(r: Reader): boolean {
-  if (r.peek === '\r') r.read()
+  if (r.char === '\r') r.read()
   return r.read() === '\n'
 }
 
 function num(r: Reader): number | bigint | undefined {
   let num = '', float = false
-  if (!/\d|\./.test(r.peek)) return
+  if (!/\d|\./.test(r.char)) return
   while (!r.eof()) {
-    const c = r.peek
+    const c = r.char
     if (/\d/.test(c)) { num += r.read(); continue }
     if (c === '.') {
       if (float) throw new Error('invalid number')
@@ -129,7 +144,7 @@ function num(r: Reader): number | bigint | undefined {
 function hex(r: Reader) {
   if (!(r.parse(r => exact(r, '0x')))) return
   let num = ''
-  while (!r.eof() && /[0-9a-fA-F]/.test(r.peek)) num += r.read()
+  while (!r.eof() && /[0-9a-fA-F]/.test(r.char)) num += r.read()
   if (num === '') throw new Error('invalid hex literal')
   return ast.Template(ast.symbol('hex'), num)
 }
@@ -147,9 +162,9 @@ function number(r: Reader) {
 
 function symbol(r: Reader): ast.Symbol | undefined {
   let s = ''
-  if (!/[A-Za-z_]/.test(r.peek)) return
+  if (!/[A-Za-z_]/.test(r.char)) return
   s += r.read()
-  while (!r.eof() && /[A-Za-z0-9_!?]/.test(r.peek)) s += r.read()
+  while (!r.eof() && /[A-Za-z0-9_!?]/.test(r.char)) s += r.read()
   return ast.symbol(s)
 }
 
@@ -161,7 +176,7 @@ const opChars = [...new Set(operators.join(''))].join('')
 
 function opsymbol(r: Reader): ast.Symbol | undefined {
   let s = ''
-  while (!r.eof() && opChars.includes(r.peek)) s += r.read()
+  while (!r.eof() && opChars.includes(r.char)) s += r.read()
   if (!operators.includes(s)) return
   return ast.symbol(s)
 }
@@ -207,9 +222,9 @@ function trimCommonIndent(s: string): string {
 
 function tripleString(r: Reader): string | ast.Tree | undefined {
   let slashes = 0
-  while (!r.eof() && r.peek === '\\') { r.read(); slashes++ }
+  while (!r.eof() && r.char === '\\') { r.read(); slashes++ }
   if (r.eof()) return
-  const q = r.peek
+  const q = r.char
   if (q !== '"' && q !== '`') return
   if (!r.parse(r => exact(r, q + q + q))) return
   const raw = q === '`'
@@ -239,7 +254,7 @@ function tripleString(r: Reader): string | ast.Tree | undefined {
 
 function string(r: Reader): string | undefined {
   let slashes = 0
-  while (!r.eof() && r.peek === '\\') { r.read(); slashes++ }
+  while (!r.eof() && r.char === '\\') { r.read(); slashes++ }
   if (r.eof()) return
   const open = r.read()
   if (open !== '"' && open !== '`') return
@@ -281,7 +296,7 @@ function brackets(r: Reader, open: string, close: string): ast.Tree[] | undefine
   const xs: ast.Tree[] = []
   while (true) {
     r.skip()
-    if (r.peek === close) break
+    if (r.char === close) break
     xs.push(some(statement(r)))
   }
   r.read()
@@ -303,7 +318,7 @@ function item(r: Reader): ast.Tree {
   r.skipWhitespace()
   const pos = r.cursor()
   const ex = r.parse<ast.Tree | ast.Atom | undefined>(template, symbol, swap, tripleString, string, number, opsymbol, group, list, block)
-  if (ex === undefined) throw new Error(`unexpected character ${r.peek} at ${curstring(pos)}`)
+  if (ex === undefined) throw new Error(`unexpected character ${r.char} at ${curstring(pos)}`)
   const tree = ast.isAtom(ex) ? new ast.Token(ex) : ex
   return tree.withmeta({ file: path(), loc: pos })
 }
@@ -328,7 +343,7 @@ function call(r: Reader): ast.Tree {
     }
     const m = r.mark()
     if (r.parse(r => exact(r, '.'))) {
-      if (r.peek === '.') { r.reset(m); break }
+      if (r.char === '.') { r.reset(m); break }
       const field = item(r) // TODO disallow whitespace
       ex = ast.Field(ex, field).withmeta({ file: path(), loc: cur })
       continue
@@ -339,8 +354,11 @@ function call(r: Reader): ast.Tree {
 }
 
 const table = new PrecTable(operators)
-table.precedence('^', '/', '*', '+', '-', '=');
-['/', '*', '+', '-', '|', '&'].forEach(op => table.set(op, op, Prec.Left))
+table.precedence('^', '/', '*', '+', '-');
+['>', '<', '>=', '<=', '==', '!='].forEach(op => table.precedence('-', op, '&&'))
+table.precedence('&&', '||', '=');
+
+['/', '*', '+', '-', '|', '&', '||', '&&'].forEach(op => table.set(op, op, Prec.Left))
 table.closure()
 
 function precedence(a: ast.Symbol, b: ast.Symbol): Prec {
@@ -357,16 +375,15 @@ function operator(r: Reader, syn = true, prev?: ast.Symbol): ast.Tree {
     if (op === undefined) return left
     const prec = prev ? precedence(prev, op) : Prec.Right
     if (prec === Prec.Left) { r.reset(mark); return left }
-    if (prec === Prec.None) { throw new Error(`Operators ${prev} and ${op} are ambiguous at ${curstring(r.cursor())}`) }
+    if (prec === Prec.None) { throw new Error(`Operators ${prev} and ${op} are ambiguous at ${path()}:${curstring(r.cursor())}`) }
     r.skip()
-    let right = syn ? r.parse(syntax) : undefined // TODO parse needed?
-    if (right === undefined) right = operator(r, syn, op)
+    const right = syn ? syntax(r, op) : operator(r, syn, op)
     left = ast.Operator(op, left, right).withmeta({ file: path(), loc: cur })
   }
 }
 
-function splat(r: Reader, syn = true): ast.Tree {
-  let ex = operator(r, syn)
+function splat(r: Reader, syn = true, op?: ast.Symbol): ast.Tree {
+  let ex = operator(r, syn, op)
   r.skipWhitespace()
   if (r.parse(r => exact(r, '...'))) ex = ast.Splat(ex)
   return ex
@@ -376,14 +393,15 @@ function splat(r: Reader, syn = true): ast.Tree {
 // TODO try to avoid as much re-parsing as possible.
 const terminators = new Set(['}', ')', ']', ',', '\n'])
 
-function syntax(r: Reader): ast.Tree {
+function syntax(r: Reader, op?: ast.Symbol): ast.Tree {
   const pos = r.cursor()
-  const name = splat(r)
+  const name = splat(r, true, op)
   if (!(name.unwrap() instanceof ast.Symbol)) return name
+  if (r.peek(opsymbol)) return name
   const args: ast.Tree[] = []
   while (!r.eof()) {
     r.skipWhitespace()
-    if (terminators.has(r.peek)) break
+    if (terminators.has(r.char)) break
     // `syn` fixes eg `fn x + y {}`, where `y {}` would be
     // parsed as an argument to `+` otherwise.
     const arg = splat(r, false)
@@ -401,7 +419,7 @@ function attr(r: Reader): ast.Tree | undefined {
   const args: ast.Tree[] = []
   while (!r.eof()) {
     r.skipWhitespace()
-    if (terminators.has(r.peek)) break
+    if (terminators.has(r.char)) break
     const arg = splat(r, false)
     args.push(arg)
   }
@@ -415,7 +433,7 @@ function statement(r: Reader): ast.Tree | undefined {
   if (r.eof()) return
   let ex = r.parse(attr, syntax)!
   r.skipWhitespace()
-  if (!r.eof() && !terminators.has(r.peek)) throw new Error(`Expected statement end at ${curstring(r.cursor())}`)
+  if (!r.eof() && !terminators.has(r.char)) throw new Error(`Expected statement end at ${curstring(r.cursor())}`)
   return ex
 }
 

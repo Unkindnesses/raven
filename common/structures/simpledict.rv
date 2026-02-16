@@ -14,7 +14,7 @@ fn show(Pair(a, b)) {
 fn simpledict() { seq() }
 
 fn haskey(d: Empty, k: Tag) { false }
-fn haskey(d: Prepend, k: Tag) { (part(first(d), 1) == k) || haskey(rest(d), k) }
+fn haskey(d: Prepend, k: Tag) { part(first(d), 1) == k || haskey(rest(d), k) }
 
 fn getkey(d: Empty, k: Tag) {
   abort(concat("No such key: ", string(k)))

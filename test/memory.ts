@@ -13,11 +13,11 @@ test('Ptr', async () => {
 test('simple malloc', async () => {
   await rv(`
     ptr1 = malloc!(Int32(16))
-    test ptr1 == (Ptr(0) + headerSize)
+    test ptr1 == Ptr(0) + headerSize
     test blockSize(ptr1) == Int32(16)
 
     ptr2 = malloc!(Int32(16))
-    test ptr2 == (Ptr(0) + headerSize + Int32(16) + headerSize)
+    test ptr2 == Ptr(0) + headerSize + Int32(16) + headerSize
     test blockSize(ptr2) == Int32(16)
 
     test allocationCount() == 2
@@ -78,7 +78,7 @@ test('triple malloc', async () => {
     ptr1 = malloc!(Int32(8))
     ptr2 = malloc!(Int32(8))
 
-    test (ptr1 == Ptr(8)) && (ptr2 == Ptr(24))
+    test ptr1 == Ptr(8) && ptr2 == Ptr(24)
 
     free!(ptr1)
     free!(ptr2)

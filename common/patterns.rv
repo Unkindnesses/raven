@@ -35,7 +35,7 @@ fn _match(val, pack(tag"common.Hole")) {
 }
 
 fn _match(val, pack(tag"common.Literal", pat)) {
-  (val == pat) || return
+  val == pat || return
   return [pat, simpledict()]
 }
 

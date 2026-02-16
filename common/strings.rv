@@ -4,7 +4,7 @@ export { Char, String, Regex, string, concat, compare, chars, utf8, utf16, conta
 
 bundle Char(val: UInt[21])
 
-fn Char(x: Int | UInt) { Char(oftype(uint 21, x)) }
+fn Char(x: (Int | UInt)) { Char(oftype(uint 21, x)) }
 
 fn Char(x: UInt[21]) { pack(Char, x) }
 

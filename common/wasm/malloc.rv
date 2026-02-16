@@ -84,7 +84,7 @@ fn findFreeBlock(n: Int32) {
   while not(lastBlock?(bl)) {
     if not(Bool(getBlockUsed(bl))) {
       coalesce(&bl)
-      (getBlockSize(bl) >= n) && return bl
+      getBlockSize(bl) >= n && return bl
     }
     next(&bl)
   }
@@ -104,7 +104,7 @@ fn findFreeBlock(n: Int32) {
 }
 
 fn trim(&bl: Block(ptr, size), newsize: Int32) {
-  (size <= (newsize + headerSize)) && return
+  size <= newsize + headerSize && return
   setBlockSize!(&bl, newsize)
   newptr = ptr + newsize
   setBlockUsed!(newptr, Int32(false))

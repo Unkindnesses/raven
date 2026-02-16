@@ -28,7 +28,7 @@ test('print float', async () => {
 
 test('float multiply', async () => {
   await rv(`
-    test (1.5 * 2.0) == 3.0
+    test 1.5 * 2.0 == 3.0
   `)
 })
 
@@ -83,6 +83,17 @@ test('arity mismatch errors', async () => {
 
     foo(1, 2, 3)
   `, { error: true, output: 'No matching method' })
+})
+
+test('op precedence', async () => {
+  await rv(`
+    test 1 + 2 * 3 == 7
+    test (1 + 2) * 3 == 9
+    test 8.0 / 2.0 * 2.0 == 8.0
+    test 10 - 3 - 2 == 5
+    test (true || false && false) == true
+    test ((true || false) && false) == false
+    `)
 })
 
 test('relu', async () => {
@@ -207,9 +218,9 @@ test('complex arithmetic', async () => {
     z = Complex(widen(5), widen(6))
 
     test abs2(z) == 61
-    test (z*z) == Complex(widen(-11), widen(60))
+    test z*z == Complex(widen(-11), widen(60))
     test z == z
-    test z != (z*z)
+    test z != z*z
   `)
 })
 
@@ -280,7 +291,7 @@ test('sum sequence', async () => {
 test('dynamic part', async () => {
   await rv(`
     xs = [4, widen(5)]
-    test (part(xs, widen(1)) + part(xs, widen(2))) == (4+5)
+    test part(xs, widen(1)) + part(xs, widen(2)) == 4+5
   `)
 })
 
@@ -607,7 +618,7 @@ test('array destructuring', async () => {
     {
       xs = [widen(2), widen(3)]
       [a, b] = xs
-      test (a + b) == 5
+      test a + b == 5
     }
   `)
 })
@@ -617,7 +628,7 @@ test('array destructuring with match', async () => {
     {
       xs = [widen(2), widen(2)]
       [a, a] = xs
-      test (a + a) == 4
+      test a + a == 4
     }
   `)
 })
@@ -636,7 +647,7 @@ test('complex destructuring', async () => {
     {
       xs = Complex(widen(2), widen(3))
       Complex(a, b) = xs
-      test (a + b) == 5
+      test a + b == 5
     }
   `)
 })
@@ -886,7 +897,7 @@ test('float parts', async () => {
 
 test('float pack', async () => {
   await rv(`
-    test (1/3) ==
+    test 1/3 ==
       pack(Float64, bits"0011111111010101010101010101010101010101010101010101010101010101")
   `)
 })

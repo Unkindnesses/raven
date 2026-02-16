@@ -150,7 +150,7 @@ fn typeof(x: JSObject) {
 }
 
 fn isPrimitive(x: JSObject) {
-  ((typeof(x) == "string") || (typeof(x) == "number")) || (typeof(x) == "boolean")
+  typeof(x) == "string" || typeof(x) == "number" || typeof(x) == "boolean"
 }
 
 fn string(x: JSObject) {

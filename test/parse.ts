@@ -1,6 +1,6 @@
 import { test } from 'uvu'
 import * as assert from 'assert'
-import { parse, PrecTable, Prec, inverse, table } from '../src/frontend/parse.js'
+import { parse, expr, PrecTable, Prec, inverse, table } from '../src/frontend/parse.js'
 import { lowerfn, lower_toplevel } from '../src/frontend/lower.js'
 import { lowerpattern } from '../src/frontend/patterns.js'
 import { tag, Type } from '../src/frontend/types.js'
@@ -137,6 +137,14 @@ test('precedence table transitivity', () => {
     return trans
   }
   assert.ok(transitive(table))
+})
+
+test('non-associative operators are parse errors', () => {
+  assert.throws(() => expr('1 == 2 == 3'), /ambiguous/)
+})
+
+test('comparison binds tighter than logical and', () => {
+  assert.equal(String(expr('true == true && false')), '((true == true) && false)')
 })
 
 function lower(def: string, resolver: (x: ast.Symbol) => Type = x => { throw new Error('undefined') }) {
