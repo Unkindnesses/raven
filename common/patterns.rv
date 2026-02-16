@@ -8,7 +8,7 @@ fn matchTrait(tag".Any", x) { Some(x) }
 NotNil = tag".NotNil"
 
 fn matchTrait(tag".NotNil", x) {
-  if not(nil?(x)) { Some(notnil(x)) }
+  if !nil?(x) { Some(notnil(x)) }
 }
 
 bundle Params(T, Ts)
@@ -66,7 +66,7 @@ fn _match(xs, p: Pack) {
   result = pack(tag)
   i = 1
   while lt(i, nparts(p)) {
-    if not(nil?(bs)) {
+    if !nil?(bs) {
       m = _match(part(xs, i), part(p, add(i, 1)))
       if nil?(m) {
         bs = nil
@@ -98,5 +98,5 @@ fn match(val, pat) {
 }
 
 fn isa?(val, T) {
-  not(nil?(matchTrait(T, val)))
+  !nil?(matchTrait(T, val))
 }

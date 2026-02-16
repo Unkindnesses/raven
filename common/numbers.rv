@@ -1,6 +1,6 @@
 export {
   Float32, Float64, Complex
-  ==, !=, +, -, *, /, ^, >, <, >=, <=, &, |, abs2, div, rem, not
+  ==, !=, !, +, -, *, /, ^, >, <, >=, <=, &, |, abs2, div, rem
   zero?, zero, one, round
 }
 

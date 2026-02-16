@@ -81,8 +81,8 @@ fn coalesce(&bl: Block) {
 # Find a free block of size >= n, creating it if necessary.
 fn findFreeBlock(n: Int32) {
   bl = firstBlock()
-  while not(lastBlock?(bl)) {
-    if not(Bool(getBlockUsed(bl))) {
+  while !lastBlock?(bl) {
+    if !Bool(getBlockUsed(bl)) {
       coalesce(&bl)
       getBlockSize(bl) >= n && return bl
     }

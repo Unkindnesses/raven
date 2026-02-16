@@ -46,6 +46,12 @@ class Reader {
     }
   }
 
+  some<T>(f: (r: Reader) => T | undefined): T {
+    const result = f(this)
+    if (result === undefined) throw new Error(`unexpected character '${this.char}' at ${path()}:${curstring(this.cursor())}`)
+    return result
+  }
+
   skipLine() { while (!this.eof() && this.char !== '\n') this.read() }
 
   // Skip whitespace, not including newlines.
@@ -275,14 +281,6 @@ function string(r: Reader): string | undefined {
 
 // Parsing
 
-function swap(r: Reader): ast.Tree | undefined {
-  const pos = r.cursor()
-  if (r.read() !== '&') return
-  const name = symbol(r)
-  if (name === undefined) return
-  return ast.Swap(name).withmeta({ file: path(), loc: pos })
-}
-
 function template(r: Reader): ast.Tree | undefined {
   const name = symbol(r)
   if (name === undefined || r.eof()) return
@@ -314,11 +312,11 @@ function list(r: Reader) { return bracketsTo(r, '[', ']', ast.List) }
 function block(r: Reader) { return bracketsTo(r, '{', '}', ast.Block) }
 
 // Combine all simple expressions with little backtracking
-function item(r: Reader): ast.Tree {
-  r.skipWhitespace()
+function item(r: Reader): ast.Tree | undefined {
   const pos = r.cursor()
-  const ex = r.parse<ast.Tree | ast.Atom | undefined>(template, symbol, swap, tripleString, string, number, opsymbol, group, list, block)
-  if (ex === undefined) throw new Error(`unexpected character ${r.char} at ${curstring(pos)}`)
+  const ex = r.parse<ast.Tree | ast.Atom | undefined>(
+    template, symbol, tripleString, string, number, opsymbol, group, list, block)
+  if (ex === undefined) return
   const tree = ast.isAtom(ex) ? new ast.Token(ex) : ex
   return tree.withmeta({ file: path(), loc: pos })
 }
@@ -327,8 +325,9 @@ function item(r: Reader): ast.Tree {
 // backtracking / re-parsing. So they don't need to be called in sequence.
 
 // Does calls and fields, so we can handle eg `foo.bar(a).baz`
-function call(r: Reader): ast.Tree {
+function postfix(r: Reader): ast.Tree | undefined {
   let ex = item(r)
+  if (ex === undefined) return
   while (true) {
     const cur = r.cursor()
     let args = r.parse(r => brackets(r, '(', ')'))
@@ -341,16 +340,34 @@ function call(r: Reader): ast.Tree {
       ex = ast.Index(ex, ...args).withmeta({ file: path(), loc: cur })
       continue
     }
-    const m = r.mark()
+    if (r.peek(r => exact(r, '...'))) { break }
     if (r.parse(r => exact(r, '.'))) {
-      if (r.char === '.') { r.reset(m); break }
-      const field = item(r) // TODO disallow whitespace
+      const field = r.some(r => item(r))
       ex = ast.Field(ex, field).withmeta({ file: path(), loc: cur })
       continue
     }
     break
   }
   return ex
+}
+
+function prefix(r: Reader): ast.Tree | undefined {
+  if (r.eof()) return
+  if (r.peek(r => exact(r, '!='))) return postfix(r)
+  const loc = r.cursor()
+  if (r.char === '!') {
+    r.read()
+    let ex = prefix(r)
+    if (ex === undefined) return new ast.Token(ast.symbol('!'))
+    return ast.Operator(ast.symbol('!'), ex).withmeta({ file: path(), loc })
+  }
+  if (r.char === '&') {
+    r.read()
+    let ex = prefix(r)
+    if (ex === undefined) return new ast.Token(ast.symbol('&'))
+    return ast.Swap(ex).withmeta({ file: path(), loc })
+  }
+  return postfix(r)
 }
 
 const table = new PrecTable(operators)
@@ -365,8 +382,8 @@ function precedence(a: ast.Symbol, b: ast.Symbol): Prec {
   return table.get(a.toString(), b.toString())
 }
 
-function operator(r: Reader, syn = true, prev?: ast.Symbol): ast.Tree {
-  let left = call(r)
+function infix(r: Reader, syn = true, prev?: ast.Symbol): ast.Tree {
+  let left = r.some(r => prefix(r))
   while (true) {
     const cur = r.cursor()
     const mark = r.mark()
@@ -377,13 +394,13 @@ function operator(r: Reader, syn = true, prev?: ast.Symbol): ast.Tree {
     if (prec === Prec.Left) { r.reset(mark); return left }
     if (prec === Prec.None) { throw new Error(`Operators ${prev} and ${op} are ambiguous at ${path()}:${curstring(r.cursor())}`) }
     r.skip()
-    const right = syn ? syntax(r, op) : operator(r, syn, op)
+    const right = syn ? syntax(r, op) : infix(r, syn, op)
     left = ast.Operator(op, left, right).withmeta({ file: path(), loc: cur })
   }
 }
 
 function splat(r: Reader, syn = true, op?: ast.Symbol): ast.Tree {
-  let ex = operator(r, syn, op)
+  let ex = infix(r, syn, op)
   r.skipWhitespace()
   if (r.parse(r => exact(r, '...'))) ex = ast.Splat(ex)
   return ex

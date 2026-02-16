@@ -128,7 +128,7 @@ fn oftype(to: UInt, from: JSObject) {
 fn Bool(obj: JSObject) { Bool(Int32(obj)) }
 
 fn condition(obj: JSObject) { condition(Bool(obj)) }
-fn not(obj: JSObject) { not(Bool(obj)) }
+fn !(obj: JSObject) { !Bool(obj) }
 
 fn debugger() {
   wasm call(support.debugger): ref
@@ -200,7 +200,7 @@ fn iterate(x: JSObject) {
 
 fn next(&x: JSObject) {
   val = x.next()
-  if not(val.done) { Some(val.value) }
+  if !val.done { Some(val.value) }
 }
 
 fn import(s) {

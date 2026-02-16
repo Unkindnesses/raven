@@ -96,6 +96,15 @@ test('op precedence', async () => {
     `)
 })
 
+test('prefix logical negation operator', async () => {
+  await rv(`
+    test !false
+    test !!true
+    test !(true && false)
+    test !true == false
+  `)
+})
+
 test('relu', async () => {
   await rv(`
     fn relu(x) {
@@ -383,11 +392,11 @@ test('iterator protocol', async () => {
       itr = iterate(xs)
 
       val = next(&itr)
-      test not(nil?(val))
+      test !nil?(val)
       test part(val, 1) == 5
 
       val = next(&itr)
-      test not(nil?(val))
+      test !nil?(val)
       test part(val, 1) == 6
 
       val = next(&itr)
@@ -409,13 +418,13 @@ test('simpledict', async () => {
       test getkey(d, tag"a") == 7
       test getkey(d, tag"b") == "foo"
       test haskey(d, tag"b")
-      test not(haskey(d, tag"c"))
+      test !haskey(d, tag"c")
 
-      test not(nil?(merge(d, tag"b", "foo")))
+      test !nil?(merge(d, tag"b", "foo"))
       test nil?(merge(d, tag"b", "bar"))
-      test not(nil?(merge(d, tag"c", 9)))
+      test !nil?(merge(d, tag"c", 9))
 
-      test not(nil?(merge(d, tag"a", widen(7))))
+      test !nil?(merge(d, tag"a", widen(7)))
       test nil?(merge(d, tag"a", widen(8)))
     }
   `)
@@ -426,7 +435,7 @@ test('merge sequences', async () => {
     {
       b1 = seq(Pair(tag"a", 1), Pair(tag"b", 2))
       b2 = seq(Pair(tag"b", widen(2)), Pair(tag"d", 3))
-      test not(nil?(merge(&b1, b2)))
+      test !nil?(merge(&b1, b2))
 
       b1 = seq(Pair(tag"a", 1), Pair(tag"b", 2))
       b2 = seq(Pair(tag"b", widen(3)), Pair(tag"d", 3))
@@ -453,7 +462,7 @@ test('recursive type', async () => {
       test nparts(xs) == 2
       test part(xs, 2) == 5
       test part(part(xs, 1), 2) == 4
-      test not(empty?(xs))
+      test !empty?(xs)
       test length(xs) == 5
       test allocationCount() == 0
     }
@@ -592,7 +601,7 @@ test('let shadowing', async () => {
 
 test('match literal', async () => {
   await rv(`
-    test not(nil?(match(widen(1), Literal(1))))
+    test !nil?(match(widen(1), Literal(1)))
     test nil?(match(widen(2), Literal(1)))
   `)
 })

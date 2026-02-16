@@ -25,7 +25,7 @@ fn bits(Bool(x)) { x }
 fn Bool(a) & Bool(b) { Bool(bitand(a, b)) }
 fn Bool(a) | Bool(b) { Bool(bitor(a, b)) }
 
-fn not(Bool(x)) { Bool(biteqz(x)) }
+fn !(Bool(x)) { Bool(biteqz(x)) }
 
 fn show(x: Bool) {
   print(if x { "true" } else { "false" })
@@ -109,7 +109,7 @@ fn typemax(n: Int) {
   typemin(n)-one(n)
 }
 
-fn Bool(x: Int) { not(zero?(x)) }
+fn Bool(x: Int) { !zero?(x) }
 
 @extend
 fn Float64(Int(x)) {
@@ -218,7 +218,7 @@ fn one(x: UInt) { oftype(x, 1) }
 fn typemin(n: UInt) { zero(n) }
 fn typemax(n: UInt) { typemin(n)-one(n) }
 
-fn Bool(x: UInt) { not(zero?(x)) }
+fn Bool(x: UInt) { !zero?(x) }
 
 @extend
 fn Float64(UInt(x)) {

@@ -30,7 +30,7 @@ The identity function.
 fn identity(x) { x }
 
 fn _ == _ { false }
-fn a != b { not(a == b) }
+fn a != b { !(a == b) }
 
 fn matchTrait(_, _) {}
 

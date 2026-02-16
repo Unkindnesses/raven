@@ -113,7 +113,11 @@ export function repr(item: Tree, indent: number = 0): string {
       case 'Index': return `${_repr(item.args[0])}[${item.args.slice(1).map(_repr).join(", ")}]`
       case 'Field': return `${_repr(item.args[0])}.${_repr(item.args[1])}`
       case 'Splat': return `${_repr(item.args[0])}...`
-      case 'Operator': return `(${item.args.slice(1).map(_repr).join(` ${String(item.args[0].unwrap())} `)})`
+      case 'Operator': {
+        const op = String(item.args[0].unwrap())
+        if (item.args.length === 2) return `(${op}${_repr(item.args[1])})`
+        return `(${item.args.slice(1).map(_repr).join(` ${op} `)})`
+      }
       case 'Swap': return `&${_repr(item.args[0])}`
       case 'Quote': return `\`${String(item.args[0].unwrap())}\``
       case 'Template': return `${_repr(item.args[0])}${_repr(item.args[1])}`
