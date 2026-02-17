@@ -44,3 +44,39 @@ fn round(x: Float64) {
   x = wasm f64.nearest(x: f64): f64
   return i64trunc(x)
 }
+
+# libm
+
+export {
+  pi, sqrt, cbrt, hypot, exp, expm1, log, log1p, log2, log10, pow
+  sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, cosh, atanh
+}
+
+pi = 3.141592653589793
+
+fn sqrt(x: Float64) { Float64(js.Math.sqrt(x)) }
+fn cbrt(x: Float64) { Float64(js.Math.cbrt(x)) }
+fn hypot(x: Float64, y: Float64) { Float64(js.Math.hypot(x, y)) }
+
+fn exp(x: Float64) { Float64(js.Math.exp(x)) }
+fn expm1(x: Float64) { Float64(js.Math.expm1(x)) }
+fn log(x: Float64) { Float64(js.Math.log(x)) }
+fn log1p(x: Float64) { Float64(js.Math.log1p(x)) }
+fn log2(x: Float64) { Float64(js.Math.log2(x)) }
+fn log10(x: Float64) { Float64(js.Math.log10(x)) }
+fn pow(x: Float64, y: Float64) { Float64(js.Math.pow(x, y)) }
+
+fn sin(x: Float64) { Float64(js.Math.sin(x)) }
+fn cos(x: Float64) { Float64(js.Math.cos(x)) }
+fn tan(x: Float64) { Float64(js.Math.tan(x)) }
+fn asin(x: Float64) { Float64(js.Math.asin(x)) }
+fn acos(x: Float64) { Float64(js.Math.acos(x)) }
+fn atan(x: Float64) { Float64(js.Math.atan(x)) }
+fn atan(y: Float64, x: Float64) { Float64(js.Math.atan2(y, x)) }
+
+fn sinh(x: Float64) { Float64(js.Math.sinh(x)) }
+fn cosh(x: Float64) { Float64(js.Math.cosh(x)) }
+fn tanh(x: Float64) { Float64(js.Math.tanh(x)) }
+fn asinh(x: Float64) { Float64(js.Math.asinh(x)) }
+fn acosh(x: Float64) { Float64(js.Math.acosh(x)) }
+fn atanh(x: Float64) { Float64(js.Math.atanh(x)) }

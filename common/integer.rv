@@ -272,3 +272,32 @@ fn show(x: UInt64) {
   print("0x")
   print(js(string(Int64(x), 16)).padStart(16, "0"))
 }
+
+# libm
+
+fn sqrt(x: (Int | UInt)) { sqrt(Float64(x)) }
+fn cbrt(x: (Int | UInt)) { cbrt(Float64(x)) }
+fn hypot(x: (Int | UInt), y: (Int | UInt)) { hypot(Float64(x), Float64(y)) }
+
+fn exp(x: (Int | UInt)) { exp(Float64(x)) }
+fn expm1(x: (Int | UInt)) { expm1(Float64(x)) }
+fn log(x: (Int | UInt)) { log(Float64(x)) }
+fn log1p(x: (Int | UInt)) { log1p(Float64(x)) }
+fn log2(x: (Int | UInt)) { log2(Float64(x)) }
+fn log10(x: (Int | UInt)) { log10(Float64(x)) }
+fn pow(x: (Int | UInt), y: (Int | UInt)) { pow(Float64(x), Float64(y)) }
+
+fn sin(x: (Int | UInt)) { sin(Float64(x)) }
+fn cos(x: (Int | UInt)) { cos(Float64(x)) }
+fn tan(x: (Int | UInt)) { tan(Float64(x)) }
+fn asin(x: (Int | UInt)) { asin(Float64(x)) }
+fn acos(x: (Int | UInt)) { acos(Float64(x)) }
+fn atan(x: (Int | UInt)) { atan(Float64(x)) }
+fn atan(y: (Int | UInt), x: (Int | UInt)) { atan(Float64(y), Float64(x)) }
+
+fn sinh(x: (Int | UInt)) { sinh(Float64(x)) }
+fn cosh(x: (Int | UInt)) { cosh(Float64(x)) }
+fn tanh(x: (Int | UInt)) { tanh(Float64(x)) }
+fn asinh(x: (Int | UInt)) { asinh(Float64(x)) }
+fn acosh(x: (Int | UInt)) { acosh(Float64(x)) }
+fn atanh(x: (Int | UInt)) { atanh(Float64(x)) }
