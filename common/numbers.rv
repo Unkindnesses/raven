@@ -19,12 +19,12 @@ fn x ^ (n: Int) {
 }
 
 fn show(x: Bits) {
-  print("bits\"")
+  print(`bits"`)
   N = bitsize(x)
   for i = range(1, N) {
     print(Int64(bitand(bitshr_u(x, bitcast(x, bits(N-i))), bitcast(x, bits(1)))))
   }
-  print("\"")
+  print(`"`)
 }
 
 fn print(x: (Float64 | Float32)) {

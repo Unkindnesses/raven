@@ -96,6 +96,7 @@ class Pipeline implements Caching {
       await loadmodule(this.sources, tag('common.core'), 'core.rv', load)
       await loadmodule(this.sources, tag('common'), 'common.rv', load)
     })
+    reset(this)
     return this
   }
 }
