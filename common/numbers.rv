@@ -7,6 +7,8 @@ export {
 fn matchTrait(tag"common.core.Float32", x: pack(tag"common.core.Float32", _)) { Some(x) }
 fn matchTrait(tag"common.core.Float64", x: pack(tag"common.core.Float64", _)) { Some(x) }
 
+fn promote_rule(a: Int, b: Float64) { [Float64(a), b] }
+
 include "numbers/complex.rv"
 
 fn x ^ (n: Int) {

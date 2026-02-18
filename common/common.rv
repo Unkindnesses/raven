@@ -54,6 +54,7 @@ fn unwrap(Err(x)) { abort("Tried to unwrap Err", x) }
 include "patterns.rv"
 include "print.rv"
 
+include "promote.rv"
 include "integer.rv"
 include "wasm/numeric.rv"
 include "wasm/memory.rv"

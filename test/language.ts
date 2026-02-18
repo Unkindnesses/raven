@@ -32,6 +32,13 @@ test('float multiply', async () => {
   `)
 })
 
+test('mixed int/float +', async () => {
+  await rv(`
+    test 1.0 + 2 == 3.0
+    test 2 + 1.0 == 3.0
+  `)
+})
+
 test('hex literals', async () => {
   await rv(`
     test bitsize(0x1) == 8
