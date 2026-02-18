@@ -67,7 +67,7 @@ test('undefined function errors', async () => {
 test('non-tag call errors', async () => {
   await rv(`
     x = 1, x()
-  `, { error: true, output: "Only tags (top-level functions) are callable." })
+  `, { error: true, output: 'No matching method: 1: []' })
 })
 
 test('non boolean condition fails', async () => {
@@ -82,7 +82,7 @@ test('arity mismatch errors', async () => {
     }
 
     foo(1, 2, 3)
-  `, { error: true, output: 'No matching method' })
+  `, { error: true, output: 'No matching method: tag"foo"' })
 })
 
 test('op precedence', async () => {
@@ -980,6 +980,13 @@ test('js int conversion', async () => {
   await rv(`
     test Int64(js(2828255673)) == 2828255673
     test Int32(js(2828255673)) == -1466711623
+  `)
+})
+
+test('js callable', async () => {
+  await rv(`
+    f = js.Math.sqrt
+    test f(2) == js.Math.sqrt(2)
   `)
 })
 

@@ -3,7 +3,7 @@ import { asSymbol, Symbol, symbol } from "./ast.js"
 import { Type, Tag, tag, pack, part, parts, tagOf, asTag } from "./types.js"
 import { Signature, IRValue } from "./modules.js"
 
-export { Pattern, IRValue, modtag, lowerpattern, callpattern, patternType, pattern }
+export { Pattern, IRValue, modtag, lowerpattern, callpattern, callablepattern, patternType, pattern }
 
 // Pattern types
 
@@ -158,5 +158,25 @@ function callpattern(
     pattern: Pack(Literal(tag('common.List')), Literal(func), args.pattern),
     args: args.args,
     swap: args.swap
+  }
+}
+
+// TODO clean up and unify with `lowerpattern`.
+function callablepattern(
+  ex: ast.Tree, mod = tag(''),
+  resolve: (x: Symbol) => Type = x => { throw new Error(`Couldn't statically resolve ${x}`) }
+): Signature {
+  const full = lowerpattern(ex, mod, resolve)
+  if (full.pattern.kind !== 'pack' || full.pattern.parts.length < 2)
+    throw new Error('callablepattern: expected a callee and argument list')
+  const [head, callee, ...args] = full.pattern.parts
+  if (!(head.kind === 'literal' &&
+    head.value instanceof Tag &&
+    head.value.isEqual(tag('common.List'))))
+    throw new Error('callablepattern: expected a list pattern')
+  return {
+    pattern: Pack(head, callee, Pack(head, ...args)),
+    args: full.args,
+    swap: full.swap
   }
 }

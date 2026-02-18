@@ -34,6 +34,7 @@ import { options } from '../utils/options.js'
 import { part_method, isnil_method, notnil_method, partial_isnil, string } from './primitives.js'
 import { EagerCache } from '../utils/cache.js'
 import { isEqual } from '../utils/isEqual.js'
+import { repr } from '../frontend/types.js'
 
 export {
   Interpreter, MatchMethods, Path, Match, MatchResult, partial_match, indexer, icall,
@@ -330,7 +331,7 @@ function dispatcher(inf: Inference, func: types.Tag, F: types.Type, Ts: types.Ty
   if (types.tag('common.abort').isEqual(func) && types.issubset(Ts, types.list(types.String())))
     throw new Error("Compiler fault: couldn't guarantee abort method matches")
   if (options().jspanic)
-    call(types.tag('common.abort'), string(code, `No matching method: ${func}: ${types.repr(Ts)}`))
+    call(types.tag('common.abort'), string(code, `No matching method: ${repr(F)}: ${types.repr(Ts)}`))
   code.block().unreachable()
   return [code, ret]
 }

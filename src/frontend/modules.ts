@@ -11,7 +11,7 @@ import { Instruction, Op, ValueType } from "../wasm/wasm.js"
 export {
   Module, Method, Signature, Binding, asBinding, asValue, Modules,
   Definitions, Value, MIR, IRValue, showIRValue,
-  StringRef, xstring, JS, xjs, Global, SetGlobal, xglobal, xset, Invoke, Wasm, xwasm, callargs
+  StringRef, xstring, JS, xjs, Global, SetGlobal, xglobal, xset, Invoke, Wasm, xwasm, calltarget, callargs
 }
 
 class Binding {
@@ -155,10 +155,15 @@ function xwasm<T>(callee: Instruction | string | [string, string], ...args: (T |
   return new Wasm<T>(callee, args)
 }
 
-function callargs(ir: ir.Fragment<MIR>, ex: ir.Expr<IRValue>): [Tag | Method, ir.Val<MIR>[]] {
+function calltarget(T: Type): Tag {
+  if (T instanceof Tag) return T
+  return types.asTag(types.tagOf(T))
+}
+
+function callargs(code: ir.Fragment<MIR>, ex: ir.Expr<IRValue>): [Tag | Method, ir.Val<MIR>[]] {
   return ex instanceof Invoke ?
     [ex.method, ex.body] :
-    [types.asTag(ir.type(ex.body[0])), ex.body]
+    [calltarget(ir.asType(code.type(ex.body[0]))), ex.body]
 }
 
 interface Signature {

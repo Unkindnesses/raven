@@ -37,6 +37,10 @@ fn field(tag".js", f: Tag) { field(js(), f) }
 
 fn field(obj: JSObject, f: Tag) { obj[string(f)] }
 
+fn (f: JSObject)(args...) {
+  js`return \f(...\args)`
+}
+
 fn call(obj: JSObject, meth, args...) { apply(obj, js(meth), js(args)) }
 
 fn apply(obj: JSObject, meth: JSObject, args: JSObject) {
