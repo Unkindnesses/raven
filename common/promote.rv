@@ -1,59 +1,61 @@
-fn promote_rule(a, b) { nil }
+export { coerce, promote }
+
+fn coerce(a, b) { nil }
 
 fn promote(a, b) {
-  if let [a, b] = promote_rule(a, b) { return [a, b] }
-  if let [b, a] = promote_rule(b, a) { return [a, b] }
+  if let [a, b] = coerce(a, b) { return [a, b] }
+  if let [b, a] = coerce(b, a) { return [a, b] }
 }
 
-fn (a + b) {
+fn a + b {
   if tag(a) == tag(b) { abort("+ not defined for this type") }
   [a, b] = promote(a, b)
   return a + b
 }
 
-fn (a - b) {
+fn a - b {
   if tag(a) == tag(b) { abort("- not defined for this type") }
   [a, b] = promote(a, b)
   return a - b
 }
 
-fn (a * b) {
+fn a * b {
   if tag(a) == tag(b) { abort("* not defined for this type") }
   [a, b] = promote(a, b)
   return a * b
 }
 
-fn (a / b) {
+fn a / b {
   if tag(a) == tag(b) { abort("/ not defined for this type") }
   [a, b] = promote(a, b)
   return a / b
 }
 
-fn (a ^ b) {
+fn a ^ b {
   if tag(a) == tag(b) { abort("^ not defined for this type") }
   [a, b] = promote(a, b)
   return a ^ b
 }
 
-fn (a > b) {
+fn a > b {
   if tag(a) == tag(b) { abort("> not defined for this type") }
   [a, b] = promote(a, b)
   return a > b
 }
 
-fn (a < b) {
+fn a < b {
   if tag(a) == tag(b) { abort("< not defined for this type") }
   [a, b] = promote(a, b)
   return a < b
 }
 
-fn (a >= b) {
+fn a >= b {
   if tag(a) == tag(b) { abort(">= not defined for this type") }
   [a, b] = promote(a, b)
   return a >= b
 }
 
-fn (a <= b) {
+fn a <= b {
   if tag(a) == tag(b) { abort("<= not defined for this type") }
   [a, b] = promote(a, b)
   return a <= b

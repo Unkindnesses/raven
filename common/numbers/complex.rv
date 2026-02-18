@@ -1,12 +1,32 @@
+export { real, imag }
+
 bundle Complex(re, im)
+
+fn Complex(re, im) {
+  [re, im] = promote(re, im)
+  pack(Complex, re, im)
+}
+
+fn Complex(re) { Complex(re, zero(re)) }
 
 fn real(Complex(re, im)) { re }
 fn imag(Complex(re, im)) { im }
 
-fn one(Complex(re, im)) { Complex(one(re), one(im)) }
+fn one(Complex(re, im)) { Complex(one(re)) }
+
+fn promote(Complex(ra, ia), Complex(rb, ib)) {
+  [ra, rb] = promote(ra, rb)
+  [ia, ib] = promote(ia, ib)
+  [Complex(ra, ia), Complex(rb, ib)]
+}
+
+fn coerce(Complex(re, im), x: (Int | Float64)) {
+  [re, x] = promote(re, x)
+  [Complex(re, im), Complex(x)]
+}
 
 fn abs2(Complex(re, im)) {
-  (re*re) + (im*im)
+  re*re + im*im
 }
 
 fn Complex(ra, ia) + Complex(rb, ib) {
@@ -18,7 +38,7 @@ fn Complex(ra, ia) - Complex(rb, ib) {
 }
 
 fn Complex(ra, ia) * Complex(rb, ib) {
-  Complex((ra*rb) - (ia*ib), (ra*ib) + (rb*ia))
+  Complex(ra*rb - ia*ib, ra*ib + rb*ia)
 }
 
 fn show(Complex(re, im)) {
