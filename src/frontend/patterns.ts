@@ -3,7 +3,7 @@ import { asSymbol, Symbol, symbol } from "./ast.js"
 import { Type, Tag, tag, pack, part, parts, tagOf, asTag } from "./types.js"
 import { Signature, IRValue } from "./modules.js"
 
-export { Pattern, IRValue, modtag, lowerpattern, patternType, pattern }
+export { Pattern, IRValue, modtag, lowerpattern, callpattern, patternType, pattern }
 
 // Pattern types
 
@@ -138,10 +138,25 @@ function _lowersig(ex: ast.Tree, as: string[], swaps: Map<number, string>, resol
   return Pack(Literal(tag('common.List')), ...args)
 }
 
+// TODO used by IR lowering – but we should build the pattern in code instead.
 function lowerpattern(ex: ast.Tree, mod = tag(''), resolve: (x: Symbol) => Type = x => { throw new Error(`Couldn't statically resolve ${x}`) }): Signature {
   ex = resolvetags(ex, mod)
   const as: string[] = []
   const swaps = new Map<number, string>()
   const p = _lowersig(ex, as, swaps, resolve)
   return { pattern: p, args: as, swap: swaps }
+}
+
+// TODO [f, args...] would be more elegant, but for that we need a linked-list
+// like representation for arg lists which can preserve types when splatting.
+function callpattern(
+  func: Tag, ex: ast.Tree, mod = tag(''),
+  resolve: (x: Symbol) => Type = x => { throw new Error(`Couldn't statically resolve ${x}`) }
+): Signature {
+  const args = lowerpattern(ex, mod, resolve)
+  return {
+    pattern: Pack(Literal(tag('common.List')), Literal(func), args.pattern),
+    args: args.args,
+    swap: args.swap
+  }
 }

@@ -51,7 +51,7 @@ function inline(code: MIR, inlined: Accessor<Sig, Redirect | MIR>): MIR {
   for (const [v, st] of pr) {
     if (!['call', 'invoke'].includes(st.expr.head)) continue
     const [F, args] = callargs(pr, st.expr)
-    const sig: Sig = [F, ...args.map(x => ir.asType(pr.type(x)))]
+    const sig = [F, ...args.map(x => ir.asType(pr.type(x)))] as Sig
     if (!inlineable(inlined, sig)) continue
     pr.delete(v)
     const ret = inlineHere(pr, ir.asIR(inlined.get(sig)), st.src, args)

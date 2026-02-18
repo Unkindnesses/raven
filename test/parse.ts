@@ -2,7 +2,7 @@ import { test } from 'uvu'
 import * as assert from 'assert'
 import { parse, expr, PrecTable, Prec, inverse, table } from '../src/frontend/parse.js'
 import { lowerfn, lower_toplevel } from '../src/frontend/lower.js'
-import { lowerpattern } from '../src/frontend/patterns.js'
+import { callpattern } from '../src/frontend/patterns.js'
 import { tag, Type } from '../src/frontend/types.js'
 import { asSymbol } from '../src/frontend/ast.js'
 import * as ast from '../src/frontend/ast.js'
@@ -151,10 +151,12 @@ function lower(def: string, resolver: (x: ast.Symbol) => Type = x => { throw new
   const ex = parse('test', def)[0]
   if (!ast.isExpr(ex, 'Syntax') || asSymbol(ex.args[0].unwrap()).toString() !== 'fn')
     throw new Error('Expected function definition starting with "fn"')
-  const params = ast.asExpr(ex.args[1], 'Call').args.slice(1)
+  const sig = ast.asExpr(ex.args[1], 'Call')
+  const fn = tag(asSymbol(sig.args[0].unwrap()).toString())
+  const params = sig.args.slice(1)
   const body = ex.args[2]
-  const sig = lowerpattern(ast.List(...params))
-  return lowerfn(tag(''), sig, body, resolver, Def('test'))
+  const pat = callpattern(fn, ast.List(...params))
+  return lowerfn(tag(''), pat, body, resolver, Def('test'))
 }
 
 test('lower simple function', () => {

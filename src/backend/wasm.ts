@@ -1,5 +1,5 @@
 import * as types from '../frontend/types.js'
-import { Type, Bits, asBits, bits } from '../frontend/types.js'
+import { Type } from '../frontend/types.js'
 import * as wasm from '../wasm/wasm.js'
 import { binary } from '../wasm/binary.js'
 import { irfunc, Instr, setdiff, Value as WValue, WIR, xref } from '../wasm/ir.js'
@@ -112,7 +112,8 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: Cache
         env.set(v, out.push({ ...st, expr: instr(wasm.Call(fname), ...args), type: [wasm.externref] }))
       } else if (st.expr.head === 'func') {
         const [f, I, O] = st.expr.body
-        const name = names.get([types.asTag(f), asType(ir.type(I))])
+        const F = asType(ir.type(f))
+        const name = names.get([types.asTag(F), F, asType(ir.type(I))])
         env.set(v, out.push({ ...st, expr: xtuple(WValue.i32(tables.func(name))), type: type(st.type) }))
       } else if (['tuple', 'ref'].includes(st.expr.head)) {
         env.set(v, out.push({ ...st, expr: st.expr.map(rename as any) as unknown as Expr<WValue>, type: type(st.type) }))
@@ -145,7 +146,7 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: Cache
       } else if (['call', 'invoke'].includes(st.expr.head)) {
         let [F, args] = callargs(ir, st.expr)
         const Ts = args.map(a => asType(ir.type(a)))
-        const sig: Sig = [F, ...Ts]
+        const sig = [F, ...Ts] as Sig
         args = args.filter(x => !types.isValue(asType(ir.type(x))))
         const expr = instr(wasm.Call(names.get(sig)), ...args.map(rename))
         env.set(v, out.push({ ...st, expr: expr, type: wparts(st.type) }))

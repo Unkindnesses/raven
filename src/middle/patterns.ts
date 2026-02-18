@@ -276,18 +276,22 @@ function dispatcherDef(func: types.Tag) {
   return Def(`${func.path} (dispatcher)`)
 }
 
-function dispatcher(inf: Inference, func: types.Tag, Ts: types.Type): [MIR, ir.Anno<types.Type>] {
+function dispatcher(inf: Inference, func: types.Tag, F: types.Type, Ts: types.Type): [MIR, ir.Anno<types.Type>] {
   const code = MIR(dispatcherDef(func))
+  const f = code.argument(F)
   const args = code.argument(Ts)
+  const fullType = types.list(F, Ts)
+  const full = code.push(code.stmt(xlist<IRValue>(f, args), { type: fullType }))
   let ret: ir.Anno<types.Type> = ir.unreachable
-  let arms = dispatch_arms(Ts)
-  const call = (f: IRValue | Method, ...as: (IRValue | number)[]) => icall(inf, code, [func, Ts], f, ...as)
-  for (const [meth, m] of inf.meths.get([func, Ts])) {
+  let arms = dispatch_arms(fullType)
+  const sig: Sig = [func, F, Ts]
+  const call = (f: IRValue | Method, ...as: (IRValue | number)[]) => icall(inf, code, sig, f, ...as)
+  for (const [meth, m] of inf.meths.get([func, fullType])) {
     if (m === undefined) {
       const pat = patternType(meth.sig.pattern)
       arms = arms.filter(T =>
-        issubset(types.list(types.nil), some(infercall(inf, [func, Ts], types.tag('common.match'), types.list(T, pat)))))
-      let m = call(types.tag('common.match'), args, pat)
+        issubset(types.list(types.nil), some(infercall(inf, sig, types.tag('common.match'), types.tag('common.match'), types.list(T, pat)))))
+      let m = call(types.tag('common.match'), full, pat)
       if (code.type(m) === ir.unreachable) { code.block().unreachable(); return [code, ret] }
       m = call(part_method, m, types.Type(1n))
       // TODO use call?
@@ -306,7 +310,7 @@ function dispatcher(inf: Inference, func: types.Tag, Ts: types.Type): [MIR, ir.A
       ret = maybe_union(ret, code.type(result))
       code.newBlock()
     } else { // certain to match
-      const as = meth.sig.args.map(x => indexer(code, Ts, args, some(m.get(x))[1]))
+      const as = meth.sig.args.map(x => indexer(code, fullType, full, some(m.get(x))[1]))
       let result = call(meth, ...as)
       if (code.type(result) === ir.unreachable) {
         code.block().unreachable()

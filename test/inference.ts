@@ -1,7 +1,7 @@
 import { test } from 'uvu'
 import * as assert from 'assert'
 import { Compiler, load } from '../src/cli/compile.js'
-import { tag, list, pack, int64, int32, bits } from '../src/frontend/types.js'
+import { tag, list, pack, int64, int32, bits, Tag, Type } from '../src/frontend/types.js'
 import { key, Sig } from '../src/middle/abstract.js'
 import { source } from '../src/middle/load.js'
 import { Binding } from '../src/frontend/modules.js'
@@ -13,19 +13,19 @@ test.before(async () => {
   compiler = await Compiler.create(load)
 })
 
-function result(comp: Compiler, sig: Sig) {
-  let [, ret] = asArray(comp.pipe.inferred.get(sig))
+function result(comp: Compiler, f: Tag, args: Type) {
+  let [, ret] = asArray(comp.pipe.inferred.get([f, f, args]))
   return ret
 }
 
 test('infer identity', async () => {
   await compiler.reload(source('', 'fn id(x) { x }'))
-  let ret = result(compiler, [tag('id'), list(int64())])
+  let ret = result(compiler, tag('id'), list(int64()))
   assert.deepEqual(ret, list(int64()))
 })
 
 test('infer Nil', () => {
-  let ret = result(compiler, [tag('common.Nil'), list()])
+  let ret = result(compiler, tag('common.Nil'), list())
   assert.deepEqual(ret, list(pack(tag('common.Nil'))))
 })
 
@@ -36,13 +36,13 @@ test('nil const', () => {
 
 test('infer bool', async () => {
   await compiler.reload(source('', 'fn id() { Bool(bits"1") }'))
-  let ret = result(compiler, [tag('id'), list()])
+  let ret = result(compiler, tag('id'), list())
   assert.deepEqual(ret, list(pack(tag('common.Bool'), bits(1, 1))))
 })
 
 test('infer int32', async () => {
   await compiler.reload(source('', 'fn id() { Int32(64*1024) }'))
-  let ret = result(compiler, [tag('id'), list()])
+  let ret = result(compiler, tag('id'), list())
   assert.deepEqual(ret, list(int32(64 * 1024)))
 })
 
@@ -57,7 +57,7 @@ test('infer pow', async () => {
       return r
     }
   `))
-  let ret = result(compiler, [tag('pow'), list(2n, 3n)])
+  let ret = result(compiler, tag('pow'), list(2n, 3n))
   assert.deepEqual(ret, list(8n))
 })
 
@@ -71,7 +71,7 @@ test('infer fib recursive', async () => {
       }
     }
   `))
-  let ret = result(compiler, [tag('fib'), list(20n)])
+  let ret = result(compiler, tag('fib'), list(20n))
   assert.deepEqual(ret, list(int64()))
 })
 
@@ -89,7 +89,7 @@ test('infer fib sequence', async () => {
       return xs
     }
   `))
-  let ret = result(compiler, [tag('fibSequence'), list(5n)])
+  let ret = result(compiler, tag('fibSequence'), list(5n))
   assert.deepEqual(ret, list(list(1n, 1n, 2n, 3n, 5n)))
 })
 

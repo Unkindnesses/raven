@@ -1,8 +1,8 @@
 import * as wasm from '../backend/wasm.js'
 import * as types from '../frontend/types.js'
 import * as ast from '../frontend/ast.js'
-import { Binding, MIR, Method } from '../frontend/modules.js'
-import { lowerpattern } from '../frontend/patterns.js'
+import { Binding, MIR } from '../frontend/modules.js'
+import { callpattern } from '../frontend/patterns.js'
 import { xcall, xlist, xpart } from '../frontend/lower.js'
 import { Options, withOptions } from '../utils/options.js'
 import { unreachable } from '../utils/ir.js'
@@ -80,7 +80,7 @@ function exportedFunctions(compiler: Compiler): [string, types.Tag][] {
 // TODO better to have a generic means for converting to JS functions. Exported
 // globals can implicitly convert to JS, and we don't need to wrap.
 function libWrapperIR(name: string, f: types.Tag): MIR {
-  const rcall = (code: MIR, fn: types.Tag | Method, args: any[]) => {
+  const rcall = (code: MIR, fn: types.Tag, args: any[]) => {
     const arglist = code.push(code.stmt(xlist(...args)))
     const result = code.push(code.stmt(xcall(fn, arglist)))
     return code.push(code.stmt(xpart(result, types.Type(1n))))
@@ -153,7 +153,7 @@ async function compileJS(file: string, config: CompileConfig = {}): Promise<[Com
       if (!isJSIdentifier(name))
         throw new Error(`Cannot export ${JSON.stringify(name)} as a JS binding`)
       const tag = types.tag(`__raven.lib.${i}`)
-      const sig = lowerpattern(ast.List(ast.symbol('args')))
+      const sig = callpattern(tag, ast.List(ast.symbol('args')))
       const method = mod.method(tag, sig, libWrapperIR(tag.path, fn))
       const fname = emitSig(compiler, em, [method, types.Ref], false)
       const wname = `raven.lib.${name}`

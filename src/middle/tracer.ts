@@ -9,7 +9,7 @@ import { dispatcherDef, partial_match, Path, Interpreter } from './patterns.js'
 import { wasmPartials } from '../backend/wasm.js'
 import { getIntValue, invoke_method, notnil_method, pack_method, packcat_method, part_method, tagcast_method } from './primitives.js'
 import { isEqual } from '../utils/isEqual.js'
-import { asNumber, only, some } from '../utils/map.js'
+import { asNumber, some } from '../utils/map.js'
 import { Caching, CycleCache } from '../utils/cache.js'
 import { Accessor } from '../utils/fixpoint.js'
 import { xcall, xlist, xpart } from '../frontend/lower.js'
@@ -187,25 +187,26 @@ class Tracer {
 
   trace(code: TraceIR, x: Func, args: ir.Val<MIR>[], src?: Stack): ir.Val<MIR> | undefined {
     if (x instanceof Method) return this.traceMethod(code, x, args, src)
+    if (args.length !== 2) throw new Error('bug')
     if (this.count++ > TRACE_LIMIT) return
     code.enter(dispatcherDef(x), src)
-    const result = this.traceFunc(code, x, only(args))
+    const result = this.traceFunc(code, x, args[0], args[1])
     code.exit()
     return result
   }
 
-  traceIR(code: TraceIR, ir: MIR, ...args: ir.Val<MIR>[]): ir.Val<MIR> | undefined {
+  traceIR(code: TraceIR, ir: MIR): ir.Val<MIR> | undefined {
     let bl = 1
     while (true) {
       for (const [v, st] of ir.block(bl)) {
         if (st.expr.head === 'call') {
           const op = code.type(st.expr.body[0])
           if (!(op instanceof Tag)) return
-          const result = this.trace(code, op, st.expr.body.slice(1), st.src)
+          const result = this.trace(code, op, st.expr.body, st.src)
           if (result === undefined) return
           code.replace(v, result)
         } else if (st.expr instanceof Invoke) {
-          const result = this.traceMethod(code, st.expr.method, st.expr.body as ir.Val<MIR>[], st.src)
+          const result = this.traceMethod(code, st.expr.method, st.expr.body, st.src)
           if (result === undefined) return
           code.replace(v, result)
         } else if (st.expr instanceof Wasm) {
@@ -272,21 +273,24 @@ class Tracer {
       const ir = some(this.defs.ir(meth))
       code.scope(ir.block(1).args, args)
       code.enter(ir.meta, src)
-      const ret = this.traceIR(code, ir, ...args)
+      const ret = this.traceIR(code, ir)
       code.exit()
       if (ret === undefined) return
       return code.unscope(ret)
     }
   }
 
-  traceFunc(code: TraceIR, func: Tag, args: ir.Val<MIR>): ir.Val<MIR> | undefined {
+  traceFunc(code: TraceIR, func: Tag, f: ir.Val<MIR>, args: ir.Val<MIR>): ir.Val<MIR> | undefined {
+    const F = asType(code.type(f))
     const Ts = asType(code.type(args))
+    const fullTs = types.list(F, Ts)
+    const full = code.push(code.stmt(xlist<IRValue>(f, args), { type: fullTs }))
     const methods = this.defs.methods(func)
     for (const meth of methods.slice().reverse()) {
-      const m = partial_match(this.int, meth.sig.pattern, Ts)
+      const m = partial_match(this.int, meth.sig.pattern, fullTs)
       if (m === null) continue
       if (m === undefined) return
-      const as = meth.sig.args.map((a, i) => indexer(code, Ts, args, m.get(a)![1]))
+      const as = meth.sig.args.map((a, i) => indexer(code, fullTs, full, m.get(a)![1]))
       let result = this.traceMethod(code, meth, as)
       if (result === undefined) return
       const T = asType(code.type(result))
@@ -320,8 +324,8 @@ class Traced implements Caching {
     return this.results.get([func, ...args])
   }
 
-  get(func: Func, args: Type[]): Type | undefined {
-    const result = this.results.get([func, ...args])
+  get(func: Tag, args: Type[]): Type | undefined {
+    const result = this.results.get([func, func, ...args])
     if (result === undefined || result[1] === ir.unreachable) return
     return asType(result[1])
   }

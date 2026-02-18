@@ -9,6 +9,10 @@ import { fingerprint, reset } from '../src/utils/cache.js'
 import { asArray } from '../src/utils/map.js'
 import { key, Sig } from '../src/middle/abstract.js'
 
+function callsig(f: types.Tag, args: types.Type): Sig {
+  return [f, f, args]
+}
+
 test('globals', async () => {
   const compiler = await Compiler.create(load, source('', 'foo = 1, bar = 1'))
   const defs = compiler.pipe.defs
@@ -52,23 +56,23 @@ test('methods', async () => {
 test('inference', async () => {
   const compiler = await Compiler.create(load, source('', 'n = 1, fn foo(x) { x+n }, foo(5)'))
   const inf = compiler.pipe.inferred
-  let [, fooType] = asArray(inf.get([tag('foo'), types.list(types.int64(5))]))
+  let [, fooType] = asArray(inf.get(callsig(tag('foo'), types.list(types.int64(5)))))
   assert.deepEqual(fooType, types.list(types.int64(6)))
 
-  inf.get([tag('common.+'), types.list(types.int64(), types.int64())])
-  const plusId = inf.results.id(key([tag('common.+'), types.list(types.int64(), types.int64())]))
+  inf.get(callsig(tag('common.+'), types.list(types.int64(), types.int64())))
+  const plusId = inf.results.id(key(callsig(tag('common.+'), types.list(types.int64(), types.int64()))))
 
   await compiler.reload(source('', 'n = 2, fn foo(x) { x+n }, foo(5)'));
 
-  [, fooType] = asArray(inf.get([tag('foo'), types.list(types.int64(5))]))
+  [, fooType] = asArray(inf.get(callsig(tag('foo'), types.list(types.int64(5)))))
   assert.deepEqual(fooType, types.list(types.int64(7)))
-  assert.equal(plusId, inf.results.id(key([tag('common.+'), types.list(types.int64(), types.int64())])))
+  assert.equal(plusId, inf.results.id(key(callsig(tag('common.+'), types.list(types.int64(), types.int64())))))
 })
 
 test('compiler', async () => {
   const compiler = await Compiler.create(load)
   reset(compiler.pipe)
-  compiler.pipe.wasm.get([tag('common.malloc!'), types.list(types.int32())])
+  compiler.pipe.wasm.get(callsig(tag('common.malloc!'), types.list(types.int32())))
   const before = fingerprint(compiler.pipe)
   reset(compiler.pipe)
   const after = fingerprint(compiler.pipe)
@@ -80,7 +84,7 @@ test('compiler', async () => {
 
 test('match method', async () => {
   const compiler = await Compiler.create(load)
-  const sig: Sig = [tag('common.matchTrait'), types.list(tag('common.Int64'), types.int64())]
+  const sig = callsig(tag('common.matchTrait'), types.list(tag('common.Int64'), types.int64()))
 
   assert.ok(!compiler.pipe.inferred.results.iscached(key(sig)))
   const matchResult = compiler.pipe.inferred.get(sig)

@@ -28,7 +28,7 @@ function maybe_union(x: Anno<Type>, y: Anno<Type>): Anno<Type> {
 }
 
 type Func = Tag | Method
-type Sig = [Func, ...Type[]]
+type Sig = [Tag, Type, Type] | [Method, ...Type[]]
 type AIR = LoopIR<IRValue, Type>
 
 function prepare_ir(ir: MIR): AIR {
@@ -51,7 +51,7 @@ class Frame {
   edges = new Set<string>()
   rettype: Anno<Type> = unreachable
   constructor(readonly sig: Sig, readonly parent: Parent, public ir: AIR) { }
-  static create(P: Parent, ir: MIR, f: Func, ...args: Type[]): Frame {
+  static create(P: Parent, ir: MIR, f: Method, ...args: Type[]): Frame {
     const l = prepare_ir(ir.clone())
     if (l.ir.block(1).args.length !== args.length) throw new Error('argument length mismatch')
     const b = l.body[0].block(1)
@@ -153,7 +153,7 @@ function mergeFrames(inf: Inference, T: Sig, F: Sig): Frame {
   const sig = sigs.reduce((a, b) => {
     const [fa, ...as] = a
     const [_, ...bs] = b
-    return [fa, ...as.map((x, i) => union(x, bs[i]))]
+    return [fa, ...as.map((x, i) => union(x, bs[i]))] as Sig
   })
   const firstFrame = asFrame(inf.frames.get(key(sigs[0])))
   const P = firstFrame.parent.sig
@@ -180,7 +180,7 @@ function infercall(inf: Inference, P: Sig, F: Func, ...Ts: Anno<Type>[]): Anno<T
   if (Ts.some(t => t === unreachable)) return unreachable
   const parent = new Parent(P, recursionDepth(inf, P, F))
   const argTypes: Type[] = Ts.map(t => asType(t))
-  const s: Sig = [F, ...argTypes]
+  const s = [F, ...argTypes] as Sig
   const fr = frame(inf, parent, s)
   if (!(fr instanceof Frame)) return fr
   const psig = key(some(parent.sig))
@@ -217,9 +217,9 @@ function issubset(x: Anno<Type>, y: Anno<Type>): boolean {
   return iss(x, y)
 }
 
-function update_dispatcher(inf: Inference, func: Tag, Ts: Type) {
-  const [[ir, ret], deps] = trackdeps(() => dispatcher(inf, func, Ts))
-  const k = key([func, Ts])
+function update_dispatcher(inf: Inference, func: Tag, F: Type, Ts: Type) {
+  const [[ir, ret], deps] = trackdeps(() => dispatcher(inf, func, F, Ts))
+  const k = key([func, F, Ts])
   inf.deps.set(k, deps)
   const fr = asFrame(inf.frames.get(k))
   fr.ir = looped(expand(ir))
@@ -232,7 +232,7 @@ function update_dispatcher(inf: Inference, func: Tag, Ts: Type) {
 function update(inf: Inference, k: string): void {
   cleardeps(inf, k)
   const fr = asFrame(inf.frames.get(k))
-  if (!(fr.sig[0] instanceof Method)) { return update_dispatcher(inf, fr.sig[0], fr.sig[1]) }
+  if (!(fr.sig[0] instanceof Method)) return update_dispatcher(inf, fr.sig[0], fr.sig[1], fr.sig[2])
   let ret: Anno<Type> = unreachable
   let path: Path | null = new Path()
   const reachable = new HashSet<Path>([path])

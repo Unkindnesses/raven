@@ -17,6 +17,7 @@ export {
 class Binding {
   constructor(readonly mod: Tag, readonly name: string) { }
   get [hash]() { return `${this.mod.path}.${this.name}` }
+  toString() { return `${this.mod.path}.${this.name}` }
 }
 
 function asBinding(x: unknown): Binding {
@@ -157,7 +158,7 @@ function xwasm<T>(callee: Instruction | string | [string, string], ...args: (T |
 function callargs(ir: ir.Fragment<MIR>, ex: ir.Expr<IRValue>): [Tag | Method, ir.Val<MIR>[]] {
   return ex instanceof Invoke ?
     [ex.method, ex.body] :
-    [types.asTag(ir.type(ex.body[0])), ex.body.slice(1)]
+    [types.asTag(ir.type(ex.body[0])), ex.body]
 }
 
 interface Signature {
