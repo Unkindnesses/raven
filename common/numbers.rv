@@ -7,9 +7,6 @@ export {
 fn matchTrait(tag"common.core.Float32", x: pack(tag"common.core.Float32", _)) { Some(x) }
 fn matchTrait(tag"common.core.Float64", x: pack(tag"common.core.Float64", _)) { Some(x) }
 
-Real = tag".Real"
-Number = tag".Number"
-
 fn matchTrait(tag".Real", x: (Float32 | Float64)) { Some(x) }
 fn matchTrait(tag".Real", x: (Int | UInt)) { Some(x) }
 
