@@ -1,11 +1,19 @@
 export {
-  Float32, Float64, Complex
+  Number, Real, Float32, Float64, Complex, real, imag
   ==, !=, !, +, -, *, /, ^, >, <, >=, <=, &, |, abs2, div, rem
   zero?, zero, one, round
 }
 
 fn matchTrait(tag"common.core.Float32", x: pack(tag"common.core.Float32", _)) { Some(x) }
 fn matchTrait(tag"common.core.Float64", x: pack(tag"common.core.Float64", _)) { Some(x) }
+
+Real = tag".Real"
+Number = tag".Number"
+
+fn matchTrait(tag".Real", x: (Float32 | Float64)) { Some(x) }
+fn matchTrait(tag".Real", x: (Int | UInt)) { Some(x) }
+
+fn matchTrait(tag".Number", x: Real) { Some(x) }
 
 fn coerce(a: Float64, b: (Int | UInt)) { [a, Float64(b)] }
 

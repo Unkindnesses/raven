@@ -1,13 +1,13 @@
-export { real, imag }
+bundle Complex(re: Real, im: Real)
 
-bundle Complex(re, im)
-
-fn Complex(re, im) {
+fn Complex(re: Real, im: Real) {
   [re, im] = promote(re, im)
   pack(Complex, re, im)
 }
 
-fn Complex(re) { Complex(re, zero(re)) }
+fn Complex(re: Real) { Complex(re, zero(re)) }
+
+fn matchTrait(tag".Number", x: Complex) { Some(x) }
 
 fn real(Complex(re, im)) { re }
 fn imag(Complex(re, im)) { im }
@@ -20,7 +20,7 @@ fn promote(Complex(ra, ia), Complex(rb, ib)) {
   [Complex(ra, ia), Complex(rb, ib)]
 }
 
-fn coerce(Complex(re, im), x: (Int | Float64)) {
+fn coerce(Complex(re, im), x: Real) {
   [re, x] = promote(re, x)
   [Complex(re, im), Complex(x)]
 }
