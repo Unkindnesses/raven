@@ -972,7 +972,8 @@ test('global list release', async () => {
   await rv(`
     xs = collect(range(1, widen(3)))
     xs = collect(range(1, widen(3)))
-    test length(xs) == 3
+    n = length(xs) # no global release
+    test n == 3
   `)
 })
 

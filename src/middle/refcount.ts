@@ -190,7 +190,7 @@ function refcountsIR(code: MIR): MIR {
   const lv = ir.liveness(code)
   const pr = new ir.Pipe(code)
   for (const bl of pr.blocks()) {
-    const rel = (x: number) => { if (isreftype(code.type(x))) release(pr, code.type(x) as Type, x) }
+    const rel = (x: number) => { if (!isglobal(code, x) && isreftype(code.type(x))) release(pr, code.type(x) as Type, x) }
     // unused block arguments
     for (const x of code.block(bl.id).args)
       if (!some(lv.blocks.get(bl.id)).has(x)) rel(x)
@@ -205,6 +205,7 @@ function refcountsIR(code: MIR): MIR {
       if (st.expr.head === 'release') {
         pr.delete(v)
         const x = asNumber(st.expr.body[0])
+        if (isglobal(code, x)) continue
         const T = code.type(x)
         if (isreftype(T) && !lv.stmts.get(v)!.has(x)) release(pr, T, x)
       } else if (st.expr.head === 'retain') {
@@ -228,6 +229,7 @@ function refcountsIR(code: MIR): MIR {
         pr.replace(v, v2)
         // dropped variable
         if (st.type !== ir.unreachable) {
+          if (isglobal(code, v)) continue
           if (isreftype(st.type) && !lv.stmts.get(v)!.has(v)) release(pr, st.type, v2)
         }
       }
