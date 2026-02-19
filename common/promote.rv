@@ -63,3 +63,23 @@ fn (a: Real) <= (b: Real) {
   [a, b] = promote(a, b)
   return a <= b
 }
+
+fn min(a: Real, b: Real) {
+  if tag(a) == tag(b) {
+    [a, b] = promote(a, b)
+    if a < b { a } else { b }
+  } else {
+    [a, b] = promote(a, b)
+    return min(a, b)
+  }
+}
+
+fn max(a: Real, b: Real) {
+  if tag(a) == tag(b) {
+    [a, b] = promote(a, b)
+    if a > b { a } else { b }
+  } else {
+    [a, b] = promote(a, b)
+    return max(a, b)
+  }
+}

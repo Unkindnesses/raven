@@ -44,6 +44,14 @@ fn (a: Float32) == (b: Float32) {
   Bool(wasm f32.eq(a: f32, b: f32): i32)
 }
 
+fn min(a: Float64, b: Float64) {
+  wasm f64.min(a: f64, b: f64): f64
+}
+
+fn max(a: Float64, b: Float64) {
+  wasm f64.max(a: f64, b: f64): f64
+}
+
 fn i64trunc(x: Float64) {
   Int64(wasm i64.trunc_f64_s(x: f64): i64)
 }

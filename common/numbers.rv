@@ -1,7 +1,7 @@
 export {
   Number, Real, Float32, Float64, Complex, real, imag
   ==, !=, !, +, -, *, /, ^, >, <, >=, <=, &, |, abs2, div, rem
-  zero?, zero, one, round
+  zero?, zero, one, round, min, max
 }
 
 fn matchTrait(tag"common.core.Float32", x: pack(tag"common.core.Float32", _)) { Some(x) }
