@@ -2,11 +2,17 @@
 <img width="400px" src=".github/logo.png"/>
 </p>
 
-Check out the [language tour](https://mikeinnes.io/posts/raven-tour/)!
+[Raven](https://mikeinnes.io/posts/raven/) is the next web-native language. It combines the flexibility of a scripting tool with the ambition of a systems one. It [plays well with JavaScript](https://github.com/Unkindnesses/raven-js-template) (or TypeScript) and mitigates its weaknesses with proper data types, modern syntax and a helpful compiler. And it inherits the great strengths of the web platform, running everywhere with painless sandboxing – whether you want to build interactive browser experiences, deploy serverless cloud functions, or safely execute code written by LLMs.
 
-[Raven](https://mikeinnes.io/posts/raven/) is a small but smart language that compiles to WebAssembly. It combines a simple, functional data model, powerful type inference, and flexible syntax. It's currently in the proof-of-concept stage: you're welcome to play with it, but expect bugs to appear before long! Check out the [docs](DOCS.md) (such as they are) for more detail, including how to get started with the `raven` command on your system.
+Start with the [language tour](https://mikeinnes.io/posts/raven-tour/) for a feel, then visit the [docs](https://github.com/Unkindnesses/raven/blob/master/DOCS.md) to get running on your machine. I recommend a browse of the [standard library](/common) to see how Raven looks in practice. For example, our [complex numbers](common/numbers/complex.rv) or [malloc](common/wasm/malloc.rv).
 
-You can launch a repl:
+Some features. Raven is concise, high-level and easy to read. It supports gradual type annotations, but without them code is fully type-inferred for both performance and correctness. We have real data types and good control over layout and allocations (ints, bytes etc – [defined](common/integer.rv) in the standard library!). Compound types are values first, with multi-dispatch and pattern matching. What we don't have is [function colouring](https://journal.stuffwithstuff.com/2015/02/01/what-color-is-your-function/): any code can suspend without complications. JS objects and interop are first class, so Raven can interact with the DOM or other JS interfaces without glue. The compiler is fully incremental, for fast builds, editor tooling and live REPL/notebook experiences. Errors come with reasonable stack traces and debugger support.
+
+Some flaws. It's early days and if you try Raven out you're beta testing. Expect bugs! There are lots of things we're ambitious about but still working on. Currently we only compile one file at a time, for example. Modules, packages and seperate compilation are on the roadmap. [Editor tooling](https://github.com/Unkindnesses/vscode-raven) is basic for now (mostly syntax highlighting). The standard library is sparse and missing core data structures, like hash maps. Interfaces will change and break.
+
+But we think it's fun all the same.
+
+You can get going quickly with `npm i -g @unkindnesses/raven`. Then you can launch a repl:
 
 ```bash
 $ raven
@@ -167,8 +173,6 @@ $ ./bf hello.bf
 Hello World!
 ```
 
-For more code samples, see [complex numbers](common/numbers/complex.rv) or [malloc](common/wasm/malloc.rv).
-
 ## Architecture
 
 ```mermaid
@@ -178,7 +182,7 @@ flowchart TD
 
   PARSE --> LOWER["AST -> MIR lowering (frontend/lower.ts)"]
 
-  LOWER --> INTERP["Interpreter + method matching (middle/interpret.ts, middle/patterns.ts)"]
+  LOWER --> INTERP["Interpret + method matching (middle/tracer.ts, middle/patterns.ts)"]
   INTERP --> INFER["Type inference (middle/abstract.ts)"]
   INFER --> EXPAND["Expansion (middle/expand.ts)"]
   EXPAND --> INLINE["Inlining (middle/inline.ts)"]
