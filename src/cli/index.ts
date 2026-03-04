@@ -19,8 +19,9 @@ function formatTime(ns: bigint): string {
 }
 
 function printTiming(c: Compiler) {
-  const phases: any = [
+  const phases: [string, Caching[]][] = [
     ['Definitions', [c.pipe.defs, c.pipe.methods]],
+    ['Lowering   ', [c.pipe.lowered]],
     ['Interpret  ', [c.pipe.interp]],
     ['Inference  ', [c.pipe.inferred]],
     ['Expansion  ', [c.pipe.expanded]],
@@ -30,7 +31,7 @@ function printTiming(c: Compiler) {
   ]
   console.log(`Load        ${formatTime(c.time).padStart(10)}`)
   for (const [name, caches] of phases) {
-    const t = caches.map((x: Caching) => time(x)).reduce((a: number, b: number) => a + b, 0n)
+    const t = caches.map(x => time(x)).reduce((a, b) => a + b, 0n)
     console.log(`${name} ${formatTime(t).padStart(10)}`)
   }
   const total = time(c.pipe) + c.time

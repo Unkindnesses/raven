@@ -12,7 +12,7 @@ import { irfunc } from '../wasm/ir.js'
 import { reset, reuse, pipe, Caching, withtime } from '../utils/cache.js'
 import { Loader, loadmodule, reload, SourceString } from '../middle/load.js'
 import { binding, options } from '../utils/options.js'
-import { assigned_globals } from '../frontend/lower.js'
+import { Lowered, assigned_globals } from '../frontend/lower.js'
 import { core } from '../middle/primitives.js'
 import { only } from '../utils/map.js'
 import { Def } from '../dwarf/index.js'
@@ -22,6 +22,7 @@ export { Pipeline, Compiler, emit, withEmit }
 class Pipeline implements Caching {
   readonly sources: mods.Modules
   readonly defs: mods.Definitions
+  readonly lowered: Lowered
   readonly interp: Traced
   readonly methods: MatchMethods
   readonly inferred: Inferred
@@ -33,9 +34,10 @@ class Pipeline implements Caching {
   constructor(sources = new mods.Modules()) {
     this.sources = sources
     this.defs = new mods.Definitions(this.sources)
-    this.interp = new Traced(this.defs)
+    this.lowered = new Lowered(this.sources)
+    this.interp = new Traced(this.defs, this.lowered)
     this.methods = MatchMethods(this.defs, this.interp)
-    this.inferred = new Inferred(this.defs, this.methods, this.interp)
+    this.inferred = new Inferred(this.defs, this.lowered, this.methods, this.interp)
     this.expanded = Expanded(this.inferred)
     this.inlined = Inlined(this.expanded)
     this.counted = refcounts(this.inlined)
@@ -43,7 +45,7 @@ class Pipeline implements Caching {
   }
 
   get subcaches(): Caching[] {
-    return [this.sources, this.defs, this.interp, this.methods, this.inferred, this.expanded, this.inlined, this.counted, this.wasm]
+    return [this.sources, this.defs, this.lowered, this.interp, this.methods, this.inferred, this.expanded, this.inlined, this.counted, this.wasm]
   }
 
   fork(): Pipeline {

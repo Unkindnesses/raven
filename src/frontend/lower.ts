@@ -5,15 +5,16 @@ import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast.js"
 import * as types from "./types.js"
 import { Type, Tag, tag, pack, bits, nil } from "./types.js"
 import { ValueType, AbsHeapType, i32, i64, f32, f64, externref } from "../wasm/wasm.js"
-import { Module, Signature, Binding, MIR, xstring, xjs, Method, xglobal, xset, SetGlobal, Invoke, Wasm } from "./modules.js"
+import { Module, Signature, Binding, MIR, xstring, xjs, Method, xglobal, xset, SetGlobal, Invoke, Wasm, Modules } from "./modules.js"
 import { Def } from "../dwarf/index.js"
 import { asBigInt, some } from "../utils/map.js"
 import { binding } from "../utils/options.js"
 import { isnil_method, notnil_method, part_method, packcat_method } from "../middle/primitives.js"
 import { lowerpattern, modtag, patternType } from "./patterns.js"
+import { Cache, Caching } from "../utils/cache.js"
 
 export {
-  lower_toplevel, bundlemacro, lowerfn, source,
+  Lowered, lower_toplevel, bundlemacro, lowerfn, source,
   globals, assigned_globals, xlist, xpart, xcall, xtuple, attrs
 }
 
@@ -843,4 +844,32 @@ function globals(code: LIR): LIR {
     pr.replace(v, pr.push({ ...st, expr: ex.map(transform) }))
   }
   return pr.finish()
+}
+
+class Lowered implements Caching {
+  readonly irs: Cache<Method, MIR>
+
+  constructor(readonly sources: Modules) {
+    this.irs = new Cache<Method, MIR>(method => this.lower(method))
+  }
+
+  get subcaches() { return [this.irs] }
+
+  ir(method: Method): MIR {
+    return this.irs.get(method)
+  }
+
+  // TODO shouldn't need this in lowering; lower patterns to exprs instead.
+  private resolve(mod: Tag, x: ast.Symbol): Type {
+    const value = this.sources.resolve_static(new Binding(mod, x.toString()))
+    if (value === ir.unreachable) throw new Error(`Could not resolve ${x}`)
+    return value
+  }
+
+  private lower(method: Method): MIR {
+    const source = this.sources.source(method)
+    if (source.kind === 'ir') return source.body
+    const resolve = (x: ast.Symbol) => this.resolve(method.mod, x)
+    return lowerfn(method.mod, method.sig, source.body, resolve, source.meta)
+  }
 }

@@ -1,11 +1,9 @@
 import * as wasm from '../backend/wasm.js'
 import * as types from '../frontend/types.js'
 import * as ast from '../frontend/ast.js'
-import { Binding, MIR } from '../frontend/modules.js'
+import { Binding, MethodSource } from '../frontend/modules.js'
 import { callpattern } from '../frontend/patterns.js'
-import { xcall, xlist, xpart } from '../frontend/lower.js'
 import { Options, withOptions } from '../utils/options.js'
-import { unreachable } from '../utils/ir.js'
 import { reset } from '../utils/cache.js'
 import * as path from 'path'
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises'
@@ -79,21 +77,10 @@ function exportedFunctions(compiler: Compiler): [string, types.Tag][] {
 
 // TODO better to have a generic means for converting to JS functions. Exported
 // globals can implicitly convert to JS, and we don't need to wrap.
-function libWrapperIR(name: string, f: types.Tag): MIR {
-  const rcall = (code: MIR, fn: types.Tag, args: any[]) => {
-    const arglist = code.push(code.stmt(xlist(...args)))
-    const result = code.push(code.stmt(xcall(fn, arglist)))
-    return code.push(code.stmt(xpart(result, types.Type(1n))))
-  }
-  const code = MIR(Def(name))
-  const args = code.argument(unreachable)
-  const jsargs = rcall(code, types.tag('common.JSObject'), [args])
-  const rvargs = rcall(code, types.tag('common.collect'), [jsargs])
-  const result = code.push(code.stmt(xcall(f, rvargs)))
-  const value = code.push(code.stmt(xpart(result, types.Type(1n))))
-  const jsresult = rcall(code, types.tag('common.js'), [value])
-  code.return(code.push(code.stmt(xpart(jsresult, types.Type(1n)))))
-  return code
+function libWrapperMethod(name: string, f: types.Tag): MethodSource {
+  const args = ast.Call(types.tag('common.collect'), ast.Call(types.tag('common.JSObject'), ast.symbol('args')))
+  const body = ast.Call(types.tag('common.js'), ast.Call(f, ast.Splat(args)))
+  return { kind: 'fn', body, meta: Def(name) }
 }
 
 function emitSig(compiler: Compiler, em: wasm.BatchEmitter, sig: Sig, main = true): string {
@@ -154,7 +141,7 @@ async function compileJS(file: string, config: CompileConfig = {}): Promise<[Com
         throw new Error(`Cannot export ${JSON.stringify(name)} as a JS binding`)
       const tag = types.tag(`__raven.lib.${i}`)
       const sig = callpattern(tag, ast.List(ast.symbol('args')))
-      const method = mod.method(tag, sig, libWrapperIR(tag.path, fn))
+      const method = mod.method(tag, sig, libWrapperMethod(tag.path, fn))
       const fname = emitSig(compiler, em, [method, types.Ref], false)
       const wname = `raven.lib.${name}`
       em.export(fname, wname)

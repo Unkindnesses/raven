@@ -3,7 +3,7 @@ import { Module, Modules, Binding, Signature, calltarget } from "../frontend/mod
 import { Def } from "../dwarf/index.js"
 import { Anno, unreachable } from "../utils/ir.js"
 import { callpattern, callablepattern, modtag } from "../frontend/patterns.js"
-import { lower_toplevel, bundlemacro, lowerfn, source, attrs } from "../frontend/lower.js"
+import { lower_toplevel, bundlemacro, source, attrs } from "../frontend/lower.js"
 import { symbolValues } from "./primitives.js"
 import * as ast from "../frontend/ast.js"
 import { parse } from "../frontend/parse.js"
@@ -91,7 +91,9 @@ function load_expr(cx: LoadState, x: ast.Tree): void {
   const meta = Def('(global)', x.meta && source(x.meta))
   const [ir, defs] = lower_toplevel(cx.mod, x, (x: ast.Symbol) => resolve_static(cx, x), meta)
   for (const def of defs) if (!cx.mod.has(def)) cx.mod.set(def, unreachable)
-  emit(cx.mod.method(tag('common.core.main'), callpattern(tag('common.core.main'), ast.List()), ir))
+  const method = cx.mod.method(tag('common.core.main'), callpattern(tag('common.core.main'), ast.List()),
+    { kind: 'ir', body: ir })
+  emit(method)
 }
 
 function receiverTag(cx: LoadState, ex: ast.Tree): Tag {
@@ -132,8 +134,7 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
     sigPattern = callpattern(fnTag, ast.List(...signature.args.slice(1)), cx.mod.name, resolve)
   }
   const meta = Def(fnTag.path, x.meta && source(x.meta))
-  const ir = lowerfn(cx.mod.name, sigPattern, body, resolve, meta)
-  cx.mod.method(fnTag, sigPattern, ir, ts)
+  cx.mod.method(fnTag, sigPattern, { kind: 'fn', body, meta }, ts)
 }
 
 async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> {

@@ -4,6 +4,7 @@ import { MatchMethods, dispatcher } from './patterns.js'
 import { Tag, Type, repr, union, issubset as iss, isValue, pack, tag, tagOf, String as RString, Ref } from '../frontend/types.js'
 import { wasmPartials } from '../backend/wasm.js'
 import { MIR, IRValue, Binding, Method, Definitions, StringRef, JS, Global, SetGlobal, Wasm, callargs } from '../frontend/modules.js'
+import { Lowered } from '../frontend/lower.js'
 import { Def } from '../dwarf/index.js'
 import { WorkQueue } from '../utils/fixpoint.js'
 import { hash, HashSet, some } from '../utils/map.js'
@@ -70,7 +71,7 @@ class Inference {
   frames = new Map<string, Frame | Redirect>()
   globals = new Map<string, GlobalFrame>()
   queue = new WorkQueue<string>()
-  constructor(readonly defs: Definitions, readonly meths: MatchMethods, readonly traced: Traced) { }
+  constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly meths: MatchMethods, readonly traced: Traced) { }
 
   frame(T: Sig): Frame
   frame(T: Binding): GlobalFrame
@@ -133,7 +134,7 @@ function frame(inf: Inference, P: Parent, sig: Sig): Frame | Anno<Type> {
       inf.frames.set(k, fr)
       return inf.frame(sig)
     }
-    const [ir, ideps] = trackdeps(() => some(inf.defs.ir(f)))
+    const [ir, ideps] = trackdeps(() => inf.lowered.ir(f))
     for (const dep of ideps) deps.add(dep)
     inf.deps.set(k, deps)
     inf.frames.set(k, Frame.create(P, ir, f, ...Ts))
@@ -386,8 +387,8 @@ class Inferred implements Caching {
   readonly results: CacheMap<string, [MIR, Anno<Type>] | Redirect>
   time = 0n
 
-  constructor(defs: Definitions, meths: MatchMethods, traced: Traced) {
-    this.inf = new Inference(defs, meths, traced)
+  constructor(defs: Definitions, lowered: Lowered, meths: MatchMethods, traced: Traced) {
+    this.inf = new Inference(defs, lowered, meths, traced)
     this.results = new CacheMap()
   }
 

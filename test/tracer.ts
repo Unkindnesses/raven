@@ -13,7 +13,7 @@ function trace(f: Tag, ...args: Type[]) {
 
 test.before(async () => {
   const compiler = await Compiler.create(load)
-  tr = new Tracer(compiler.pipe.defs, compiler.pipe.interp)
+  tr = new Tracer(compiler.pipe.defs, compiler.pipe.lowered, compiler.pipe.interp)
 })
 
 test('trace biteqz', () => {

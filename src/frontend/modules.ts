@@ -4,12 +4,13 @@ import { Type, Tag, tag, repr } from "./types.js"
 import * as types from "./types.js"
 import * as cache from "../utils/cache.js"
 import * as ir from "../utils/ir.js"
+import * as ast from "./ast.js"
 import { Pattern } from "./patterns.js"
 import { Def } from "../dwarf/index.js"
 import { Instruction, Op, ValueType } from "../wasm/wasm.js"
 
 export {
-  Module, Method, Signature, Binding, asBinding, asValue, Modules,
+  Module, Method, Signature, MethodSource, Binding, asBinding, asValue, Modules,
   Definitions, Value, MIR, IRValue, showIRValue,
   StringRef, xstring, JS, xjs, Global, SetGlobal, xglobal, xset, Invoke, Wasm, xwasm, calltarget, callargs
 }
@@ -190,19 +191,23 @@ class Method {
   }
 }
 
+type MethodSource =
+  | { kind: 'fn'; body: ast.Tree; meta: Def }
+  | { kind: 'ir'; body: MIR }
+
 class Methods implements cache.Caching {
   private imports = new cache.Ref<Tag[]>([])
   private methods = new cache.Map<Tag, (Method | Tag)[]>()
-  private code = new cache.Map<Method, MIR>()
+  private code = new cache.Map<Method, MethodSource>()
 
   get subcaches() { return [this.imports, this.methods, this.code] }
   get(k: Tag) { return this.methods.get(k) ?? this.imports.get() }
-  ir(m: Method) { return some(this.code.get(m)) }
+  source(m: Method) { return some(this.code.get(m)) }
 
-  method(m: Method, ir?: MIR) {
+  method(m: Method, source?: MethodSource) {
     const ms = this.methods.get(m.name) ?? this.imports.get()
     this.methods.set(m.name, [...ms, m])
-    if (ir) this.code.set(m, ir)
+    if (source) this.code.set(m, source)
     return m
   }
 
@@ -250,10 +255,10 @@ class Module implements cache.Caching {
   }
 
   get subcaches() { return [this.defs, this.methods] }
-  method(name: Tag, sig: Signature, ir: MIR, ts?: string) {
-    return this.methods.method(new Method(this.name, name, sig, undefined, [], undefined, ts), ir)
+  method(name: Tag, sig: Signature, source: MethodSource, ts?: string) {
+    return this.methods.method(new Method(this.name, name, sig, undefined, [], undefined, ts), source)
   }
-  ir(m: Method) { return this.methods.ir(m) }
+  source(m: Method) { return this.methods.source(m) }
   get(k: string) { return this.defs.get(k) }
   set(k: string, v: Anno<Type> | Binding) { this.defs.set(k, v) }
   has(k: string) { return this.defs.has(k) }
@@ -293,7 +298,7 @@ class Modules implements cache.Caching {
   }
   get(b: Binding) { return this.mods.get(b.mod)?.get(b.name) }
   set(b: Binding, v: Anno<Type> | Binding) { this.module(b.mod).set(b.name, v) }
-  ir(m: Method) { return some(this.mods.get(m.mod)).ir(m) }
+  source(m: Method) { return some(this.mods.get(m.mod)).source(m) }
   resolve_static(b: Binding): Anno<Type> {
     const val = this.get(b)
     if (val === undefined) return unreachable
@@ -336,5 +341,4 @@ class Definitions implements cache.Caching {
   }
   global(b: Binding) { return this.globals.get(b) }
   methods(n: Tag) { return this.table.get(n) }
-  ir(m: Method) { return this.comp.ir(m) }
 }

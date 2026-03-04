@@ -1,6 +1,7 @@
 import * as types from '../frontend/types.js'
 import { Tag, Type } from '../frontend/types.js'
 import { Method, Definitions, IRValue, Wasm, Invoke, Global, MIR, SetGlobal, StringRef, JS, Value } from '../frontend/modules.js'
+import { Lowered } from '../frontend/lower.js'
 import { Def, Stack } from '../dwarf/index.js'
 import * as ir from '../utils/ir.js'
 import { unreachable } from '../utils/ir.js'
@@ -172,10 +173,10 @@ function indexer(code: ir.Fragment<MIR>, T: types.Type, arg: ir.Val<MIR>, path: 
 class Tracer {
   count = 0
 
-  constructor(readonly defs: Definitions, readonly int: Interpreter) { }
+  constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly int: Interpreter) { }
 
   _trace(f: Func, ...args: Type[]): [MIR, ir.Anno<Type>] | undefined {
-    const meta = f instanceof Tag ? dispatcherDef(f) : this.defs.ir(f).meta
+    const meta = f instanceof Tag ? dispatcherDef(f) : this.lowered.ir(f).meta
     const code = new TraceIR(meta)
     const argv = args.map(a => code.argument(a))
     const ret = this.trace(code, f, argv)
@@ -270,7 +271,7 @@ class Tracer {
       if (meth !== invoke_method && types.isValue(result)) return result
       return code.push(code.stmt(xcall(meth, ...args), { type: result }))
     } else {
-      const ir = some(this.defs.ir(meth))
+      const ir = this.lowered.ir(meth)
       code.scope(ir.block(1).args, args)
       code.enter(ir.meta, src)
       const ret = this.traceIR(code, ir)
@@ -306,14 +307,14 @@ class Tracer {
 class Traced implements Caching {
   readonly results: Accessor<[Func, ...Type[]], Trace>
 
-  constructor(readonly defs: Definitions, results?: Accessor<[Func, ...Type[]], Trace>) {
+  constructor(readonly defs: Definitions, readonly lowered: Lowered, results?: Accessor<[Func, ...Type[]], Trace>) {
     if (results) {
       this.results = results
     } else {
       const init = (_: [Func, ...Type[]]): Trace => undefined
       this.results = new CycleCache<[Func, ...Type[]], Trace>(init, (self, sig) => {
-        const int = new Traced(defs, self)
-        return new Tracer(defs, int)._trace(...sig)
+        const int = new Traced(defs, lowered, self)
+        return new Tracer(defs, lowered, int)._trace(...sig)
       })
     }
   }
