@@ -89,7 +89,7 @@ async function load_include(cx: LoadState, x: ast.Expr): Promise<void> {
 
 function load_expr(cx: LoadState, x: ast.Tree): void {
   const meta = Def('(global)', x.meta && source(x.meta))
-  const [ir, defs] = lower_toplevel(cx.mod, x, (x: ast.Symbol) => resolve_static(cx, x), meta)
+  const [ir, defs] = lower_toplevel(cx.mod, x, meta)
   for (const def of defs) if (!cx.mod.has(def)) cx.mod.set(def, unreachable)
   const method = cx.mod.method(tag('common.core.main'), callpattern(tag('common.core.main'), ast.List()),
     { kind: 'ir', body: ir })

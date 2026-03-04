@@ -28,7 +28,9 @@ bundle Pattern {
   And(p, q)
 }
 
-constructorPattern = tag".constructorPattern"
+fn constructorPattern(tag"common.core.pack", args...) {
+  Pack(args...)
+}
 
 fn _match(val, pack(tag"common.Hole")) {
   return [val, simpledict()]

@@ -8,9 +8,8 @@ import { ValueType, AbsHeapType, i32, i64, f32, f64, externref } from "../wasm/w
 import { Module, Signature, Binding, MIR, xstring, xjs, Method, xglobal, xset, SetGlobal, Invoke, Wasm, Modules } from "./modules.js"
 import { Def } from "../dwarf/index.js"
 import { asBigInt, some } from "../utils/map.js"
-import { binding } from "../utils/options.js"
 import { isnil_method, notnil_method, part_method, packcat_method } from "../middle/primitives.js"
-import { lowerpattern, modtag, patternType } from "./patterns.js"
+import { modtag } from "./patterns.js"
 import { Cache, Caching } from "../utils/cache.js"
 
 export {
@@ -303,9 +302,66 @@ function string(code: LIR, x: string) {
   return code.push(code.stmt(xstring(x)))
 }
 
+function patternArg(as: string[], name: string): void {
+  if (!as.includes(name)) as.push(name)
+}
+
+function patternNode(code: LIR, name: string, ...parts: Val<LIR>[]): Val<LIR> {
+  return _push(code, xpack(tag(`common.${name}`), ...parts))
+}
+
+function lowerPatternIsa(sc: Scope, code: LIR, ex: ast.Tree, as: string[]): Val<LIR> {
+  ex = ex.ungroup()
+  if (ex.unwrap() instanceof Symbol) return patternNode(code, 'Trait', lower(sc, code, ex))
+  if (ex instanceof ast.Token) return lowerPatternExpr(sc, code, ex, as)
+  if (ex.head === 'Index') {
+    const params = ex.args.map(x => lower(sc, code, x))
+    const trait = _push(code, xpack(tag('common.Params'), ...params))
+    return patternNode(code, 'Trait', trait)
+  }
+  if (ex.head === 'Operator' && ex.args[0].unwrap() === '|')
+    return patternNode(code, 'Or', ...ex.args.slice(1).map(x => lowerPatternIsa(sc, code, x, as)))
+  if (ex.head === 'Operator' && ex.args[0].unwrap() === '&')
+    return patternNode(code, 'And', ...ex.args.slice(1).map(x => lowerPatternIsa(sc, code, x, as)))
+  return lowerPatternExpr(sc, code, ex, as)
+}
+
+function lowerPatternExpr(sc: Scope, code: LIR, ex: ast.Tree, as: string[]): Val<LIR> {
+  const x = ex.ungroup().unwrap()
+  if (x instanceof Symbol) {
+    if (x.toString() === '_') return patternNode(code, 'Hole')
+    patternArg(as, x.toString())
+    return patternNode(code, 'Bind', tag(x.toString()), patternNode(code, 'Hole'))
+  }
+  if (typeof x === 'bigint' || typeof x === 'number' || x instanceof Tag)
+    return patternNode(code, 'Literal', Type(x))
+  if (typeof x === 'string') throw new Error(`Unsupported string literal ${x}`)
+  if (x.head === 'List') {
+    const parts = x.args.map(x => lowerPatternExpr(sc, code, x, as))
+    return patternNode(code, 'Pack', patternNode(code, 'Literal', tag('common.List')), ...parts)
+  }
+  if (x.head === 'Operator' && x.args[0].unwrap() === ':') {
+    const name = asSymbol(x.args[1].unwrap())
+    const pat = lowerPatternIsa(sc, code, x.args[2], as)
+    if (name.toString() === '_') return pat
+    patternArg(as, name.toString())
+    return patternNode(code, 'Bind', tag(name.toString()), pat)
+  }
+  if (x.head === 'Splat') return patternNode(code, 'Repeat', lowerPatternExpr(sc, code, x.args[0], as))
+  if (x.head === 'Call') {
+    const args = x.args.slice(1).map(x => lowerPatternExpr(sc, code, x, as))
+    return patternNode(code, 'Constructor', lower(sc, code, x.args[0]), ...args)
+  }
+  throw new Error(`Invalid pattern syntax ${x}`)
+}
+
+function lowerpattern(sc: Scope, code: LIR, ex: ast.Tree) {
+  const args: string[] = []
+  return [lowerPatternExpr(sc, code, ex, args), args] as const
+}
+
 function lowermatch(sc: Scope, code: LIR, val: Val<LIR>, pat: ast.Tree): Val<LIR> {
-  const sig = lowerpattern(pat, sc.mod(), resolve_static)
-  const pattern = patternType(sig.pattern)
+  const [pattern, args] = lowerpattern(sc, code, pat)
   const m = rcall(code, tag('common.match'), [val, pattern])
   const isnil = _push(code, xcall(isnil_method, m))
   code.branch(code._blocks.length + 1, [], { when: isnil })
@@ -314,7 +370,7 @@ function lowermatch(sc: Scope, code: LIR, val: Val<LIR>, pat: ast.Tree): Val<LIR
   rcall(code, tag('common.abort'), [string(code, `match failed: ${ast.repr(pat)}`)])
   code.newBlock()
   const matched = _push(code, xcall(notnil_method, m))
-  for (const arg of sig.args) {
+  for (const arg of args) {
     _push(code, ir.expr('set', sc.var(arg), rcall(code, tag('common.getkey'), [matched, tag(arg)])))
   }
   return matched
@@ -732,13 +788,12 @@ function lowerIf(sc: Scope, code: LIR, ex: IfStmt, value = true): Val<LIR> {
     if ('kind' in cond && cond.kind === 'let') {
       const [_, patternExpr, valueExpr] = ast.asExpr(cond.ex).args
       const val = lower(sc, code, valueExpr)
-      const sig = lowerpattern(patternExpr, sc.mod(), resolve_static)
-      const pat = patternType(sig.pattern)
-      const match = rcall(code, tag('common.match'), [val, pat])
+      const [pattern, args] = lowerpattern(sc, code, patternExpr)
+      const match = rcall(code, tag('common.match'), [val, pattern])
       const isnil = _push(code, xcall(isnil_method, match))
       const c = code.block()
       const t = code.newBlock()
-      for (const arg of sig.args) {
+      for (const arg of args) {
         _push(code, ir.expr('set', sc.var(arg), rcall(code, tag('common.getkey'), [match, tag(arg)])))
       }
       body(code, bodyExpr)
@@ -768,12 +823,7 @@ function lowerIf(sc: Scope, code: LIR, ex: IfStmt, value = true): Val<LIR> {
   else return nil
 }
 
-// This is only used (hackily) by `lowermatch!`, so we avoid cluttering the code.
-// TODO: remove the need for `resolve` in lowering entirely
-const [withResolve, getResolve] = binding<(x: Symbol) => Type>('resolve')
-const resolve_static = (x: Symbol): Type => getResolve()(x)
-
-function lowerfn(mod: Tag, sig: Signature, body: ast.Tree, resolver: (x: Symbol) => Type, meta: Def): MIR {
+function lowerfn(mod: Tag, sig: Signature, body: ast.Tree, meta: Def): MIR {
   const sc = Scope(GlobalScope(mod), sig.swap)
   const code = LIR(meta)
   for (const arg of sig.args) {
@@ -781,7 +831,7 @@ function lowerfn(mod: Tag, sig: Signature, body: ast.Tree, resolver: (x: Symbol)
     sc.set(arg, slot)
     _push(code, ir.expr('set', slot, code.argument(ir.unreachable)))
   }
-  const out = withResolve(resolver, () => lower(sc, code, body))
+  const out = lower(sc, code, body)
   if (code.block().canbranch()) swapreturn(code, out, sig.swap)
   return toMIR(globals(prune(ssa(fuseblocks(code)))))
 }
@@ -823,10 +873,10 @@ function assigned_globals(code: MIR): Map<Binding, Type> {
   return out
 }
 
-function lower_toplevel(mod: Module, ex: ast.Tree, resolve: (x: Symbol) => Type, meta: Def): [MIR, Set<string>] {
+function lower_toplevel(mod: Module, ex: ast.Tree, meta: Def): [MIR, Set<string>] {
   const sc = GlobalScope(mod.name)
   const code = LIR(meta)
-  withResolve(resolve, () => { lower(sc, code, ex, false) })
+  lower(sc, code, ex, false)
   code.return(nil)
   let [code2, defs] = rewriteGlobals(code, mod)
   return [toMIR(globals(prune(ssa(fuseblocks(code2))))), defs]
@@ -859,17 +909,9 @@ class Lowered implements Caching {
     return this.irs.get(method)
   }
 
-  // TODO shouldn't need this in lowering; lower patterns to exprs instead.
-  private resolve(mod: Tag, x: ast.Symbol): Type {
-    const value = this.sources.resolve_static(new Binding(mod, x.toString()))
-    if (value === ir.unreachable) throw new Error(`Could not resolve ${x}`)
-    return value
-  }
-
   private lower(method: Method): MIR {
     const source = this.sources.source(method)
     if (source.kind === 'ir') return source.body
-    const resolve = (x: ast.Symbol) => this.resolve(method.mod, x)
-    return lowerfn(method.mod, method.sig, source.body, resolve, source.meta)
+    return lowerfn(method.mod, method.sig, source.body, source.meta)
   }
 }

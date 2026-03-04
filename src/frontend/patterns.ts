@@ -52,9 +52,12 @@ function pattern(x: Type): Pattern {
   if (t === 'common.Hole') return hole
   if (t === 'common.Literal') return Literal(part(x, 1))
   if (t === 'common.Bind') return Bind(asTag(part(x, 1)).path, pattern(part(x, 2)))
+  if (t === 'common.Repeat') return Repeat(pattern(part(x, 1)))
   if (t === 'common.Pack') return Pack(...parts(x).map(pattern))
+  if (t === 'common.Or') return Or(...parts(x).map(pattern))
   if (t === 'common.And') return And(...parts(x).map(pattern))
   if (t === 'common.Trait') return Trait(part(x, 1))
+  if (t === 'common.Constructor') return Constructor(asTag(part(x, 1)), ...parts(x).slice(1).map(pattern))
   throw new Error(`unsupported pattern ${t}`)
 }
 
@@ -111,9 +114,7 @@ function _lowerpattern(ex: ast.Tree, as: string[], resolve: (x: Symbol) => Type)
   if (x.head === 'Call') {
     let name = x.args[0].unwrap()
     let f = asTag(name instanceof Symbol ? resolve(name) : name)
-    return f.path == 'common.core.pack' ?
-      Pack(...x.args.slice(1).map(x => _lowerpattern(x, as, resolve))) :
-      Constructor(f, ...x.args.slice(1).map(x => _lowerpattern(x, as, resolve)))
+    return Constructor(f, ...x.args.slice(1).map(x => _lowerpattern(x, as, resolve)))
   }
   throw new Error(`Invalid pattern syntax ${x}`)
 }
