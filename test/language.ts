@@ -212,6 +212,17 @@ test('for loop labels', async () => {
   `)
 })
 
+test('for unpacking', async () => {
+  await rv(`
+    total = 0
+    pairs = [[widen(1), widen(2)], [widen(3), widen(4)]]
+    for [x, y] = pairs {
+      total = total + x * y
+    }
+    test total == 14
+  `)
+})
+
 test('labeled block', async () => {
   await rv(`
     total = 0

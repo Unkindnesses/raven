@@ -360,8 +360,7 @@ function lowerpattern(sc: Scope, code: LIR, ex: ast.Tree) {
   return [lowerPatternExpr(sc, code, ex, args), args] as const
 }
 
-function lowermatch(sc: Scope, code: LIR, val: Val<LIR>, pat: ast.Tree): Val<LIR> {
-  const [pattern, args] = lowerpattern(sc, code, pat)
+function _lowermatch(sc: Scope, code: LIR, val: Val<LIR>, pattern: Val<LIR>, args: string[], pat: ast.Tree): Val<LIR> {
   const m = rcall(code, tag('common.match'), [val, pattern])
   const isnil = _push(code, xcall(isnil_method, m))
   code.branch(code._blocks.length + 1, [], { when: isnil })
@@ -374,6 +373,11 @@ function lowermatch(sc: Scope, code: LIR, val: Val<LIR>, pat: ast.Tree): Val<LIR
     _push(code, ir.expr('set', sc.var(arg), rcall(code, tag('common.getkey'), [matched, tag(arg)])))
   }
   return matched
+}
+
+function lowermatch(sc: Scope, code: LIR, val: Val<LIR>, pat: ast.Tree): Val<LIR> {
+  const [pattern, args] = lowerpattern(sc, code, pat)
+  return _lowermatch(sc, code, val, pattern, args, pat)
 }
 
 function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): Val<LIR> {
@@ -752,19 +756,27 @@ function lowerBlock(sc: Scope, code: LIR, _ex: ast.Expr, value = true): Val<LIR>
   return nil
 }
 
-// TODO support pattern matching
 function lowerLet(sc: Scope, code: LIR, _ex: ast.Expr, value = true): Val<LIR> {
   let [ex, as] = attrs(_ex)
   ex = ast.asExpr(ex)
-  const assignments = ex.args.slice(1, -1)
-  if (!assignments.every(x => ast.isExpr(x, 'Operator') && asSymbol(x.args[0].unwrap()).toString() === '='))
+  const assignments = ex.args.slice(1, -1).map(x => ast.asExpr(x, 'Operator'))
+  if (!assignments.every(x => asSymbol(x.args[0].unwrap()).toString() === '='))
     throw new Error('let statement: all assignments must be of the form (= var val)')
-  const vars = assignments.map(x => asSymbol(ast.asExpr(x, 'Operator').args[1]).toString())
-  const vals = assignments.map(x => lower(sc, code, ast.asExpr(x, 'Operator').args[2]))
+  const pats = assignments.map(x => x.args[1])
+  const vals = assignments.map(x => lower(sc, code, x.args[2]))
   sc = Scope(sc)
-  for (const v of vars) sc.set(v, ir.slot(gensym(v).toString()))
-  for (let i = 0; i < vars.length; i++)
-    _push(code, ir.expr('set', sc.get(vars[i]), vals[i]))
+  for (let i = 0; i < pats.length; i++) {
+    const pat = pats[i].ungroup()
+    if (pat instanceof ast.Token && pat.unwrap() instanceof Symbol) {
+      const name = pat.unwrap().toString()
+      sc.set(name, ir.slot(gensym(name).toString()))
+      _push(code, ir.expr('set', sc.get(name), vals[i]))
+    } else {
+      const [pattern, args] = lowerpattern(sc, code, pats[i])
+      for (const arg of args) sc.set(arg, ir.slot(gensym(arg).toString()))
+      _lowermatch(sc, code, vals[i], pattern, args, pats[i])
+    }
+  }
   return lower(sc, code, withAttrs(ex.args[ex.args.length - 1], as), value)
 }
 
