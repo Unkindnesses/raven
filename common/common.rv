@@ -59,6 +59,7 @@ include "integer.rv"
 include "wasm/numeric.rv"
 include "wasm/memory.rv"
 include "wasm/js.rv"
+include "bigint.rv"
 include "numbers.rv"
 
 include "iterate.rv"

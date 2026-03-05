@@ -39,6 +39,16 @@ test('mixed int/float +', async () => {
   `)
 })
 
+test('bigint arithmetic and promotion', async () => {
+  await rv(`
+    x = BigInt("9223372036854775808")
+    test string(x + 2) == "9223372036854775810"
+    test x + 0.5 == 9223372036854775808.0 + 0.5
+    test string(BigInt(UInt64(0xFFFFFFFFFFFFFFFF))) == "18446744073709551615"
+    test string(big(-1)) == "-1"
+  `)
+})
+
 test('hex literals', async () => {
   await rv(`
     test bitsize(0x1) == 8

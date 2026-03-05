@@ -1,5 +1,6 @@
 export { coerce, promote }
 
+Integer = tag".Integer"
 Real = tag".Real"
 Number = tag".Number"
 

@@ -1,0 +1,69 @@
+export { BigInt, big }
+
+bundle BigInt(x: JSObject)
+
+fn BigInt(x: BigInt) { x }
+
+fn BigInt(x: JSObject) {
+  if typeof(x) == "bigint" {
+    pack(BigInt, x)
+  } else {
+    pack(BigInt, js.BigInt(x))
+  }
+}
+
+fn BigInt(x: Int) {
+  ref = wasm call(support.identity, bits(Int64(x)): i64): ref
+  BigInt(JSObject(ref))
+}
+
+fn BigInt(x: UInt) {
+  ref = wasm call(support.identity, bits(UInt64(x)): i64): ref
+  BigInt(js`return BigInt.asUintN(64, \ref)`)
+}
+
+fn BigInt(x: String) { BigInt(js(x)) }
+
+fn js(BigInt(x)) { x }
+
+fn big(x: Integer) { BigInt(x) }
+
+@extend
+fn Float64(x: BigInt) { Float64(js.Number(x)) }
+
+fn Int64(x: BigInt) { Int64(js(x)) }
+
+fn promote(a: BigInt, b: BigInt) { [a, b] }
+
+fn coerce(a: BigInt, b: (Int | UInt)) { [a, BigInt(b)] }
+
+fn (a: BigInt) + (b: BigInt) { BigInt(js`return \a + \b`) }
+fn (a: BigInt) - (b: BigInt) { BigInt(js`return \a - \b`) }
+fn (a: BigInt) * (b: BigInt) { BigInt(js`return \a * \b`) }
+fn (a: BigInt) / (b: BigInt) { Float64(a) / Float64(b) }
+fn (a: BigInt) ^ (b: BigInt) { BigInt(js`return \a ** \b`) }
+
+fn div(a: BigInt, b: BigInt) { BigInt(js`return \a / \b`) }
+fn rem(a: BigInt, b: BigInt) { BigInt(js`return \a % \b`) }
+
+fn (a: BigInt) == (b: BigInt) { Bool(js`return \a == \b`) }
+fn (a: BigInt) != (b: BigInt) { Bool(js`return \a != \b`) }
+
+fn (a: BigInt) >  (b: BigInt) { Bool(js`return \a > \b`) }
+fn (a: BigInt) >= (b: BigInt) { Bool(js`return \a >= \b`) }
+fn (a: BigInt) <  (b: BigInt) { Bool(js`return \a < \b`) }
+fn (a: BigInt) <= (b: BigInt) { Bool(js`return \a <= \b`) }
+
+fn zero?(x: BigInt) { x == zero(x) }
+fn zero(_: BigInt) { BigInt(0) }
+fn one(_: BigInt) { BigInt(1) }
+
+fn string(BigInt(x)) { String(x.toString()) }
+
+fn print(x: BigInt) { print(string(x)) }
+
+fn show(x: BigInt) {
+  print("big(")
+  print(x)
+  print(")")
+}
