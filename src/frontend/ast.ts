@@ -1,11 +1,16 @@
 import { Tag } from './types.js'
 
-export interface Cursor {
+export {
+  Cursor, Symbol, symbol, gensym, asSymbol, asString, asNumber, Atom, isAtom,
+  Meta, Tree, Token, ExprHead, Expr, isExpr, asExpr, asToken, token, repr
+}
+
+interface Cursor {
   line: number
   column: number
 }
 
-export class Symbol {
+class Symbol {
   constructor(public name: string) { }
   toString() { return this.name }
   isEqual(other: unknown): other is Symbol {
@@ -13,12 +18,12 @@ export class Symbol {
   }
 }
 
-export function symbol(name: string): Symbol {
+function symbol(name: string): Symbol {
   return new Symbol(name)
 }
 
 let counter = 0
-export function gensym(name = '') { return symbol(`${name}_${counter++}`) }
+function gensym(name = '') { return symbol(`${name}_${counter++}`) }
 
 function unwrapToken<T>(x: unknown, check: (v: unknown) => v is T, type: string): T {
   if (x instanceof Token) x = x.unwrap()
@@ -26,13 +31,13 @@ function unwrapToken<T>(x: unknown, check: (v: unknown) => v is T, type: string)
   return x
 }
 
-export const asSymbol = (x: unknown) => unwrapToken(x, (v): v is Symbol => v instanceof Symbol, 'Symbol')
-export const asString = (x: unknown) => unwrapToken(x, (v): v is string => typeof v === 'string', 'string')
-export const asNumber = (x: unknown) => unwrapToken(x, (v): v is number => typeof v === 'number', 'number')
+const asSymbol = (x: unknown) => unwrapToken(x, (v): v is Symbol => v instanceof Symbol, 'Symbol')
+const asString = (x: unknown) => unwrapToken(x, (v): v is string => typeof v === 'string', 'string')
+const asNumber = (x: unknown) => unwrapToken(x, (v): v is number => typeof v === 'number', 'number')
 
-export type Atom = Tag | Symbol | string | number | bigint
+type Atom = Tag | Symbol | string | number | bigint
 
-export function isAtom(x: unknown): x is Atom {
+function isAtom(x: unknown): x is Atom {
   return x instanceof Tag ||
     x instanceof Symbol ||
     typeof x === 'string' ||
@@ -40,14 +45,14 @@ export function isAtom(x: unknown): x is Atom {
     typeof x === 'bigint'
 }
 
-export interface Meta {
+interface Meta {
   file: string
   loc: Cursor
 }
 
-export type Tree = Token | Expr
+type Tree = Token | Expr
 
-export class Token {
+class Token {
   constructor(public value: Atom, public meta?: Meta) { }
   unwrap(): Atom { return this.value }
   withmeta(m: Meta): Token { return new Token(this.value, m) }
@@ -55,11 +60,11 @@ export class Token {
   ungroup(): Token { return this }
 }
 
-export type ExprHead =
+type ExprHead =
   | 'Group' | 'List' | 'Splat' | 'Call' | 'Index' | 'Field'
   | 'Operator' | 'Swap' | 'Block' | 'Syntax' | 'Quote' | 'Template' | 'Attribute'
 
-export class Expr {
+class Expr {
   constructor(public head: ExprHead, public args: Tree[], public meta?: Meta) { }
 
   get length(): number { return this.args.length }
@@ -72,21 +77,21 @@ export class Expr {
   }
 }
 
-export function isExpr<T extends ExprHead>(x: Tree, head: T): x is Expr & { head: T } {
+function isExpr<T extends ExprHead>(x: Tree, head: T): x is Expr & { head: T } {
   return x instanceof Expr && x.head === head
 }
 
-export function asExpr<T extends ExprHead>(x: Tree, head?: T): Expr & { head: T } {
+function asExpr<T extends ExprHead>(x: Tree, head?: T): Expr & { head: T } {
   if (!(x instanceof Expr && (head === undefined || x.head === head))) throw new Error(`Expected ${head} expression`)
   return x as Expr & { head: T }
 }
 
-export function asToken(x: Tree): Token {
+function asToken(x: Tree): Token {
   if (!(x instanceof Token)) throw new Error('Expected Token')
   return x
 }
 
-export function token(x: Atom | Tree): Tree {
+function token(x: Atom | Tree): Tree {
   return x instanceof Expr || x instanceof Token ? x : new Token(x)
 }
 
@@ -96,7 +101,7 @@ export const [Group, List, Splat, Call, Index, Field, Operator, Swap, Block, Syn
   (['Group', 'List', 'Splat', 'Call', 'Index', 'Field', 'Operator', 'Swap', 'Block', 'Syntax', 'Quote', 'Template', 'Attribute'] as const)
     .map(constructor)
 
-export function repr(item: Tree, indent: number = 0): string {
+function repr(item: Tree, indent: number = 0): string {
   const _repr = (item: Tree, i?: number) => repr(item, i || indent)
   if (item instanceof Token) {
     let value = item.value

@@ -8,7 +8,7 @@ import { binary } from './wasm/binary.js'
 import { parse } from './frontend/parse.js'
 import * as ast from './frontend/ast.js'
 
-export { compiler }
+export { compiler, Compiler }
 
 type BundledStdlibTree = { [segment: string]: string | BundledStdlibTree }
 
@@ -111,7 +111,7 @@ class StreamCompiler {
   }
 }
 
-export interface Compiler {
+interface Compiler {
   compile(src: string): Promise<Uint8Array[]>
 }
 

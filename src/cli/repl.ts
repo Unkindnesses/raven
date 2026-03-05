@@ -1,7 +1,7 @@
 import { Worker } from 'node:worker_threads'
 import * as path from 'node:path'
+import { Writable } from 'node:stream'
 import { dirname } from './dirname.js'
-import type { Writable } from 'node:stream'
 import { binary as wasmBinary } from '../wasm/binary.js'
 import { StreamEmitter } from '../backend/wasm.js'
 import { Pipeline, withEmit } from '../backend/compiler.js'

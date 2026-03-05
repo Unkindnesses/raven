@@ -11,7 +11,7 @@ import { spawn, SpawnOptions } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { dirname } from './dirname.js'
 import { Compiler } from '../backend/compiler.js'
-import type { Sig } from '../middle/abstract.js'
+import { Sig } from '../middle/abstract.js'
 import { Def } from '../dwarf/index.js'
 
 export { Compiler, compile, compileJS, exec, load }

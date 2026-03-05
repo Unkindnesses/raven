@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { spawn } from 'node:child_process'
 import * as assert from 'assert'
 import { compile, Compiler, load } from '../cli/compile.js'
-import { type Options } from '../utils/options.js'
+import { Options } from '../utils/options.js'
 import { dirname } from './dirname.js'
 
 export { run, test, runNode }

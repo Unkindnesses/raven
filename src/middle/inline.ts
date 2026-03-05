@@ -1,6 +1,6 @@
 import * as ir from '../utils/ir.js'
 import { MIR, callargs } from '../frontend/modules.js'
-import { Redirect, type Sig } from './abstract.js'
+import { Redirect, Sig } from './abstract.js'
 import { options } from '../utils/options.js'
 import { CycleCache } from '../utils/cache.js'
 import { layout } from './expand.js'
