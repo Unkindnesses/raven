@@ -7,7 +7,7 @@ export {
   Tag, Bits, Type,
   tag, asTag, bits, pack, packcat, vpack, onion, float32, float64, int32, int64, bool, recursive, recurrence,
   repr, issubset, isdisjoint, union, unroll, recur, finite, tagOf, part, parts,
-  nil, isValue, isAtom, nparts, allparts, abstract, partial_eltype, Ref, String, Ptr, list, asBits, simplify, Any
+  nil, isValue, isAtom, nparts, allparts, abstract, partial_eltype, Ref, Func, String, Ptr, list, asBits, simplify, Any
 }
 
 // Tags
@@ -61,6 +61,7 @@ type Type =
   | { kind: 'float32'; value?: number }
   | { kind: 'float64'; value?: number }
   | { kind: 'ref' }
+  | { kind: 'func' }
   | { kind: 'pack'; parts: Type[] }
   | { kind: 'vpack'; tag: Type; parts: Type }
   | { kind: 'union'; options: Type[] }
@@ -83,6 +84,8 @@ function _repr(x: Type): string {
       return x.value === undefined ? 'Float64' : `Float64(${x.value})`
     case 'ref':
       return 'ref'
+    case 'func':
+      return 'func'
     case 'pack': {
       if (x.parts.length === 2 &&
         x.parts[0].kind === 'tag' && x.parts[0].path === 'common.Int' &&
@@ -196,6 +199,7 @@ function vpack(t: TypeLike, x: TypeLike): Type {
 const recurrence: Type = { kind: 'recurrence' }
 
 const Ref: Type = { kind: 'ref' }
+const Func: Type = { kind: 'func' }
 
 const Any: Type = { kind: 'any' }
 
@@ -246,7 +250,8 @@ function isAtom(x: Type) {
     x.kind === 'bits' ||
     x.kind === 'float32' ||
     x.kind === 'float64' ||
-    x.kind === 'ref'
+    x.kind === 'ref' ||
+    x.kind === 'func'
 }
 
 function isValue(x: Type): boolean {
@@ -265,6 +270,7 @@ function abstract(x: Type): Type {
   if (x.kind === 'float32') return float32()
   if (x.kind === 'float64') return float64()
   if (x.kind === 'ref') return Ref
+  if (x.kind === 'func') return Func
   throw new Error(`not an atom type: ${repr(x)}`)
 }
 
@@ -274,6 +280,7 @@ function tagOf(x: Type): Type {
   if (x.kind === 'float32') return Type(tag('common.core.Float32'))
   if (x.kind === 'float64') return Type(tag('common.core.Float64'))
   if (x.kind === 'ref') return Type(tag('common.core.Ref'))
+  if (x.kind === 'func') return Type(tag('common.core.Func'))
   if (x.kind === 'pack') return x.parts[0]
   if (x.kind === 'vpack') return x.tag
   if (x.kind === 'recursive') return tagOf(x.inner)
@@ -290,6 +297,7 @@ function allparts(x: Type): Type[] {
   if (x.kind === 'tag' || x.kind === 'bits') return [tagOf(x), x]
   if (x.kind === 'float32' || x.kind === 'float64') return [tagOf(x), floatToBits(x)]
   if (x.kind === 'ref') return [tagOf(x), x]
+  if (x.kind === 'func') return [tagOf(x), x]
   if (x.kind === 'pack') return x.parts
   throw new Error(`No fixed parts for ${repr(x)} type`)
 }

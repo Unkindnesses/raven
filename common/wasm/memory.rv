@@ -1,5 +1,9 @@
 export { Ptr, Function, Ref, addr, pointer, invoke }
 
+fn matchTrait(tag"common.core.Func", x: pack(tag"common.core.Func", _)) { Some(x) }
+
+fn show(x: Func) { print("Func(...)") }
+
 bundle Ptr(x: Int32)
 
 fn Ptr(x: Int64) { Ptr(Int32(x)) }
@@ -51,7 +55,7 @@ fn Function(f, I, O) {
   Function(ptr, I, O)
 }
 
-bundle Function(f: Int32, I, O)
+bundle Function(f: Func, I, O)
 
 @extend
 fn invoke(f: Function, xs...) {

@@ -104,4 +104,20 @@ test('invoke', async () => {
   `)
 })
 
+test('invoke closure object', async () => {
+  await rv(`
+    TInt64 = Pack(Literal(Int), bits 64)
+
+    bundle Apply(f)
+
+    fn (f: Apply)(x, y) {
+      Apply(f) = f
+      Int64(f(x, y))
+    }
+
+    f = Function(Apply(js.Math.pow), [TInt64, TInt64], TInt64)
+    test invoke(f, 2, 3) == 8
+  `)
+})
+
 test.run()

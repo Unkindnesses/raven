@@ -37,7 +37,7 @@ import { inlinePrimitive, InvokeSt, outlinePrimitive, primitive } from './prim_m
 import { Cache } from '../utils/cache.js'
 
 export {
-  abort, call, layout, wlayout, sizeof, store, load, box, unbox, union_downcast,
+  i32, i64, abort, call, layout, wlayout, sizeof, store, load, box, unbox, union_downcast,
   union_cases, cast, copyir, partir, packir, set_pack, indexer, setir, Expanded,
   heapType, refRelease_method
 }
@@ -153,6 +153,7 @@ function layout(T: Type, heap = false): Type[] {
     case 'float32': return [types.float32()]
     case 'float64': return [types.float64()]
     case 'ref': return [heap ? types.bits(32) : types.Ref]
+    case 'func': return [types.bits(32)]
     case 'bits': {
       if (T.size <= 32) return [types.bits(32)]
       if (T.size <= 64) return [types.bits(64)]
@@ -181,6 +182,7 @@ function wtype(T: Type): ValueType {
   if (T.kind === 'float32') return wasm.f32
   if (T.kind === 'float64') return wasm.f64
   if (T.kind === 'ref') return wasm.externref
+  if (T.kind === 'func') return wasm.i32
   if (T.kind === 'bits') {
     if (T.size <= 32) return wasm.i32
     if (T.size <= 64) return wasm.i64

@@ -5,7 +5,7 @@
 #       a language for sorcery
 
 import {
-  Tag, Bits, Float32, Float64, Ref
+  Tag, Bits, Float32, Float64, Ref, Func
   pack, part, nparts, packcat, widen, shortcutEquals
   bitsize, bitcast, bitcast_s
   bitshl, bitshr_u, bitshr_s, bitand, bitor, bitxor, bitadd, bitsub, bitmul, bitdiv_u, bitdiv_s, bitrem_u, bitrem_s

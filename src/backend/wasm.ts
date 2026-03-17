@@ -7,7 +7,7 @@ import { unreachable, Anno, Pipe, expr, Val, Branch, Expr, asType } from '../uti
 import { isEqual } from '../utils/isEqual.js'
 import { wlayout } from '../middle/expand.js'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe, reuse } from '../utils/cache.js'
-import { Binding, Definitions, MIR, Method, StringRef, JS, Global, SetGlobal, Wasm as WasmCall, callargs, Value as MValue, asValue } from '../frontend/modules.js'
+import { Binding, Definitions, MIR, Method, StringRef, JS, Func, Global, SetGlobal, Wasm as WasmCall, callargs, Value as MValue, asValue } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
 import { Redirect, Sig } from '../middle/abstract.js'
 import { Accessor } from '../utils/fixpoint.js'
@@ -110,10 +110,9 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: Cache
         const fname = names.get([['inline', `js_${id}`], argTypes, [wasm.externref]])
         const args = st.expr.body.map(rename)
         env.set(v, out.push({ ...st, expr: instr(wasm.Call(fname), ...args), type: [wasm.externref] }))
-      } else if (st.expr.head === 'func') {
-        const [f, I, O] = st.expr.body
-        const F = asType(ir.type(f))
-        const name = names.get([types.asTag(F), F, asType(ir.type(I))])
+      } else if (st.expr instanceof Func) {
+        const sig = [st.expr.method, ...st.expr.body.map(x => asType(ir.type(x)))] as Sig
+        const name = names.get(sig)
         env.set(v, out.push({ ...st, expr: xtuple(WValue.i32(tables.func(name))), type: type(st.type) }))
       } else if (['tuple', 'ref'].includes(st.expr.head)) {
         env.set(v, out.push({ ...st, expr: st.expr.map(rename as any) as unknown as Expr<WValue>, type: type(st.type) }))
@@ -151,10 +150,10 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: Cache
         const expr = instr(wasm.Call(names.get(sig)), ...args.map(rename))
         env.set(v, out.push({ ...st, expr: expr, type: wparts(st.type) }))
       } else if (st.expr.head === 'call_indirect') {
-        const [f, args] = st.expr.body
-        const I = wlayout(asType(ir.type(args)))
+        const [id, ...args] = st.expr.body
+        const I = args.flatMap(x => wlayout(asType(ir.type(x))))
         const O = wlayout(asType(st.type))
-        env.set(v, out.push({ ...st, expr: instr(wasm.CallIndirect(wasm.Signature(I, O), 'funcs'), rename(args), rename(f)), type: O }))
+        env.set(v, out.push({ ...st, expr: instr(wasm.CallIndirect(wasm.Signature(I, O), 'funcs'), ...args.map(rename), rename(id)), type: O }))
       } else if (st.expr instanceof Branch) {
         const expr = st.expr.map(coerce)
         env.set(v, out.push({ ...st, expr, type: unreachable }))
@@ -260,7 +259,9 @@ function calltree(mod: Wasm, root: wasm.Func): Map<string, wasm.Func | WSig> {
     for (const g of wasm.callees(func)) visit(g)
   }
   for (const f of wasm.callees(root)) visit(f)
-  for (const f of mod.tables.funcs) visit(f)
+  // TODO the guard is a bit hacky, but old funcs can be invalidated.
+  // Ideally we'd know which funcs are new/used in the tree.
+  for (const f of mod.tables.funcs) if (mod.names.hasvalue(f)) visit(f)
   return calls
 }
 
@@ -314,13 +315,15 @@ class BatchEmitter implements Emitter {
 
   emit(calls: Map<string, wasm.Func | WSig>, func: wasm.Func) {
     this.emitFunc(calls, func)
-    for (const f of this.tables.funcs) this.emitName(calls, f)
+    // TODO emit only new funcs
+    for (const f of this.tables.funcs) if (calls.get(f)) this.emitName(calls, f)
     this.main.push(func.name)
   }
 
   destructor(calls: Map<string, wasm.Func | WSig>, func: wasm.Func) {
     this.emitFunc(calls, func)
-    for (const f of this.tables.funcs) this.emitName(calls, f)
+    // TODO emit only new funcs
+    for (const f of this.tables.funcs) if (calls.get(f)) this.emitName(calls, f)
     this.destructors.push(func.name)
   }
 

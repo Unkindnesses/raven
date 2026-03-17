@@ -12,7 +12,7 @@ import { Instruction, Op, ValueType } from "../wasm/wasm.js"
 export {
   Module, Method, Signature, MethodSource, Binding, asBinding, asValue, Modules,
   Definitions, Value, MIR, IRValue, showIRValue,
-  StringRef, xstring, JS, xjs, Global, SetGlobal, xglobal, xset, Invoke, Wasm, xwasm, calltarget, callargs
+  StringRef, xstring, JS, xjs, Global, SetGlobal, xglobal, xset, Invoke, Func, xfunc, Wasm, xwasm, calltarget, callargs
 }
 
 class Binding {
@@ -122,6 +122,20 @@ class Invoke<T> extends ir.Expr<T> {
       ? `call ${this.method.toString()}, ${this.args.map(pr).join(', ')}`
       : `call ${this.method.toString()}`
   }
+}
+
+class Func<T> extends ir.Expr<T> {
+  constructor(readonly method: Method, readonly args: (T | number)[]) { super('func', args) }
+  map(f: (x: T | number) => T | number): Func<T> { return new Func(this.method, this.args.map(f)) }
+  show(pr: (x: T | number) => string): string {
+    return this.args.length > 0
+      ? `func ${this.method.toString()}, ${this.args.map(pr).join(', ')}`
+      : `func ${this.method.toString()}`
+  }
+}
+
+function xfunc<T>(method: Method, ...args: (T | number)[]) {
+  return new Func<T>(method, args)
 }
 
 class Wasm<T> extends ir.Expr<T> {

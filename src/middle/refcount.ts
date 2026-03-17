@@ -41,11 +41,12 @@ import { xcall, xtuple } from '../frontend/lower.js'
 import { Accessor } from '../utils/fixpoint.js'
 import { Ref, xref } from '../wasm/ir.js'
 
-export { isreftype, CountMode, retain_method, release_method, refcounts }
+export { isreftype, CountMode, retain_method, release_method, refcounts, releaseFunction_method }
 
 function isreftype(x: ir.Anno<Type>): x is Type {
   if (x === unreachable) return false
   if (x.kind === 'ref') return true
+  if (x.kind === 'func') return true
   if (x.kind === 'pack') return types.parts(x).some(isreftype)
   if (x.kind === 'union') return x.options.some(isreftype)
   if (x.kind === 'vpack') return layout(some(types.partial_eltype(x))).length !== 0
@@ -63,8 +64,9 @@ function isglobal(code: MIR, v: number): boolean {
 type CountMode = 'retain' | 'release'
 
 // Used as a key for generated methods
-const retain_method = primitive('common.core.retain', 'args', (_: Type) => unreachable)
-const release_method = primitive('common.core.release', 'args', (_: Type) => unreachable)
+const retain_method = primitive('common.core.retain', 'args')
+const release_method = primitive('common.core.release', 'args')
+const releaseFunction_method = primitive('common.core.releaseFunction', '[ptr]')
 
 function i32(code: ir.Fragment<MIR>, x: bigint | number | boolean): ir.Val<MIR> {
   return code.push(code.stmt(ir.expr('tuple', Value.bits(32, x)), { type: types.int32() }))
@@ -94,11 +96,32 @@ function countptr(code: ir.Fragment<MIR>, ptr: ir.Val<MIR>, mode: CountMode): vo
 
 function count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode, heap = false): void {
   if (T.kind === 'ref') return ref_count_inline(code, x, mode, heap)
+  if (T.kind === 'func') return function_count_inline(code, x, mode)
   if (T.kind === 'pack') return pack_count_inline(code, T, x, mode, heap)
   if (T.kind === 'vpack') return vpack_count_inline(code, T, x, mode)
   if (T.kind === 'union') return union_count_inline(code, T, x, mode, heap)
   if (T.kind === 'recursive') return recursive_count_inline(code, T, x, mode)
   throw new Error('unimplemented')
+}
+
+function function_count_inline(code: ir.Fragment<MIR>, x: ir.Val<MIR>, mode: CountMode): void {
+  const ptr = code.push(code.stmt(xref(x, 1), { type: types.Ptr() }))
+  if (mode === 'release') {
+    if (!(code instanceof ir.IR)) throw new Error('nope')
+    const before = code.block()
+    const body = code.newBlock()
+    const after = code.newBlock()
+    const unique = call(before, tag('common.blockUnique'), [ptr], types.int32())
+    before.branch(body, [], { when: unique })
+    before.branch(after)
+    const releasePtr = call(body, tag('common.+'), [ptr, i32(body, 4)], types.Ptr())
+    const release = load(body, types.bits(32), releasePtr, { count: false })
+    const dataPtr = call(body, tag('common.+'), [ptr, i32(body, 8)], types.Ptr())
+    const data = body.push(body.stmt(xref(dataPtr, 1), { type: types.int32() }))
+    body.push(body.stmt(ir.expr('call_indirect', release, data), { type: types.nil }))
+    body.branch(after)
+  }
+  countptr(code, ptr, mode)
 }
 
 function ref_count_inline(code: ir.Fragment<MIR>, x: ir.Val<MIR>, mode: CountMode, heap = false): void {
@@ -179,6 +202,17 @@ function count_ir(T: Type, L: Type, mode: CountMode, heap = false): MIR {
   const code = MIR(Def(`common.core.${mode}`))
   const x = code.argument(L)
   count_inline(code, T, x, mode, heap)
+  code.return(types.nil)
+  return code
+}
+
+function release_function_ir(T: Type): MIR {
+  const code = MIR(Def('common.core.releaseFunction'))
+  const ptr = code.argument(types.int32())
+  if (isreftype(T)) {
+    const value = load(code, T, ptr, { count: false, heap: true })
+    release(code, T, value, true)
+  }
   code.return(types.nil)
   return code
 }
@@ -299,9 +333,11 @@ function elide_counts(code: MIR): MIR {
 function refcounts(c: Accessor<Sig, Redirect | MIR>): Cache<Sig, Redirect | MIR> {
   return new Cache<Sig, Redirect | MIR>(sig => {
     const [F, ...Ts] = sig
+    if (releaseFunction_method.isEqual(F))
+      return release_function_ir(only(F.params))
     if (retain_method.isEqual(F) || release_method.isEqual(F)) {
       const T = F.params.length > 0 ? only(F.params) : Ts[0]
-      return count_ir(T, Ts[0], retain_method.isEqual(F) ? 'retain' : 'release')
+      return count_ir(T, Ts[0], retain_method.isEqual(F) ? 'retain' : 'release', F.params.length > 0)
     }
     const ir = c.get(sig)
     if (ir instanceof Redirect) return ir

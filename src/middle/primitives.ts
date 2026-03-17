@@ -3,18 +3,19 @@ import { Type, tagOf, tag, bits } from '../frontend/types.js'
 import { unreachable, Anno, expr, Val, Fragment, asType } from '../utils/ir.js'
 import { HashSet, only, some } from '../utils/map.js'
 import { isEqual } from '../utils/isEqual.js'
-import { Method, MIR, Module, Value, xstring } from '../frontend/modules.js'
+import { Method, MIR, Module, Value, xfunc, xstring } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
 import { xtuple, xcall } from '../frontend/lower.js'
 import { xwasm } from '../frontend/modules.js'
 import { inlinePrimitive, InvokeSt, outlinePrimitive, primitive } from './prim_map.js'
-import { abort, call, layout, wlayout, sizeof, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir, copyir } from './expand.js'
+import { releaseFunction_method } from './refcount.js'
+import { abort, call, layout, wlayout, sizeof, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir, copyir, i32, store, load } from './expand.js'
 import { isreftype } from './refcount.js'
 import { maybe_union } from './abstract.js'
 import { GetGlobal, SetGlobal } from '../wasm/wasm.js'
 import { xref } from '../wasm/ir.js'
 
-export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, tagcast_method, copy_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue }
+export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, invokeFunction_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, tagcast_method, copy_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue }
 
 const bitopFuncs = new Map<string, (x: bigint, y: bigint) => bigint>([
   ['shl', (x, y) => x << y],
@@ -221,7 +222,7 @@ function rvtype(x: Type): Type {
 }
 
 function partial_function(f: Type, I: Type, O: Type): Type {
-  return types.pack(tag('common.Int'), bits(32))
+  return types.Func
 }
 
 function partial_invoke(f: Type, I: Type, O: Type, ...xs: Type[]): Type {
@@ -267,6 +268,7 @@ const tagstring_method = primitive('common.core.tagstring', '[x]', partial_tagst
 
 const function_method = primitive('common.core.function', '[f, I, O]', partial_function)
 const invoke_method = primitive('common.core.invoke', '[f, I, O, xs...]', partial_invoke)
+const invokeFunction_method = primitive('common.core.invokeFunction', '[f, xs]')
 
 const allocs_method = primitive('common.core.allocs', '[n]', (n: Type) => isInt(n, 32) ? types.int32() : unreachable)
 const frees_method = primitive('common.core.frees', '[n]', (n: Type) => isInt(n, 32) ? types.int32() : unreachable)
@@ -596,9 +598,17 @@ outlinePrimitive.set(tagstring_method.id, (T: Type): MIR => {
 // UB if inferred output type is not `O`
 // TODO wrap with a type check / conversion
 inlinePrimitive.set(function_method.id, (code, st) => {
-  const [f, I, O] = st.expr.body.slice(0, 3).map(x => asType(code.type(x)))
-  if (![f, I, O].every(types.isValue)) throw new Error('nope')
-  return code.push({ ...st, expr: expr('func', f, rvtype(I), rvtype(O)) })
+  const [F, I, O] = st.expr.body.slice(0, 3).map(x => asType(code.type(x)))
+  if (![I, O].every(types.isValue)) throw new Error('nope')
+  const id = code.push(code.stmt(xfunc(invokeFunction_method.param(F, rvtype(O)), types.int32(), rvtype(I)), { type: types.bits(32) }))
+  const ptr = call(code, types.tag('common.malloc!'), [i32(code, 8 + sizeof(F))], types.int32())
+  code.push(code.stmt(xwasm('i32.store', ptr, id), { type: types.nil }))
+  const release = code.push(code.stmt(xwasm('i32.add', ptr, Value.bits(32, 4)), { type: types.int32() }))
+  const drop = code.push(code.stmt(xfunc(releaseFunction_method.param(F), types.int32()), { type: types.bits(32) }))
+  code.push(code.stmt(xwasm('i32.store', release, drop), { type: types.nil }))
+  const data = code.push(code.stmt(xwasm('i32.add', ptr, Value.bits(32, 8)), { type: types.int32() }))
+  store(code, F, data, st.expr.body[0])
+  return code.push(code.stmt(xtuple(ptr), { type: asType(st.type) }))
 })
 
 inlinePrimitive.set(invoke_method.id, (code, st) => {
@@ -607,7 +617,19 @@ inlinePrimitive.set(invoke_method.id, (code, st) => {
   // TODO conversion
   if (!types.issubset(asType(code.type(args0)), I)) throw new Error('invoke: argument type mismatch')
   const args = cast(code, asType(code.type(args0)), I, args0)
-  return code.push({ ...st, expr: expr('call_indirect', f, args) })
+  const id = code.push(code.stmt(xwasm('i32.load', f), { type: types.bits(32) }))
+  const env = code.push(code.stmt(xwasm('i32.add', f, Value.bits(32, 8)), { type: types.int32() }))
+  const result = code.push({ ...st, expr: expr('call_indirect', id, env, args) })
+  code.push(code.stmt(expr('release', f)))
+  return result
+})
+
+outlinePrimitive.set(invokeFunction_method.id, (F: Type, O: Type, _: Type, I: Type): MIR => {
+  const code = MIR(Def('common.core.invokeFunction'))
+  const ptr = code.argument(types.int32())
+  const args = code.argument(I)
+  code.return(code.push(code.stmt(xcall(load(code, F, ptr), args), { type: O })))
+  return code
 })
 
 function counter(code: Fragment<MIR>, st: InvokeSt, global: string): Val<MIR> {
