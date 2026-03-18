@@ -247,7 +247,7 @@ function refcountsIR(code: MIR): MIR {
         const x = asNumber(st.expr.body[0])
         const T = code.type(x)
         if (isreftype(T) && lv.stmts.get(v)!.has(x)) retain(pr, T, x)
-      } else if (['call', 'tuple', 'branch'].includes(st.expr.head)) {
+      } else if (['call', 'tuple', 'branch', 'setglobal'].includes(st.expr.head)) {
         const live = st.expr.head === 'branch' ? ir.liveness_after(code.blockOf(v), lv.blocks) : lv.stmts.get(v)!
         pr.delete(v)
         // reused argument

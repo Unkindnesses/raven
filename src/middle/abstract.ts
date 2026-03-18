@@ -1,7 +1,7 @@
 import { unreachable, expand, Anno, Block, Expr, Branch, prune, asType } from '../utils/ir.js'
 import { LoopIR, looped, Path, block, nextpath, nextpathTo, pin, blockargs, loop, unloop } from './loop.js'
 import { MatchMethods, dispatcher } from './patterns.js'
-import { Tag, Type, repr, union, issubset as iss, isValue, pack, tag, tagOf, String as RString, Ref } from '../frontend/types.js'
+import { Tag, Type, repr, union, issubset as iss, isValue, pack, tag, tagOf, String as RString, Ref, nil } from '../frontend/types.js'
 import { wasmPartials } from '../backend/wasm.js'
 import { MIR, IRValue, Binding, Method, Definitions, StringRef, JS, Global, SetGlobal, Wasm, callargs } from '../frontend/modules.js'
 import { Lowered } from '../frontend/lower.js'
@@ -265,9 +265,8 @@ function update(inf: Inference, k: string): void {
         if (g.type === unreachable) break
         bl.ir.setType(v, g.type)
       } else if (ex instanceof SetGlobal) {
-        const T = bl.type(ex.value)
-        if (T === unreachable) break
-        bl.ir.setType(v, T)
+        if (bl.type(ex.value) === unreachable) break
+        bl.ir.setType(v, nil)
       } else if (ex.head === 'loop') {
         const inner = some(loop(bl))
         blockargs(inner.body[0].block(1), bl.argtypes.map(t => asType(t)))

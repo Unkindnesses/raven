@@ -881,7 +881,7 @@ function assigned_globals(code: MIR): Map<Binding, Type> {
   const out = new Map<Binding, Type>()
   for (const [_, st] of code)
     if (st.expr instanceof SetGlobal)
-      out.set(st.expr.binding, ir.asType(st.type))
+      out.set(st.expr.binding, ir.asType(code.type(st.expr.value)))
   return out
 }
 

@@ -173,9 +173,7 @@ function lowerwasm_globals(ir: WIR, globals: Cache<Binding, string[]>): WIR {
     pr.delete(v)
     const ids = globals.get(st.expr.binding)
     for (let i = 0; i < ids.length; i++) {
-      let p = st.expr.value
-      if (asArray(st.type).length > 1)
-        p = pr.push(pr.stmt(xref(p, i + 1)))
+      const p = pr.push(pr.stmt(xref(st.expr.value, i + 1)))
       pr.push(pr.stmt(instr(wasm.SetGlobal(ids[i]), p), { type: [] }))
     }
   }

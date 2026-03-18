@@ -7,6 +7,7 @@ import { layout } from './expand.js'
 import { some, only } from '../utils/map.js'
 import { Accessor } from '../utils/fixpoint.js'
 import { Stack } from '../dwarf/index.js'
+import { isEqual } from '../utils/isEqual.js'
 
 export { Inlined, opcount }
 
@@ -14,8 +15,10 @@ function opcount(code: MIR): number {
   let count = 0
   for (const [_, st] of code) {
     if (['tuple', 'ref', 'branch', 'cast', 'retain', 'release', 'string'].includes(st.expr.head)) {
-    } else if (['global', 'setglobal'].includes(st.expr.head)) {
+    } else if (st.expr.head === 'global') {
       count += layout(ir.asType(st.type)).length > 0 ? 1 : 0
+    } else if (st.expr.head === 'setglobal') {
+      count += 1
     } else if (['call', 'invoke', 'wasm', 'func', 'call_indirect', 'js'].includes(st.expr.head)) {
       count += 1
     } else
@@ -54,9 +57,13 @@ function inline(code: MIR, inlined: Accessor<Sig, Redirect | MIR>): MIR {
     const sig = [F, ...args.map(x => ir.asType(pr.type(x)))] as Sig
     if (!inlineable(inlined, sig)) continue
     pr.delete(v)
-    const ret = inlineHere(pr, ir.asIR(inlined.get(sig)), st.src, args)
+    let ret = inlineHere(pr, ir.asIR(inlined.get(sig)), st.src, args)
     if (ret === undefined && st.type !== ir.unreachable) throw new Error('nope')
-    if (ret !== undefined) pr.replace(v, ret)
+    if (ret !== undefined) {
+      if (!isEqual(ir.asType(pr.type(ret)), ir.asType(st.type))) // TODO why don't these match?
+        ret = pr.push(pr.stmt(ir.expr('tuple', ret), { type: st.type, src: st.src }))
+      pr.replace(v, ret)
+    }
   }
   return pr.finish()
 }

@@ -255,7 +255,7 @@ class Tracer {
           if (types.isValue(T)) code.replace(v, T)
           else code.replace(v, code.push({ ...st, type: T }))
         } else if (st.expr instanceof SetGlobal) {
-          code.replace(v, code.push({ ...st, type: code.type(st.expr.value) }))
+          code.replace(v, code.push({ ...st, type: types.nil }))
         } else {
           throw new Error(`Unknown expr type ${st.expr.head}`)
         }
