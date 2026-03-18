@@ -1,11 +1,8 @@
 export {
   Integer, Real, Number, BigInt, Float32, Float64, Complex, real, imag
   ==, !=, !, +, -, *, /, ^, >, <, >=, <=, &, |, abs2, div, rem
-  zero?, zero, one, round, min, max
+  zero?, zero, one, round, min, max, factorial
 }
-
-fn matchTrait(tag"common.core.Float32", x: pack(tag"common.core.Float32", _)) { Some(x) }
-fn matchTrait(tag"common.core.Float64", x: pack(tag"common.core.Float64", _)) { Some(x) }
 
 fn matchTrait(tag".Real", x: (Float32 | Float64)) { Some(x) }
 fn matchTrait(tag".Integer", x: (Int | UInt | BigInt)) { Some(x) }
@@ -17,11 +14,21 @@ fn coerce(a: Float64, b: Integer) { [a, Float64(b)] }
 
 include "numbers/complex.rv"
 
-fn x ^ (n: Int) {
+fn (x: Integer) ^ (n: Integer) {
   r = one(x)
   while n > 0 {
     n = n - one(n)
     r = r * x
+  }
+  return r
+}
+
+fn factorial(n: Integer) {
+  if n < zero(n) { abort("factorial requires a non-negative integer") }
+  r = one(n)
+  while n > zero(n) {
+    r = r * n
+    n = n - one(n)
   }
   return r
 }

@@ -12,12 +12,16 @@ Some flaws. It's early days and if you try Raven out you're beta testing. Expect
 
 But we think it's fun all the same.
 
-You can get going quickly with `npm i -g @unkindnesses/raven`. Then you can launch a repl:
+You can get going quickly with `npm i -g @unkindnesses/raven`. Then you can launch a repl (it makes a nifty little calculator):
 
 ```bash
 $ raven
 > 2+2
 4
+> Complex(1, 2) / 2
+0.5 + 1.0im
+> factorial(big(50))
+big(30414093201713378043612608166064768844377641568960512000000000000)
 ```
 
 Or run a hello world program:

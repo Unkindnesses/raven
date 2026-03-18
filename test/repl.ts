@@ -8,6 +8,8 @@ test('basic eval', async () => {
   try {
     await repl.init()
     assert.strictEqual((await repl.eval('2+2')).trim(), '4')
+    assert.strictEqual((await repl.eval('2.0')).trim(), '2.0')
+    assert.strictEqual((await repl.eval('5 / 2.5')).trim(), '2.0')
     assert.strictEqual((await repl.eval('xs = [1, 2, 3]')).trim(), '[1, 2, 3]')
     assert.strictEqual((await repl.eval('append(&xs, 4)')).trim(), '[1, 2, 3, 4]')
     assert.strictEqual((await repl.eval('xs')).trim(), '[1, 2, 3, 4]')

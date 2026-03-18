@@ -169,7 +169,7 @@ fn string(x: JSObject) {
 }
 
 fn string(x: (Float32 | Float64)) {
-  string(js(x))
+  String(if integer?(x) { js(x).toFixed(1) } else { js(x).toString() })
 }
 
 fn print(x: String) {

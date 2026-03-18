@@ -41,6 +41,11 @@ fn Complex(ra, ia) * Complex(rb, ib) {
   Complex(ra*rb - ia*ib, ra*ib + rb*ia)
 }
 
+fn Complex(ra, ia) / Complex(rb, ib) {
+  denom = abs2(Complex(rb, ib))
+  Complex((ra*rb + ia*ib) / denom, (ia*rb - ra*ib) / denom)
+}
+
 fn show(Complex(re, im)) {
   show(re)
   print(" + ")

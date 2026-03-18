@@ -1,3 +1,6 @@
+fn matchTrait(tag"common.core.Float32", x: pack(tag"common.core.Float32", _)) { Some(x) }
+fn matchTrait(tag"common.core.Float64", x: pack(tag"common.core.Float64", _)) { Some(x) }
+
 @extend
 fn Float32(x: Float64) {
   wasm f32.demote_f64(x: f64): f32
@@ -44,6 +47,10 @@ fn (a: Float32) == (b: Float32) {
   Bool(wasm f32.eq(a: f32, b: f32): i32)
 }
 
+fn abs(a: Float64) {
+  wasm f64.abs(a: f64): f64
+}
+
 fn min(a: Float64, b: Float64) {
   wasm f64.min(a: f64, b: f64): f64
 }
@@ -61,13 +68,24 @@ fn round(x: Float64) {
   return i64trunc(x)
 }
 
+fn integer?(x: Float64) {
+  abs(x) == one(x) / zero(x) && return false
+  x == wasm f64.floor(x: f64): f64
+}
+
+fn integer?(x: Float32) {
+  integer?(Float64(x))
+}
+
 # libm
 
 export {
-  pi, sqrt, cbrt, hypot, exp, expm1, log, log1p, log2, log10, pow
-  sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, cosh, atanh
+  Inf, NaN, pi, sqrt, cbrt, hypot, exp, expm1, log, log1p, log2, log10, pow
+  sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
 }
 
+Inf = 1.0 / 0.0
+NaN = 0.0 / 0.0
 pi = 3.141592653589793
 
 fn sqrt(x: Float64) { Float64(js.Math.sqrt(x)) }

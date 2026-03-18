@@ -172,6 +172,14 @@ test('pow', async () => {
   `)
 })
 
+test('factorial', async () => {
+  await rv(`
+    test factorial(0) == 1
+    test factorial(5) == 120
+    test factorial(big(6)) == big(720)
+  `)
+})
+
 test('loop continue', async () => {
   await rv(`
     total = 0
@@ -253,9 +261,12 @@ test('labeled block', async () => {
 test('complex arithmetic', async () => {
   await rv(`
     z = Complex(widen(5), widen(6))
+    w = Complex(widen(2), widen(3))
 
     test abs2(z) == 61
-    test z*z == Complex(widen(-11), widen(60))
+    test z*z == Complex(-11, 60)
+    test z/w == Complex(28.0/13.0, -3.0/13.0)
+    test z/2 == Complex(2.5, 3.0)
     test z == z
     test z != z*z
   `)
