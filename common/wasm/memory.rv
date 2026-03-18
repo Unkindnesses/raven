@@ -59,8 +59,7 @@ fn Function(f, I, O) {
 
 bundle Function(f: Func, I, O)
 
-@extend
-fn invoke(f: Function, xs...) {
+fn (f: Function)(xs...) {
   Function(f, I, O) = f
   invoke(f, I, O, xs...)
 }

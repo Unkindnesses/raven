@@ -100,7 +100,7 @@ test('invoke', async () => {
   await rv(`
     TInt64 = Pack(Literal(Int), bits 64)
     f = Function(+, [TInt64, TInt64], TInt64)
-    test invoke(f, 3, 5) == 8
+    test f(3, 5) == 8
   `)
 })
 
@@ -116,7 +116,7 @@ test('invoke closure object', async () => {
     }
 
     f = Function(Apply(js.Math.pow), [TInt64, TInt64], TInt64)
-    test invoke(f, 2, 3) == 8
+    test f(2, 3) == 8
   `)
 })
 

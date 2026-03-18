@@ -86,7 +86,7 @@ test('invoke closure object', async () => {
       }
     `)
     await repl.eval('f = Function(Apply(js.Math.pow), [TInt64, TInt64], TInt64)')
-    assert.strictEqual((await repl.eval('invoke(f, 2, 3)')).trim(), '8')
+    assert.strictEqual((await repl.eval('f(2, 3)')).trim(), '8')
   } finally {
     await repl.close()
   }
