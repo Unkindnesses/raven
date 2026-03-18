@@ -43,8 +43,13 @@ import { Ref, xref } from '../wasm/ir.js'
 
 export { isreftype, CountMode, retain_method, release_method, refcounts, releaseFunction_method }
 
+function iscountedtype(x: Type): boolean {
+  return x.kind === 'pack' && tag('common.Counted').isEqual(tagOf(x))
+}
+
 function isreftype(x: ir.Anno<Type>): x is Type {
   if (x === unreachable) return false
+  if (iscountedtype(x)) return true
   if (x.kind === 'ref') return true
   if (x.kind === 'func') return true
   if (x.kind === 'pack') return types.parts(x).some(isreftype)
@@ -94,7 +99,12 @@ function countptr(code: ir.Fragment<MIR>, ptr: ir.Val<MIR>, mode: CountMode): vo
   call(code, f, [ptr], types.nil)
 }
 
+function counted_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode): void {
+  countptr(code, indexer(code, T, types.int64(1), x, types.int64(1)), mode)
+}
+
 function count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode, heap = false): void {
+  if (iscountedtype(T)) return counted_count_inline(code, T, x, mode)
   if (T.kind === 'ref') return ref_count_inline(code, x, mode, heap)
   if (T.kind === 'func') return function_count_inline(code, x, mode)
   if (T.kind === 'pack') return pack_count_inline(code, T, x, mode, heap)

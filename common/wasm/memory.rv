@@ -1,4 +1,4 @@
-export { Ptr, Function, Ref, addr, pointer, invoke }
+export { Ptr, Function, Ref, Cell, addr, pointer, invoke }
 
 fn matchTrait(tag"common.core.Func", x: pack(tag"common.core.Func", _)) { Some(x) }
 
@@ -50,6 +50,8 @@ fn i32store!(p: Ptr, x: Int32) {
 TPtr = Pack(Literal(Ptr), Pack(Literal(Int), bits 32))
 TNil = Pack(Literal(Nil))
 
+bundle Counted(x)
+
 fn Function(f, I, O) {
   ptr = function(f, I, O)
   Function(ptr, I, O)
@@ -61,4 +63,20 @@ bundle Function(f: Func, I, O)
 fn invoke(f: Function, xs...) {
   Function(f, I, O) = f
   invoke(f, I, O, xs...)
+}
+
+# Mutable state
+
+bundle Cell(T, ptr: Counted)
+
+fn Cell(T, n: Int) {
+  Cell(T, Counted(alloc(T, Int32(n))))
+}
+
+fn (c: Cell(T, Counted(ptr)))[i] {
+  load(T, ptr, i)
+}
+
+fn set(&c: Cell(T, Counted(ptr)), x, i: Int64) {
+  store(T, ptr, i, x)
 }

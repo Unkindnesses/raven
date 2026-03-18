@@ -998,6 +998,14 @@ test('global list release', async () => {
   `)
 })
 
+test('cell', async () => {
+  await rv(`
+    buf = Cell(Float64, 5)
+    buf[1] = widen(3.5)
+    test buf[1] == 3.5
+  `)
+})
+
 test('allocs', async () => {
   await rv(`
     test (allocs 1 + 2) == 0

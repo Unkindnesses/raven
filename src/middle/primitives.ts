@@ -15,7 +15,7 @@ import { maybe_union } from './abstract.js'
 import { GetGlobal, SetGlobal } from '../wasm/wasm.js'
 import { xref } from '../wasm/ir.js'
 
-export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, invokeFunction_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, tagcast_method, copy_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue }
+export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, invokeFunction_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, tagcast_method, copy_method, store_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue }
 
 const bitopFuncs = new Map<string, (x: bigint, y: bigint) => bigint>([
   ['shl', (x, y) => x << y],
@@ -210,7 +210,11 @@ function partial_tagstring(x: Type): Type {
 
 function rvtype(x: Type): Type {
   if (!types.isValue(x)) throw new Error('Expected value')
-  if (x.kind === 'tag') throw new Error('unimplemented')
+  if (x.kind === 'tag') {
+    if (x.isEqual(tag('common.core.Float32'))) return types.float32()
+    if (x.isEqual(tag('common.core.Float64'))) return types.float64()
+    throw new Error('unimplemented')
+  }
   if (types.isAtom(x)) return types.abstract(x)
   if (tag('common.List').isEqual(tagOf(x)))
     return types.pack(tagOf(x), ...types.parts(x).map(rvtype))
@@ -270,6 +274,10 @@ const function_method = primitive('common.core.function', '[f, I, O]', partial_f
 const invoke_method = primitive('common.core.invoke', '[f, I, O, xs...]', partial_invoke)
 const invokeFunction_method = primitive('common.core.invokeFunction', '[f, xs]')
 
+const alloc_method = primitive('common.core.alloc', '[T, n]', (T: Type, n: Type) => types.Ptr())
+const load_method = primitive('common.core.load', '[T, ptr, i]', (T: Type, ptr: Type, i: Type) => rvtype(T))
+const store_method = primitive('common.core.store', '[T, ptr, i, x]', (T: Type, ptr: Type, i: Type, x: Type) => types.nil)
+
 const allocs_method = primitive('common.core.allocs', '[n]', (n: Type) => isInt(n, 32) ? types.int32() : unreachable)
 const frees_method = primitive('common.core.frees', '[n]', (n: Type) => isInt(n, 32) ? types.int32() : unreachable)
 
@@ -294,6 +302,9 @@ function primitives(): Method[] {
     tagstring_method,
     function_method,
     invoke_method,
+    alloc_method,
+    load_method,
+    store_method,
     allocs_method,
     frees_method,
   ]
@@ -630,6 +641,41 @@ outlinePrimitive.set(invokeFunction_method.id, (F: Type, O: Type, _: Type, I: Ty
   const args = code.argument(I)
   code.return(code.push(code.stmt(xcall(load(code, F, ptr), args), { type: O })))
   return code
+})
+
+function ptrOffset(code: Fragment<MIR>, ptr: Val<MIR>, i: Val<MIR>, I: Type, T: Type): Val<MIR> {
+  ptr = call(code, types.tag('common.addr'), [ptr], types.int32())
+  const idx = getIntValue(I) === undefined
+    ? call(code, types.tag('common.-'), [call(code, types.tag('common.Int32'), [i], types.int32()), i32(code, 1)], types.int32())
+    : i32(code, some(getIntValue(I)) - 1)
+  const size = sizeof(T)
+  if (size === 0) return ptr
+  const off = size === 1 ? idx : call(code, types.tag('common.*'), [idx, i32(code, size)], types.int32())
+  return call(code, types.tag('common.+'), [ptr, off], types.int32())
+}
+
+inlinePrimitive.set(alloc_method.id, (code, st) => {
+  const T = rvtype(asType(code.type(st.expr.body[0])))
+  const n = st.expr.body[1]
+  const count = getIntValue(asType(code.type(n))) === undefined
+    ? call(code, types.tag('common.Int32'), [n], types.int32())
+    : i32(code, some(getIntValue(asType(code.type(n)))))
+  const bytes = sizeof(T) === 1 ? count : call(code, types.tag('common.*'), [count, i32(code, sizeof(T))], types.int32())
+  return call(code, types.tag('common.malloc!'), [bytes], types.Ptr())
+})
+
+inlinePrimitive.set(load_method.id, (code, st) => {
+  const [t, ptr, i] = st.expr.body
+  const T = rvtype(asType(code.type(t)))
+  return load(code, T, ptrOffset(code, ptr, i, asType(code.type(i)), T))
+})
+
+inlinePrimitive.set(store_method.id, (code, st) => {
+  const [t, ptr, i, x] = st.expr.body
+  const T = rvtype(asType(code.type(t)))
+  const X = asType(code.type(x))
+  store(code, T, ptrOffset(code, ptr, i, asType(code.type(i)), T), cast(code, X, T, x))
+  return types.nil
 })
 
 function counter(code: Fragment<MIR>, st: InvokeSt, global: string): Val<MIR> {

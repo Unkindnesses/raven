@@ -8,7 +8,7 @@ import { unreachable } from '../utils/ir.js'
 import { Branch, asType } from '../utils/ir.js'
 import { dispatcherDef, partial_match, Path, Interpreter } from './patterns.js'
 import { wasmPartials } from '../backend/wasm.js'
-import { getIntValue, invoke_method, notnil_method, pack_method, packcat_method, part_method, tagcast_method } from './primitives.js'
+import { getIntValue, invoke_method, notnil_method, pack_method, packcat_method, part_method, store_method, tagcast_method } from './primitives.js'
 import { isEqual } from '../utils/isEqual.js'
 import { asNumber, some } from '../utils/map.js'
 import { Caching, CycleCache } from '../utils/cache.js'
@@ -268,7 +268,7 @@ class Tracer {
     if (meth.func) {
       const result = meth.func(...Ts)
       if (result === ir.unreachable) return
-      if (meth !== invoke_method && types.isValue(result)) return result
+      if (![invoke_method, store_method].includes(meth) && types.isValue(result)) return result
       return code.push(code.stmt(xcall(meth, ...args), { type: result }))
     } else {
       const ir = this.lowered.ir(meth)
