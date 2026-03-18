@@ -295,20 +295,21 @@ function dispatcher(inf: Inference, func: types.Tag, F: types.Type, Ts: types.Ty
       let m = call(types.tag('common.match'), full, pat)
       if (code.type(m) === ir.unreachable) { code.block().unreachable(); return [code, ret] }
       m = call(part_method, m, types.Type(1n))
-      // TODO use call?
-      const cond = code.push(code.stmt(xcall(isnil_method, m), { type: partial_isnil(ir.asType(code.type(m))) }))
+      const cond = call(isnil_method, m)
       code.branch(code.blockCount + 2, [], { when: cond })
       code.branch(code.blockCount + 1)
       code.newBlock()
       m = call(notnil_method, m)
-      const as: ir.Val<MIR>[] = []
-      for (const arg of meth.sig.args)
-        as.push(call(part_method, call(types.tag('common.getkey'), m, types.tag(arg)), types.Type(1n)))
-      let result = call(meth, ...as)
-      if (meth.sig.swap.size === 0 && code.type(result) !== ir.unreachable)
-        result = code.push(code.stmt(xlist(result), { type: types.list(ir.asType(code.type(result))) }))
-      code.return(result)
-      ret = maybe_union(ret, code.type(result))
+      if (code.type(m) !== ir.unreachable) {
+        const as: ir.Val<MIR>[] = []
+        for (const arg of meth.sig.args)
+          as.push(call(part_method, call(types.tag('common.getkey'), m, types.tag(arg)), types.Type(1n)))
+        let result = call(meth, ...as)
+        if (meth.sig.swap.size === 0 && code.type(result) !== ir.unreachable)
+          result = code.push(code.stmt(xlist(result), { type: types.list(ir.asType(code.type(result))) }))
+        code.return(result)
+        ret = maybe_union(ret, code.type(result))
+      }
       code.newBlock()
     } else { // certain to match
       const as = meth.sig.args.map(x => indexer(code, fullType, full, some(m.get(x))[1]))

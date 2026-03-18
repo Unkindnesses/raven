@@ -1,5 +1,5 @@
 export { Any, NotNil, Hole, Literal, Trait, Pack, Bind, Constructor, And
-         match, matchTrait, ismatch, isa }
+         match, matchTrait }
 
 Any = tag".Any"
 

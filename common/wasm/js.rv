@@ -1,5 +1,5 @@
 export {
-  JSObject, debugger, abort, js, call, errcall, await, new, sleep
+  JSObject, Primitive, debugger, abort, js, call, errcall, await, new, sleep
   readline, import, typeof
 }
 
@@ -154,8 +154,14 @@ fn typeof(x: JSObject) {
   String(js`return typeof \x`)
 }
 
-fn isPrimitive(x: JSObject) {
+fn primitive?(x: JSObject) {
   typeof(x) == "string" || typeof(x) == "number" || typeof(x) == "boolean"
+}
+
+Primitive = tag".Primitive"
+
+fn matchTrait(tag".Primitive", x: JSObject) {
+  if primitive?(x) { Some(x) }
 }
 
 fn string(x: JSObject) {
@@ -176,13 +182,13 @@ fn print(x: JSObject) {
 }
 
 fn show(x: JSObject) {
-  if isPrimitive(x) {
-    print("js(")
-    print(String(js.JSON.stringify(x)))
-    print(")")
-  } else {
-    print(string(x))
-  }
+  print(string(x))
+}
+
+fn show(x: Primitive) {
+  print("js(")
+  print(String(js.JSON.stringify(x)))
+  print(")")
 }
 
 fn println(x: JSObject) {
@@ -191,12 +197,12 @@ fn println(x: JSObject) {
 }
 
 fn replshow(x: JSObject) {
-  if isPrimitive(x) {
-    show(x)
-    println()
-  } else {
-    println(x)
-  }
+  println(x)
+}
+
+fn replshow(x: Primitive) {
+  show(x)
+  println()
 }
 
 fn iterate(x: JSObject) {
