@@ -33,6 +33,10 @@ fn Complex(ra, ia) + Complex(rb, ib) {
   Complex(ra+rb, ia+ib)
 }
 
+fn (-Complex(re, im)) {
+  Complex(-re, -im)
+}
+
 fn Complex(ra, ia) - Complex(rb, ib) {
   Complex(ra-rb, ia-ib)
 }

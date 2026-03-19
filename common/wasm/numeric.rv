@@ -23,6 +23,10 @@ fn (a: Float64) + (b: Float64) {
   wasm f64.add(a: f64, b: f64): f64
 }
 
+fn (-(x: Float64)) {
+  wasm f64.neg(x: f64): f64
+}
+
 fn (a: Float64) - (b: Float64) {
   wasm f64.sub(a: f64, b: f64): f64
 }

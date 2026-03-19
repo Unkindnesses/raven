@@ -81,6 +81,7 @@ fn intop(f, a, b) {
 }
 
 fn (a: Int) + (b: Int) { Int(intop(bitadd, a, b)) }
+fn (-(x: Int)) { zero(x) - x }
 fn (a: Int) - (b: Int) { Int(intop(bitsub, a, b)) }
 fn (a: Int) * (b: Int) { Int(intop(bitmul, a, b)) }
 
@@ -193,6 +194,7 @@ fn promote(a: UInt, b: UInt) {
 }
 
 fn (a: UInt) + (b: UInt) { UInt(intop(bitadd, a, b)) }
+fn (-(x: UInt)) { zero(x) - x }
 fn (a: UInt) - (b: UInt) { UInt(intop(bitsub, a, b)) }
 fn (a: UInt) * (b: UInt) { UInt(intop(bitmul, a, b)) }
 

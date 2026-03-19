@@ -147,6 +147,11 @@ test('comparison binds tighter than logical and', () => {
   assert.equal(String(expr('true == true && false')), '((true == true) && false)')
 })
 
+test('prefix negation binds tighter than infix operators', () => {
+  assert.equal(String(expr('-x * y')), '((-x) * y)')
+  assert.equal(String(expr('-(x + y)')), '(-((x + y)))')
+})
+
 function lower(def: string) {
   const ex = parse('test', def)[0]
   if (!ast.isExpr(ex, 'Syntax') || asSymbol(ex.args[0].unwrap()).toString() !== 'fn')

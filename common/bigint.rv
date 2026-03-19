@@ -38,6 +38,7 @@ fn promote(a: BigInt, b: BigInt) { [a, b] }
 fn coerce(a: BigInt, b: (Int | UInt)) { [a, BigInt(b)] }
 
 fn (a: BigInt) + (b: BigInt) { BigInt(js`return \a + \b`) }
+fn (-(x: BigInt)) { BigInt(js`return -\x`) }
 fn (a: BigInt) - (b: BigInt) { BigInt(js`return \a - \b`) }
 fn (a: BigInt) * (b: BigInt) { BigInt(js`return \a * \b`) }
 fn (a: BigInt) / (b: BigInt) { Float64(a) / Float64(b) }

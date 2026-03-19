@@ -122,6 +122,16 @@ test('prefix logical negation operator', async () => {
   `)
 })
 
+test('prefix arithmetic negation operator', async () => {
+  await rv(`
+    test (-1 + 2 == 1)
+    test (-(1 + 2) == -3)
+    test (-1 * -2 == 2)
+    test (-(1.5) == -1.5)
+    test (-(-3) == 3)
+  `)
+})
+
 test('relu', async () => {
   await rv(`
     fn relu(x) {
