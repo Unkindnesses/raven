@@ -274,11 +274,41 @@ test('complex arithmetic', async () => {
     w = Complex(widen(2), widen(3))
 
     test abs2(z) == 61
+    test conj(z) == Complex(5, -6)
     test z*z == Complex(-11, 60)
     test z/w == Complex(28.0/13.0, -3.0/13.0)
     test z/2 == Complex(2.5, 3.0)
     test z == z
     test z != z*z
+  `)
+})
+
+test('complex libm', async () => {
+  await rv(`
+    fn approx(a: Complex, b: Complex) {
+      abs2(a - b) < 0.000000001
+    }
+
+    z = Complex(1.25, -0.75)
+    w = Complex(2.0, 1.0)
+
+    test sqrt(Complex(-4.0)) == Complex(0.0, 2.0)
+    test approx(exp(Complex(0.0, pi)), Complex(-1.0))
+    test approx(log(Complex(-1.0)), Complex(0.0, pi))
+    test approx(sqrt(z) * sqrt(z), z)
+    test approx(exp(log(z)), z)
+    test approx(pow(z, 2.0), z*z)
+    test approx(sin(z)*sin(z) + cos(z)*cos(z), Complex(1.0))
+    test approx(tan(z), sin(z) / cos(z))
+    test approx(cosh(z)*cosh(z) - sinh(z)*sinh(z), Complex(1.0))
+    test approx(tanh(z), sinh(z) / cosh(z))
+    test approx(asin(sin(z)), z)
+    test approx(cos(acos(w)), w)
+    test approx(atan(tan(z)), z)
+    test approx(asinh(sinh(z)), z)
+    test approx(cosh(acosh(w)), w)
+    test approx(atanh(tanh(z)), z)
+    test approx(cbrt(z) * cbrt(z) * cbrt(z), z)
   `)
 })
 

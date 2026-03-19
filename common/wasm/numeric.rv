@@ -47,6 +47,10 @@ fn (a: Float64) > (b: Float64) {
   Bool(wasm f64.gt(a: f64, b: f64): i32)
 }
 
+fn (a: Float64) < (b: Float64) {
+  Bool(wasm f64.lt(a: f64, b: f64): i32)
+}
+
 fn (a: Float32) == (b: Float32) {
   Bool(wasm f32.eq(a: f32, b: f32): i32)
 }

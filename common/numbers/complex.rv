@@ -12,7 +12,9 @@ fn matchTrait(tag".Number", x: Complex) { Some(x) }
 fn real(Complex(re, im)) { re }
 fn imag(Complex(re, im)) { im }
 
+fn zero(Complex(re, im)) { Complex(zero(re)) }
 fn one(Complex(re, im)) { Complex(one(re)) }
+fn im(Complex(re, im)) { Complex(zero(re), one(re)) }
 
 fn promote(Complex(ra, ia), Complex(rb, ib)) {
   [ra, rb] = promote(ra, rb)
@@ -25,8 +27,22 @@ fn coerce(Complex(re, im), x: Real) {
   [Complex(re, im), Complex(x)]
 }
 
+fn conj(x: Real) { x }
+
+fn conj(Complex(re, im)) {
+  Complex(re, -im)
+}
+
+fn abs(z: Complex) {
+  hypot(real(z), imag(z))
+}
+
 fn abs2(Complex(re, im)) {
   re*re + im*im
+}
+
+fn arg(Complex(re, im)) {
+  atan(im, re)
 }
 
 fn Complex(ra, ia) + Complex(rb, ib) {
@@ -45,9 +61,84 @@ fn Complex(ra, ia) * Complex(rb, ib) {
   Complex(ra*rb - ia*ib, ra*ib + rb*ia)
 }
 
-fn Complex(ra, ia) / Complex(rb, ib) {
-  denom = abs2(Complex(rb, ib))
-  Complex((ra*rb + ia*ib) / denom, (ia*rb - ra*ib) / denom)
+fn Complex(re, im) / (x: Real) {
+  Complex(re / x, im / x)
+}
+
+fn (z: Complex) / (w: Complex) {
+  (z*conj(w)) / abs2(w)
+}
+
+fn sqrt(Complex(re, im)) {
+  r = hypot(re, im)
+  y = Complex(sqrt((r + re) / 2), sqrt((r - re) / 2))
+  if im < 0 { y = conj(y) }
+  return y
+}
+
+fn cbrt(z: Complex) {
+  pow(z, 1.0 / 3.0)
+}
+
+fn exp(Complex(re, im)) {
+  r = exp(re)
+  Complex(r*cos(im), r*sin(im))
+}
+
+fn log(z: Complex) {
+  Complex(log(abs(z)), arg(z))
+}
+
+fn pow(x: Complex, y: Number) {
+  exp(y * log(x))
+}
+
+fn sin(Complex(re, im)) {
+  Complex(sin(re)*cosh(im), cos(re)*sinh(im))
+}
+
+fn cos(Complex(re, im)) {
+  Complex(cos(re)*cosh(im), -sin(re)*sinh(im))
+}
+
+fn tan(z: Complex) {
+  sin(z) / cos(z)
+}
+
+fn asin(z: Complex) {
+  -im(z) * log(im(z)*z + sqrt(one(z) - z*z))
+}
+
+fn acos(z: Complex) {
+  Complex(pi / 2.0) - asin(z)
+}
+
+fn atan(z: Complex) {
+  im(z) * (log(one(z) - im(z)*z) - log(one(z) + im(z)*z)) / 2
+}
+
+fn sinh(Complex(re, im)) {
+  Complex(sinh(re)*cos(im), cosh(re)*sin(im))
+}
+
+fn cosh(Complex(re, im)) {
+  Complex(cosh(re)*cos(im), sinh(re)*sin(im))
+}
+
+fn tanh(z: Complex) {
+  sinh(z) / cosh(z)
+}
+
+fn asinh(z: Complex) {
+  log(z + sqrt(z*z + one(z)))
+}
+
+fn acosh(z: Complex) {
+  log(z + sqrt(z + one(z)) * sqrt(z - one(z)))
+}
+
+fn atanh(z: Complex) {
+  (log(one(z) + z) - log(one(z) - z)) / 2
 }
 
 fn show(Complex(re, im)) {

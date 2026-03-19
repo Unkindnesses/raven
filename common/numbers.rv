@@ -1,6 +1,6 @@
 export {
   Integer, Real, Number, BigInt, Float32, Float64, Complex, real, imag
-  ==, !=, !, +, -, *, /, ^, >, <, >=, <=, &, |, abs2, div, rem
+  ==, !=, !, +, -, *, /, ^, >, <, >=, <=, &, |, abs2, conj, div, rem
   zero?, zero, one, round, min, max, factorial
 }
 
