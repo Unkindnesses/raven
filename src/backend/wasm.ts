@@ -344,9 +344,9 @@ const refGlobals: [string, wasm.ValueType][] = [
   ['frees', wasm.i32]
 ]
 
-function startfunc(main: string[]): wasm.Func {
+function startfunc(main: string[], prelude: wasm.Instruction[] = []): wasm.Func {
   const meta = Def('_start')
-  const instrs = [...main.map(m => wasm.Call(m)), wasm.Const(wasm.NumType.i32, 0)]
+  const instrs = [...prelude, ...main.map(m => wasm.Call(m)), wasm.Const(wasm.NumType.i32, 0)]
   const body = wasm.Block(instrs, instrs.map(() => wasm.LineInfo([[meta, meta.source]])))
   return wasm.Func('_start', wasm.Signature([], [wasm.NumType.i32]), [], body, meta)
 }
@@ -357,9 +357,9 @@ function stringImports(strings: string[]): wasm.Import[] {
     wasm.Import('strings', value, wasm.Global(value, wasm.externref, { mut: false })))
 }
 
-function moduleTables(tables: Tables): wasm.Table[] {
+function moduleTables(funcs = 0): wasm.Table[] {
   return [
-    wasm.Table('funcs', wasm.funcref, tables.funcs.length),
+    wasm.Table('funcs', wasm.funcref, funcs),
     wasm.Table(refTable, wasm.externref, 0)
   ]
 }
@@ -385,7 +385,7 @@ function wasmmodule(em: BatchEmitter): wasm.Module {
       ...em.exports
     ],
     globals: [...em.tables.globals, ...refGlobals].map(g => wasm.Global(...g)),
-    tables: moduleTables(em.tables),
+    tables: moduleTables(em.tables.funcs.length),
     elems: [wasm.Elem('funcs', em.tables.funcs)],
     mems: [wasm.Mem('cm32p2_memory', 0)],
     customs: metaSection(em.tables)
@@ -409,16 +409,33 @@ function wimport(mod: Map<string, wasm.Func | WSig>, f: string): wasm.Import {
   }
 }
 
+function extendFuncs(start: number, funcs: Array<string>): wasm.Instruction[] {
+  if (funcs.length === 0) return []
+  return [
+    wasm.RefNull(wasm.funcref.type),
+    wasm.Const(wasm.NumType.i32, funcs.length),
+    wasm.TableOp('grow', 'funcs'),
+    wasm.Drop(),
+    ...funcs.flatMap((f, i) => [
+      wasm.Const(wasm.NumType.i32, start + i),
+      wasm.RefFunc(f),
+      wasm.TableOp('set', 'funcs')
+    ])
+  ]
+}
+
 class StreamEmitter implements Emitter {
   tables: Tables
   seen: Set<string>
   queue: wasm.Module[]
   globals: number
+  funcs: number
   constructor(tables: Tables) {
     this.tables = tables
     this.seen = new Set()
     this.queue = []
     this.globals = 0
+    this.funcs = 0
   }
 
   private emitFunc(calls: Map<string, wasm.Func | WSig>, func: wasm.Func, fs: wasm.Func[], imports: string[]) {
@@ -438,7 +455,7 @@ class StreamEmitter implements Emitter {
     const fs: wasm.Func[] = []
     const imports: string[] = []
     this.emitFunc(calls, func, fs, imports)
-    fs.unshift(startfunc([func.name]))
+    fs.unshift(startfunc([func.name], extendFuncs(this.funcs, this.tables.funcs.slice(this.funcs))))
     const iimports = setdiff(imports, fs.map(f => f.name)).map(f => wimport(calls, f))
     const gimports: wasm.Import[] = []
     const globalTypes = [...refGlobals, ...this.tables.globals]
@@ -450,21 +467,21 @@ class StreamEmitter implements Emitter {
     for (let i = this.globals + 1; i <= globalTypes.length; i++)
       globals.push(wasm.Global(...globalTypes[i - 1]))
     iimports.push(wasm.Import('wasm', 'memory', wasm.Mem('memory', 0)))
-    for (const t of moduleTables(this.tables))
+    for (const t of moduleTables())
       iimports.push(wasm.Import('wasm', t.name, t))
     const wmod = wasm.Module({
       funcs: fs,
       imports: [...stringImports(this.tables.strings), ...gimports, ...iimports],
       exports: [
         wasm.Export('memory'),
-        ...moduleTables(this.tables).map(x => wasm.Export(x.name)),
+        ...moduleTables().map(x => wasm.Export(x.name)),
         ...fs.map(f => wasm.Export(f.name, f.name)),
         ...globals.map(g => wasm.Export(g.name, g.name))],
       globals,
-      elems: [wasm.Elem('funcs', Array.from(this.tables.funcs))],
       customs: metaSection(this.tables)
     })
     this.queue.push(wmod)
     this.globals = globalTypes.length
+    this.funcs = this.tables.funcs.length
   }
 }

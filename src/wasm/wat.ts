@@ -44,6 +44,8 @@ function instructionToString(i: wasm.Instruction, level: number = 0): string {
       return `table.${i.op} $${i.table}`
     case 'ref_null':
       return `ref.null ${i.type}`
+    case 'ref_func':
+      return `ref.func $${i.name}`
     case 'block':
     case 'loop':
       return i.kind + bodyToString(i.body, i.srcs, level + 1)

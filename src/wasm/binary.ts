@@ -221,6 +221,10 @@ function instr(cx: BinaryContext, inst: wasm.Instruction, lt: dwarf.LineTable): 
       cx.write(0xd0)
       heaptype(cx, inst.type)
       break
+    case 'ref_func':
+      cx.write(0xd2)
+      cx.leb128(some(cx.names.get(inst.name))[1])
+      break
     case 'op':
       cx.write(some(opcodes.get(inst.name)))
       break

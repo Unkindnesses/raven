@@ -22,7 +22,7 @@ if (!port) throw new Error('REPL worker requires a parent port')
 const imports = {
   wasm: {
     memory: new WebAssembly.Memory({ initial: 0 }),
-    funcs: new WebAssembly.Table({ initial: 16, element: 'anyfunc' }),
+    funcs: new WebAssembly.Table({ initial: 0, element: 'anyfunc' }),
     jsrefs: new WebAssembly.Table({ initial: 0, element: 'externref' })
   }
 }

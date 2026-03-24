@@ -4,7 +4,7 @@ import { Def, LineInfo } from '../dwarf/index.js'
 export {
   NumType, RefType, ValueType, HeapType, AbsHeapType, sizeof, f64, f32, i64, i32, externref, funcref, asNumType,
   Signature, LineInfo, Instruction,
-  Const, RefNull, nop, GetLocal, SetLocal, GetGlobal, SetGlobal, TableOp, Op, Drop, Select, Convert, Branch, Call, CallIndirect, Return, unreachable, Block, Loop, instr,
+  Const, RefNull, RefFunc, nop, GetLocal, SetLocal, GetGlobal, SetGlobal, TableOp, Op, Drop, Select, Convert, Branch, Call, CallIndirect, Return, unreachable, Block, Loop, instr,
   Func, Table, Mem, Global, Elem, Data, Import, Export, CustomSection, Module,
   signatures, callees, zero
 }
@@ -77,6 +77,7 @@ type Instruction =
   | { kind: 'const'; type: NumType.f32 | NumType.f64; val: number }
   | { kind: 'const'; type: NumType.i32 | NumType.i64; val: bigint }
   | { kind: 'ref_null'; type: HeapType }
+  | { kind: 'ref_func'; name: string }
   | { kind: 'nop' }
   | { kind: 'get_local'; id: number }
   | { kind: 'set_local'; tee: boolean; id: number }
@@ -105,6 +106,10 @@ function Const(type: NumType, val: number | bigint): Instruction & { kind: 'cons
 
 function RefNull(type: HeapType): Instruction {
   return { kind: 'ref_null', type }
+}
+
+function RefFunc(name: string): Instruction {
+  return { kind: 'ref_func', name }
 }
 
 const nop: Instruction = { kind: 'nop' }
@@ -343,6 +348,7 @@ function callees(x: Func): string[] {
   function visit(node: Instruction) {
     switch (node.kind) {
       case 'call':
+      case 'ref_func':
         cs.push(node.name)
         break
       case 'block':

@@ -73,4 +73,23 @@ test('clear removes globals', async () => {
   }
 })
 
+test('invoke closure object', async () => {
+  const repl = new REPL({ stdout: new PassThrough() })
+  try {
+    await repl.init()
+    await repl.eval('TInt64 = Pack(Literal(Int), bits 64)')
+    await repl.eval('bundle Apply(f)')
+    await repl.eval(`
+      fn (f: Apply)(x, y) {
+        Apply(f) = f
+        Int64(f(x, y))
+      }
+    `)
+    await repl.eval('f = Function(Apply(js.Math.pow), [TInt64, TInt64], TInt64)')
+    assert.strictEqual((await repl.eval('invoke(f, 2, 3)')).trim(), '8')
+  } finally {
+    await repl.close()
+  }
+})
+
 test.run()
