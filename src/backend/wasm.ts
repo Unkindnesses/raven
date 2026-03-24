@@ -418,7 +418,7 @@ class StreamEmitter implements Emitter {
     this.tables = tables
     this.seen = new Set()
     this.queue = []
-    this.globals = -1
+    this.globals = 0
   }
 
   private emitFunc(calls: Map<string, wasm.Func | WSig>, func: wasm.Func, fs: wasm.Func[], imports: string[]) {
@@ -435,8 +435,6 @@ class StreamEmitter implements Emitter {
   }
 
   emit(calls: Map<string, wasm.Func | WSig>, func: wasm.Func) {
-    const first = this.globals === -1
-    if (first) this.globals = 0
     const fs: wasm.Func[] = []
     const imports: string[] = []
     this.emitFunc(calls, func, fs, imports)
@@ -451,11 +449,9 @@ class StreamEmitter implements Emitter {
     const globals: wasm.Global[] = []
     for (let i = this.globals + 1; i <= globalTypes.length; i++)
       globals.push(wasm.Global(...globalTypes[i - 1]))
-    if (!first) {
-      iimports.push(wasm.Import('wasm', 'memory', wasm.Mem('memory', 0)))
-      for (const t of moduleTables(this.tables))
-        iimports.push(wasm.Import('wasm', t.name, t))
-    }
+    iimports.push(wasm.Import('wasm', 'memory', wasm.Mem('memory', 0)))
+    for (const t of moduleTables(this.tables))
+      iimports.push(wasm.Import('wasm', t.name, t))
     const wmod = wasm.Module({
       funcs: fs,
       imports: [...stringImports(this.tables.strings), ...gimports, ...iimports],
@@ -465,9 +461,7 @@ class StreamEmitter implements Emitter {
         ...fs.map(f => wasm.Export(f.name, f.name)),
         ...globals.map(g => wasm.Export(g.name, g.name))],
       globals,
-      tables: first ? moduleTables(this.tables) : [],
       elems: [wasm.Elem('funcs', Array.from(this.tables.funcs))],
-      mems: first ? [wasm.Mem('memory', 0)] : [],
       customs: metaSection(this.tables)
     })
     this.queue.push(wmod)
