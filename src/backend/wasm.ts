@@ -12,9 +12,9 @@ import { Def } from '../dwarf/index.js'
 import { Redirect, Sig } from '../middle/abstract.js'
 import { Accessor } from '../utils/fixpoint.js'
 import { xtuple } from '../frontend/lower.js'
-import { asArray, some } from '../utils/map.js'
+import { some } from '../utils/map.js'
 
-export { wasmPartials, Wasm, BatchEmitter, StreamEmitter, Emitter, emitwasm, lowerwasm, lowerwasm_globals, calltree }
+export { wasmPartials, Wasm, BatchEmitter, StreamEmitter, Emitter, emitwasm, lowerwasm, lowerwasm_globals, lowerfunc, calltree }
 
 type PartialFn = (...args: Type[]) => Type
 
@@ -85,9 +85,16 @@ function lowerconst(x: MValue): WValue {
   throw new Error(`Expected bits/float constant, got ${types.repr(T)}`)
 }
 
+function lowerfunc(name: string, ir: WIR): wasm.Func {
+  const func = irfunc(name, ir)
+  func.callees = (ir as any).callees ?? []
+  return func
+}
+
 function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: Cache<Binding, string[]>, tables: Tables): WIR {
   const out = WIR(ir.meta)
   const env = new Map<number, Val<WIR>>()
+  const callees: string[] = []
   // TODO deprecate array types
   const type = (t: Anno<Type>): Anno<wasm.ValueType[]> => t === unreachable ? [] : wlayout(t)
   const rename = (x: Val<MIR>) => typeof x === 'number' ? some(env.get(x)) : lowerconst(asValue(x))
@@ -114,6 +121,8 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: Cache
       } else if (st.expr instanceof Func) {
         const sig = [st.expr.method, ...st.expr.body.map(x => asType(ir.type(x)))] as Sig
         const name = names.get(sig)
+        if (!callees.includes(name)) callees.push(name);
+        (out as any).callees = callees
         env.set(v, out.push({ ...st, expr: xtuple(WValue.i32(tables.func(name))), type: type(st.type) }))
       } else if (['tuple', 'ref'].includes(st.expr.head)) {
         env.set(v, out.push({ ...st, expr: st.expr.map(rename as any) as unknown as Expr<WValue>, type: type(st.type) }))
@@ -178,7 +187,9 @@ function lowerwasm_globals(ir: WIR, globals: Cache<Binding, string[]>): WIR {
       pr.push(pr.stmt(instr(wasm.SetGlobal(ids[i]), p), { type: [] }))
     }
   }
-  return pr.finish()
+  const out = pr.finish();
+  (out as any).callees = (ir as any).callees
+  return out
 }
 
 function frame(code: Accessor<Sig, Redirect | MIR>, sig: Sig): MIR {
@@ -230,7 +241,7 @@ class Wasm implements Caching {
     this.funcs = new Cache<Sig, wasm.Func>(sig => {
       // TODO: we use `frame` to avoid redirects, but this can duplicate function
       // bodies. Should instead avoid calling redirected sigs, eg via casting.
-      return irfunc(this.names.get(sig), this.lower(frame(code, sig)))
+      return lowerfunc(this.names.get(sig), this.lower(frame(code, sig)))
     })
   }
   lower(ir: MIR) { return lowerwasm(ir, this.names, this.globals, this.tables) }
@@ -258,9 +269,6 @@ function calltree(mod: Wasm, root: wasm.Func): Map<string, wasm.Func | WSig> {
     for (const g of wasm.callees(func)) visit(g)
   }
   for (const f of wasm.callees(root)) visit(f)
-  // TODO the guard is a bit hacky, but old funcs can be invalidated.
-  // Ideally we'd know which funcs are new/used in the tree.
-  for (const f of mod.tables.funcs) if (mod.names.hasvalue(f)) visit(f)
   return calls
 }
 
@@ -314,15 +322,11 @@ class BatchEmitter implements Emitter {
 
   emit(calls: Map<string, wasm.Func | WSig>, func: wasm.Func) {
     this.emitFunc(calls, func)
-    // TODO emit only new funcs
-    for (const f of this.tables.funcs) if (calls.get(f)) this.emitName(calls, f)
     this.main.push(func.name)
   }
 
   destructor(calls: Map<string, wasm.Func | WSig>, func: wasm.Func) {
     this.emitFunc(calls, func)
-    // TODO emit only new funcs
-    for (const f of this.tables.funcs) if (calls.get(f)) this.emitName(calls, f)
     this.destructors.push(func.name)
   }
 
@@ -436,7 +440,6 @@ class StreamEmitter implements Emitter {
     const fs: wasm.Func[] = []
     const imports: string[] = []
     this.emitFunc(calls, func, fs, imports)
-    for (const f of this.tables.funcs) this.emitName(calls, f, fs, imports)
     fs.unshift(startfunc([func.name]))
     const iimports = setdiff(imports, fs.map(f => f.name)).map(f => wimport(calls, f))
     const gimports: wasm.Import[] = []

@@ -8,7 +8,6 @@ import { Expanded } from '../middle/expand.js'
 import { Inlined, opcount } from '../middle/inline.js'
 import { isreftype, release_method, refcounts } from '../middle/refcount.js'
 import * as wasm from './wasm.js'
-import { irfunc } from '../wasm/ir.js'
 import { reset, reuse, pipe, Caching, withtime } from '../utils/cache.js'
 import { Loader, loadmodule, reload, SourceString } from '../middle/load.js'
 import { binding, options } from '../utils/options.js'
@@ -61,13 +60,13 @@ class Pipeline implements Caching {
     const name = this.wasm.names.get([m])
     const gs = assigned_globals(ir)
     let wir = this.wasm.lower(ir)
-    const fns = wasm.calltree(this.wasm, irfunc(name, wir))
+    const fns = wasm.calltree(this.wasm, wasm.lowerfunc(name, wir))
     for (const [b, T] of gs) this.sources.set(b, T)
     if (gs.size > 0) reset(this)
     if (opcount(ir) <= 0) return
     if (em instanceof wasm.BatchEmitter) this.destructors(gs, em)
     wir = wasm.lowerwasm_globals(wir, this.wasm.globals)
-    em.emit(fns, irfunc(name, wir))
+    em.emit(fns, wasm.lowerfunc(name, wir))
   }
 
   private destructors(gs: Map<mods.Binding, types.Type>, em: wasm.BatchEmitter) {
@@ -79,7 +78,7 @@ class Pipeline implements Caching {
       const value = code.push(code.stmt(mods.xglobal(b), { type: T }))
       code.return(code.push(code.stmt(new mods.Invoke(release_method, [value]), { type: types.nil })))
       const wir = this.wasm.lower(code)
-      const func = irfunc(fname, wir)
+      const func = wasm.lowerfunc(fname, wir)
       const calls = wasm.calltree(this.wasm, func)
       em.destructor(calls, func)
     }

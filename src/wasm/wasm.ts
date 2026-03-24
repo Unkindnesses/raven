@@ -189,10 +189,11 @@ interface Func {
   locals: ValueType[]
   body: Block
   meta: Def
+  callees: string[]
 }
 
 function Func(name: string, sig: Signature, locals: ValueType[], body: Block, meta: Def): Func {
-  return { kind: 'func', name, sig, locals, body, meta }
+  return { kind: 'func', name, sig, locals, body, meta, callees: [] }
 }
 
 interface Table {
@@ -338,7 +339,7 @@ function signatures(m: Module): Signature[] {
 // Some AST utils
 
 function callees(x: Func): string[] {
-  const cs: string[] = []
+  const cs = [...x.callees]
   function visit(node: Instruction) {
     switch (node.kind) {
       case 'call':
