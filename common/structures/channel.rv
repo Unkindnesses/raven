@@ -1,0 +1,60 @@
+export { RingBuffer, put!, take! }
+
+TInt64 = Pack(Literal(Int), bits 64)
+
+bundle RingBuffer(data: Cell, state: Cell)
+
+fn RingBuffer(T, cap: Int64) {
+  if cap < 1 { abort("RingBuffer capacity must be positive") }
+  state = Cell(TInt64, 2)
+  state[1] = 1
+  state[2] = 0
+  RingBuffer(Cell(T, cap), state)
+}
+
+fn length(buf: RingBuffer(data, state)) {
+  state[2]
+}
+
+fn wrap(i: Int64, cap: Int64) {
+  rem(i - 1, cap) + 1
+}
+
+fn slot(state: Cell, cap: Int64, i: Int64) {
+  wrap(state[1] + i - 1, cap)
+}
+
+fn requireIndex(i: Int64, len: Int64) {
+  if i < 1 || i > len {
+    abort("RingBuffer index out of range")
+  }
+}
+
+fn (buf: RingBuffer(data, state))[i] {
+  requireIndex(i, state[2])
+  data[slot(state, length(data), i)]
+}
+
+fn set(&buf: RingBuffer(data, state), x, i: Int64) {
+  requireIndex(i, state[2])
+  data[slot(state, length(data), i)] = x
+  buf = RingBuffer(data, state)
+}
+
+fn put!(&buf: RingBuffer(data, state), x) {
+  n = state[2]
+  if n == length(data) { abort("RingBuffer is full") }
+  data[slot(state, length(data), n + 1)] = x
+  state[2] = n + 1
+  return buf
+}
+
+fn take!(&buf: RingBuffer(data, state)) {
+  n = state[2]
+  if n == 0 { abort("RingBuffer is empty") }
+  x = data[state[1]]
+  n = n - 1
+  state[1] = wrap(state[1] + 1, length(data))
+  state[2] = n
+  return x
+}

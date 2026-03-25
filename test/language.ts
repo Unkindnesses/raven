@@ -1058,6 +1058,34 @@ test('cell', async () => {
   `)
 })
 
+test('circular buffer', async () => {
+  await rv(`
+    buf = RingBuffer(Float64, 3)
+
+    put!(buf, 10.0)
+    put!(buf, 20.0)
+    put!(buf, 30.0)
+
+    test length(buf) == 3
+    test buf[1] == 10.0
+    test buf[2] == 20.0
+    test buf[3] == 30.0
+
+    test take!(buf) == 10.0
+    put!(buf, 40.0)
+
+    test buf[1] == 20.0
+    test buf[2] == 30.0
+    test buf[3] == 40.0
+
+    buf[2] = 35.0
+    test take!(buf) == 20.0
+    test take!(buf) == 35.0
+    test take!(buf) == 40.0
+    test length(buf) == 0
+  `)
+})
+
 test('allocs', async () => {
   await rv(`
     test (allocs 1 + 2) == 0
