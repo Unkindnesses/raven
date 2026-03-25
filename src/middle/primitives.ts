@@ -277,6 +277,7 @@ const invokeFunction_method = primitive('common.core.invokeFunction', '[f, xs]')
 const alloc_method = primitive('common.core.alloc', '[T, n]', (T: Type, n: Type) => types.Ptr())
 const load_method = primitive('common.core.load', '[T, ptr, i]', (T: Type, ptr: Type, i: Type) => rvtype(T))
 const store_method = primitive('common.core.store', '[T, ptr, i, x]', (T: Type, ptr: Type, i: Type, x: Type) => types.nil)
+const length_method = primitive('common.core.length', '[ptr]', (ptr: Type) => types.int64())
 
 const allocs_method = primitive('common.core.allocs', '[n]', (n: Type) => isInt(n, 32) ? types.int32() : unreachable)
 const frees_method = primitive('common.core.frees', '[n]', (n: Type) => isInt(n, 32) ? types.int32() : unreachable)
@@ -305,6 +306,7 @@ function primitives(): Method[] {
     alloc_method,
     load_method,
     store_method,
+    length_method,
     allocs_method,
     frees_method,
   ]
@@ -644,6 +646,7 @@ outlinePrimitive.set(invokeFunction_method.id, (F: Type, O: Type, _: Type, I: Ty
 })
 
 function ptrOffset(code: Fragment<MIR>, ptr: Val<MIR>, i: Val<MIR>, I: Type, T: Type): Val<MIR> {
+  ptr = call(code, types.tag('common.+'), [ptr, i32(code, 4)], types.Ptr())
   ptr = call(code, types.tag('common.addr'), [ptr], types.int32())
   const idx = getIntValue(I) === undefined
     ? call(code, types.tag('common.-'), [call(code, types.tag('common.Int32'), [i], types.int32()), i32(code, 1)], types.int32())
@@ -661,7 +664,9 @@ inlinePrimitive.set(alloc_method.id, (code, st) => {
     ? call(code, types.tag('common.Int32'), [n], types.int32())
     : i32(code, some(getIntValue(asType(code.type(n)))))
   const bytes = sizeof(T) === 1 ? count : call(code, types.tag('common.*'), [count, i32(code, sizeof(T))], types.int32())
-  return call(code, types.tag('common.malloc!'), [bytes], types.Ptr())
+  const ptr = call(code, types.tag('common.malloc!'), [call(code, types.tag('common.+'), [bytes, i32(code, 4)], types.int32())], types.Ptr())
+  store(code, types.int32(), ptr, count)
+  return ptr
 })
 
 inlinePrimitive.set(load_method.id, (code, st) => {
@@ -676,6 +681,12 @@ inlinePrimitive.set(store_method.id, (code, st) => {
   const X = asType(code.type(x))
   store(code, T, ptrOffset(code, ptr, i, asType(code.type(i)), T), cast(code, X, T, x))
   return types.nil
+})
+
+inlinePrimitive.set(length_method.id, (code, st) => {
+  const ptr = st.expr.body[0]
+  const len = load(code, types.int32(), ptr)
+  return call(code, types.tag('common.Int64'), [len], types.int64())
 })
 
 function counter(code: Fragment<MIR>, st: InvokeSt, global: string): Val<MIR> {

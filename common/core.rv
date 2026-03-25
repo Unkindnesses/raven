@@ -18,7 +18,7 @@ export {
   bitshl, bitshr_u, bitshr_s, bitand, bitor, bitxor, bitadd, bitsub, bitmul, bitdiv_u, bitdiv_s, bitrem_u, bitrem_s
   biteq, biteqz, bitne, bitgt_u, bitge_u, bitlt_u, bitle_u, bitgt_s, bitge_s, bitlt_s, bitle_s
   nil?, notnil, tagcast, tagstring, function, invoke, allocs, frees
-  alloc, load, store
+  alloc, load, store, length
 }
 
 pack   = tag".pack"
@@ -74,3 +74,4 @@ frees = tag".frees"
 alloc = tag".alloc"
 load = tag".load"
 store = tag".store"
+length = tag".length"

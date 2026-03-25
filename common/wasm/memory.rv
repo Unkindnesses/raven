@@ -1,4 +1,4 @@
-export { Ptr, Function, Ref, Cell, addr, pointer, invoke }
+export { Ptr, Function, Ref, Cell, addr, pointer, invoke, length }
 
 fn matchTrait(tag"common.core.Func", x: pack(tag"common.core.Func", _)) { Some(x) }
 
@@ -78,4 +78,8 @@ fn (c: Cell(T, Counted(ptr)))[i] {
 
 fn set(&c: Cell(T, Counted(ptr)), x, i: Int64) {
   store(T, ptr, i, x)
+}
+
+fn length(Cell(_, Counted(ptr))) {
+  tag"common.core.length"(ptr)
 }

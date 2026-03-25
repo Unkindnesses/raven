@@ -1052,6 +1052,7 @@ test('global list release', async () => {
 test('cell', async () => {
   await rv(`
     buf = Cell(Float64, 5)
+    test length(buf) == 5
     buf[1] = widen(3.5)
     test buf[1] == 3.5
   `)
