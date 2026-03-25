@@ -3,16 +3,18 @@ import * as path from 'node:path'
 import { Writable } from 'node:stream'
 import { dirname } from './dirname.js'
 import { binary as wasmBinary } from '../wasm/binary.js'
-import { StreamEmitter } from '../backend/wasm.js'
+import * as wasm from '../backend/wasm.js'
 import { Pipeline, withEmit } from '../backend/compiler.js'
 import { load } from './compile.js'
 import { reset } from '../utils/cache.js'
 import { LoadState, vload, reload, source } from '../middle/load.js'
+import * as types from '../frontend/types.js'
 import { tag } from '../frontend/types.js'
 import { parse } from '../frontend/parse.js'
 import * as ast from '../frontend/ast.js'
 import { WorkerCommand, WorkerRequest, WorkerResponse } from './worker.js'
 import { Options, withOptions } from '../utils/options.js'
+import { invoke_method } from '../middle/primitives.js'
 
 export { REPL }
 
@@ -30,7 +32,7 @@ interface Pending {
 class REPL {
   private readonly worker: Worker
   private pipe: Pipeline
-  private readonly emitter: StreamEmitter
+  private readonly emitter: wasm.StreamEmitter
   private readonly history: { pipe: Pipeline, input: string }[] = []
   private readonly pending = new Map<number, Pending>()
   private readonly stdout: Writable
@@ -45,7 +47,7 @@ class REPL {
     this.stderr = opts.stderr ?? process.stderr
     this.options = opts.options ?? {}
     this.pipe = new Pipeline()
-    this.emitter = new StreamEmitter(this.pipe.wasm.tables)
+    this.emitter = new wasm.StreamEmitter(this.pipe.wasm.tables)
     this.worker = new Worker(path.join(dirname, '../../dist/cli/worker.js'), { name: 'raven-repl' })
     this.attachIO()
   }
@@ -67,9 +69,10 @@ class REPL {
   async init() {
     await withOptions(this.options, async () => {
       await this.pipe.loadcommon(this.emitter, load)
+      this.pipe.export(this.emitter, [invoke_method, types.Func, types.list(), types.list(), types.list()], '__raven_async_task')
       await withEmit(m => {
         reset(this.pipe)
-        this.pipe.emit(m, this.emitter)
+        this.pipe.emit(this.emitter, m)
       }, async () => {
         await reload(this.pipe.sources, source('repl', ''), load)
       })
@@ -90,7 +93,7 @@ class REPL {
       exprs[exprs.length - 1] = wrapPrint(exprs[exprs.length - 1])
       await withEmit(m => {
         reset(pipe)
-        pipe.emit(m, this.emitter)
+        pipe.emit(this.emitter, m)
       }, async () => {
         const defs = pipe.sources
         const module = defs.module(tag(''))

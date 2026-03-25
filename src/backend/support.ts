@@ -35,11 +35,16 @@ interface JSEntry {
   params: string[]
 }
 
-function support() {
+interface Runtime {
+  asyncTask: (f: number) => Promise<void>
+}
+
+function support(rt: Runtime) {
   return {
     call, apply, abort,
     equal: (x: any, y: any) => x === y,
     identity: (x: any) => x,
+    async: (f: number) => rt.asyncTask(f),
     await: new (WebAssembly as any).Suspending((x: any) => x),
     errcall: new (WebAssembly as any).Suspending(errcall),
     debugger: () => { debugger }
@@ -115,8 +120,12 @@ async function compile(source: Uint8Array | URL, imports: any = {}) {
   if (source instanceof Uint8Array)
     module = await (WebAssembly.compile as any)(new Uint8Array(source), compileOptions)
   const meta = parseRavenMeta(module!)
-  imports = { ...imports, support: support(), inline: inline(meta?.js ?? []) }
+  const rt = { asyncTask(_: number) { throw new Error("no async helper") } }
+  imports = { ...imports, support: support(rt), inline: inline(meta?.js ?? []) }
   const instance = await WebAssembly.instantiate(module!, imports)
+  const exports = instance.exports as any
+  if (exports.__raven_async_task)
+    rt.asyncTask = (WebAssembly as any).promising(exports.__raven_async_task)
   return { module: module!, instance }
 }
 

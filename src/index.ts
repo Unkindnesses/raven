@@ -76,7 +76,7 @@ class StreamCompiler {
     modules.push(...await this.init(strip))
     await withEmit(m => {
       reset(this.pipe)
-      this.pipe.emit(m, this.emitter)
+      this.pipe.emit(this.emitter, m)
     }, async () => {
       const defs = this.pipe.sources
       const module = defs.module(tag(''))
@@ -94,7 +94,7 @@ class StreamCompiler {
     if (this.ready) return []
     await withEmit(m => {
       reset(this.pipe)
-      this.pipe.emit(m, this.emitter)
+      this.pipe.emit(this.emitter, m)
     }, async () => {
       await reload(this.pipe.sources, source('repl', ''), this.load)
     })

@@ -1078,6 +1078,29 @@ test('js callable', async () => {
   `)
 })
 
+test('async', async () => {
+  await rv(`
+    start = Latch()
+    done = Latch()
+
+    fn task1() {
+      release(start)
+      await(done)
+      println("first")
+    }
+
+    fn task2() {
+      await(start)
+      println("second")
+      release(done)
+    }
+
+    a = async(task1)
+    b = async(task2)
+    await(a), await(b)
+  `, { output: /second\s+first/ })
+})
+
 test('wasi', async () => {
   await compile(path.join(__dirname, 'language', 'wasi.rv'),
     { options: { memcheck: false } })

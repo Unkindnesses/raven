@@ -3,7 +3,7 @@ import { tag } from '../frontend/types.js'
 import * as mods from '../frontend/modules.js'
 import { Traced } from '../middle/tracer.js'
 import { MatchMethods } from '../middle/patterns.js'
-import { Inferred, Redirect } from '../middle/abstract.js'
+import { Inferred, Redirect, Sig } from '../middle/abstract.js'
 import { Expanded } from '../middle/expand.js'
 import { Inlined, opcount } from '../middle/inline.js'
 import { isreftype, release_method, refcounts } from '../middle/refcount.js'
@@ -12,7 +12,7 @@ import { reset, reuse, pipe, Caching, withtime } from '../utils/cache.js'
 import { Loader, loadmodule, reload, SourceString } from '../middle/load.js'
 import { binding, options } from '../utils/options.js'
 import { Lowered, assigned_globals } from '../frontend/lower.js'
-import { core } from '../middle/primitives.js'
+import { core, invoke_method } from '../middle/primitives.js'
 import { only } from '../utils/map.js'
 import { Def } from '../dwarf/index.js'
 
@@ -54,7 +54,7 @@ class Pipeline implements Caching {
   reset(deps: Set<bigint>): void { reset(pipe(...this.subcaches), deps) }
 
   // TODO less backend-dependent
-  emit(m: mods.Method, em: wasm.Emitter): void {
+  emit(em: wasm.Emitter, m: mods.Method): void {
     let ir = this.counted.get([m])
     if (ir instanceof Redirect) throw new Error('nope')
     const name = this.wasm.names.get([m])
@@ -67,6 +67,12 @@ class Pipeline implements Caching {
     if (em instanceof wasm.BatchEmitter) this.destructors(gs, em)
     wir = wasm.lowerwasm_globals(wir, this.wasm.globals)
     em.emit(fns, wasm.lowerfunc(name, wir))
+  }
+
+  export(em: wasm.Emitter, sig: Sig, as?: string): string {
+    const func = this.wasm.get(sig)
+    em.export(wasm.calltree(this.wasm, func), func, as)
+    return func.name
   }
 
   private destructors(gs: Map<mods.Binding, types.Type>, em: wasm.BatchEmitter) {
@@ -87,7 +93,7 @@ class Pipeline implements Caching {
   async loadcommon(emitter: wasm.Emitter, load: Loader): Promise<this> {
     const emit = (m: mods.Method) => {
       reset(this)
-      this.emit(m, emitter)
+      this.emit(emitter, m)
     }
     await withEmit(emit, async () => {
       this.sources.module(core())
@@ -135,15 +141,17 @@ class Compiler {
     const [, t] = await withtime(async () => {
       const emitIR = (m: mods.Method) => {
         reset(this.pipe)
-        this.pipe.emit(m, em)
+        this.pipe.emit(em, m)
       }
       await withEmit(emitIR, async () => { await reload(this.pipe.sources, src, this.load) })
       reset(this.pipe)
       if (options().memcheck && em.funcs.some(fn => fn.name.startsWith('common.malloc!'))) {
         em.main.push(...em.destructors)
         const checks = this.pipe.defs.methods(tag('common.checkAllocations'))
-        this.pipe.emit(only(checks), em)
+        this.pipe.emit(em, only(checks))
       }
+      if (em.imports.some(imp => imp.mod === 'support' && imp.name === 'async'))
+        this.pipe.export(em, [invoke_method, types.Func, types.list(), types.list(), types.list()], '__raven_async_task')
     })
     this.time += t
     return em

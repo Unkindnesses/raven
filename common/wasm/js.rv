@@ -1,5 +1,5 @@
 export {
-  JSObject, Primitive, debugger, abort, js, call, errcall, await, new, sleep
+  JSObject, Primitive, Task, Latch, debugger, abort, js, call, errcall, async, await, new, sleep, release
   readline, import, typeof
 }
 
@@ -225,5 +225,46 @@ fn sleep(n) {
   })
   ```
   await(p)
+  return
+}
+
+# Async
+
+bundle Task(promise: Ref)
+
+bundle AsyncClosure(f)
+
+fn (f: AsyncClosure)() {
+  AsyncClosure(f) = f
+  f()
+  return
+}
+
+fn async(f) {
+  func = Function(AsyncClosure(f), [], Pack(Literal(Nil)))
+  Task(wasm call(support.async, part(func, 1)): ref)
+}
+
+fn await(Task(ref)) {
+  wasm call(support.await, ref)
+}
+
+bundle Latch(promise: JSObject, resolve: JSObject)
+
+fn Latch() {
+  pr = ```js
+  let resolve
+  return [new Promise(r => { resolve = r }), resolve]
+  ```
+  return Latch(pr[0], pr[1])
+}
+
+fn await(Latch(promise, _)) {
+  await(promise)
+  return
+}
+
+fn release(Latch(_, resolve)) {
+  resolve()
   return
 }

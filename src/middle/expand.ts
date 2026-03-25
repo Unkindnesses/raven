@@ -104,9 +104,10 @@ function trim_unreachable(code: MIR): MIR {
 
 function union_downcast(pr: Fragment<MIR>, U: Type & { kind: 'union' }, i: number, x: Val<MIR>): Val<MIR> {
   const offset = 1 + U.options.slice(0, i - 1).reduce((n, t) => n + layout(t).length, 0)
-  const regs = layout(U.options[i - 1]).length
+  const regs = layout(U.options[i - 1])
   const parts: Val<MIR>[] = []
-  for (let j = 1; j <= regs; j++) parts.push(pr.push(pr.stmt(xref(x, offset + j))))
+  for (let j = 1; j <= regs.length; j++)
+    parts.push(pr.push(pr.stmt(xref(x, offset + j), { type: regs[j - 1] })))
   return pr.push(pr.stmt(xtuple(...parts), { type: U.options[i - 1] }))
 }
 
@@ -697,11 +698,22 @@ function expand(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
   return code
 }
 
+function outlineInlinePrimitive(F: Method, ...Ts: Type[]): MIR {
+  if (!F.func) throw new Error(`no partial for ${F.name.path}`)
+  const code = MIR(Def(F.name.path))
+  const args = Ts.map(T => code.argument(T))
+  const st = code.stmt(new Invoke(F, [...F.params, ...args]), { type: F.func(...F.params, ...Ts) })
+  code.return(inlinePrimitive.get(F.id)!(code, st as InvokeSt))
+  return code
+}
+
 function Expanded(inf: Inferred): Cache<Sig, Redirect | MIR> {
   return new Cache<Sig, Redirect | MIR>((sig: Sig) => {
     const [F, ...Ts] = sig
     if (F instanceof Method && outlinePrimitive.has(F.id))
       return outlinePrimitive.get(F.id)!(...F.params, ...Ts)
+    if (F instanceof Method && inlinePrimitive.has(F.id))
+      return outlineInlinePrimitive(F, ...Ts)
     const res = inf.get(sig)
     if (res instanceof Redirect) return res
     return expand(inf, ...res)

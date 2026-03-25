@@ -124,7 +124,10 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: Cache
         if (!callees.includes(name)) callees.push(name);
         (out as any).callees = callees
         env.set(v, out.push({ ...st, expr: xtuple(WValue.i32(tables.func(name))), type: type(st.type) }))
-      } else if (['tuple', 'ref'].includes(st.expr.head)) {
+      } else if (st.expr.head === 'tuple') {
+        const body = st.expr.body.filter(x => !types.isValue(asType(ir.type(x)))).map(rename)
+        env.set(v, out.push({ ...st, expr: expr('tuple', ...body), type: type(st.type) }))
+      } else if (st.expr.head === 'ref') {
         env.set(v, out.push({ ...st, expr: st.expr.map(rename as any) as unknown as Expr<WValue>, type: type(st.type) }))
       } else if (st.expr.head === 'cast') { // TODO just use `tuple` instead
         const arg = st.expr.body[0]
@@ -160,7 +163,8 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: Cache
         const expr = instr(wasm.Call(names.get(sig)), ...args.map(rename))
         env.set(v, out.push({ ...st, expr: expr, type: wparts(st.type) }))
       } else if (st.expr.head === 'call_indirect') {
-        const [id, ...args] = st.expr.body
+        let [id, ...args] = st.expr.body
+        args = args.filter(x => !types.isValue(asType(ir.type(x))))
         const I = args.flatMap(x => wlayout(asType(ir.type(x))))
         const O = wlayout(asType(st.type))
         env.set(v, out.push({ ...st, expr: instr(wasm.CallIndirect(wasm.Signature(I, O), 'funcs'), ...args.map(rename), rename(id)), type: O }))
@@ -274,7 +278,10 @@ function calltree(mod: Wasm, root: wasm.Func): Map<string, wasm.Func | WSig> {
 
 // Batch emitter, for AOT compilation
 
-type Emitter = { emit(calls: Map<string, wasm.Func | WSig>, func: wasm.Func): void }
+type Emitter = {
+  emit(calls: Map<string, wasm.Func | WSig>, func: wasm.Func): void
+  export(calls: Map<string, wasm.Func | WSig>, func: wasm.Func, as?: string): void
+}
 
 class BatchEmitter implements Emitter {
   tables: Tables
@@ -330,9 +337,9 @@ class BatchEmitter implements Emitter {
     this.destructors.push(func.name)
   }
 
-  export(name: string, as = name) {
-    const existing = this.exports.some(ex => ex.name === name && ex.as === as)
-    if (!existing) this.exports.push(wasm.Export(name, as))
+  export(calls: Map<string, wasm.Func | WSig>, func: wasm.Func, as = func.name) {
+    this.emitFunc(calls, func)
+    this.exports.push(wasm.Export(func.name, as))
   }
 }
 
@@ -428,12 +435,14 @@ class StreamEmitter implements Emitter {
   tables: Tables
   seen: Set<string>
   queue: wasm.Module[]
+  exports: { name: string, as: string, sig: wasm.Signature }[]
   globals: number
   funcs: number
   constructor(tables: Tables) {
     this.tables = tables
     this.seen = new Set()
     this.queue = []
+    this.exports = []
     this.globals = 0
     this.funcs = 0
   }
@@ -451,12 +460,15 @@ class StreamEmitter implements Emitter {
     if (!Array.isArray(fn)) this.emitFunc(calls, fn, fs, imports)
   }
 
-  emit(calls: Map<string, wasm.Func | WSig>, func: wasm.Func) {
+  private queueModule(calls: Map<string, wasm.Func | WSig>, func: wasm.Func, main: string[]) {
     const fs: wasm.Func[] = []
     const imports: string[] = []
     this.emitFunc(calls, func, fs, imports)
-    fs.unshift(startfunc([func.name], extendFuncs(this.funcs, this.tables.funcs.slice(this.funcs))))
+    fs.unshift(startfunc(main, extendFuncs(this.funcs, this.tables.funcs.slice(this.funcs))))
     const iimports = setdiff(imports, fs.map(f => f.name)).map(f => wimport(calls, f))
+    for (const ex of this.exports)
+      if (!fs.some(f => f.name === ex.name))
+        iimports.push(wasm.Import('wasm', ex.name, { ...ex.sig, name: ex.name }))
     const gimports: wasm.Import[] = []
     const globalTypes = [...refGlobals, ...this.tables.globals]
     for (let i = 1; i <= this.globals; i++) {
@@ -476,6 +488,7 @@ class StreamEmitter implements Emitter {
         wasm.Export('memory'),
         ...moduleTables().map(x => wasm.Export(x.name)),
         ...fs.map(f => wasm.Export(f.name, f.name)),
+        ...this.exports.map(ex => wasm.Export(ex.name, ex.as)),
         ...globals.map(g => wasm.Export(g.name, g.name))],
       globals,
       customs: metaSection(this.tables)
@@ -483,5 +496,14 @@ class StreamEmitter implements Emitter {
     this.queue.push(wmod)
     this.globals = globalTypes.length
     this.funcs = this.tables.funcs.length
+  }
+
+  emit(calls: Map<string, wasm.Func | WSig>, func: wasm.Func) {
+    this.queueModule(calls, func, [func.name])
+  }
+
+  export(calls: Map<string, wasm.Func | WSig>, func: wasm.Func, as = func.name) {
+    this.exports.push({ name: func.name, as, sig: func.sig })
+    this.queueModule(calls, func, [])
   }
 }

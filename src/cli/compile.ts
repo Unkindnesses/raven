@@ -11,7 +11,6 @@ import { spawn, SpawnOptions } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { dirname } from './dirname.js'
 import { Compiler } from '../backend/compiler.js'
-import { Sig } from '../middle/abstract.js'
 import { Def } from '../dwarf/index.js'
 
 export { Compiler, compile, compileJS, exec, load }
@@ -83,16 +82,6 @@ function libWrapperMethod(name: string, f: types.Tag): MethodSource {
   return { kind: 'fn', body, meta: Def(name) }
 }
 
-function emitSig(compiler: Compiler, em: wasm.BatchEmitter, sig: Sig, main = true): string {
-  reset(compiler.pipe)
-  const func = compiler.pipe.wasm.get(sig)
-  const calls = wasm.calltree(compiler.pipe.wasm, func)
-  const start = em.main.length
-  em.emit(calls, func)
-  if (!main) em.main.length = start
-  return func.name
-}
-
 function exportTSSignature(compiler: Compiler, fn: types.Tag): string | undefined {
   const methods = compiler.pipe.defs.methods(fn)
   const tss = methods
@@ -142,9 +131,8 @@ async function compileJS(file: string, config: CompileConfig = {}): Promise<[Com
       const tag = types.tag(`__raven.lib.${i}`)
       const sig = callpattern(tag, ast.List(ast.symbol('args')))
       const method = mod.method(tag, sig, libWrapperMethod(tag.path, fn))
-      const fname = emitSig(compiler, em, [method, types.Ref], false)
       const wname = `raven.lib.${name}`
-      em.export(fname, wname)
+      compiler.pipe.export(em, [method, types.Ref], wname)
       exports.push([name, wname, exportTSSignature(compiler, fn)])
     }
     const bytes = wasm.emitwasm(em, strip)

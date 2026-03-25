@@ -92,4 +92,15 @@ test('invoke closure object', async () => {
   }
 })
 
+test('async task', async () => {
+  const repl = new REPL({ stdout: new PassThrough() })
+  try {
+    await repl.init()
+    await repl.eval('fn task() { println("ok") }')
+    assert.match(await repl.eval('await(async(task))'), /ok/)
+  } finally {
+    await repl.close()
+  }
+})
+
 test.run()
