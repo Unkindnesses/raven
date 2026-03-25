@@ -1,4 +1,4 @@
-export { RingBuffer, put!, take! }
+export { RingBuffer, Channel, put!, take! }
 
 TInt64 = Pack(Literal(Int), bits 64)
 
@@ -14,6 +14,10 @@ fn RingBuffer(T, cap: Int64) {
 
 fn length(buf: RingBuffer(data, state)) {
   state[2]
+}
+
+fn capacity(RingBuffer(data, _)) {
+  length(data)
 }
 
 fn wrap(i: Int64, cap: Int64) {
@@ -57,4 +61,44 @@ fn take!(&buf: RingBuffer(data, state)) {
   state[1] = wrap(state[1] + 1, length(data))
   state[2] = n
   return x
+}
+
+bundle Channel(buf: RingBuffer, readers: JSObject, writers: JSObject)
+
+fn Channel(T, cap: Int64) {
+  Channel(RingBuffer(T, cap), js([]), js([]))
+}
+
+fn tryPut!(&ch: Channel(buf, readers, writers), x) {
+  if length(buf) == capacity(buf) { return false }
+  put!(buf, x)
+  if Int64(readers.length) != 0 {
+    readers.shift()()
+  }
+  return true
+}
+
+fn put!(&ch: Channel(buf, readers, writers), x) {
+  if tryPut!(ch, x) { return ch }
+  latch = Latch()
+  writers.push(part(latch, 2))
+  await(latch)
+  return put!(ch, x)
+}
+
+fn tryTake!(&ch: Channel(buf, readers, writers)) {
+  if length(buf) == 0 { return nil }
+  x = take!(buf)
+  if Int64(writers.length) != 0 {
+    writers.shift()()
+  }
+  return Some(x)
+}
+
+fn take!(&ch: Channel(buf, readers, writers)) {
+  if let Some(x) = tryTake!(ch) { return x }
+  latch = Latch()
+  readers.push(part(latch, 2))
+  await(latch)
+  return take!(ch)
 }

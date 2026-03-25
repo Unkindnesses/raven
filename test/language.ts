@@ -1113,7 +1113,7 @@ test('async', async () => {
     done = Latch()
 
     fn task1() {
-      release(start)
+      resolve!(start)
       await(done)
       println("first")
     }
@@ -1121,13 +1121,38 @@ test('async', async () => {
     fn task2() {
       await(start)
       println("second")
-      release(done)
+      resolve!(done)
     }
 
     a = async(task1)
     b = async(task2)
     await(a), await(b)
   `, { output: /second\s+first/ })
+})
+
+test('channel', async () => {
+  await rv(`
+    ch = Channel(Float64, 1)
+    start = Latch()
+
+    fn writer() {
+      put!(ch, 10.0)
+      println("put1")
+      resolve!(start)
+      put!(ch, 20.0)
+      println("put2")
+    }
+
+    fn reader() {
+      await(start)
+      println(take!(ch))
+      println(take!(ch))
+    }
+
+    a = async(writer)
+    b = async(reader)
+    await(a), await(b)
+  `, { output: /put1\s+10.0\s+put2\s+20.0/ })
 })
 
 test('wasi', async () => {

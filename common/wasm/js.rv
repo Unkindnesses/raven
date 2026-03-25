@@ -1,5 +1,5 @@
 export {
-  JSObject, Primitive, Task, Latch, debugger, abort, js, call, errcall, async, await, new, sleep, release
+  JSObject, Primitive, Task, Latch, debugger, abort, js, call, errcall, async, await, new, sleep, resolve!
   readline, import, typeof
 }
 
@@ -264,7 +264,7 @@ fn await(Latch(promise, _)) {
   return
 }
 
-fn release(Latch(_, resolve)) {
-  resolve()
+fn resolve!(Latch(_, r)) {
+  r()
   return
 }
