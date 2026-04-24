@@ -69,19 +69,26 @@ fn Channel(T, cap: Int64) {
   Channel(RingBuffer(T, cap), js([]), js([]))
 }
 
+fn notify(waiters: JSObject) {
+  ```js
+  while (\waiters.length !== 0) {
+    const [future, index] = \waiters.shift()
+    if (future.resolve(index)) break
+  }
+  ```
+}
+
 fn tryPut!(&ch: Channel(buf, readers, writers), x) {
   if length(buf) == capacity(buf) { return false }
   put!(buf, x)
-  if Int64(readers.length) != 0 {
-    readers.shift()()
-  }
+  notify(readers)
   return true
 }
 
 fn put!(&ch: Channel(buf, readers, writers), x) {
   if tryPut!(ch, x) { return ch }
   future = JSFuture()
-  writers.push(part(future, 1).resolve)
+  writers.push([future, 0])
   await(future)
   return put!(ch, x)
 }
@@ -89,16 +96,61 @@ fn put!(&ch: Channel(buf, readers, writers), x) {
 fn tryTake!(&ch: Channel(buf, readers, writers)) {
   if length(buf) == 0 { return nil }
   x = take!(buf)
-  if Int64(writers.length) != 0 {
-    writers.shift()()
-  }
+  notify(writers)
   return Some(x)
 }
 
 fn take!(&ch: Channel(buf, readers, writers)) {
   if let Some(x) = tryTake!(ch) { return x }
   future = JSFuture()
-  readers.push(part(future, 1).resolve)
+  readers.push([future, 0])
   await(future)
   return take!(ch)
+}
+
+fn selectPrepare(tag".take!", future: JSFuture, i: Int64, Channel(buf, readers, _)) {
+  if length(buf) != 0 {
+    resolve!(future, i)
+  } else {
+    readers.push([future, i])
+  }
+  return
+}
+
+fn selectAccept(tag".take!", &ch: Channel) {
+  if let Some(x) = tryTake!(ch) { return x }
+  abort("select take failed")
+}
+
+fn selectPrepare(tag".put!", future: JSFuture, i: Int64, Channel(buf, _, writers), _) {
+  if length(buf) != capacity(buf) {
+    resolve!(future, i)
+  } else {
+    writers.push([future, i])
+  }
+  return
+}
+
+fn selectAccept(tag".put!", &ch: Channel, x) {
+  if !tryPut!(ch, x) { abort("select put failed") }
+  return
+}
+
+fn selectPrepare(tag".await", future: JSFuture, i: Int64, promise: JSObject) {
+  promise.then(js`return () => \future.resolve(\i)`)
+  return
+}
+
+fn selectAccept(tag".await", promise: JSObject) {
+  await(promise)
+}
+
+fn select(cases...) {
+  future = JSFuture()
+  for i = range(1, length(cases)) {
+    [f, args] = cases[i]
+    selectPrepare(f, future, i, args...)
+  }
+  index = await(future)
+  Int64(index)
 }

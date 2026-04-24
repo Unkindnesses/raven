@@ -157,6 +157,35 @@ function testmacro(ex: ast.Expr): ast.Tree {
   ))
 }
 
+interface SelectCase {
+  pattern?: ast.Tree
+  call: ast.Expr
+  body: ast.Tree
+}
+
+function parseSelectCall(ex: ast.Tree): { pattern?: ast.Tree, call: ast.Expr } {
+  ex = ex.ungroup()
+  if (ast.isExpr(ex, 'Operator') && symbol('=').isEqual(ex.args[0].unwrap())) {
+    const call = ex.args[2].ungroup()
+    if (!ast.isExpr(call, 'Call')) throw new Error('select case assignment must be of the form `x = f(...)`')
+    return { pattern: ex.args[1], call }
+  }
+  if (!ast.isExpr(ex, 'Call')) throw new Error('select case must be of the form `f(...)` or `x = f(...)`')
+  return { call: ex }
+}
+
+function parseSelectCase(ex: ast.Tree): SelectCase {
+  if (!(ast.isExpr(ex, 'Syntax') && symbol('case').isEqual(ex.args[0].unwrap())))
+    throw new Error('select block entries must be cases')
+  if (ex.args.length !== 3) throw new Error('select case must have an operation and a body')
+  const { pattern, call } = parseSelectCall(ex.args[1])
+  return { pattern, call, body: ast.asExpr(ex.args[2], 'Block') }
+}
+
+function selectDescriptor(c: SelectCase): ast.Expr {
+  return ast.List(c.call.args[0], ast.List(...c.call.args.slice(1)))
+}
+
 function allocsmacro(ex: ast.Expr): ast.Expr {
   const arg = ex.args[1]
   const before = gensym("before")
@@ -637,6 +666,8 @@ function lowerSyntax(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR>
     return lowerWhile(sc, code, ex, value)
   } else if (syntax === 'if') {
     return lowerIf(sc, code, parseIf(ex), value)
+  } else if (syntax === 'select') {
+    return lowerSelect(sc, code, ex, value)
   } else if (syntax === 'wasm') {
     const [op, T, ret] = intrinsic(ex.args[1])
     const args = intrinsic_args(ex.args[1]).map(arg => lower(sc, code, arg))
@@ -650,6 +681,48 @@ function lowerSyntax(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR>
   } else {
     throw new Error(`unrecognised syntax: ${syntax}`)
   }
+}
+
+function lowerSelect(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
+  if (ex.args.length !== 2) throw new Error('select expects a single block')
+  const cases = ast.asExpr(ex.args[1], 'Block').args.map(parseSelectCase)
+  if (cases.length === 0) throw new Error('select requires at least one case')
+  const index = lower(sc, code, ast.Call(tag('common.select'), ...cases.map(selectDescriptor)).withmeta(ex.meta))
+  const targets: ir.Block<LIR>[] = []
+  const values: Val<LIR>[] = []
+
+  const lowerBody = (c: SelectCase): Val<LIR> => {
+    const branchScope = Scope(sc)
+    const selected = lower(branchScope, code, ast.Call(tag('common.selectAccept'), c.call.args[0], ...c.call.args.slice(1)))
+    if (c.pattern) {
+      const pat = c.pattern.ungroup()
+      if (pat instanceof ast.Token && pat.unwrap() instanceof Symbol)
+        _push(code, ir.expr('set', branchScope.var(pat.unwrap().toString()), selected))
+      else
+        lowermatch(branchScope, code, selected, c.pattern)
+    }
+    return lower(branchScope, code, c.body, value)
+  }
+
+  for (let i = 0; i < cases.length; i++) {
+    const cond = rcall(code, tag('common.=='), [index, Type(BigInt(i + 1))], { src: ex.meta })
+    const condBlock = code.block()
+    const bodyStart = code.newBlock()
+    const bodyValue = lowerBody(cases[i])
+    if (value) values.push(bodyValue)
+    targets.push(code.block())
+    const next = code.newBlock()
+    condBlock.branch(bodyStart, [], { when: cond, src: ex.meta && source(ex.meta) })
+    condBlock.branch(next)
+  }
+
+  rcall(code, tag('common.abort'), [string(code, 'select failed')], { src: ex.meta })
+  const after = code.newBlock()
+  for (let i = 0; i < targets.length; i++)
+    if (targets[i].canbranch())
+      if (value) targets[i].branch(after, [values[i]])
+      else targets[i].branch(after)
+  return value ? after.argument(ir.unreachable) : nil
 }
 
 type LetCond = { kind: 'let', ex: ast.Tree }

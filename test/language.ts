@@ -1171,6 +1171,38 @@ test('channel', async () => {
   `, { output: /put1\s+10.0\s+put2\s+20.0/ })
 })
 
+test('select', async () => {
+  await rv(`
+    ch1 = Channel(Float64, 1)
+    ch2 = Channel(Float64, 1)
+    put!(ch2, 20.0)
+
+    select {
+      case x = take!(ch1) { println(x) }
+      case y = take!(ch2) { println(y) }
+    }
+  `, { output: /20.0/ })
+
+  await rv(`
+    ch = Channel(Float64, 1)
+    put!(ch, 1.0)
+    done = JSFuture()
+
+    fn reader() {
+      println(take!(ch))
+      println(take!(ch))
+      resolve!(done)
+    }
+
+    task = async(reader)
+    select {
+      case put!(ch, 2.0) { println("put") }
+    }
+    await(done)
+    await(task)
+  `, { output: /1.0\s+put\s+2.0/ })
+})
+
 test('wasi', async () => {
   await compile(path.join(__dirname, 'language', 'wasi.rv'),
     { options: { memcheck: false } })

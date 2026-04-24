@@ -252,6 +252,8 @@ fn await(Task(ref)) {
 
 bundle JSFuture(promise: JSObject)
 
+fn js(JSFuture(promise)) { promise }
+
 fn JSFuture() {
   promise = ```js
   const { promise, resolve, reject } = Promise.withResolvers()
@@ -286,12 +288,12 @@ fn resolve!(JSFuture(promise)) {
   return
 }
 
-fn resolve!(JSFuture(promise), obj: JSObject) {
+fn resolve!(JSFuture(promise), obj) {
   promise.resolve(obj)
   return
 }
 
-fn reject!(JSFuture(promise), obj: JSObject) {
+fn reject!(JSFuture(promise), obj) {
   promise.reject(obj)
   return
 }
