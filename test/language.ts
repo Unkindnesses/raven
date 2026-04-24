@@ -1109,8 +1109,8 @@ test('js callable', async () => {
 
 test('async', async () => {
   await rv(`
-    start = Latch()
-    done = Latch()
+    start = JSFuture()
+    done = JSFuture()
 
     fn task1() {
       resolve!(start)
@@ -1130,10 +1130,26 @@ test('async', async () => {
   `, { output: /second\s+first/ })
 })
 
+test('js future', async () => {
+  await rv(`
+    future = JSFuture()
+    test !resolved?(future)
+    resolve!(future, js(42))
+    test resolved?(future)
+    resolve!(future, js(100))
+    test Int64(await(future)) == 42
+
+    rejected = JSFuture()
+    part(rejected, 1).catch(js\`return () => undefined\`)
+    reject!(rejected, js(5))
+    test resolved?(rejected)
+  `)
+})
+
 test('channel', async () => {
   await rv(`
     ch = Channel(Float64, 1)
-    start = Latch()
+    start = JSFuture()
 
     fn writer() {
       put!(ch, 10.0)

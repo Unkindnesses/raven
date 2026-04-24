@@ -1,5 +1,6 @@
 export {
-  JSObject, Primitive, Task, Latch, debugger, abort, js, call, errcall, async, await, new, sleep, resolve!
+  JSObject, Primitive, Task, JSFuture, debugger, abort, js, call, errcall, async, await, new, sleep
+  resolve!, reject!, resolved?
   readline, import, typeof
 }
 
@@ -249,22 +250,48 @@ fn await(Task(ref)) {
   wasm call(support.await, ref)
 }
 
-bundle Latch(promise: JSObject, resolve: JSObject)
+bundle JSFuture(promise: JSObject)
 
-fn Latch() {
-  pr = ```js
-  let resolve
-  return [new Promise(r => { resolve = r }), resolve]
+fn JSFuture() {
+  promise = ```js
+  const { promise, resolve, reject } = Promise.withResolvers()
+  promise.state = 0
+  promise.resolve = value => {
+    if (promise.state !== 0) return false
+    promise.state = 1
+    resolve(value)
+    return true
+  }
+  promise.reject = value => {
+    if (promise.state !== 0) return false
+    promise.state = 2
+    reject(value)
+    return true
+  }
+  return promise
   ```
-  return Latch(pr[0], pr[1])
+  return JSFuture(promise)
 }
 
-fn await(Latch(promise, _)) {
+fn await(JSFuture(promise)) {
   await(promise)
+}
+
+fn resolved?(JSFuture(promise)) {
+  Int64(promise.state) != 0
+}
+
+fn resolve!(JSFuture(promise)) {
+  promise.resolve()
   return
 }
 
-fn resolve!(Latch(_, r)) {
-  r()
+fn resolve!(JSFuture(promise), obj: JSObject) {
+  promise.resolve(obj)
+  return
+}
+
+fn reject!(JSFuture(promise), obj: JSObject) {
+  promise.reject(obj)
   return
 }

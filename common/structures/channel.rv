@@ -80,9 +80,9 @@ fn tryPut!(&ch: Channel(buf, readers, writers), x) {
 
 fn put!(&ch: Channel(buf, readers, writers), x) {
   if tryPut!(ch, x) { return ch }
-  latch = Latch()
-  writers.push(part(latch, 2))
-  await(latch)
+  future = JSFuture()
+  writers.push(part(future, 1).resolve)
+  await(future)
   return put!(ch, x)
 }
 
@@ -97,8 +97,8 @@ fn tryTake!(&ch: Channel(buf, readers, writers)) {
 
 fn take!(&ch: Channel(buf, readers, writers)) {
   if let Some(x) = tryTake!(ch) { return x }
-  latch = Latch()
-  readers.push(part(latch, 2))
-  await(latch)
+  future = JSFuture()
+  readers.push(part(future, 1).resolve)
+  await(future)
   return take!(ch)
 }
