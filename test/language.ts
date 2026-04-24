@@ -1112,20 +1112,18 @@ test('async', async () => {
     start = JSFuture()
     done = JSFuture()
 
-    fn task1() {
+    a = async {
       resolve!(start)
       await(done)
       println("first")
     }
 
-    fn task2() {
+    b = async {
       await(start)
       println("second")
       resolve!(done)
     }
 
-    a = async(task1)
-    b = async(task2)
     await(a), await(b)
   `, { output: /second\s+first/ })
 })
@@ -1151,7 +1149,7 @@ test('channel', async () => {
     ch = Channel(Float64, 1)
     start = JSFuture()
 
-    fn writer() {
+    a = async {
       put!(ch, 10.0)
       println("put1")
       resolve!(start)
@@ -1159,14 +1157,12 @@ test('channel', async () => {
       println("put2")
     }
 
-    fn reader() {
+    b = async {
       await(start)
       println(take!(ch))
       println(take!(ch))
     }
 
-    a = async(writer)
-    b = async(reader)
     await(a), await(b)
   `, { output: /put1\s+10.0\s+put2\s+20.0/ })
 })
@@ -1188,13 +1184,12 @@ test('select', async () => {
     put!(ch, 1.0)
     done = JSFuture()
 
-    fn reader() {
+    task = async {
       println(take!(ch))
       println(take!(ch))
       resolve!(done)
     }
 
-    task = async(reader)
     select {
       case put!(ch, 2.0) { println("put") }
     }

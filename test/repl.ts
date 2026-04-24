@@ -89,8 +89,7 @@ test('async task', async () => {
   const repl = new REPL({ stdout: new PassThrough() })
   try {
     await repl.init()
-    await repl.eval('fn task() { println("ok") }')
-    assert.match(await repl.eval('await(async(task))'), /ok/)
+    assert.match(await repl.eval('await(async { println("ok") })'), /ok/)
   } finally {
     await repl.close()
   }

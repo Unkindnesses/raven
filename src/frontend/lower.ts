@@ -196,6 +196,12 @@ function allocsmacro(ex: ast.Expr): ast.Expr {
   )
 }
 
+function asyncmacro(ex: ast.Expr): ast.Tree {
+  if (ex.args.length !== 2 || !ast.isExpr(ex.args[1], 'Block'))
+    throw new Error('async syntax expects a single block')
+  return ast.Call(s('async'), ast.Syntax(s('fn'), ex.args[1])).withmeta(ex.meta)
+}
+
 const macros = new Map<string, (ex: ast.Expr) => ast.Tree>([
   ['bundle', bundlemacro],
   ['for', formacro],
@@ -204,6 +210,7 @@ const macros = new Map<string, (ex: ast.Expr) => ast.Tree>([
   ['test', testmacro],
   ['match', matchmacro],
   ['allocs', allocsmacro],
+  ['async', asyncmacro],
 ])
 
 function macroName(ex: ast.Tree): string | undefined {
