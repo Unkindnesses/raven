@@ -96,6 +96,23 @@ test('alloc check', async () => {
   `, { output: 'Warning: retained memory' })
 })
 
+test('deterministic lifetimes', async () => {
+  await rv(`
+    fn foo() {
+      collect(range(1, widen(2)))
+    }
+
+    {
+      x = foo()
+      y = foo()
+      test allocationCount() == 2
+      z = [x, y]
+    }
+
+    test allocationCount() == 0
+  `)
+})
+
 test('invoke', async () => {
   await rv(`
     TInt64 = Pack(Literal(Int), bits 64)
