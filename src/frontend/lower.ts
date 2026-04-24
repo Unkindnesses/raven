@@ -13,7 +13,7 @@ import { modtag } from "./patterns.js"
 import { Cache, Caching } from "../utils/cache.js"
 
 export {
-  Lowered, lower_toplevel, bundlemacro, lowerfn, source,
+  Lowered, lower_toplevel, bundlemacro, expand, lowerfn, source,
   globals, assigned_globals, xlist, xpart, xcall, xtuple, attrs
 }
 
@@ -205,6 +205,19 @@ const macros = new Map<string, (ex: ast.Expr) => ast.Tree>([
   ['match', matchmacro],
   ['allocs', allocsmacro],
 ])
+
+function macroName(ex: ast.Tree): string | undefined {
+  const [x] = attrs(ex)
+  if (!ast.isExpr(x, 'Syntax')) return
+  return asSymbol(x.args[0].unwrap()).toString()
+}
+
+function expand(ex: ast.Tree): ast.Tree {
+  if (ex instanceof ast.Token) return ex
+  const name = macroName(ex)
+  if (name && macros.has(name)) return expand(macros.get(name)!(ex))
+  return new ast.Expr(ex.head, ex.args.map(expand), ex.meta)
+}
 
 // Expr -> IR lowering
 
@@ -674,10 +687,6 @@ function lowerSyntax(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR>
     return _push(code, new Wasm(op, args, ret), { src: ex.meta, type: T, bp: true })
   } else if (syntax === 'let') {
     return lowerLet(sc, code, ex, value)
-  } else if (macros.has(syntax)) {
-    const macro = macros.get(syntax)!
-    const expanded = macro(ex)
-    return lower(sc, code, expanded, value)
   } else {
     throw new Error(`unrecognised syntax: ${syntax}`)
   }
@@ -909,6 +918,7 @@ function lowerIf(sc: Scope, code: LIR, ex: IfStmt, value = true): Val<LIR> {
 }
 
 function lowerfn(mod: Tag, sig: Signature, body: ast.Tree, meta: Def): MIR {
+  body = expand(body)
   const sc = Scope(GlobalScope(mod), sig.swap)
   const code = LIR(meta)
   for (const arg of sig.args) {
@@ -959,6 +969,7 @@ function assigned_globals(code: MIR): Map<Binding, Type> {
 }
 
 function lower_toplevel(mod: Module, ex: ast.Tree, meta: Def): [MIR, Set<string>] {
+  ex = expand(ex)
   const sc = GlobalScope(mod.name)
   const code = LIR(meta)
   lower(sc, code, ex, false)

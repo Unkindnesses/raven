@@ -3,7 +3,7 @@ import { Module, Modules, Binding, Signature, calltarget } from "../frontend/mod
 import { Def } from "../dwarf/index.js"
 import { Anno, unreachable } from "../utils/ir.js"
 import { callpattern, callablepattern, modtag } from "../frontend/patterns.js"
-import { lower_toplevel, bundlemacro, source, attrs } from "../frontend/lower.js"
+import { lower_toplevel, expand, source, attrs } from "../frontend/lower.js"
 import { symbolValues } from "./primitives.js"
 import * as ast from "../frontend/ast.js"
 import { parse } from "../frontend/parse.js"
@@ -174,6 +174,7 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
 }
 
 async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> {
+  x = expand(x)
   let [ex] = attrs(x)
   if (ast.isExpr(ex, 'Syntax')) {
     x = x as ast.Expr
@@ -182,7 +183,6 @@ async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> 
     if (ast.symbol('export').isEqual(first)) return load_export(cx, x)
     if (ast.symbol('import').isEqual(first)) return load_import(cx, x)
     if (ast.symbol('clear').isEqual(first)) return load_clear(cx, x)
-    if (ast.symbol('bundle').isEqual(first)) return vload(cx, bundlemacro(x))
     if (ast.symbol('fn').isEqual(first)) return load_fn(cx, x)
     return load_expr(cx, x)
   }
