@@ -1123,8 +1123,6 @@ test('async', async () => {
       println("second")
       resolve!(done)
     }
-
-    await(a), await(b)
   `, { output: /second\s+first/ })
 })
 
@@ -1162,8 +1160,6 @@ test('channel', async () => {
       println(take!(ch))
       println(take!(ch))
     }
-
-    await(a), await(b)
   `, { output: /put1\s+10.0\s+put2\s+20.0/ })
 })
 
@@ -1194,7 +1190,6 @@ test('select', async () => {
       case put!(ch, 2.0) { println("put") }
     }
     await(done)
-    await(task)
   `, { output: /1.0\s+put\s+2.0/ })
 })
 

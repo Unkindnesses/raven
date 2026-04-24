@@ -100,7 +100,8 @@ function countptr(code: ir.Fragment<MIR>, ptr: ir.Val<MIR>, mode: CountMode): vo
 }
 
 function counted_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode): void {
-  countptr(code, indexer(code, T, types.int64(1), x, types.int64(1)), mode)
+  const f = mode === 'retain' ? tag('common.retain!') : tag('common.release!')
+  call(code, f, [indexer(code, T, types.int64(1), x, types.int64(1))], types.nil)
 }
 
 function count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode, heap = false): void {

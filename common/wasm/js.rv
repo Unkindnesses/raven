@@ -231,7 +231,26 @@ fn sleep(n) {
 
 # Async
 
-bundle Task(promise: Ref)
+bundle TaskState(ptr: Ptr, promise: Ref)
+
+fn Task(ref: Ref) {
+  Task(Counted(TaskState(malloc!(Int32(0)), ref)))
+}
+
+fn await(TaskState(ptr, promise)) {
+  wasm call(support.await, promise)
+}
+
+fn retain!(TaskState(ptr, _)) {
+  retain!(ptr)
+}
+
+fn release!(t: TaskState(ptr, _)) {
+  if blockUnique(ptr) { await(t) }
+  release!(ptr)
+}
+
+bundle Task(state: Counted)
 
 bundle AsyncClosure(f)
 
@@ -246,8 +265,8 @@ fn async(f) {
   Task(wasm call(support.async, part(func, 1)): ref)
 }
 
-fn await(Task(ref)) {
-  wasm call(support.await, ref)
+fn await(Task(Counted(state))) {
+  await(state)
 }
 
 bundle JSFuture(promise: JSObject)
