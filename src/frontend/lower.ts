@@ -128,7 +128,7 @@ function matchmacro(ex: ast.Expr): ast.Expr {
   for (let i = 0; i < clauses.length; i++) {
     const clause = clauses[i]
     if (i > 0) body.push(token(s('else')), token(s('if')))
-    if (!(ast.isExpr(clause, 'Syntax') && asSymbol(clause.args[0].unwrap()).toString() == 'let'))
+    if (!ast.isSyntax(clause, 'let'))
       throw new Error('matchmacro: clause must be a let')
     body.push(token(s('let')), ast.Operator(s('='), clause.args[1], val), ast.asExpr(clause.args[2], 'Block'))
   }
@@ -175,7 +175,7 @@ function parseSelectCall(ex: ast.Tree): { pattern?: ast.Tree, call: ast.Expr } {
 }
 
 function parseSelectCase(ex: ast.Tree): SelectCase {
-  if (!(ast.isExpr(ex, 'Syntax') && symbol('case').isEqual(ex.args[0].unwrap())))
+  if (!ast.isSyntax(ex, 'case'))
     throw new Error('select block entries must be cases')
   if (ex.args.length !== 3) throw new Error('select case must have an operation and a body')
   const { pattern, call } = parseSelectCall(ex.args[1])

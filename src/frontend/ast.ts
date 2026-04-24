@@ -2,7 +2,7 @@ import { Tag } from './types.js'
 
 export {
   Cursor, Symbol, symbol, gensym, asSymbol, asString, asNumber, Atom, isAtom,
-  Meta, Tree, Token, ExprHead, Expr, isExpr, asExpr, asToken, token, repr
+  Meta, Tree, Token, ExprHead, Expr, isExpr, asExpr, asToken, token, repr, isSyntax
 }
 
 interface Cursor {
@@ -79,6 +79,10 @@ class Expr {
 
 function isExpr<T extends ExprHead>(x: Tree, head: T): x is Expr & { head: T } {
   return x instanceof Expr && x.head === head
+}
+
+function isSyntax(ex: Tree, name: string): ex is Expr & { head: 'Syntax' } {
+  return isExpr(ex, 'Syntax') && symbol(name).isEqual(ex.args[0].unwrap())
 }
 
 function asExpr<T extends ExprHead>(x: Tree, head?: T): Expr & { head: T } {

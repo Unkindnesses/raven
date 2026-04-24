@@ -154,7 +154,7 @@ test('prefix negation binds tighter than infix operators', () => {
 
 function lower(def: string) {
   const ex = parse('test', def)[0]
-  if (!ast.isExpr(ex, 'Syntax') || asSymbol(ex.args[0].unwrap()).toString() !== 'fn')
+  if (!ast.isSyntax(ex, 'fn'))
     throw new Error('Expected function definition starting with "fn"')
   const sig = ast.asExpr(ex.args[1], 'Call')
   const fn = tag(asSymbol(sig.args[0].unwrap()).toString())

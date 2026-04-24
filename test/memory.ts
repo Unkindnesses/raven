@@ -121,18 +121,29 @@ test('invoke', async () => {
   `)
 })
 
+test('anonymous function object', async () => {
+  await rv(`
+    fn foo() {
+      f = fn { 2 + 2 }
+      f()
+    }
+
+    f = fn { 2 + 2 }
+    h = fn (x) { x + 1 }
+    g = fn (x, y) { x * y }
+
+    test foo() == 4
+    test f() == 4
+    test h(41) == 42
+    test g(6, 7) == 42
+  `)
+})
+
 test('invoke closure object', async () => {
   await rv(`
     TInt64 = Pack(Literal(Int), bits 64)
 
-    bundle Apply(f)
-
-    fn (f: Apply)(x, y) {
-      Apply(f) = f
-      Int64(f(x, y))
-    }
-
-    f = Function(Apply(js.Math.pow), [TInt64, TInt64], TInt64)
+    f = Function(fn (x, y) { Int64(js.Math.pow(x, y)) }, [TInt64, TInt64], TInt64)
     test f(2, 3) == 8
   `)
 })

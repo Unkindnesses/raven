@@ -88,6 +88,7 @@ async function load_include(cx: LoadState, x: ast.Expr): Promise<void> {
 }
 
 function load_expr(cx: LoadState, x: ast.Tree): void {
+  x = replaceInnerFns(cx, x, { owner: new Tag(cx.mod.name, ast.gensym('global')), count: 0 })
   const meta = Def('(global)', x.meta && source(x.meta))
   const [ir, defs] = lower_toplevel(cx.mod, x, meta)
   for (const def of defs) if (!cx.mod.has(def)) cx.mod.set(def, unreachable)
@@ -102,6 +103,40 @@ function receiverTag(cx: LoadState, ex: ast.Tree): Tag {
     throw new Error('Call overloads need a typed receiver, eg fn (f: T)(args...)')
   const trait = ex.args[2].ungroup().unwrap()
   return calltarget(resolve_static(cx, ast.asSymbol(trait)))
+}
+
+interface LiftState {
+  owner: Tag
+  count: number
+}
+
+function lambdaParts(ex: ast.Expr): [ast.Tree[], ast.Tree] | undefined {
+  if (!ast.isSyntax(ex, 'fn')) return
+  if (ex.args.length === 2 && ast.isExpr(ex.args[1], 'Block')) return [[], ex.args[1]]
+  if (ex.args.length === 3 && ast.isExpr(ex.args[2], 'Block')) {
+    if (!ast.isExpr(ex.args[1], 'Group')) throw new Error(`Expected anonymous function argument list, got ${ast.repr(ex.args[1])}`)
+    return [ex.args[1].args, ex.args[2]]
+  }
+  return
+}
+
+function registerLambda(cx: LoadState, name: Tag, params: ast.Tree[], body: ast.Tree, meta?: ast.Meta): void {
+  const resolve = (x: ast.Symbol) => resolve_static(cx, x)
+  const lambdaType = ast.Call(tag('common.core.pack'), name)
+  const self = ast.Operator(ast.symbol(':'), ast.symbol('_'), lambdaType)
+  const sig = callablepattern(ast.List(self, ...params), cx.mod.name, resolve)
+  cx.mod.method(name, sig, { kind: 'fn', body, meta: Def(name.path, meta && source(meta)) })
+}
+
+function replaceInnerFns(cx: LoadState, x: ast.Tree, st: LiftState): ast.Tree {
+  if (x instanceof ast.Token) return x
+  const lambda = lambdaParts(x)
+  if (!lambda) return new ast.Expr(x.head, x.args.map(arg => replaceInnerFns(cx, arg, st)), x.meta)
+  const [params, body] = lambda
+  const lambdaTag = new Tag(st.owner, `λ/${++st.count}`)
+  const liftedBody = replaceInnerFns(cx, body, { owner: lambdaTag, count: 0 })
+  registerLambda(cx, lambdaTag, params, liftedBody, x.meta)
+  return ast.Call(tag('common.core.pack'), lambdaTag).withmeta(x.meta)
 }
 
 function load_fn(cx: LoadState, ex: ast.Tree): void {
@@ -134,7 +169,8 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
     sigPattern = callpattern(fnTag, ast.List(...signature.args.slice(1)), cx.mod.name, resolve)
   }
   const meta = Def(fnTag.path, x.meta && source(x.meta))
-  cx.mod.method(fnTag, sigPattern, { kind: 'fn', body, meta }, ts)
+  const liftedBody = replaceInnerFns(cx, body, { owner: fnTag, count: 0 })
+  cx.mod.method(fnTag, sigPattern, { kind: 'fn', body: liftedBody, meta }, ts)
 }
 
 async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> {
