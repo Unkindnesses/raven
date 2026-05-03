@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --enable-source-maps --experimental-wasm-jspi
+#!/usr/bin/env -S node --enable-source-maps
 import * as commander from 'commander'
 import * as fs from 'fs/promises'
 import { randomUUID } from 'crypto'

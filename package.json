@@ -20,9 +20,9 @@
     "prepare": "npm run build",
     "build:cli": "esbuild --platform=node --sourcemap --bundle --format=esm --external:commander --outdir=dist/cli src/cli/index.ts src/cli/worker.ts src/cli/exec.ts src/cli/lib.ts",
     "watch": "npm run build:cli -- --watch",
-    "start": "npm run build:cli && node --enable-source-maps --experimental-wasm-jspi dist/cli/index.js",
+    "start": "npm run build:cli && node --enable-source-maps dist/cli/index.js",
     "build": "node scripts/bundle-common.js && tsc -b && npm run build:cli",
-    "test": "npm run build && node --max-old-space-size=8192 --enable-source-maps --experimental-wasm-jspi ./node_modules/vitest/vitest.mjs run"
+    "test": "npm run build && node --max-old-space-size=8192 --enable-source-maps ./node_modules/vitest/vitest.mjs run"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",

@@ -46,7 +46,7 @@ function testBuildJS(args: string[], hasWasm: boolean) {
   try {
     fs.writeFileSync(rvPath, source)
 
-    let out = spawnSync(process.execPath, ['--enable-source-maps', '--experimental-wasm-jspi', cliPath, 'build', '--js', ...args, rvPath], {
+    let out = spawnSync(process.execPath, ['--enable-source-maps', cliPath, 'build', '--js', ...args, rvPath], {
       encoding: 'utf8'
     })
     assert.strictEqual(out.status, 0, out.stderr || out.stdout)
@@ -57,7 +57,7 @@ function testBuildJS(args: string[], hasWasm: boolean) {
 
     fs.writeFileSync(runPath, runner)
 
-    out = spawnSync(process.execPath, ['--experimental-wasm-jspi', runPath], {
+    out = spawnSync(process.execPath, [runPath], {
       encoding: 'utf8'
     })
     assert.strictEqual(out.status, 0, out.stderr || out.stdout)
@@ -88,7 +88,7 @@ test('build --js exports @ts signatures to emitted d.ts', () => {
       fn add(a, b) { Float64(a) + Float64(b) }
     `)
 
-    let out = spawnSync(process.execPath, ['--enable-source-maps', '--experimental-wasm-jspi', cliPath, 'build', '--js', rvPath], {
+    let out = spawnSync(process.execPath, ['--enable-source-maps', cliPath, 'build', '--js', rvPath], {
       encoding: 'utf8'
     })
     assert.strictEqual(out.status, 0, out.stderr || out.stdout)
@@ -107,4 +107,3 @@ test('build --js exports @ts signatures to emitted d.ts', () => {
     fs.rmSync(dir, { recursive: true, force: true })
   }
 })
-

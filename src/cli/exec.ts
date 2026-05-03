@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --enable-source-maps --experimental-wasm-jspi
+#!/usr/bin/env -S node --enable-source-maps
 import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { loadWasm } from '../backend/support.js'

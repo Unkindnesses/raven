@@ -161,7 +161,7 @@ const execPath = path.join(dirname, '../../dist/cli/exec.js')
 
 async function exec(file: string, args: string[] = [], config?: CompileConfig): Promise<void> {
   if (path.extname(file).toLowerCase() === '.wasm') {
-    await run('node', ['--enable-source-maps', '--experimental-wasm-jspi', execPath, file, ...args], { stdio: 'inherit' })
+    await run('node', ['--enable-source-maps', execPath, file, ...args], { stdio: 'inherit' })
     return
   }
   const dir = await mkdtemp(path.join(tmpdir(), 'raven-exec-'))
@@ -169,7 +169,7 @@ async function exec(file: string, args: string[] = [], config?: CompileConfig): 
   const output = path.join(dir, `${base}.wasm`)
   try {
     [, file] = await compile(file, { ...config, output })
-    await run('node', ['--enable-source-maps', '--experimental-wasm-jspi', execPath, file, ...args], { stdio: 'inherit' })
+    await run('node', ['--enable-source-maps', execPath, file, ...args], { stdio: 'inherit' })
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --enable-source-maps --experimental-wasm-jspi
+#!/usr/bin/env -S node --enable-source-maps
 import { loadWasm } from '../backend/support.js'
 
 export { __ravenInline }
