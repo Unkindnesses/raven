@@ -569,10 +569,10 @@ test('collect range', async () => {
   await rv(`
     {
       xs = collect(range(1, 5))
-      test length(rest(xs)) == 4
+      test rest(xs) == [2, 3, 4, 5]
 
       xs = collect(range(1, widen(5)))
-      test length(rest(xs)) == 4
+      test rest(xs) == [2, 3, 4, 5]
     }
   `)
 })
@@ -580,8 +580,8 @@ test('collect range', async () => {
 test('for expression collects values', async () => {
   await rv(`
     ys = (for x = range(1, 5) { x })
-    println(ys)
-  `, { output: '[1, 2, 3, 4, 5]' })
+    test ys == [1, 2, 3, 4, 5]
+  `)
 })
 
 test('swap method', async () => {
@@ -890,7 +890,7 @@ test('append in if', async () => {
         append(&xs, "foo")
         append(&xs, "bar")
       }
-      test part(xs, 2) == "bar"
+      test xs == ["foo", "bar"]
     }
   `)
 })
@@ -925,11 +925,10 @@ test('rounding', async () => {
   `)
 })
 
-// TODO list equality
 test('collect string', async () => {
   await rv(`
-    show collect("foo")
-  `, { output: '[c"f", c"o", c"o"]' })
+    test collect("foo") == [c"f", c"o", c"o"]
+  `)
 })
 
 test('string indexing', async () => {
@@ -943,16 +942,10 @@ test('utf8 view', async () => {
   await rv(`
     {
       bs = utf8("hi")
-      test length(bs) == 2
-      test bs[1] == UInt8(0x68)
-      test bs[2] == UInt8(0x69)
+      test collect(bs) == [0x68, 0x69]
 
       bs = utf8("🌍")
-      test length(bs) == 4
-      test bs[1] == 0xF0
-      test bs[2] == 0x9F
-      test bs[3] == 0x8C
-      test bs[4] == 0x8D
+      test collect(bs) == [0xF0, 0x9F, 0x8C, 0x8D]
     }
   `)
 })
@@ -966,8 +959,8 @@ test('regex contains', async () => {
 test('regex match', async () => {
   await rv(`
     ms = matches("1, 2, 3", r\`\\d\`)
-    show collect(ms)
-  `, { output: '[["1"], ["2"], ["3"]]' })
+    test collect(ms) == [["1"], ["2"], ["3"]]
+  `)
 })
 
 test('print bits', async () => {
@@ -1036,8 +1029,8 @@ test('array values', async () => {
       return result
     }
 
-    show group(widen(3))
-  `, { output: '[[1], [1, 2], [1, 2, 3]]' })
+    test group(widen(3)) == [[1], [1, 2], [1, 2, 3]]
+  `)
 })
 
 test('global list release', async () => {

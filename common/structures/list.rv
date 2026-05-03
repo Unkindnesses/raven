@@ -12,6 +12,15 @@ fn (xs: List)[i] {
   part(xs, i)
 }
 
+# TODO fallback equality
+fn (xs: List) == (ys: List) {
+  if length(xs) != length(ys) { return false }
+  for i = range(1, length(xs)) {
+    if xs[i] != ys[i] { return false }
+  }
+  return true
+}
+
 fn set(&xs: List, x, i: Int64) {
   xs = tag"common.core.set"(xs, i, x)
 }
