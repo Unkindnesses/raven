@@ -1,4 +1,4 @@
-import { test } from 'uvu'
+import { afterAll, beforeAll, test } from 'vitest'
 import * as assert from 'assert'
 import { chromium } from 'playwright'
 import * as http from 'http'
@@ -28,7 +28,7 @@ function contentType(file: string): string {
   return 'text/html'
 }
 
-test.before(async () => {
+beforeAll(async () => {
   await compileJS(libPath, { output: libJSPath })
 
   server = http.createServer((req, res) => {
@@ -52,7 +52,7 @@ test.before(async () => {
   })
 })
 
-test.after(async () => {
+afterAll(async () => {
   await new Promise<void>(resolve => server.close(() => resolve()))
 })
 
@@ -79,4 +79,3 @@ test('browser js libs', async () => {
   assert.strictEqual(result.value, 42)
 })
 
-test.run()

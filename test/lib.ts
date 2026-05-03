@@ -2,7 +2,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { test } from 'uvu'
+import { test } from 'vitest'
 import assert from 'assert'
 
 const source = `
@@ -108,4 +108,3 @@ test('build --js exports @ts signatures to emitted d.ts', () => {
   }
 })
 
-test.run()

@@ -1,4 +1,4 @@
-import { test } from 'uvu'
+import { beforeAll, test } from 'vitest'
 import * as assert from 'assert'
 import { Compiler, load } from '../src/cli/compile.js'
 import { tag, list, pack, int64, int32, bits, Tag, Type } from '../src/frontend/types.js'
@@ -9,7 +9,7 @@ import { asArray, only } from '../src/utils/map.js'
 
 let compiler: Compiler
 
-test.before(async () => {
+beforeAll(async () => {
   compiler = await Compiler.create(load)
 })
 
@@ -106,4 +106,3 @@ test('infer traces straight-line code', async () => {
   assert.ok(!Array.from(ir).some(([_, st]) => st.expr.head === 'call'))
 })
 
-test.run()

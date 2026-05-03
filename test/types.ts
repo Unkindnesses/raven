@@ -1,4 +1,4 @@
-import { test } from 'uvu'
+import { test } from 'vitest'
 import * as assert from 'assert'
 import {
   Type, tag, pack, vpack, bits, float64, float32, recursive,
@@ -285,4 +285,3 @@ test('', () => {
   assert.deepEqual(simplify(U), Any)
 })
 
-test.run()

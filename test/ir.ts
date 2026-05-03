@@ -1,4 +1,4 @@
-import { test } from 'uvu'
+import { test } from 'vitest'
 import * as assert from 'assert'
 import { CFG, components, expand, prune, expr, unreachable, renumber, Val } from '../src/utils/ir.js'
 import { looped, unloop } from '../src/middle/loop.js'
@@ -121,4 +121,3 @@ test('looped/unloop', () => {
   assert.equal(restored.toString(), original)
 })
 
-test.run()

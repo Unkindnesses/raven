@@ -1,4 +1,4 @@
-import { test } from 'uvu'
+import { test } from 'vitest'
 import { test as rv } from '../src/cli/test.js'
 
 test('Ptr', async () => {
@@ -148,4 +148,3 @@ test('invoke closure object', async () => {
   `)
 })
 
-test.run()

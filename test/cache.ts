@@ -1,4 +1,4 @@
-import { test } from 'uvu'
+import { test } from 'vitest'
 import * as assert from 'assert'
 import { Fixpoint } from '../src/utils/fixpoint.js'
 import { Map, Cache, EagerCache, pipe, reset, fingerprint, CycleCache } from '../src/utils/cache.js'
@@ -139,4 +139,3 @@ test('Recursive Fibonacci', () => {
   assert.equal(fib.get(5), 8)
 })
 
-test.run()

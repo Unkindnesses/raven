@@ -1,11 +1,11 @@
-import { test } from 'uvu'
+import { beforeAll, test } from 'vitest'
 import * as assert from 'assert'
 import * as types from '../src/frontend/types.js'
 import { Compiler, load } from '../src/cli/compile.js'
 
 let compiler: Compiler
 
-test.before(async () => {
+beforeAll(async () => {
   compiler = await Compiler.create(load)
 })
 
@@ -26,4 +26,3 @@ test('interpret matchTrait without Bool trait match', () => {
   assert.deepEqual(result, types.list(types.nil))
 })
 
-test.run()

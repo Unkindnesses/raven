@@ -1,4 +1,4 @@
-import { test } from 'uvu'
+import { test } from 'vitest'
 import * as assert from 'assert'
 import { parse, expr, PrecTable, Prec, inverse, table } from '../src/frontend/parse.js'
 import { lowerfn, lower_toplevel } from '../src/frontend/lower.js'
@@ -393,4 +393,3 @@ test('lower for loop', () => {
   %42 = return pack(tag"common.Nil")`)
 })
 
-test.run()

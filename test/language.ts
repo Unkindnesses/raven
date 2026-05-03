@@ -1,7 +1,7 @@
 import * as path from 'node:path'
 import * as fs from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { test } from 'uvu'
+import { test } from 'vitest'
 import assert from 'assert'
 import { test as rv, runNode } from '../src/cli/test.js'
 import { compile } from '../src/cli/compile.js'
@@ -1205,4 +1205,3 @@ test('wasi', async () => {
   assert.strictEqual(result.stdout, 'hello!\n')
 })
 
-test.run()

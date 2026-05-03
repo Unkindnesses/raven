@@ -1,4 +1,4 @@
-import { test } from 'uvu'
+import { test } from 'vitest'
 import * as assert from 'assert'
 import { Compiler, load } from '../src/cli/compile.js'
 import { Binding } from '../src/frontend/modules.js'
@@ -97,4 +97,3 @@ test('match method', async () => {
   assert.ok(compiler.pipe.inferred.results.iscached(key(sig)))
 })
 
-test.run()

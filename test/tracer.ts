@@ -1,4 +1,4 @@
-import { test } from 'uvu'
+import { beforeAll, test } from 'vitest'
 import * as assert from 'assert'
 import { tag, list, int64, float64, bits, pack, String, nil, Tag, Type } from '../src/frontend/types.js'
 import { Compiler, load } from '../src/cli/compile.js'
@@ -11,7 +11,7 @@ function trace(f: Tag, ...args: Type[]) {
   return some(tr._trace(f, f, list(...args)))
 }
 
-test.before(async () => {
+beforeAll(async () => {
   const compiler = await Compiler.create(load)
   tr = new Tracer(compiler.pipe.defs, compiler.pipe.lowered, compiler.pipe.interp)
 })
@@ -66,4 +66,3 @@ test('trace print', () => {
   assert.ok(ir.length <= 50) // TODO shorten
 })
 
-test.run()

@@ -1,4 +1,4 @@
-import { test as _test } from 'uvu'
+import { test as _test } from 'vitest'
 import * as assert from 'assert'
 import { compile } from '../src/cli/compile.js'
 import { spawnSync } from 'node:child_process'
@@ -140,5 +140,3 @@ foo(1)
     output: /^Error: something's wrong!\n    at foo \(.+\/test\.rv:3:8\)\n    at .+\/test\.rv:6:4\n?$/
   })
 })
-
-_test.run()

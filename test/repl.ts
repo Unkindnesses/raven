@@ -1,6 +1,6 @@
 import { PassThrough } from 'node:stream'
 import * as assert from 'assert'
-import { test } from 'uvu'
+import { test } from 'vitest'
 import { REPL } from '../src/cli/repl.js'
 
 test('basic eval', async () => {
@@ -95,4 +95,3 @@ test('async task', async () => {
   }
 })
 
-test.run()

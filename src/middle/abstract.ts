@@ -236,7 +236,7 @@ function update(inf: Inference, k: string): void {
   let ret: Anno<Type> = unreachable
   let path: Path | null = new Path()
   const reachable = new HashSet<Path>([path])
-  loop: while (path) {
+  update: while (path) {
     const bl = block(fr.ir, path)
     for (const [v, st] of bl) {
       const ex = st.expr
@@ -271,7 +271,7 @@ function update(inf: Inference, k: string): void {
         const inner = some(loop(bl))
         blockargs(inner.body[0].block(1), bl.argtypes.map(t => asType(t)))
         path = new Path([...path.parts, [1, 1]])
-        continue loop
+        continue update
       } else if (st.expr instanceof Branch) {
         const br = st.expr
         if (br.isreturn()) {
@@ -289,7 +289,7 @@ function update(inf: Inference, k: string): void {
           reachable.add(p)
           if ((blockargs(block(fr.ir, p), args) || rr) && p.lt(path)) {
             path = p
-            continue loop
+            continue update
           }
           if (isEqual(condT, Type(true))) break
         }

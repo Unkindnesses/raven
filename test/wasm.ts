@@ -1,4 +1,4 @@
-import { test } from 'uvu'
+import { test } from 'vitest'
 import * as assert from 'assert'
 import { leb128U, leb128S, Def } from '../src/dwarf/index.js'
 import * as wasm from '../src/wasm/wasm.js'
@@ -75,4 +75,3 @@ test('binary', () => {
   assert.ok(compiled_wat(m).includes('(export "wasmAdd" (func $add))'))
 })
 
-test.run()
