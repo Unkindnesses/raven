@@ -485,10 +485,10 @@ function lowerOperator(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LI
     _push(code, ir.expr('set', x, ySlot))
     return x
   } else if (op === '=' && ast.isExpr(ex.args[1], 'Index')) {
-    // Index assignment: xs[i] = x
-    const [xs, i] = ast.asExpr(ex.args[1]).args
+    // Index assignment: xs[i, ...] = x
+    const [xs, ...idxs] = ast.asExpr(ex.args[1]).args
     const x = ex.args[2]
-    return lower(sc, code, ast.Call(tag('common.set'), ast.Swap(xs), x, i).withmeta(ex.meta))
+    return lower(sc, code, ast.Call(tag('common.set'), ast.Swap(xs), ast.List(...idxs), x).withmeta(ex.meta))
   } else if (op === '=') {
     // Pattern assignment: pat = val
     const pat = ex.args[1]
@@ -562,7 +562,8 @@ function lowerCall(sc: Scope, code: LIR, ex: ast.Expr): Val<LIR> {
 }
 
 function lowerIndex(sc: Scope, code: LIR, ex: ast.Expr): Val<LIR> {
-  const callExpr = ast.Call(tag('common.get'), ...ex.args)
+  const [x, ...idxs] = ex.args
+  const callExpr = ast.Call(tag('common.get'), x, ast.List(...idxs))
   return lower(sc, code, callExpr.withmeta(ex.meta))
 }
 

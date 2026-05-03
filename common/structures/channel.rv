@@ -39,7 +39,7 @@ fn (buf: RingBuffer(data, state))[i] {
   data[slot(state, length(data), i)]
 }
 
-fn set(&buf: RingBuffer(data, state), x, i: Int64) {
+fn set(&buf: RingBuffer(data, state), [i: Int64], x) {
   requireIndex(i, state[2])
   data[slot(state, length(data), i)] = x
   buf = RingBuffer(data, state)

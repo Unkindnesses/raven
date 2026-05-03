@@ -321,10 +321,11 @@ test('lower array indexing', () => {
   const ir = lower('fn test(arr, i) { arr[i] }')
   assert.equal(ir.toString(), `Function test at undefined
 1: (%1, %2)
-  %3 = pack tag"common.List", %1, %2 # test:1:22
-  %4 = call tag"common.get", %3 # test:1:22 🔴
-  %5 = call Method(tag"common.core.part"), %4, 1 # test:1:22
-  %6 = return %5`)
+  %3 = pack tag"common.List", %2
+  %4 = pack tag"common.List", %1, %3 # test:1:22
+  %5 = call tag"common.get", %4 # test:1:22 🔴
+  %6 = call Method(tag"common.core.part"), %5, 1 # test:1:22
+  %7 = return %6`)
 })
 
 test('lower template tag', () => {

@@ -146,7 +146,10 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
   const ts = attrString('ts', as.get('ts'))
   const [sig, body] = x.args.slice(1)
   let signature = sig.ungroup()
-  if (ast.isExpr(signature, 'Index')) signature = ast.Call(tag('common.get'), ...signature.args)
+  if (ast.isExpr(signature, 'Index')) {
+    const [x, ...idxs] = signature.args
+    signature = ast.Call(tag('common.get'), x, ast.List(...idxs))
+  }
   if (!ast.isExpr(signature, 'Call') && !ast.isExpr(signature, 'Operator'))
     throw new Error(`Expected function signature, got ${ast.repr(signature)}`)
   const resolve = (x: ast.Symbol) => resolve_static(cx, x)

@@ -76,7 +76,7 @@ fn (c: Cell(T, Counted(ptr)))[i] {
   load(T, ptr, i)
 }
 
-fn set(&c: Cell(T, Counted(ptr)), x, i: Int64) {
+fn set(&c: Cell(T, Counted(ptr)), [i: Int64], x) {
   store(T, ptr, i, x)
 }
 

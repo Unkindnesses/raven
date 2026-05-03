@@ -28,9 +28,9 @@ fn (obj: JSObject)[prop: JSObject] {
   js`return \obj[\prop]`
 }
 
-fn set(&obj: JSObject, x, prop) { obj[js(prop)] = js(x) }
+fn set(&obj: JSObject, [prop], x) { obj[js(prop)] = js(x) }
 
-fn set(&obj: JSObject, x: JSObject, prop: JSObject) {
+fn set(&obj: JSObject, [prop: JSObject], x: JSObject) {
   js`\obj[\prop] = \x`
   return obj
 }
