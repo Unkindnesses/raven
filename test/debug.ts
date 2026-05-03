@@ -82,7 +82,7 @@ function lineinfo(table: Array<[number, LineInfo | null]>, ip: number): LineInfo
   throw new Error('not found')
 }
 
-const srcDir = path.join(__dirname, 'language')
+const srcDir = path.join(__dirname, 'fixtures')
 let wasm = path.join(srcDir, 'pow.wasm')
 
 test('build', async () => {
@@ -109,7 +109,7 @@ test('Line info', async () => {
   const ip = only(callsites(wasm, 'debug_pow:1')) - code_offset(wasm)
   const table = linetable(wasm)
   const info = some(lineinfo(table, ip))
-  assert.ok(info.file.endsWith('test/language/pow.rv'))
+  assert.ok(info.file.endsWith('test/fixtures/pow.rv'))
   assert.equal(info.line, 10)
   assert.equal(info.column, 18)
 })
