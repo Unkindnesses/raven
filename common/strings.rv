@@ -137,8 +137,6 @@ fn iterate(v: UTF16View) { IndexIterator(v) }
 
 fn string(x: Tag) { tagstring(x) }
 
-fn (a: Tag) == (b: Tag) { shortcutEquals(a, b) }
-
 fn show(x: Tag) {
   print(`tag"`)
   print(string(x))

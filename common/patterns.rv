@@ -64,29 +64,30 @@ fn _match(xs, p: Pack) {
   m = notnil(m)
   tag = part(m, 1)
   xs = tagcast(xs, tag)
-  bs = part(m, 2)
-  result = pack(tag)
+  result = [pack(tag), part(m, 2)]
   i = 1
   while lt(i, nparts(p)) {
-    if !nil?(bs) {
+    if !nil?(result) {
       m = _match(part(xs, i), part(p, add(i, 1)))
       if nil?(m) {
-        bs = nil
         result = nil
       } else {
         m = notnil(m)
-        result = packcat(notnil(result), [part(m, 1)])
-        bs = merge(notnil(bs), notnil(part(m, 2)))
+        r = notnil(result)
+        bs = merge(part(r, 2), part(m, 2))
+        if nil?(bs) {
+          result = nil
+        } else {
+          result = [packcat(part(r, 1), [part(m, 1)]), notnil(bs)]
+        }
       }
     } else {
       # if the above is certain to fail, make sure the whole match is
-      bs = nil
       result = nil
     }
     i = add(i, 1)
   }
-  nil?(bs) && return
-  return [notnil(result), notnil(bs)]
+  return result
 }
 
 fn _match(val, pack(tag".Constructor", name, args...)) {

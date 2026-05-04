@@ -1,7 +1,7 @@
 import * as types from '../frontend/types.js'
 import { Type, tagOf, tag, bits } from '../frontend/types.js'
 import { unreachable, Anno, expr, Val, Fragment, asType } from '../utils/ir.js'
-import { HashSet, only, some } from '../utils/map.js'
+import { HashMap, HashSet, only, some } from '../utils/map.js'
 import { isEqual } from '../utils/isEqual.js'
 import { Method, MIR, Module, Value, xfunc, xstring } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
@@ -85,6 +85,7 @@ function partial_eltype(x: Type): Anno<Type> {
 function partial_part(data: Type, i: Type): Anno<Type> {
   if (data.kind === 'union') return data.options.map(d => partial_part(d, i)).reduce((a, b) => maybe_union(a, b), unreachable)
   if (data.kind === 'recursive') return partial_part(types.unroll(data), i)
+  if (data.kind === 'any') return types.Any
   const idx = getIntValue(i)
   // TODO: HACK: we assume index != 0 when indexing dynamically.
   // Should instead have a seperate `index` function that enforces this.
@@ -119,6 +120,7 @@ function partial_nparts(x: Type): Type {
   if (x.kind === 'union') return x.options.map(partial_nparts).reduce(types.union)
   if (x.kind === 'recursive') return partial_nparts(types.unroll(x))
   if (x.kind === 'vpack') return types.pack(tag('common.Int'), bits(64))
+  if (x.kind === 'any') return types.pack(tag('common.Int'), bits(64))
   return types.pack(tag('common.Int'), bits(64, types.nparts(x)))
 }
 
@@ -143,6 +145,7 @@ function symbolValues(x: Type): HashSet<Type> {
 // TODO extend to handle VPack
 function partial_shortcutEquals(a: Type, b: Type): Type {
   if (types.isValue(a) && types.isValue(b)) return Type(isEqual(a, b))
+  if (a.kind === 'any' || b.kind === 'any') return types.bool()
   const intersection = new Set([...symbolValues(a)].filter(x => symbolValues(b).has(x)))
   if (intersection.size > 0) return types.pack(tag('common.Bool'), bits(1))
   return Type(false)
@@ -150,7 +153,7 @@ function partial_shortcutEquals(a: Type, b: Type): Type {
 
 function partial_bitsize(x: Type): Type {
   if (x.kind === 'bits') return Type(BigInt(x.size))
-  throw new Error('Expected bits type')
+  return types.int64()
 }
 
 function partial_bitcast(target: Type, source: Type): Type {
@@ -184,6 +187,7 @@ function partial_biteqz(x: Type): Type {
 // to deal with unions.
 function partial_isnil(x: Type): Type {
   if (isEqual(x, types.nil)) return Type(true)
+  if (x.kind === 'any') return types.pack(tag('common.Bool'), bits(1))
   if (types.issubset(types.nil, x)) return types.pack(tag('common.Bool'), bits(1))
   return Type(false)
 }
@@ -196,9 +200,19 @@ function partial_notnil(x: Type): Anno<Type> {
   throw new Error('unreachable')
 }
 
+const corePrimitive = new HashMap<Type, Type>([
+  [tag('common.core.Float32'), types.float32()],
+  [tag('common.core.Float64'), types.float64()],
+  [tag('common.core.Ref'), types.Ref],
+  [tag('common.core.Func'), types.Func]
+])
+
 function partial_tagcast(x: Type, t: Type): Anno<Type> {
+  const n = getIntValue(t)
+  if (n !== undefined) return types.bits(n)
   if (!(t instanceof types.Tag)) throw new Error('t must be a tag')
   x = types.unroll(x)
+  if (x.kind === 'any') return corePrimitive.get(t) ?? types.vpack(t, types.Any)
   if (x.kind !== 'union') return t.isEqual(tagOf(x)) ? x : unreachable
   const ps = x.options.filter(opt => t.isEqual(tagOf(opt)))
   return ps.length === 0 ? unreachable : only(ps)

@@ -188,6 +188,8 @@ function pack(...xs: TypeLike[]): Type {
       return bitsToFloat(data)
     if (tag('common.core.Float64').isEqual(t) && data.kind === 'bits' && data.size === 64)
       return bitsToFloat(data)
+    if (tag('common.core.Ref').isEqual(t) && data.kind === 'ref') return data
+    if (tag('common.core.Func').isEqual(t) && data.kind === 'func') return data
   }
   return { kind: 'pack', parts }
 }

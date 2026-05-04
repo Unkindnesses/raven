@@ -7,9 +7,8 @@ fn tag"common.core.Bits"[N] { Params(Bits, N) }
 
 fn (a: Bits) == (b: Bits) { Bool(biteq(a, b)) }
 
-# TODO cast
 fn matchTrait(Params(tag"common.core.Bits", N), x: Bits) {
-  if bitsize(x) == N { Some(x) }
+  if bitsize(x) == N { Some(tagcast(x, N)) }
 }
 
 # Bool
@@ -45,7 +44,8 @@ bundle Int(x: Bits)
 fn tag"common.Int"[N] { Params(Int, N) }
 
 fn matchTrait(Params(tag"common.Int", N), Int(b)) {
-  if isa?(b, Bits[N]) {
+  # TODO b: Bits[N] = ...
+  if let Some(b) = matchTrait(Bits[N], b) {
     Some(Int(b))
   }
 }
@@ -164,7 +164,7 @@ bundle UInt(x: Bits)
 fn tag"common.UInt"[N] { Params(UInt, N) }
 
 fn matchTrait(Params(tag"common.UInt", N), UInt(b)) {
-  if isa?(b, Bits[N]) {
+  if let Some(b) = matchTrait(Bits[N], b) {
     Some(UInt(b))
   }
 }

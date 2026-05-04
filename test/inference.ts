@@ -1,8 +1,8 @@
 import { beforeAll, test } from 'vitest'
 import * as assert from 'assert'
 import { Compiler, load } from '../src/cli/compile.js'
-import { tag, list, pack, int64, int32, bits, Tag, Type } from '../src/frontend/types.js'
-import { key, Sig } from '../src/middle/abstract.js'
+import { tag, list, pack, int64, int32, bits, float64, onion, nil, Any, Ref, Tag, Type } from '../src/frontend/types.js'
+import { key } from '../src/middle/abstract.js'
 import { source } from '../src/middle/load.js'
 import { Binding } from '../src/frontend/modules.js'
 import { asArray, only } from '../src/utils/map.js'
@@ -18,6 +18,9 @@ function result(comp: Compiler, f: Tag, args: Type) {
   return ret
 }
 
+const some = (x: Type) => pack(tag('common.Some'), x)
+const optional = (x: Type) => onion(nil, some(x))
+
 test('infer identity', async () => {
   await compiler.reload(source('', 'fn id(x) { x }'))
   let ret = result(compiler, tag('id'), list(int64()))
@@ -26,12 +29,12 @@ test('infer identity', async () => {
 
 test('infer Nil', () => {
   let ret = result(compiler, tag('common.Nil'), list())
-  assert.deepEqual(ret, list(pack(tag('common.Nil'))))
+  assert.deepEqual(ret, list(nil))
 })
 
 test('nil const', () => {
-  const nil = compiler.pipe.defs.global(new Binding(tag('common'), 'nil'))
-  assert.deepEqual(nil, pack(tag('common.Nil')))
+  const ret = compiler.pipe.defs.global(new Binding(tag('common'), 'nil'))
+  assert.deepEqual(ret, nil)
 })
 
 test('infer bool', async () => {
@@ -44,6 +47,19 @@ test('infer int32', async () => {
   await compiler.reload(source('', 'fn id() { Int32(64*1024) }'))
   let ret = result(compiler, tag('id'), list())
   assert.deepEqual(ret, list(int32(64 * 1024)))
+})
+
+test('matchTrait narrows any', () => {
+  let ret = result(compiler, tag('common.matchTrait'), list(tag('common.core.Float64'), Any))
+  assert.deepEqual(ret, list(optional(float64())))
+  ret = result(compiler, tag('common.matchTrait'), list(tag('common.Int64'), Any))
+  assert.deepEqual(ret, list(optional(int64())))
+  ret = result(compiler, tag('common.matchTrait'), list(tag('common.String'), Any))
+  assert.deepEqual(ret, list(optional(pack(tag('common.String'), Any))))
+  ret = result(compiler, tag('common.matchTrait'), list(tag('common.Nil'), Any))
+  assert.deepEqual(ret, list(optional(nil)))
+  ret = result(compiler, tag('common.matchTrait'), list(tag('common.core.Ref'), Any))
+  assert.deepEqual(ret, list(optional(Ref)))
 })
 
 test('infer pow', async () => {
@@ -105,4 +121,3 @@ test('infer traces straight-line code', async () => {
   assert.ok(!compiler.pipe.inferred.inf.frames.has(key([plus1, int64()])))
   assert.ok(!Array.from(ir).some(([_, st]) => st.expr.head === 'call'))
 })
-

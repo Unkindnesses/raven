@@ -192,6 +192,8 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
         return partial_match_union(mod, pat, val, path)
       } else if (val.kind === 'recursive') {
         return partial_match(mod, pat, types.unroll(val), path)
+      } else if (val.kind === 'any') {
+        return undefined
       } else {
         throw new Error('unimplemented')
       }
