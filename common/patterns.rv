@@ -1,5 +1,5 @@
 export { Any, NotNil, Hole, Literal, Trait, Pack, Bind, Constructor, And
-         match, matchTrait }
+         match, matchTrait, castTrait }
 
 Any = tag".Any"
 
@@ -32,23 +32,23 @@ fn constructorPattern(tag"common.core.pack", args...) {
   Pack(args...)
 }
 
-fn _match(val, pack(tag"common.Hole")) {
+fn _match(val, pack(tag"common.Hole"), deep) {
   return [val, simpledict()]
 }
 
-fn _match(val, pack(tag"common.Literal", pat)) {
+fn _match(val, pack(tag"common.Literal", pat), deep) {
   val == pat || return
   return [pat, simpledict()]
 }
 
-fn _match(val, pack(tag"common.Trait", T)) {
-  m = matchTrait(T, val)
+fn _match(val, pack(tag"common.Trait", T), deep) {
+  m = if deep { castTrait(T, val) } else { matchTrait(T, val) }
   nil?(m) && return
   return [part(notnil(m), 1), simpledict()]
 }
 
-fn _match(val, pack(tag"common.Bind", name, p)) {
-  m = _match(val, p)
+fn _match(val, pack(tag"common.Bind", name, p), deep) {
+  m = _match(val, p, deep)
   nil?(m) && return
   m = notnil(m)
   val = part(m, 1)
@@ -57,9 +57,9 @@ fn _match(val, pack(tag"common.Bind", name, p)) {
   return [val, bs]
 }
 
-fn _match(xs, p: Pack) {
+fn _match(xs, p: Pack, deep) {
   eq(nparts(xs), sub(nparts(p), 1)) || return
-  m = _match(tag(xs), part(p, 1))
+  m = _match(tag(xs), part(p, 1), deep)
   nil?(m) && return
   m = notnil(m)
   tag = part(m, 1)
@@ -68,7 +68,7 @@ fn _match(xs, p: Pack) {
   i = 1
   while lt(i, nparts(p)) {
     if !nil?(result) {
-      m = _match(part(xs, i), part(p, add(i, 1)))
+      m = _match(part(xs, i), part(p, add(i, 1)), deep)
       if nil?(m) {
         result = nil
       } else {
@@ -90,12 +90,12 @@ fn _match(xs, p: Pack) {
   return result
 }
 
-fn _match(val, pack(tag".Constructor", name, args...)) {
-  _match(val, constructorPattern(name, args...))
+fn _match(val, pack(tag".Constructor", name, args...), deep) {
+  _match(val, constructorPattern(name, args...), deep)
 }
 
 fn match(val, pat) {
-  result = _match(val, pat)
+  result = _match(val, pat, false)
   nil?(result) && return
   return part(notnil(result), 2)
 }

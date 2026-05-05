@@ -1,7 +1,7 @@
 import { beforeAll, test } from 'vitest'
 import * as assert from 'assert'
 import { Compiler, load } from '../src/cli/compile.js'
-import { tag, list, pack, int64, int32, bits, float64, onion, nil, Any, Ref, Tag, Type } from '../src/frontend/types.js'
+import { tag, list, pack, int64, int32, bits, float64, onion, nil, Any, Ref, Ptr, Tag, String, Type } from '../src/frontend/types.js'
 import { key } from '../src/middle/abstract.js'
 import { source } from '../src/middle/load.js'
 import { Binding } from '../src/frontend/modules.js'
@@ -49,17 +49,19 @@ test('infer int32', async () => {
   assert.deepEqual(ret, list(int32(64 * 1024)))
 })
 
-test('matchTrait narrows any', () => {
-  let ret = result(compiler, tag('common.matchTrait'), list(tag('common.core.Float64'), Any))
+test('castTrait narrows any', () => {
+  let ret = result(compiler, tag('common.castTrait'), list(tag('common.core.Float64'), Any))
   assert.deepEqual(ret, list(optional(float64())))
-  ret = result(compiler, tag('common.matchTrait'), list(tag('common.Int64'), Any))
+  ret = result(compiler, tag('common.castTrait'), list(tag('common.Int64'), Any))
   assert.deepEqual(ret, list(optional(int64())))
-  ret = result(compiler, tag('common.matchTrait'), list(tag('common.String'), Any))
-  assert.deepEqual(ret, list(optional(pack(tag('common.String'), Any))))
-  ret = result(compiler, tag('common.matchTrait'), list(tag('common.Nil'), Any))
+  ret = result(compiler, tag('common.castTrait'), list(tag('common.String'), Any))
+  assert.deepEqual(ret, list(optional(String())))
+  ret = result(compiler, tag('common.castTrait'), list(tag('common.Nil'), Any))
   assert.deepEqual(ret, list(optional(nil)))
-  ret = result(compiler, tag('common.matchTrait'), list(tag('common.core.Ref'), Any))
+  ret = result(compiler, tag('common.castTrait'), list(tag('common.core.Ref'), Any))
   assert.deepEqual(ret, list(optional(Ref)))
+  ret = result(compiler, tag('common.castTrait'), list(tag('common.Ptr'), Any))
+  assert.deepEqual(ret, list(optional(Ptr())))
 })
 
 test('infer pow', async () => {

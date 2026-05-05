@@ -28,6 +28,16 @@ function namify(x: ast.Tree, suffix = ""): ast.Expr | ast.Symbol {
   throw new Error(`Unsupported namify argument ${ast.repr(x)}`)
 }
 
+function patternArgExpr(x: ast.Tree): ast.Tree {
+  if (x instanceof ast.Token && x.unwrap() instanceof Symbol)
+    return ast.Call(tag('common.Bind'), tag(x.unwrap().toString()), ast.Call(tag('common.Hole')))
+  if (ast.isExpr(x, 'Operator')) {
+    const name = asSymbol(x.args[1].unwrap())
+    return ast.Call(tag('common.Bind'), tag(name.toString()), ast.Call(tag('common.Trait'), x.args[2]))
+  }
+  throw new Error(`Unsupported bundle pattern argument ${ast.repr(x)}`)
+}
+
 function bundlemacro(ex: ast.Expr): ast.Expr {
   const [superSpec, spec] = ex.args.length === 2 ? [undefined, ex.args[1]] : [ex.args[1], ex.args[2]]
   const specs = ast.isExpr(spec, 'Block') ? spec.args : [spec]
@@ -55,6 +65,15 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
           ast.Call(tag('common.Pack'),
             ast.Call(tag('common.Literal'), T), ...argNames))))
     if (hasSplat) continue
+    let pat = ast.Call(tag('common.Pack'), ast.Call(tag('common.Literal'), T), ...args.map(patternArgExpr))
+    body.push(
+      ast.Syntax(s('fn'), ast.Call(tag('common.castTrait'), T, s('_val')),
+        ast.Block(
+          ast.Operator(s('='), s('_match'), ast.Call(tag('common._match'), s('_val'), pat, s('true'))),
+          ast.Syntax(s('if'), ast.Operator(s('!'), ast.Call(tag('common.core.nil?'), s('_match'))),
+            ast.Block(
+              ast.Call(tag('common.Some'),
+                ast.Call(tag('common.core.part'), ast.Call(tag('common.core.notnil'), s('_match')), 1n)))))))
     body.push(
       ast.Syntax(s('fn'), ast.Call(tag('common.show'), ast.Call(name, ...argNames)),
         ast.Block(
@@ -81,7 +100,7 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
         ast.Call(tag('common.matchTrait'), superTag,
           ast.Operator(symbol(':'), s('_val'),
             ast.Operator(symbol('|'), ...names))),
-        ast.Block(ast.Call(s('Some'), s('_val')))))
+        ast.Block(ast.Call(tag('common.Some'), s('_val')))))
   }
   return ast.Group(...body)
 }
