@@ -261,7 +261,7 @@ fn (f: AsyncClosure)() {
 }
 
 fn async(f) {
-  func = Function(AsyncClosure(f), [], Pack(Literal(Nil)))
+  func = Function(AsyncClosure(f), [], Nil)
   Task(wasm call(support.async, part(func, 1)): ref)
 }
 

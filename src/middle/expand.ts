@@ -25,7 +25,7 @@ import * as wasm from '../wasm/wasm.js'
 import { MIR, Method, Value, xstring, Global, Invoke, Wasm, xwasm } from '../frontend/modules.js'
 import { xref } from '../wasm/ir.js'
 import { Def } from '../dwarf/index.js'
-import { Inferred, Redirect, Sig, sig as resolveSig } from './abstract.js'
+import { Inferred, Redirect, Sig, Traits, sig as resolveSig, withTraits } from './abstract.js'
 import { wasmPartials } from '../backend/wasm.js'
 import { isEqual } from '../utils/isEqual.js'
 import { Pipe, Block, Fragment, expr, Branch, Val, Anno, unreachable, asType } from '../utils/ir.js'
@@ -449,7 +449,7 @@ function setir(xs: Type, I: Type, X: Type): MIR {
 
 // Expansion pass
 
-function lowerdata(code: MIR): MIR {
+function lowerdata(code: MIR, traits: Traits): MIR {
   const pr = new Pipe(code)
   for (const [v, st] of pr) {
     const ex = st.expr
@@ -464,7 +464,7 @@ function lowerdata(code: MIR): MIR {
     } else if (ex instanceof Invoke) {
       if (inlinePrimitive.has(ex.method.id)) {
         pr.delete(v)
-        pr.replace(v, inlinePrimitive.get(ex.method.id)!(pr, st as InvokeSt))
+        pr.replace(v, withTraits(traits, () => inlinePrimitive.get(ex.method.id)!(pr, st as InvokeSt)))
       }
     } else if (ex instanceof Global && st.type === ir.unreachable) {
       pr.delete(v)
@@ -690,32 +690,34 @@ function casts(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
   return pr.finish()
 }
 
-function expand(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
+function expand(inf: Inferred, traits: Traits, code: MIR, ret: Anno<Type>): MIR {
   code = trim_unreachable(code)
   code = ir.fuseblocks(code)
-  code = lowerdata(code)
+  code = lowerdata(code, traits)
   code = casts(inf, code, ret)
   return code
 }
 
-function outlineInlinePrimitive(F: Method, ...Ts: Type[]): MIR {
+function outlineInlinePrimitive(traits: Traits, F: Method, ...Ts: Type[]): MIR {
   if (!F.func) throw new Error(`no partial for ${F.name.path}`)
   const code = MIR(Def(F.name.path))
   const args = Ts.map(T => code.argument(T))
-  const st = code.stmt(new Invoke(F, [...F.params, ...args]), { type: F.func(...F.params, ...Ts) })
-  code.return(inlinePrimitive.get(F.id)!(code, st as InvokeSt))
-  return code
+  return withTraits(traits, () => {
+    const st = code.stmt(new Invoke(F, [...F.params, ...args]), { type: F.func!(...F.params, ...Ts) })
+    code.return(inlinePrimitive.get(F.id)!(code, st as InvokeSt))
+    return code
+  })
 }
 
-function Expanded(inf: Inferred): Cache<Sig, Redirect | MIR> {
+function Expanded(inf: Inferred, traits: Traits): Cache<Sig, Redirect | MIR> {
   return new Cache<Sig, Redirect | MIR>((sig: Sig) => {
     const [F, ...Ts] = sig
     if (F instanceof Method && outlinePrimitive.has(F.id))
-      return outlinePrimitive.get(F.id)!(...F.params, ...Ts)
+      return withTraits(traits, () => outlinePrimitive.get(F.id)!(...F.params, ...Ts))
     if (F instanceof Method && inlinePrimitive.has(F.id))
-      return outlineInlinePrimitive(F, ...Ts)
+      return outlineInlinePrimitive(traits, F, ...Ts)
     const res = inf.get(sig)
     if (res instanceof Redirect) return res
-    return expand(inf, ...res)
+    return expand(inf, traits, ...res)
   })
 }

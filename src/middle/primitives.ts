@@ -11,11 +11,11 @@ import { inlinePrimitive, InvokeSt, outlinePrimitive, primitive } from './prim_m
 import { releaseFunction_method } from './refcount.js'
 import { abort, call, layout, wlayout, sizeof, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir, copyir, i32, store, load } from './expand.js'
 import { isreftype } from './refcount.js'
-import { maybe_union } from './abstract.js'
+import { maybe_union, traitType } from './abstract.js'
 import { GetGlobal, SetGlobal } from '../wasm/wasm.js'
 import { xref } from '../wasm/ir.js'
 
-export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, invokeFunction_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, tagcast_method, copy_method, store_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue }
+export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, invokeFunction_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, tagcast_method, copy_method, load_method, store_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue }
 
 const bitopFuncs = new Map<string, (x: bigint, y: bigint) => bigint>([
   ['shl', (x, y) => x << y],
@@ -224,19 +224,11 @@ function partial_tagstring(x: Type): Type {
 
 function rvtype(x: Type): Type {
   if (!types.isValue(x)) throw new Error('Expected value')
-  if (x.kind === 'tag') {
-    if (x.isEqual(tag('common.core.Float32'))) return types.float32()
-    if (x.isEqual(tag('common.core.Float64'))) return types.float64()
-    throw new Error('unimplemented')
-  }
-  if (types.isAtom(x)) return types.abstract(x)
   if (tag('common.List').isEqual(tagOf(x)))
     return types.pack(tagOf(x), ...types.parts(x).map(rvtype))
-  if (tag('common.Pack').isEqual(tagOf(x)))
-    return types.pack(...types.parts(x).map(rvtype))
-  if (tag('common.Literal').isEqual(tagOf(x)))
-    return types.part(x, 1)
-  throw new Error(`Unrecognised type ${types.repr(x)}`)
+  const T = traitType(x)
+  if (T === unreachable || types.occursin(types.Any, T)) throw new Error(`Invalid type ${types.repr(x)}`)
+  return T
 }
 
 function partial_function(f: Type, I: Type, O: Type): Type {

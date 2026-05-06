@@ -47,9 +47,6 @@ fn i32store!(p: Ptr, x: Int32) {
 
 # Function pointer
 
-TPtr = Pack(Literal(Ptr), Pack(Literal(Int), bits 32))
-TNil = Pack(Literal(Nil))
-
 bundle Counted(x)
 
 fn Function(f, I, O) {

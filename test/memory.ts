@@ -115,8 +115,7 @@ test('deterministic lifetimes', async () => {
 
 test('invoke', async () => {
   await rv(`
-    TInt64 = Pack(Literal(Int), bits 64)
-    f = Function(+, [TInt64, TInt64], TInt64)
+    f = Function(+, [Int64, Int64], Int64)
     test f(3, 5) == 8
   `)
 })
@@ -141,10 +140,7 @@ test('anonymous function object', async () => {
 
 test('invoke closure object', async () => {
   await rv(`
-    TInt64 = Pack(Literal(Int), bits 64)
-
-    f = Function(fn (x, y) { Int64(js.Math.pow(x, y)) }, [TInt64, TInt64], TInt64)
+    f = Function(fn (x, y) { Int64(js.Math.pow(x, y)) }, [Int64, Int64], Int64)
     test f(2, 3) == 8
   `)
 })
-

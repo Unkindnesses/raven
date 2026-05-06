@@ -6,6 +6,7 @@ import { key } from '../src/middle/abstract.js'
 import { source } from '../src/middle/load.js'
 import { Binding } from '../src/frontend/modules.js'
 import { asArray, only } from '../src/utils/map.js'
+import { unreachable } from '../src/utils/ir.js'
 
 let compiler: Compiler
 
@@ -62,6 +63,14 @@ test('castTrait narrows any', () => {
   assert.deepEqual(ret, list(optional(Ref)))
   ret = result(compiler, tag('common.castTrait'), list(tag('common.Ptr'), Any))
   assert.deepEqual(ret, list(optional(Ptr())))
+})
+
+test('trait types', () => {
+  const cache = compiler.pipe.traits
+  assert.deepEqual(cache.get(tag('common.Int64')), int64())
+  assert.deepEqual(cache.get(pack(tag('common.Params'), tag('common.UInt'), 21n)), pack(tag('common.UInt'), bits(21)))
+  assert.deepEqual(cache.get(tag('common.String')), String())
+  assert.deepEqual(cache.get(tag('NoSuchTrait')), unreachable)
 })
 
 test('infer pow', async () => {

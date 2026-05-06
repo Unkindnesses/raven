@@ -77,8 +77,7 @@ test('invoke closure object', async () => {
   const repl = new REPL({ stdout: new PassThrough() })
   try {
     await repl.init()
-    await repl.eval('TInt64 = Pack(Literal(Int), bits 64)')
-    await repl.eval('f = Function(fn (x, y) { Int64(js.Math.pow(x, y)) }, [TInt64, TInt64], TInt64)')
+    await repl.eval('f = Function(fn (x, y) { Int64(js.Math.pow(x, y)) }, [Int64, Int64], Int64)')
     assert.strictEqual((await repl.eval('f(2, 3)')).trim(), '8')
   } finally {
     await repl.close()
@@ -94,4 +93,3 @@ test('async task', async () => {
     await repl.close()
   }
 })
-

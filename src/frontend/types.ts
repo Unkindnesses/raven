@@ -7,7 +7,8 @@ export {
   Tag, Bits, Type,
   tag, asTag, bits, pack, packcat, vpack, onion, float32, float64, int32, int64, bool, recursive, recurrence,
   repr, issubset, isdisjoint, union, unroll, recur, finite, tagOf, part, parts,
-  nil, isValue, isAtom, nparts, allparts, abstract, partial_eltype, Ref, Func, String, Ptr, list, asBits, simplify, Any
+  nil, isValue, isAtom, nparts, allparts, abstract, partial_eltype, Ref, Func, String, Ptr, list, asBits, simplify, Any,
+  disjuncts, occursin
 }
 
 // Tags

@@ -1,12 +1,10 @@
 export { RingBuffer, Channel, put!, take! }
 
-TInt64 = Pack(Literal(Int), bits 64)
-
 bundle RingBuffer(data: Cell, state: Cell)
 
 fn RingBuffer(T, cap: Int64) {
   if cap < 1 { abort("RingBuffer capacity must be positive") }
-  state = Cell(TInt64, 2)
+  state = Cell(Int64, 2)
   state[1] = 1
   state[2] = 0
   RingBuffer(Cell(T, cap), state)

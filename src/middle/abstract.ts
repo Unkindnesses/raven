@@ -1,21 +1,22 @@
 import { unreachable, expand, Anno, Block, Expr, Branch, prune, asType } from '../utils/ir.js'
 import { LoopIR, looped, Path, block, nextpath, nextpathTo, pin, blockargs, loop, unloop } from './loop.js'
 import { MatchMethods, dispatcher } from './patterns.js'
-import { Tag, Type, repr, union, issubset as iss, isValue, pack, tag, tagOf, String as RString, Ref, nil } from '../frontend/types.js'
+import { Tag, Type, repr, union, issubset as iss, isValue, pack, tag, tagOf, parts, String as RString, Ref, nil, Any, disjuncts } from '../frontend/types.js'
 import { wasmPartials } from '../backend/wasm.js'
 import { MIR, IRValue, Binding, Method, Definitions, StringRef, JS, Global, SetGlobal, Wasm, callargs } from '../frontend/modules.js'
 import { Lowered } from '../frontend/lower.js'
 import { Def } from '../dwarf/index.js'
 import { WorkQueue } from '../utils/fixpoint.js'
-import { hash, HashSet, some } from '../utils/map.js'
-import { trackdeps, Map as CacheMap, fingerprint, Caching, withtime } from '../utils/cache.js'
+import { hash, HashSet, only, some } from '../utils/map.js'
+import { trackdeps, Map as CacheMap, Cache, fingerprint, Caching, withtime } from '../utils/cache.js'
 import { isEqual } from '../utils/isEqual.js'
 import { Instruction } from '../wasm/wasm.js'
 import { Traced } from './tracer.js'
+import { binding } from '../utils/options.js'
 
 const recursionLimit = 10
 
-export { key, Sig, Inference, Inferred, Redirect, sig, inferexpr, infercall, issubset, maybe_union }
+export { key, Sig, Inference, Inferred, Traits, Redirect, sig, inferexpr, infercall, issubset, maybe_union, traitType, withTraits }
 
 function key(sig: Sig): string {
   const [f, ...Ts] = sig
@@ -71,7 +72,7 @@ class Inference {
   frames = new Map<string, Frame | Redirect>()
   globals = new Map<string, GlobalFrame>()
   queue = new WorkQueue<string>()
-  constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly meths: MatchMethods, readonly traced: Traced) { }
+  constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly meths: MatchMethods, readonly traced: Traced, readonly traits?: Traits) { }
 
   frame(T: Sig): Frame
   frame(T: Binding): GlobalFrame
@@ -123,7 +124,7 @@ function frame(inf: Inference, P: Parent, sig: Sig): Frame | Anno<Type> {
   const k = key(sig)
   if (inf.frames.has(k)) return inf.frame(sig)
   if (f instanceof Method) {
-    if (f.func) return f.func(...Ts)
+    if (f.func) return withTraits(inf.traits!, () => f.func!(...Ts))
     if (P.depth > recursionLimit) return mergeFrames(inf, some(P.sig), sig)
     const [trace, deps] = trackdeps(() => inf.traced.trace(f, ...Ts))
     if (trace) {
@@ -386,8 +387,8 @@ class Inferred implements Caching {
   readonly results: CacheMap<string, [MIR, Anno<Type>] | Redirect>
   time = 0n
 
-  constructor(defs: Definitions, lowered: Lowered, meths: MatchMethods, traced: Traced) {
-    this.inf = new Inference(defs, lowered, meths, traced)
+  constructor(defs: Definitions, lowered: Lowered, meths: MatchMethods, traced: Traced, traits?: Traits) {
+    this.inf = new Inference(defs, lowered, meths, traced, traits)
     this.results = new CacheMap()
   }
 
@@ -428,3 +429,31 @@ class Inferred implements Caching {
       if (!this.inf.frames.has(k)) this.results.delete(k)
   }
 }
+
+class Traits implements Caching {
+  private readonly inferred: Inferred
+  private readonly results: Cache<Type, Anno<Type>>
+
+  constructor(defs: Definitions, lowered: Lowered, meths: MatchMethods, traced: Traced) {
+    this.inferred = new Inferred(defs, lowered, meths, traced)
+    this.results = new Cache(trait => {
+      const result = this.inferred.get([tag('common.castTrait'), tag('common.castTrait'), pack(tag('common.List'), trait, Any)])
+      if (result instanceof Redirect) throw new Error('Unexpected castTrait redirect')
+      const ret = result[1]
+      if (ret === unreachable) return unreachable
+      const T = only(parts(ret))
+      const vals = disjuncts(T).flatMap(option => {
+        if (!tag('common.Some').isEqual(tagOf(option))) return []
+        return parts(option)
+      })
+      if (vals.length === 0) return unreachable
+      return vals.reduce(union)
+    })
+  }
+  get subcaches(): Caching[] { return [this.inferred, this.results] }
+  get(T: Type): Anno<Type> { return this.results.get(T) }
+}
+
+const [withTraits, getTraits] = binding<Traits>('traits')
+
+function traitType(T: Type): Anno<Type> { return getTraits().get(T) }

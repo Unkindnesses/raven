@@ -3,7 +3,7 @@ import { tag } from '../frontend/types.js'
 import * as mods from '../frontend/modules.js'
 import { Traced } from '../middle/tracer.js'
 import { MatchMethods } from '../middle/patterns.js'
-import { Inferred, Redirect, Sig } from '../middle/abstract.js'
+import { Inferred, Traits, Redirect, Sig } from '../middle/abstract.js'
 import { Expanded } from '../middle/expand.js'
 import { Inlined, opcount } from '../middle/inline.js'
 import { isreftype, release_method, refcounts } from '../middle/refcount.js'
@@ -25,6 +25,7 @@ class Pipeline implements Caching {
   readonly interp: Traced
   readonly methods: MatchMethods
   readonly inferred: Inferred
+  readonly traits: Traits
   readonly expanded: ReturnType<typeof Expanded>
   readonly inlined: ReturnType<typeof Inlined>
   readonly counted: ReturnType<typeof refcounts>
@@ -36,15 +37,16 @@ class Pipeline implements Caching {
     this.lowered = new Lowered(this.sources)
     this.interp = new Traced(this.defs, this.lowered)
     this.methods = MatchMethods(this.defs, this.interp)
-    this.inferred = new Inferred(this.defs, this.lowered, this.methods, this.interp)
-    this.expanded = Expanded(this.inferred)
+    this.traits = new Traits(this.defs, this.lowered, this.methods, this.interp)
+    this.inferred = new Inferred(this.defs, this.lowered, this.methods, this.interp, this.traits)
+    this.expanded = Expanded(this.inferred, this.traits)
     this.inlined = Inlined(this.expanded)
     this.counted = refcounts(this.inlined)
     this.wasm = new wasm.Wasm(this.defs, this.counted)
   }
 
   get subcaches(): Caching[] {
-    return [this.sources, this.defs, this.lowered, this.interp, this.methods, this.inferred, this.expanded, this.inlined, this.counted, this.wasm]
+    return [this.sources, this.defs, this.lowered, this.interp, this.methods, this.traits, this.inferred, this.expanded, this.inlined, this.counted, this.wasm]
   }
 
   fork(): Pipeline {
