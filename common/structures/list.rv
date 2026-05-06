@@ -1,4 +1,4 @@
-export { List, length, set, append, pop, empty?, map, collect }
+export { List, length, set, append, pop, empty? }
 
 bundle List(xs...)
 
@@ -63,14 +63,6 @@ fn show(x: List) {
     i = i + 1
   }
   print("]")
-}
-
-fn collect(xs) {
-  for x = xs { x }
-}
-
-fn map(xs, f) {
-  for x = xs { f(x) }
 }
 
 fn js(xs: List) {

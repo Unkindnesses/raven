@@ -1,4 +1,4 @@
-export { iterate, next, count, nth, Range, range, Mapping, mapping }
+export { iterate, next, count, nth, Range, range, Mapping, mapping, collect, map, reduce }
 
 bundle IndexIterator(xs, i: Int64)
 
@@ -53,3 +53,16 @@ fn next(&m: Mapping(itr, func)) {
 }
 
 fn mapping(itr, func) { Mapping(iterate(itr), func) }
+
+fn map(xs, f) {
+  for x = xs { f(x) }
+}
+
+fn collect(xs) { map(xs, identity) }
+
+fn reduce(xs, init, f) {
+  for x = xs {
+    init = f(init, x)
+  }
+  return init
+}
