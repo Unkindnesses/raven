@@ -143,6 +143,19 @@ test('non-associative operators are parse errors', () => {
   assert.throws(() => expr('1 == 2 == 3'), /ambiguous/)
 })
 
+test('numeric literal separators', () => {
+  assert.equal(ast.asToken(expr('1_000')).unwrap(), 1000n)
+  assert.equal(ast.asToken(expr('1_000.25_5')).unwrap(), 1000.255)
+  assert.equal(String(expr('-1_000')), '(-1000)')
+  assert.equal(String(expr('0xCAFE_BABE')), 'hex"CAFEBABE"')
+})
+
+test('invalid numeric literal separators', () => {
+  assert.throws(() => expr('1__000'), /Expected statement end/)
+  assert.throws(() => expr('1_'), /Expected statement end/)
+  assert.throws(() => expr('1_.0'), /Expected statement end/)
+})
+
 test('comparison binds tighter than logical and', () => {
   assert.equal(String(expr('true == true && false')), '((true == true) && false)')
 })
@@ -392,4 +405,3 @@ test('lower for loop', () => {
 6:
   %42 = return pack(tag"common.Nil")`)
 })
-

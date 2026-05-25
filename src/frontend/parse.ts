@@ -131,26 +131,41 @@ function newline(r: Reader): boolean {
   return r.read() === '\n'
 }
 
-function num(r: Reader): number | bigint | undefined {
-  let num = '', float = false
-  if (!/\d|\./.test(r.char)) return
-  while (!r.eof()) {
-    const c = r.char
-    if (/\d/.test(c)) { num += r.read(); continue }
-    if (c === '.') {
-      if (float) throw new Error('invalid number')
-      float = true
-      num += r.read()
-    } else break
+function digit(r: Reader, pattern: RegExp): string | undefined {
+  if (r.eof() || !pattern.test(r.char)) return
+  return r.read()
+}
+
+function separatedDigit(r: Reader, pattern: RegExp): string | undefined {
+  if (!r.parse(r => exact(r, '_'))) return
+  return digit(r, pattern)
+}
+
+function digits(r: Reader, pattern: RegExp): string {
+  const first = digit(r, pattern)
+  if (first === undefined) return ''
+  let result = first
+  while (true) {
+    const next = r.parse(r => digit(r, pattern), r => separatedDigit(r, pattern))
+    if (next === undefined) return result
+    result += next
   }
-  if (num === '' || num === '.') return
-  return float ? parseFloat(num) : BigInt(parseInt(num, 10))
+}
+
+function num(r: Reader): number | bigint | undefined {
+  const whole = digits(r, /\d/)
+  if (r.parse(r => exact(r, '.'))) {
+    const frac = digits(r, /\d/)
+    if (whole === '' && frac === '') return
+    return parseFloat(`${whole}.${frac}`)
+  }
+  if (whole === '') return
+  return BigInt(whole)
 }
 
 function hex(r: Reader) {
   if (!(r.parse(r => exact(r, '0x')))) return
-  let num = ''
-  while (!r.eof() && /[0-9a-fA-F]/.test(r.char)) num += r.read()
+  const num = digits(r, /[0-9a-fA-F]/)
   if (num === '') throw new Error('invalid hex literal')
   return ast.Template(ast.symbol('hex'), num)
 }
