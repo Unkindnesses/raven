@@ -397,28 +397,29 @@ function precedence(a: ast.Symbol, b: ast.Symbol): Prec {
   return table.get(a.toString(), b.toString())
 }
 
-function infix(r: Reader, syn = true, prev?: ast.Symbol): ast.Tree {
+function infix(r: Reader, syn = true, prev?: ast.Symbol): [ast.Tree, boolean] {
   let left = r.some(r => prefix(r))
   while (true) {
     const cur = r.cursor()
     const mark = r.mark()
     r.skipWhitespace()
     const op = r.parse(opsymbol)
-    if (op === undefined) return left
+    if (op === undefined) return [left, false]
     const prec = prev ? precedence(prev, op) : Prec.Right
-    if (prec === Prec.Left) { r.reset(mark); return left }
+    if (prec === Prec.Left) { r.reset(mark); return [left, true] }
     if (prec === Prec.None) { throw new Error(`Operators ${prev} and ${op} are ambiguous at ${path()}:${curstring(r.cursor())}`) }
     r.skip()
-    const right = syn ? syntax(r, op) : infix(r, syn, op)
+    const right = syn ? syntax(r, op) : infix(r, syn, op)[0]
     left = ast.Operator(op, left, right).withmeta({ file: path(), loc: cur })
   }
 }
 
-function splat(r: Reader, syn = true, op?: ast.Symbol): ast.Tree {
-  let ex = infix(r, syn, op)
+function splat(r: Reader, syn = true, op?: ast.Symbol): [ast.Tree, boolean] {
+  let [ex, backedOut] = infix(r, syn, op)
+  if (backedOut) return [ex, backedOut]
   r.skipWhitespace()
   if (r.parse(r => exact(r, '...'))) ex = ast.Splat(ex)
-  return ex
+  return [ex, false]
 }
 
 // Syntax blocks
@@ -427,16 +428,15 @@ const terminators = new Set(['}', ')', ']', ',', '\n'])
 
 function syntax(r: Reader, op?: ast.Symbol): ast.Tree {
   const pos = r.cursor()
-  const name = splat(r, true, op)
-  if (!(name.unwrap() instanceof ast.Symbol)) return name
-  if (r.peek(opsymbol)) return name
+  const [name, backedOut] = splat(r, true, op)
+  if (backedOut || !(name.unwrap() instanceof ast.Symbol)) return name
   const args: ast.Tree[] = []
   while (!r.eof()) {
     r.skipWhitespace()
     if (terminators.has(r.char)) break
     // `syn` fixes eg `fn x + y {}`, where `y {}` would be
     // parsed as an argument to `+` otherwise.
-    const arg = splat(r, false)
+    const [arg] = splat(r, false)
     args.push(arg)
   }
   if (!args.length) return name
@@ -452,7 +452,7 @@ function attr(r: Reader): ast.Tree | undefined {
   while (!r.eof()) {
     r.skipWhitespace()
     if (terminators.has(r.char)) break
-    const arg = splat(r, false)
+    const [arg] = splat(r, false)
     args.push(arg)
   }
   r.skip()
