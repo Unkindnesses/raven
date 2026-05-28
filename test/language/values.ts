@@ -43,7 +43,7 @@ test('complex libm', async () => {
     test approx(atanh(tanh(z)), z)
     test approx(cbrt(z) * cbrt(z) * cbrt(z), z)
   `)
-}, 10000)
+})
 
 test('concat strings', async () => {
   await rv(`
