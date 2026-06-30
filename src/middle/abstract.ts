@@ -53,12 +53,12 @@ class Frame {
   edges = new Set<string>()
   rettype: Anno<Type> = unreachable
   constructor(readonly sig: Sig, readonly parent: Parent, public ir: AIR) { }
-  static create(P: Parent, ir: MIR, f: Method, ...args: Type[]): Frame {
+  static create(P: Parent, ir: MIR, f: Func, ...args: Type[]): Frame {
     const l = prepare_ir(ir.clone())
     if (l.ir.block(1).args.length !== args.length) throw new Error('argument length mismatch')
     const b = l.body[0].block(1)
     for (let i = 0; i < args.length; i++) b.bb.args[i][1] = args[i]
-    return new Frame([f, ...args], P, l)
+    return new Frame([f, ...args] as Sig, P, l)
   }
 }
 
@@ -126,15 +126,17 @@ function frame(inf: Inference, P: Parent, sig: Sig): Frame | Anno<Type> {
   if (f instanceof Method) {
     if (f.func) return withTraits(inf.traits!, () => f.func!(...Ts))
     if (P.depth > recursionLimit) return mergeFrames(inf, some(P.sig), sig)
-    const [trace, deps] = trackdeps(() => inf.traced.trace(f, ...Ts))
-    if (trace) {
-      const [ir, ret] = trace
-      const fr = Frame.create(P, ir, f, ...Ts)
-      fr.rettype = ret
-      inf.deps.set(k, deps)
-      inf.frames.set(k, fr)
-      return inf.frame(sig)
-    }
+  }
+  const [trace, deps] = trackdeps(() => inf.traced.trace(f, ...Ts))
+  if (trace) {
+    const [ir, ret] = trace
+    const fr = Frame.create(P, ir, f, ...Ts)
+    fr.rettype = ret
+    inf.deps.set(k, deps)
+    inf.frames.set(k, fr)
+    return inf.frame(sig)
+  }
+  if (f instanceof Method) {
     const [ir, ideps] = trackdeps(() => inf.lowered.ir(f))
     for (const dep of ideps) deps.add(dep)
     inf.deps.set(k, deps)
@@ -143,6 +145,7 @@ function frame(inf: Inference, P: Parent, sig: Sig): Frame | Anno<Type> {
     return inf.frame(sig)
   } else {
     inf.frames.set(k, new Frame(sig, P, looped(MIR(Def(f.path)))))
+    inf.deps.set(k, deps)
     update(inf, k)
     return inf.frame(sig)
   }
