@@ -1,5 +1,5 @@
 import { unreachable, expand, Anno, Block, Expr, Branch, prune, asType } from '../utils/ir.js'
-import { LoopIR, looped, Path, block, nextpath, nextpathTo, pin, blockargs, loop, unloop } from './loop.js'
+import { LoopIR, looped, Path, block, nextpath, nextpathTo, blockargs, loop, unloop } from './loop.js'
 import { MatchMethods, dispatcher } from './patterns.js'
 import { Tag, Type, repr, union, issubset as iss, isValue, pack, tag, tagOf, parts, String as RString, Ref, nil, Any, disjuncts } from '../frontend/types.js'
 import { wasmPartials } from '../backend/wasm.js'
@@ -287,7 +287,6 @@ function update(inf: Inference, k: string): void {
           if (!tag('common.Bool').isEqual(tagOf(condT))) throw new Error('branch condition must be Bool')
           if (isEqual(condT, Type(false))) continue
           let [p, rr] = nextpathTo(fr.ir, path, br.target)
-          rr ||= pin(fr.ir, path, p.parts.length)
           if (rr && !p.lt(path)) throw new Error('unimplemented')
           const args = br.args.map(a => asType(bl.type(a)))
           reachable.add(p)

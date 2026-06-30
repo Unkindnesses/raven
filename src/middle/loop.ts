@@ -3,7 +3,7 @@ import { Type, issubset, union } from '../frontend/types.js'
 import { IRValue, MIR } from '../frontend/modules.js'
 import { IR, Block, Branch, CFG, Component, components, entry, rename, Expr, unreachable, getIndent, withIndent, asType } from '../utils/ir.js'
 
-export { LoopIR, loop, looped, unloop, Path, tail, block, nextpath, nextpathTo, pin, reroll, blockargs }
+export { LoopIR, loop, looped, unloop, Path, tail, block, nextpath, nextpathTo, reroll, blockargs }
 
 function copyblock<T, A>(to: Block<IR<T, A>>, from: Block<IR<T, A>>) {
   const env = new Map<number, T | number>()
@@ -172,6 +172,7 @@ function reroll(ir: LoopIR<IRValue, any>): boolean {
 
 function nextpath<T, A>(ir: LoopIR<T, A>, p: Path): Path | null {
   const [itr, bl] = p.parts[0]
+  if (itr > ir.body.length) return null
   const inner = loop(ir.body[itr - 1].block(bl))
   const next = p.parts.length === 1 || !inner ? null : nextpath(inner, tail(p))
   if (next) return new Path([p.parts[0], ...next.parts])
@@ -202,22 +203,4 @@ function nextpathTo(ir: LoopIR<IRValue, unknown>, p: Path, target: number): [Pat
     }
   }
   throw new Error(`Invalid block target ${target}`)
-}
-
-// If a loop iteration breaks out, don't unroll it further.
-function pin(ir: LoopIR<IRValue, unknown>, p: Path, depth: number): boolean {
-  let rr = false
-  for (let i = 0; i < p.parts.length; i++) {
-    const [itr, b] = p.parts[i]
-    if (i + 1 > depth) {
-      ir.max = itr
-      if (ir.body.length > ir.max) {
-        rr ||= reroll(ir)
-        if (itr !== 1) return rr
-      }
-    }
-    if (i < p.parts.length - 1)
-      ir = some(loop(ir.body[itr - 1].block(b)))
-  }
-  return rr
 }
