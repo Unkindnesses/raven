@@ -33,18 +33,18 @@ fn constructorPattern(tag"common.core.pack", args...) {
 }
 
 fn _match(val, pack(tag"common.Hole"), deep) {
-  return [val, simpledict()]
+  return [val, record()]
 }
 
 fn _match(val, pack(tag"common.Literal", pat), deep) {
-  val == pat || return
-  return [pat, simpledict()]
+  (val == pat) || return
+  return [pat, record()]
 }
 
 fn _match(val, pack(tag"common.Trait", T), deep) {
   m = if deep { castTrait(T, val) } else { matchTrait(T, val) }
   nil?(m) && return
-  return [part(notnil(m), 1), simpledict()]
+  return [part(notnil(m), 1), record()]
 }
 
 fn _match(val, pack(tag"common.Bind", name, p), deep) {
@@ -53,7 +53,7 @@ fn _match(val, pack(tag"common.Bind", name, p), deep) {
   m = notnil(m)
   val = part(m, 1)
   bs = part(m, 2)
-  setkey(&bs, name, val)
+  upsertkey(&bs, name, val)
   return [val, bs]
 }
 

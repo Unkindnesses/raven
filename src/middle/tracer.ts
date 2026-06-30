@@ -10,7 +10,7 @@ import { dispatcherDef, partial_match, Path, Interpreter } from './patterns.js'
 import { wasmPartials } from '../backend/wasm.js'
 import { getIntValue, invoke_method, load_method, notnil_method, pack_method, packcat_method, part_method, store_method, tagcast_method } from './primitives.js'
 import { isEqual } from '../utils/isEqual.js'
-import { asNumber, some } from '../utils/map.js'
+import { some } from '../utils/map.js'
 import { Caching, CycleCache } from '../utils/cache.js'
 import { Accessor } from '../utils/fixpoint.js'
 import { xcall, xlist, xpart } from '../frontend/lower.js'
@@ -24,13 +24,25 @@ const TRACE_LIMIT = 1_000
 
 function parts(ir: MIR, v: ir.Val<MIR>): ir.Val<MIR>[] | undefined {
   if (v instanceof Value) return
-  if (typeof v !== 'number') return types.parts(v)
+  if (typeof v !== 'number') return types.allparts(v)
   if (!ir.has(v)) return
   const st = ir.get(v)
   if (st.expr.head === 'pack') return st.expr.body
   if (st.expr instanceof Invoke && st.expr.method === pack_method)
-    return parts(ir, asNumber(st.expr.body[0]))?.slice(1)
-  // TODO packcat
+    return parts(ir, st.expr.body[0])?.slice(1)
+  if (st.expr instanceof Invoke && st.expr.method === packcat_method) {
+    const xs = parts(ir, st.expr.body[0])?.slice(1)
+    if (!xs || xs.length === 0) return
+    const init = parts(ir, xs[0])
+    if (!init) return
+    let ys = [...init]
+    for (const x of xs.slice(1)) {
+      const ps = parts(ir, x)
+      if (!ps) return
+      ys = [...ys, ...ps.slice(1)]
+    }
+    return ys
+  }
 }
 
 function ispure(ex: ir.Expr<IRValue>): boolean {
@@ -170,12 +182,28 @@ function indexer(code: ir.Fragment<MIR>, T: types.Type, arg: ir.Val<MIR>, path: 
   return indexer(code, T, arg, rest)
 }
 
+function keyindex(Ts: Type[]): Type | undefined {
+  if (Ts.length !== 2) return
+  const [record, key] = Ts
+  if (!(key instanceof Tag) || record.kind !== 'pack' || !types.tag('common.Record').isEqual(types.tagOf(record))) return
+  const fields = types.parts(record)
+  for (let i = 0; i < fields.length; i++) {
+    const field = fields[i]
+    if (field.kind !== 'pack' || !types.tag('common.Pair').isEqual(types.tagOf(field))) return
+    const k = types.part(field, 1)
+    if (!(k instanceof Tag)) return
+    if (k.isEqual(key)) return types.int64(i + 1)
+  }
+  return types.nil
+}
+
 class Tracer {
   count = 0
 
   constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly int: Interpreter) { }
 
   _trace(f: Func, ...args: Type[]): [MIR, ir.Anno<Type>] | undefined {
+    this.count = 0
     const meta = f instanceof Tag ? dispatcherDef(f) : this.lowered.ir(f).meta
     const code = new TraceIR(meta)
     const argv = args.map(a => code.argument(a))
@@ -265,6 +293,10 @@ class Tracer {
 
   traceMethod(code: TraceIR, meth: Method, args: ir.Val<MIR>[], src?: Stack): ir.Val<MIR> | undefined {
     const Ts = args.map(a => asType(code.type(a)))
+    if (meth.name.isEqual(types.tag('common.keyindex'))) {
+      const result = keyindex(Ts)
+      if (result !== undefined) return result
+    }
     // We can't evaluate `rvtype` here.
     if ([invoke_method, load_method].includes(meth)) return
     if (meth.func) {

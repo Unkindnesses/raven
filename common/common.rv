@@ -71,7 +71,7 @@ include "iterate.rv"
 include "structures/list.rv"
 include "structures/sequence.rv"
 include "structures/channel.rv"
-include "structures/simpledict.rv"
+include "structures/record.rv"
 
 include "strings.rv"
 

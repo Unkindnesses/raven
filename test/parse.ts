@@ -310,14 +310,15 @@ test('lower if let', () => {
   %10 = br 3 if %9
   %11 = br 2
 2:
-  %12 = pack tag"common.List", %8, tag"y"
-  %13 = call tag"common.getkey", %12
-  %14 = call Method(tag"common.core.part"), %13, 1
-  %15 = br 4 (%14)
+  %12 = call Method(tag"common.core.notnil"), %8
+  %13 = pack tag"common.List", %12, tag"y"
+  %14 = call tag"common.getkey", %13
+  %15 = call Method(tag"common.core.part"), %14, 1
+  %16 = br 4 (%15)
 3:
-  %16 = br 4 (0)
-4: (%17)
-  %18 = return %17`)
+  %17 = br 4 (0)
+4: (%18)
+  %19 = return %18`)
 })
 
 test('lower while loop', () => {

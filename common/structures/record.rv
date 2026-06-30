@@ -1,0 +1,71 @@
+# Struct-like record backed by ordered tag/value pairs.
+
+export { Pair, Record, record, keyindex, setkey, upsertkey, getkey, haskey, merge }
+
+bundle Pair(k: Tag, v)
+bundle Record(fields...)
+
+fn show(p: Pair) {
+  show(part(p, 1))
+  print(" => ")
+  show(part(p, 2))
+}
+
+fn record(fields...) { Record(fields...) }
+
+fn length(r: Record) { nparts(r) }
+
+fn keyindex(r: Record, k: Tag) {
+  i = 1
+  while lt(i, add(length(r), 1)) {
+    if part(part(r, i), 1) == k { return i }
+    i = add(i, 1)
+  }
+  return nil
+}
+
+fn haskey(r: Record, k: Tag) { !nil?(keyindex(r, k)) }
+
+fn getkey(r: Record, k: Tag) {
+  i = keyindex(r, k)
+  if nil?(i) { abort(concat("No such key: ", string(k))) }
+  return part(part(r, notnil(i)), 2)
+}
+
+fn setkey(&r: Record, k: Tag, v) {
+  i = keyindex(r, k)
+  if nil?(i) { abort(concat("No such key: ", string(k))) }
+  r = tag"common.core.set"(r, notnil(i), Pair(k, v))
+}
+
+fn upsertkey(&r: Record, k: Tag, v) {
+  i = keyindex(r, k)
+  if nil?(i) {
+    r = packcat(r, pack(Record, Pair(k, v)))
+  } else {
+    r = tag"common.core.set"(r, notnil(i), Pair(k, v))
+  }
+}
+
+fn merge(&r: Record, k: Tag, v) {
+  i = keyindex(r, k)
+  if nil?(i) {
+    r = packcat(r, pack(Record, Pair(k, v)))
+    return r
+  }
+  if part(part(r, notnil(i)), 2) == v { return r }
+  return r = nil
+}
+
+# Returns nil on key clashes; intended for pattern matching.
+fn merge(&r: Record, other: Record) {
+  i = 1
+  while lt(i, add(length(other), 1)) {
+    p = part(other, i)
+    merge(&r, part(p, 1), part(p, 2))
+    if nil?(r) { return r = nil }
+    r = notnil(r)
+    i = add(i, 1)
+  }
+  return r
+}

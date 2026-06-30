@@ -904,10 +904,11 @@ function lowerIf(sc: Scope, code: LIR, ex: IfStmt, value = true): Val<LIR> {
       const [_, patternExpr, valueExpr] = ast.asExpr(cond.ex).args
       const val = lower(sc, code, valueExpr)
       const [pattern, args] = lowerpattern(sc, code, patternExpr)
-      const match = rcall(code, tag('common.match'), [val, pattern])
+      let match = rcall(code, tag('common.match'), [val, pattern])
       const isnil = _push(code, xcall(isnil_method, match))
       const c = code.block()
       const t = code.newBlock()
+      match = _push(code, xcall(notnil_method, match))
       for (const arg of args) {
         _push(code, ir.expr('set', sc.var(arg), rcall(code, tag('common.getkey'), [match, tag(arg)])))
       }

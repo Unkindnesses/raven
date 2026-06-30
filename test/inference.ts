@@ -132,3 +132,30 @@ test('infer traces straight-line code', async () => {
   assert.ok(!compiler.pipe.inferred.inf.frames.has(key([plus1, int64()])))
   assert.ok(!Array.from(ir).some(([_, st]) => st.expr.head === 'call'))
 })
+
+test('infer merge keeps known record structure', async () => {
+  const P = (a: Type, b: Type) => pack(tag('common.Pair'), a, b)
+
+  await compiler.reload(source('', `
+    fn mergeRecords() {
+      b1 = record(Pair(tag"a", 1), Pair(tag"b", 2))
+      b2 = record(Pair(tag"b", widen(2)), Pair(tag"d", 3))
+      merge(&b1, b2)
+    }
+  `))
+
+  let ret = result(compiler, tag('mergeRecords'), list())
+  const record = pack(tag('common.Record'), P(tag('a'), int64(1)), P(tag('b'), int64(2)), P(tag('d'), int64(3)))
+  assert.deepEqual(ret, list(onion(nil, record)))
+
+  await compiler.reload(source('', `
+    fn mergeRecords() {
+      b1 = record(Pair(tag"a", 1), Pair(tag"b", 2))
+      b2 = record(Pair(tag"b", 2), Pair(tag"d", 3))
+      merge(&b1, b2)
+    }
+  `))
+
+  ret = result(compiler, tag('mergeRecords'), list())
+  assert.deepEqual(ret, list(record))
+})

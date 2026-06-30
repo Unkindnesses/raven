@@ -11,6 +11,11 @@ function trace(f: Tag, ...args: Type[]) {
   return some(tr._trace(f, f, list(...args)))
 }
 
+function traceCount(f: Tag, ...args: Type[]) {
+  const result = some(tr._trace(f, f, list(...args)))
+  return [result, tr.count] as const
+}
+
 beforeAll(async () => {
   const compiler = await Compiler.create(load)
   tr = new Tracer(compiler.pipe.defs, compiler.pipe.lowered, compiler.pipe.interp)
@@ -66,3 +71,15 @@ test('trace print', () => {
   assert.ok(ir.length <= 50) // TODO shorten
 })
 
+test('trace keyindex shortcut', () => {
+  const P = (a: Type, b: Type) => pack(tag('common.Pair'), a, b)
+  const R = (...fields: Type[]) => pack(tag('common.Record'), ...fields)
+
+  const [hit, hitCount] = traceCount(tag('common.keyindex'), R(P(tag('a'), int64()), P(tag('b'), String())), tag('b'))
+  assert.deepEqual(hit[1], list(int64(2)))
+  assert.equal(hitCount, 1)
+
+  const [miss, missCount] = traceCount(tag('common.keyindex'), R(P(tag('a'), int64()), P(tag('b'), String())), tag('c'))
+  assert.deepEqual(miss[1], list(nil))
+  assert.equal(missCount, 1)
+})

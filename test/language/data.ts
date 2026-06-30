@@ -133,12 +133,12 @@ test('iterator protocol', async () => {
   `)
 })
 
-test('simpledict', async () => {
+test('record', async () => {
   await rv(`
     {
-      d = simpledict()
-      setkey(&d, tag"a", 7)
-      setkey(&d, tag"b", 5)
+      d = record()
+      d = notnil(merge(d, tag"a", 7))
+      d = notnil(merge(d, tag"b", 5))
       setkey(&d, tag"b", "foo")
 
       test length(d) == 2
@@ -158,15 +158,35 @@ test('simpledict', async () => {
   `)
 })
 
-test('merge sequences', async () => {
+test('record setkey fails for new key', async () => {
   await rv(`
     {
-      b1 = seq(Pair(tag"a", 1), Pair(tag"b", 2))
-      b2 = seq(Pair(tag"b", widen(2)), Pair(tag"d", 3))
+      d = record()
+      setkey(&d, tag"a", 7)
+    }
+  `, { error: true, output: 'No such key: a' })
+})
+
+test('record upsertkey inserts new key', async () => {
+  await rv(`
+    {
+      d = record()
+      upsertkey(&d, tag"a", 7)
+      test length(d) == 1
+      test getkey(d, tag"a") == 7
+    }
+  `)
+})
+
+test('merge records', async () => {
+  await rv(`
+    {
+      b1 = record(Pair(tag"a", 1), Pair(tag"b", 2))
+      b2 = record(Pair(tag"b", widen(2)), Pair(tag"d", 3))
       test !nil?(merge(&b1, b2))
 
-      b1 = seq(Pair(tag"a", 1), Pair(tag"b", 2))
-      b2 = seq(Pair(tag"b", widen(3)), Pair(tag"d", 3))
+      b1 = record(Pair(tag"a", 1), Pair(tag"b", 2))
+      b2 = record(Pair(tag"b", widen(3)), Pair(tag"d", 3))
       test nil?(merge(&b1, b2))
     }
   `)
