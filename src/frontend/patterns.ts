@@ -1,6 +1,6 @@
 import * as ast from "./ast.js"
 import { asSymbol, Symbol, symbol } from "./ast.js"
-import { Type, Tag, tag, pack, part, parts, tagOf, asTag } from "./types.js"
+import { Type, Tag, tag, pack, part, parts, tagOf, asTag, atomValue } from "./types.js"
 import { Signature, IRValue } from "./modules.js"
 
 export { Pattern, IRValue, modtag, lowerpattern, callpattern, callablepattern, patternType, pattern }
@@ -99,9 +99,8 @@ function _lowerpattern(ex: ast.Tree, as: string[], resolve: (x: Symbol) => Type)
     if (!as.includes(x.toString())) as.push(x.toString())
     return Bind(x.toString(), hole)
   }
-  if (typeof x === 'bigint' || typeof x === 'number' || x instanceof Tag)
-    return Literal(Type(x))
   if (typeof x === 'string') throw new Error(`Unsupported string literal ${x}`)
+  if (ast.isAtom(x)) return Literal(atomValue(x))
   if (x.head === 'List') return Pack(Literal(tag('common.List')), ...x.args.map(x => _lowerpattern(x, as, resolve)))
   if (x.head === 'Operator' && x.args[0].unwrap() == ':') {
     let name = asSymbol(x.args[1].unwrap())

@@ -1,7 +1,7 @@
 import { Tag } from './types.js'
 
 export {
-  Cursor, Symbol, symbol, gensym, asSymbol, asString, asNumber, Atom, isAtom,
+  Cursor, Symbol, symbol, gensym, Hex, asSymbol, asString, asNumber, Atom, isAtom,
   Meta, Tree, Token, ExprHead, Expr, isExpr, asExpr, asToken, token, repr, isSyntax
 }
 
@@ -25,6 +25,10 @@ function symbol(name: string): Symbol {
 let counter = 0
 function gensym(name = '') { return symbol(`${name}_${counter++}`) }
 
+class Hex {
+  constructor(public digits: string) { }
+}
+
 function unwrapToken<T>(x: unknown, check: (v: unknown) => v is T, type: string): T {
   if (x instanceof Token) x = x.unwrap()
   if (!check(x)) throw new Error(`Expected ${type}`)
@@ -35,11 +39,12 @@ const asSymbol = (x: unknown) => unwrapToken(x, (v): v is Symbol => v instanceof
 const asString = (x: unknown) => unwrapToken(x, (v): v is string => typeof v === 'string', 'string')
 const asNumber = (x: unknown) => unwrapToken(x, (v): v is number => typeof v === 'number', 'number')
 
-type Atom = Tag | Symbol | string | number | bigint
+type Atom = Tag | Symbol | Hex | string | number | bigint
 
 function isAtom(x: unknown): x is Atom {
   return x instanceof Tag ||
     x instanceof Symbol ||
+    x instanceof Hex ||
     typeof x === 'string' ||
     typeof x === 'number' ||
     typeof x === 'bigint'
@@ -110,6 +115,7 @@ function repr(item: Tree, indent: number = 0): string {
   if (item instanceof Token) {
     let value = item.value
     if (value instanceof Symbol) return value.toString()
+    if (value instanceof Hex) return `0x${value.digits}`
     if (typeof value === 'number' || typeof value === 'bigint') return String(value)
     if (typeof value === 'string') return JSON.stringify(value)
     if (value instanceof Tag) return value.toString()

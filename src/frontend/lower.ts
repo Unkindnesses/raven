@@ -3,7 +3,7 @@ import * as ir from "../utils/ir.js"
 import { Val, fuseblocks, prune, ssa } from "../utils/ir.js"
 import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast.js"
 import * as types from "./types.js"
-import { Type, Tag, tag, pack, bits, nil } from "./types.js"
+import { Type, Tag, tag, pack, bits, nil, atomValue } from "./types.js"
 import { ValueType, AbsHeapType, i32, i64, f32, f64, externref } from "../wasm/wasm.js"
 import { Module, Signature, Binding, MIR, xstring, xjs, Method, xglobal, xset, SetGlobal, Invoke, Wasm, Modules } from "./modules.js"
 import { Def } from "../dwarf/index.js"
@@ -401,9 +401,8 @@ function lowerPatternExpr(sc: Scope, code: LIR, ex: ast.Tree, as: string[]): Val
     patternArg(as, x.toString())
     return patternNode(code, 'Bind', tag(x.toString()), patternNode(code, 'Hole'))
   }
-  if (typeof x === 'bigint' || typeof x === 'number' || x instanceof Tag)
-    return patternNode(code, 'Literal', Type(x))
   if (typeof x === 'string') throw new Error(`Unsupported string literal ${x}`)
+  if (ast.isAtom(x)) return patternNode(code, 'Literal', atomValue(x))
   if (x.head === 'List') {
     const parts = x.args.map(x => lowerPatternExpr(sc, code, x, as))
     return patternNode(code, 'Pack', patternNode(code, 'Literal', tag('common.List')), ...parts)
@@ -471,7 +470,7 @@ function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): Va
     } else if (typeof val === 'string') {
       return string(code, val)
     } else {
-      return Type(val)
+      return atomValue(val)
     }
   }
 
@@ -607,11 +606,6 @@ function lowerTemplate(sc: Scope, code: LIR, ex: ast.Expr): Val<LIR> {
     const bitString = asString(ex.args[1])
     const value = bitString === '' ? 0n : BigInt('0b' + bitString)
     return bits(bitString.length, value)
-  } else if (template === 'hex') {
-    const digits = asString(ex.args[1])
-    const value = BigInt('0x' + digits)
-    let size = Math.pow(2, Math.ceil(Math.log2(digits.length * 4)))
-    return pack(tag('common.UInt'), bits(Math.max(size, 8), value))
   } else if (template === 'c') {
     const val = some(asString(ex.args[1]).codePointAt(0))
     return pack(tag('common.Char'), pack(tag('common.UInt'), bits(21, BigInt(val))))

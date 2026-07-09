@@ -1,10 +1,10 @@
 import { isEqual } from '../utils/isEqual.js'
 import { hash } from '../utils/map.js'
 import { Fixpoint, Accessor } from '../utils/fixpoint.js'
-import { Symbol } from './ast.js'
+import { Atom, Hex, Symbol } from './ast.js'
 
 export {
-  Tag, Bits, Type,
+  Tag, Bits, Type, atomValue,
   tag, asTag, bits, pack, packcat, vpack, onion, float32, float64, int32, int64, bool, recursive, recurrence,
   repr, issubset, isdisjoint, union, unroll, recur, finite, tagOf, part, parts,
   nil, isValue, isAtom, nparts, allparts, abstract, partial_eltype, Ref, Func, String, Ptr, list, asBits, simplify, Any,
@@ -179,6 +179,18 @@ function Type(x: TypeLike): Type {
   if (typeof x === 'number') return float64(x)
   if (typeof x === 'boolean') return bool(x)
   return x
+}
+
+function hexValue(x: Hex): Type {
+  const value = BigInt('0x' + x.digits)
+  const size = Math.pow(2, Math.ceil(Math.log2(x.digits.length * 4)))
+  return pack(tag('common.UInt'), bits(Math.max(size, 8), value))
+}
+
+function atomValue(x: Atom): Type {
+  if (x instanceof Hex) return hexValue(x)
+  if (typeof x === 'bigint' || typeof x === 'number' || x instanceof Tag) return Type(x)
+  throw new Error(`Unsupported literal ${x}`)
 }
 
 function pack(...xs: TypeLike[]): Type {

@@ -147,7 +147,7 @@ test('numeric literal separators', () => {
   assert.equal(ast.asToken(expr('1_000')).unwrap(), 1000n)
   assert.equal(ast.asToken(expr('1_000.25_5')).unwrap(), 1000.255)
   assert.equal(String(expr('-1_000')), '(-1000)')
-  assert.equal(String(expr('0xCAFE_BABE')), 'hex"CAFEBABE"')
+  assert.equal(String(expr('0xCAFE_BABE')), '0xCAFEBABE')
 })
 
 test('invalid numeric literal separators', () => {

@@ -163,11 +163,11 @@ function num(r: Reader): number | bigint | undefined {
   return BigInt(whole)
 }
 
-function hex(r: Reader) {
+function hex(r: Reader): ast.Hex | undefined {
   if (!(r.parse(r => exact(r, '0x')))) return
   const num = digits(r, /[0-9a-fA-F]/)
   if (num === '') throw new Error('invalid hex literal')
-  return ast.Template(ast.symbol('hex'), num)
+  return new ast.Hex(num)
 }
 
 function negnum(r: Reader) {
@@ -178,7 +178,7 @@ function negnum(r: Reader) {
 }
 
 function number(r: Reader) {
-  return r.parse<ast.Expr | bigint | number | undefined>(hex, negnum, num)
+  return r.parse<ast.Hex | bigint | number | undefined>(hex, negnum, num)
 }
 
 function symbol(r: Reader): ast.Symbol | undefined {

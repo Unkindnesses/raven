@@ -1,4 +1,4 @@
-import { Type, Tag, tag, asTag } from "../frontend/types.js"
+import { Type, Tag, tag, asTag, atomValue } from "../frontend/types.js"
 import { Module, Modules, Binding, Signature, calltarget } from "../frontend/modules.js"
 import { Def } from "../dwarf/index.js"
 import { Anno, unreachable } from "../utils/ir.js"
@@ -40,7 +40,8 @@ function resolve_static(cx: LoadState, x: ast.Symbol): Type {
 function simpleconst(cx: LoadState, x: ast.Tree): Anno<Type> | Binding | undefined {
   const unwrapped = x.unwrap()
   if (unwrapped instanceof ast.Symbol) return cx.mod.get(unwrapped.toString()) // TODO error if missing
-  if (typeof unwrapped === 'number' || typeof unwrapped === 'bigint' || unwrapped instanceof Tag) return Type(unwrapped)
+  if (typeof unwrapped !== 'string' && ast.isAtom(unwrapped))
+    return atomValue(unwrapped)
   if (ast.isExpr(x, 'Template') &&
     ast.symbol('tag').isEqual(x.args[0].unwrap()))
     return Type(modtag(cx.mod.name, x.args[1].unwrap() as string))
