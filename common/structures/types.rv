@@ -14,7 +14,7 @@ bundle Expr {
 
 bundle Pattern {
   Hole()
-  Literal(_: Number | String | Symbol)
+  Literal(_: (Number | String | Symbol))
   Bind(name: Symbol)
   IsA(type: Symbol)
   Repeat(_: Pattern)

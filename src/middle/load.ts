@@ -190,7 +190,7 @@ async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> 
     if (ast.symbol('fn').isEqual(first)) return load_fn(cx, x)
     return load_expr(cx, x)
   }
-  if (ast.isExpr(x, 'Group')) {
+  if (ast.isExpr(x, 'File') || ast.isExpr(x, 'Group')) {
     for (const item of x.args) await vload(cx, item)
     return
   }
@@ -211,8 +211,7 @@ async function loadfile(cx: LoadState, path: SourceString | string, content?: st
   if (typeof path !== 'string')
     [path, content] = [path.path, path.source]
   if (content === undefined) [path, content] = await cx.load(path)
-  const exprs = parse(path, content)
-  for (const expr of exprs) await vload(cx, expr)
+  await vload(cx, parse(path, content))
 }
 
 async function loadmodule(comp: Modules, mod: Module | Tag, src: SourceString | string, load: Loader): Promise<Module> {

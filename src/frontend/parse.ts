@@ -52,25 +52,49 @@ class Reader {
     return result
   }
 
+  text(from: Position) { return this.src.slice(from[0], this.i) }
+
   skipLine() { while (!this.eof() && this.char !== '\n') this.read() }
 
   // Skip whitespace, not including newlines.
-  skipWhitespace() {
+  skipWhitespace(): string {
+    const from = this.mark()
     while (!this.eof()) {
       const c = this.char
       if (c === ' ' || c === '\t' || c === '\r') this.read()
       else if (c === '#') this.skipLine()
       else break
     }
+    return this.text(from)
+  }
+
+  // End of statement trivia. Includes whitespace after a separator only
+  // if the rest of the line is clear.
+  skipTrailing(): string {
+    const from = this.mark()
+    let afterComma: Position | undefined
+    while (!this.eof()) {
+      const c = this.char
+      if (c === '\n') { this.read(); return this.text(from) }
+      if (c === '#') { this.skipLine(); continue }
+      if (c === ',') { this.read(); afterComma = this.mark(); continue }
+      if (!' \t\r'.includes(c)) break
+      this.read()
+    }
+    if (afterComma) this.reset(afterComma)
+    return this.text(from)
   }
 
   // Skip whitespace and `,` to get to the next statement.
   skip() {
+    const from = this.mark()
     while (!this.eof()) {
-      const c = this.read()
+      const c = this.char
       if (c === '#') { this.skipLine(); continue }
-      if (!' \t\r,\n'.includes(c)) { this.i--; this.col--; break }
+      if (!' \t\r,\n'.includes(c)) { break }
+      this.read()
     }
+    return this.text(from)
   }
 }
 
@@ -241,7 +265,8 @@ function trimCommonIndent(s: string): string {
   return lines.map(l => l.slice(indent.length)).join('\n')
 }
 
-function tripleString(r: Reader): string | ast.Tree | undefined {
+function tripleString(r: Reader): ast.Tree | undefined {
+  const start = r.mark()
   let slashes = 0
   while (!r.eof() && r.char === '\\') { r.read(); slashes++ }
   if (r.eof()) return
@@ -257,12 +282,17 @@ function tripleString(r: Reader): string | ast.Tree | undefined {
     tag = undefined
     r.reset(mark)
   }
+  const tagRaw = r.text(start)
+  const body = r.mark()
   let s = ''
   while (!r.eof()) {
     if (r.parse(r => exact(r, close))) {
       const trimmed = trimCommonIndent(s)
       const t = raw ? trimmed : processEscapes(trimmed, escape)
-      return tag ? ast.Template(tag, t) : t
+      if (tag === undefined) return new ast.Token(t).withraw(r.text(start))
+      const tagTok = new ast.Token(tag).withraw(tagRaw)
+      const strTok = new ast.Token(t).withraw(r.text(body))
+      return ast.Template(tagTok, strTok)
     }
     if (!raw && r.parse(r => exact(r, escape))) {
       s += escape + r.read()
@@ -299,41 +329,49 @@ function string(r: Reader): string | undefined {
 function template(r: Reader): ast.Tree | undefined {
   const name = symbol(r)
   if (name === undefined || r.eof()) return
+  const from = r.mark()
   const str = string(r)
   if (str === undefined) return
-  return ast.Template(name, str)
+  return ast.Template(name, new ast.Token(str).withraw(r.text(from)))
 }
 
-function brackets(r: Reader, open: string, close: string): ast.Tree[] | undefined {
+function brackets(r: Reader, open: string, close: string): [ast.Tree[], string] | undefined {
   if (r.read() !== open) return
   const xs: ast.Tree[] = []
   while (true) {
-    r.skip()
-    if (r.char === close) break
-    xs.push(some(statement(r)))
+    const pending = r.skip()
+    if (r.char === close) { r.read(); return [xs, pending] }
+    const x = some(statement(r))
+    ast.lead(x, pending)
+    xs.push(x)
   }
-  r.read()
-  return xs
 }
 
-function bracketsTo<T>(r: Reader, open: string, close: string, f: (...xs: ast.Tree[]) => T): T | undefined {
-  const xs = brackets(r, open, close)
-  if (xs === undefined) return
-  return f(...xs)
+function bracketsTo(r: Reader, open: string, close: string, f: (...xs: ast.Tree[]) => ast.Expr): ast.Expr | undefined {
+  const res = brackets(r, open, close)
+  if (res === undefined) return
+  const ex = f(...res[0])
+  ast.inner(ex, res[1])
+  return ex
 }
 
 function group(r: Reader) { return bracketsTo(r, '(', ')', ast.Group) }
 function list(r: Reader) { return bracketsTo(r, '[', ']', ast.List) }
 function block(r: Reader) { return bracketsTo(r, '{', '}', ast.Block) }
 
+function token(r: Reader): ast.Tree | undefined {
+  const from = r.mark()
+  const x = r.parse<ast.Atom | undefined>(symbol, string, number, opsymbol)
+  if (x === undefined) return
+  return new ast.Token(x).withraw(r.text(from))
+}
+
 // Combine all simple expressions with little backtracking
 function item(r: Reader): ast.Tree | undefined {
   const pos = r.cursor()
-  const ex = r.parse<ast.Tree | ast.Atom | undefined>(
-    template, symbol, tripleString, string, number, opsymbol, group, list, block)
+  const ex = r.parse(template, tripleString, token, group, list, block)
   if (ex === undefined) return
-  const tree = ast.isAtom(ex) ? new ast.Token(ex) : ex
-  return tree.withmeta({ file: path(), loc: pos })
+  return ex.withmeta({ file: path(), loc: pos })
 }
 
 // The following parsers fall back to simpler ones, to avoid excessive
@@ -347,12 +385,14 @@ function postfix(r: Reader): ast.Tree | undefined {
     const cur = r.cursor()
     let args = r.parse(r => brackets(r, '(', ')'))
     if (args !== undefined) {
-      ex = ast.Call(ex, ...args).withmeta({ file: path(), loc: cur })
+      ex = ast.Call(ex, ...args[0]).withmeta({ file: path(), loc: cur })
+      ast.inner(ex, args[1])
       continue
     }
     args = r.parse(r => brackets(r, '[', ']'))
     if (args !== undefined) {
-      ex = ast.Index(ex, ...args).withmeta({ file: path(), loc: cur })
+      ex = ast.Index(ex, ...args[0]).withmeta({ file: path(), loc: cur })
+      ast.inner(ex, args[1])
       continue
     }
     if (r.peek(r => exact(r, '...'))) { break }
@@ -402,22 +442,27 @@ function infix(r: Reader, syn = true, prev?: ast.Symbol): [ast.Tree, boolean] {
   while (true) {
     const cur = r.cursor()
     const mark = r.mark()
-    r.skipWhitespace()
+    const ws = r.skipWhitespace()
+    const opcur = r.cursor()
     const op = r.parse(opsymbol)
-    if (op === undefined) return [left, false]
+    if (op === undefined) { r.reset(mark); return [left, false] }
     const prec = prev ? precedence(prev, op) : Prec.Right
     if (prec === Prec.Left) { r.reset(mark); return [left, true] }
     if (prec === Prec.None) { throw new Error(`Operators ${prev} and ${op} are ambiguous at ${path()}:${curstring(r.cursor())}`) }
-    r.skip()
+    ast.trail(left, ws)
+    const optok = new ast.Token(op, { file: path(), loc: opcur })
+    ast.trail(optok, r.skipWhitespace())
+    const pending = r.skip()
     const right = syn ? syntax(r, op) : infix(r, syn, op)[0]
-    left = ast.Operator(op, left, right).withmeta({ file: path(), loc: cur })
+    ast.lead(right, pending)
+    left = ast.Operator(optok, left, right).withmeta({ file: path(), loc: cur })
   }
 }
 
 function splat(r: Reader, syn = true, op?: ast.Symbol): [ast.Tree, boolean] {
   let [ex, backedOut] = infix(r, syn, op)
   if (backedOut) return [ex, backedOut]
-  r.skipWhitespace()
+  ast.trail(ex, r.skipWhitespace())
   if (r.parse(r => exact(r, '...'))) ex = ast.Splat(ex)
   return [ex, false]
 }
@@ -432,7 +477,7 @@ function syntax(r: Reader, op?: ast.Symbol): ast.Tree {
   if (backedOut || !(name.unwrap() instanceof ast.Symbol)) return name
   const args: ast.Tree[] = []
   while (!r.eof()) {
-    r.skipWhitespace()
+    ast.trail(args.at(-1) ?? name, r.skipWhitespace())
     if (terminators.has(r.char)) break
     // `syn` fixes eg `fn x + y {}`, where `y {}` would be
     // parsed as an argument to `+` otherwise.
@@ -446,43 +491,49 @@ function syntax(r: Reader, op?: ast.Symbol): ast.Tree {
 function attr(r: Reader): ast.Tree | undefined {
   const pos = r.cursor()
   if (r.read() !== '@') return
-  const name = symbol(r)
-  if (name === undefined) return
+  const sym = symbol(r)
+  if (sym === undefined) return
+  const name = new ast.Token(sym)
   const args: ast.Tree[] = []
   while (!r.eof()) {
-    r.skipWhitespace()
+    ast.trail(args.at(-1) ?? name, r.skipWhitespace())
     if (terminators.has(r.char)) break
     const [arg] = splat(r, false)
     args.push(arg)
   }
-  r.skip()
+  const pending = r.skip()
   let body = r.parse(attr, syntax)!
+  ast.lead(body, pending)
   return ast.Attribute(name, ...args, body).withmeta({ file: path(), loc: pos })
 }
 
 function statement(r: Reader): ast.Tree | undefined {
-  r.skip()
   if (r.eof()) return
   let ex = r.parse(attr, syntax)!
-  r.skipWhitespace()
+  ast.trail(ex, r.skipWhitespace())
   if (!r.eof() && !terminators.has(r.char)) throw new Error(`Expected statement end at ${curstring(r.cursor())}`)
+  ast.trail(ex, r.skipTrailing())
   return ex
 }
 
-function parse(path: string, src: string): ast.Tree[] {
+function parse(path: string, src: string): ast.Expr {
   return withPath(path, () => {
     let result: ast.Tree[] = []
     let r = new Reader(src)
     while (true) {
-      r.skip()
+      const pending = r.skip()
       let next = statement(r)
-      if (next === undefined) break
+      if (next === undefined) {
+        const file = ast.File(...result)
+        ast.inner(file, pending)
+        return file
+      }
+      ast.lead(next, pending)
       result.push(next)
     }
-    return result
   })
 }
 
 function expr(src: string): ast.Tree {
-  return only(parse('', src))
+  return only(parse('', src).args)
 }

@@ -9,6 +9,9 @@ import * as ast from '../src/frontend/ast.js'
 import { Module } from '../src/frontend/modules.js'
 import { Def } from '../src/dwarf/index.js'
 
+const parsed = (src: string, file = 'test') => parse(file, src).args
+const first = (src: string, file = 'test') => parsed(src, file)[0]
+
 test('parse simple function definition', () => {
   const tree = parse('test', 'def foo(x) { while (true) { println(1 + 2) } }')
   assert.ok(tree, 'Parser should return an ast')
@@ -19,27 +22,27 @@ test('parse simple function definition', () => {
 })
 
 test('raw string literals', () => {
-  const escaped = parse('test', '"\\n"')[0]
-  const raw = parse('test', '`\\n`')[0]
+  const escaped = first('"\\n"')
+  const raw = first('`\\n`')
   assert.equal(ast.asToken(escaped).unwrap(), '\n')
   assert.equal(ast.asToken(raw).unwrap(), '\\n')
 })
 
 test('raw string extended delimiter', () => {
   const src = "\\`a backtick ` inside`\\"
-  const tree = parse('test', src)[0]
+  const tree = first(src)
   assert.equal(ast.asToken(tree).unwrap(), 'a backtick ` inside')
 })
 
 test('escaped string extended delimiter', () => {
   const src = String.raw`\\"a quote " a newline \\n a backslash \n"\\`
-  const tree = parse('test', src)[0]
+  const tree = first(src)
   assert.equal(ast.asToken(tree).unwrap(), 'a quote " a newline \n a backslash \\n')
 })
 
 test('triple-quoted string basic', () => {
   const src = '"""hello world"""'
-  const tree = parse('test', src)[0]
+  const tree = first(src)
   assert.equal(ast.asToken(tree).unwrap(), 'hello world')
 })
 
@@ -48,7 +51,7 @@ test('triple-quoted string multiline', () => {
     hello
     world
     """`
-  const tree = parse('test', src)[0]
+  const tree = first(src)
   assert.equal(ast.asToken(tree).unwrap(), 'hello\nworld')
 })
 
@@ -57,7 +60,7 @@ test('escaped newlines', () => {
     hello \\
     world
     """`
-  const tree = parse('test', src)[0]
+  const tree = first(src)
   assert.equal(ast.asToken(tree).unwrap(), 'hello world')
 })
 
@@ -65,7 +68,7 @@ test('escaped newline preserves following indent', () => {
   const src = `"""
   hello\\n  world
   """`
-  const tree = parse('test', src)[0]
+  const tree = first(src)
   assert.equal(ast.asToken(tree).unwrap(), 'hello\n  world')
 })
 
@@ -75,37 +78,37 @@ test('triple-quoted string preserves relative indent', () => {
       indented
     line2
     """`
-  const tree = parse('test', src)[0]
+  const tree = first(src)
   assert.equal(ast.asToken(tree).unwrap(), 'line1\n  indented\nline2')
 })
 
 test('triple-quoted string with embedded quotes', () => {
   const src = '"""say "hello" to the world"""'
-  const tree = parse('test', src)[0]
+  const tree = first(src)
   assert.equal(ast.asToken(tree).unwrap(), 'say "hello" to the world')
 })
 
 test('triple-quoted string escape sequences', () => {
   const src = '"""hello\\nworld"""'
-  const tree = parse('test', src)[0]
+  const tree = first(src)
   assert.equal(ast.asToken(tree).unwrap(), 'hello\nworld')
 })
 
 test('triple-quoted raw string', () => {
   const src = '\`\`\`hello\\nworld\`\`\`'
-  const tree = parse('test', src)[0]
+  const tree = first(src)
   assert.equal(ast.asToken(tree).unwrap(), 'hello\\nworld')
 })
 
 test('triple-quoted string extended delimiter', () => {
   const src = String.raw`\\"""contains """ triple quotes"""\\`
-  const tree = parse('test', src)[0]
+  const tree = first(src)
   assert.equal(ast.asToken(tree).unwrap(), 'contains """ triple quotes')
 })
 
 test('triple-quoted escape with extended delimiter', () => {
   const src = String.raw`\\"""a newline \\n here"""\\`
-  const tree = parse('test', src)[0]
+  const tree = first(src)
   assert.equal(ast.asToken(tree).unwrap(), 'a newline \n here')
 })
 
@@ -113,7 +116,7 @@ test('triple-quoted tagged template', () => {
   const src = `"""js
   console.log("hello")
   """`
-  const tree = parse('test', src)[0]
+  const tree = first(src)
   assert.ok(ast.isExpr(tree, 'Template'))
   assert.equal(asSymbol(tree.args[0].unwrap()).toString(), 'js')
   assert.equal(ast.asToken(tree.args[1]).unwrap(), 'console.log("hello")')
@@ -165,8 +168,83 @@ test('prefix negation binds tighter than infix operators', () => {
   assert.equal(String(expr('-(x + y)')), '(-((x + y)))')
 })
 
+// Round-trip
+
+test('trivia ownership', () => {
+  const [lineTrail, lineLead] = parsed('a, # foo\nb')
+  assert.equal(lineTrail.trivia?.trailing, ', # foo\n')
+  assert.equal(lineLead.trivia?.leading ?? '', '')
+
+  const [sameLineTrail, sameLineLead] = parsed('a,  b')
+  assert.equal(sameLineTrail.trivia?.trailing, ',')
+  assert.equal(sameLineLead.trivia?.leading, '  ')
+
+  const [newlineTrail, newlineLead] = parsed('a,  \nb')
+  assert.equal(newlineTrail.trivia?.trailing, ',  \n')
+  assert.equal(newlineLead.trivia?.leading ?? '', '')
+
+  const file = parse('test', 'x\n# eof')
+  assert.equal(file.head, 'File')
+  assert.equal(file.trivia?.inner, '# eof')
+})
+
+const roundtrips = (src: string) => assert.equal(ast.print(parse('test', src)), src)
+
+test('round-trip statements', () => {
+  roundtrips('')
+  roundtrips('x')
+  roundtrips('a = 1')
+  roundtrips('a = 1, b = 2')
+  roundtrips('# lead\na = 1 # note\n\nb = 2\n')
+  roundtrips('x\n# trailing comment lines\n# at eof')
+})
+
+test('round-trip brackets', () => {
+  roundtrips('[1, 2, 3] # foo')
+  roundtrips('[\n  1,\n  2,\n]')
+  roundtrips('{ # TODO\n}')
+  roundtrips('()')
+  roundtrips('f( a , b )[ 1 ]')
+  roundtrips('fn foo(x) { while (true) { println(1 + 2) } }')
+})
+
+test('round-trip operators', () => {
+  roundtrips('a  +  b')
+  roundtrips('a +\n  b')
+  roundtrips('x = -y + !z')
+  roundtrips('xs = [a..., b ...]')
+  roundtrips('foo.bar(a).baz')
+})
+
+test('round-trip tokens', () => {
+  roundtrips('x = 0xFF + 1_000 - 1.5 + 1.')
+  roundtrips('s = "a\\nb"')
+  roundtrips('r = `raw \\n`')
+  roundtrips('t = js"code" ')
+  roundtrips('u = """\n  hello\n  """')
+  roundtrips('v = """tag\n  hello\n  """')
+  roundtrips('w = \\"a quote " here"\\')
+})
+
+test('round-trip attributes', () => {
+  roundtrips('@inline x\ndef f(a) { a }')
+  roundtrips('@inline x, def f(a) { a }')
+})
+
+import { readFileSync, readdirSync } from 'node:fs'
+
+test('round-trip common', () => {
+  const files = readdirSync('common', { recursive: true, encoding: 'utf8' })
+  for (const f of files.filter(f => f.endsWith('.rv'))) {
+    const src = readFileSync(`common/${f}`, 'utf8')
+    assert.equal(ast.print(parse(f, src)), src, `round-trip failed for ${f}`)
+  }
+})
+
+// Lowering
+
 function lower(def: string) {
-  const ex = parse('test', def)[0]
+  const ex = first(def)
   if (!ast.isSyntax(ex, 'fn'))
     throw new Error('Expected function definition starting with "fn"')
   const sig = ast.asExpr(ex.args[1], 'Call')
@@ -270,7 +348,7 @@ test('lower while loop', () => {
 test('lower toplevel expression', () => {
   const mod = new Module(tag('test'))
   mod.set('x', Type(42))
-  const expr = parse('test', '{ x = x+1, y = y+1 }')[0]
+  const expr = first('{ x = x+1, y = y+1 }')
   const [ir, _] = lower_toplevel(mod, expr, Def('common.core.main'))
   assert.equal(ir.toString(), `Function common.core.main at undefined
 1:

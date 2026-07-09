@@ -2,7 +2,8 @@ import { Tag } from './types.js'
 
 export {
   Cursor, Symbol, symbol, gensym, Hex, asSymbol, asString, asNumber, Atom, isAtom,
-  Meta, Tree, Token, ExprHead, Expr, isExpr, asExpr, asToken, token, repr, isSyntax
+  Meta, Tree, Token, ExprHead, Expr, isExpr, asExpr, asToken, token, repr, print, isSyntax,
+  Trivia, lead, trail, inner
 }
 
 interface Cursor {
@@ -55,26 +56,61 @@ interface Meta {
   loc: Cursor
 }
 
+// Source text around a node: `leading` before its first character, `trailing`
+// from its last character to the end of the line (including separators and the
+// line break), `inner` before its closing delimiter, after all children.
+interface Trivia {
+  leading: string
+  trailing: string
+  inner: string
+}
+
 type Tree = Token | Expr
 
+function trivia(node: Tree): Trivia {
+  return node.trivia ??= { leading: '', trailing: '', inner: '' }
+}
+
+function lead(node: Tree, text: string) { if (text) trivia(node).leading += text }
+function trail(node: Tree, text: string) { if (text) trivia(node).trailing += text }
+function inner(node: Tree, text: string) { if (text) trivia(node).inner += text }
+
 class Token {
+  trivia?: Trivia
+  raw?: string
   constructor(public value: Atom, public meta?: Meta) { }
   unwrap(): Atom { return this.value }
-  withmeta(m: Meta): Token { return new Token(this.value, m) }
+  withmeta(m: Meta): Token {
+    const t = new Token(this.value, m)
+    t.raw = this.raw
+    if (this.trivia) t.trivia = { ...this.trivia }
+    return t
+  }
+  withraw(raw: string): Token {
+    const t = new Token(this.value, this.meta)
+    t.raw = raw
+    if (this.trivia) t.trivia = { ...this.trivia }
+    return t
+  }
   toString(): string { return repr(this) }
   ungroup(): Token { return this }
 }
 
 type ExprHead =
-  | 'Group' | 'List' | 'Splat' | 'Call' | 'Index' | 'Field'
+  | 'File' | 'Group' | 'List' | 'Splat' | 'Call' | 'Index' | 'Field'
   | 'Operator' | 'Swap' | 'Block' | 'Syntax' | 'Quote' | 'Template' | 'Attribute'
 
 class Expr {
+  trivia?: Trivia
   constructor(public head: ExprHead, public args: Tree[], public meta?: Meta) { }
 
   get length(): number { return this.args.length }
   unwrap(): Expr { return this }
-  withmeta(m: Meta | undefined): Expr { return new Expr(this.head, this.args, m) }
+  withmeta(m: Meta | undefined): Expr {
+    const ex = new Expr(this.head, this.args, m)
+    if (this.trivia) ex.trivia = { ...this.trivia }
+    return ex
+  }
   toString(): string { return repr(this) }
   ungroup(): Tree {
     if (this.head === 'Group' && this.args.length === 1) return this.args[0].ungroup()
@@ -106,8 +142,8 @@ function token(x: Atom | Tree): Tree {
 
 const constructor = (head: ExprHead) => (...args: (Tree | Atom)[]) => new Expr(head, args.map(token))
 
-export const [Group, List, Splat, Call, Index, Field, Operator, Swap, Block, Syntax, Quote, Template, Attribute] =
-  (['Group', 'List', 'Splat', 'Call', 'Index', 'Field', 'Operator', 'Swap', 'Block', 'Syntax', 'Quote', 'Template', 'Attribute'] as const)
+export const [File, Group, List, Splat, Call, Index, Field, Operator, Swap, Block, Syntax, Quote, Template, Attribute] =
+  (['File', 'Group', 'List', 'Splat', 'Call', 'Index', 'Field', 'Operator', 'Swap', 'Block', 'Syntax', 'Quote', 'Template', 'Attribute'] as const)
     .map(constructor)
 
 function repr(item: Tree, indent: number = 0): string {
@@ -122,6 +158,7 @@ function repr(item: Tree, indent: number = 0): string {
     let _: never = value
   } else if (item instanceof Expr) {
     switch (item.head) {
+      case 'File': return item.args.map(_repr).join("\n")
       case 'Group': return `(${item.args.map(_repr).join(", ")})`
       case 'List': return `[${item.args.map(_repr).join(", ")}]`
       case 'Call': return `${_repr(item.args[0])}(${item.args.slice(1).map(_repr).join(", ")})`
@@ -158,4 +195,39 @@ function repr(item: Tree, indent: number = 0): string {
     }
   }
   throw new Error('unreachable')
+}
+
+// Reconstruct source text from a parsed tree. Separators (commas, newlines)
+// live in trivia, so composite nodes emit only their own delimiters.
+function print(x: Tree | Tree[]): string {
+  if (Array.isArray(x)) return x.map(t => print(t)).join('')
+  return (x.trivia?.leading ?? '') + printBody(x) + (x.trivia?.trailing ?? '')
+}
+
+function printInner(x: Expr): string { return x.trivia?.inner ?? '' }
+
+function printBody(x: Tree): string {
+  if (x instanceof Token) return x.raw ?? repr(x)
+  const args = x.args
+  switch (x.head) {
+    case 'File': return `${print(args)}${printInner(x)}`
+    case 'Group': return `(${print(args)}${printInner(x)})`
+    case 'List': return `[${print(args)}${printInner(x)}]`
+    case 'Block': return `{${print(args)}${printInner(x)}}`
+    case 'Call': return `${print(args[0])}(${print(args.slice(1))}${printInner(x)})`
+    case 'Index': return `${print(args[0])}[${print(args.slice(1))}${printInner(x)}]`
+    case 'Field': return `${print(args[0])}.${print(args[1])}`
+    case 'Splat': return `${print(args[0])}...`
+    case 'Swap': return `&${print(args[0])}`
+    case 'Operator':
+      if (args.length === 2) return `${print(args[0])}${print(args[1])}`
+      return `${print(args[1])}${print(args[0])}${print(args[2])}`
+    case 'Syntax':
+    case 'Template': return print(args)
+    case 'Attribute': return `@${print(args)}`
+    case 'Quote': return repr(x)
+    default:
+      let _: never = x.head
+      throw new Error('unreachable')
+  }
 }

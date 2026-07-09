@@ -84,7 +84,7 @@ class REPL {
   async eval(src: string) {
     this.output = ''
     await withOptions(this.options, async () => {
-      const exprs = parse('repl', src)
+      const exprs = parse('repl', src).args
       const undoCount = getUndoCount(exprs)
       if (undoCount !== null) return this.undo(undoCount)
       if (!exprs.length) return
