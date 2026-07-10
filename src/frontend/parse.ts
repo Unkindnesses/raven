@@ -335,16 +335,21 @@ function template(r: Reader): ast.Tree | undefined {
   return ast.Template(name, new ast.Token(str).withraw(r.text(from)))
 }
 
-function brackets(r: Reader, open: string, close: string): [ast.Tree[], string] | undefined {
-  if (r.read() !== open) return
+function sequence(r: Reader, close?: string): [ast.Tree[], string] {
   const xs: ast.Tree[] = []
   while (true) {
     const pending = r.skip()
-    if (r.char === close) { r.read(); return [xs, pending] }
-    const x = some(statement(r))
+    if (close !== undefined && r.char === close) { r.read(); return [xs, pending] }
+    const x = statement(r)
+    if (x === undefined) return [xs, pending]
     ast.lead(x, pending)
     xs.push(x)
   }
+}
+
+function brackets(r: Reader, open: string, close: string): [ast.Tree[], string] | undefined {
+  if (r.read() !== open) return
+  return sequence(r, close)
 }
 
 function bracketsTo(r: Reader, open: string, close: string, f: (...xs: ast.Tree[]) => ast.Expr): ast.Expr | undefined {
@@ -518,19 +523,10 @@ function statement(r: Reader): ast.Tree | undefined {
 
 function parse(path: string, src: string): ast.Expr {
   return withPath(path, () => {
-    let result: ast.Tree[] = []
-    let r = new Reader(src)
-    while (true) {
-      const pending = r.skip()
-      let next = statement(r)
-      if (next === undefined) {
-        const file = ast.File(...result)
-        ast.inner(file, pending)
-        return file
-      }
-      ast.lead(next, pending)
-      result.push(next)
-    }
+    const [result, pending] = sequence(new Reader(src))
+    const file = ast.File(...result)
+    ast.inner(file, pending)
+    return file
   })
 }
 
