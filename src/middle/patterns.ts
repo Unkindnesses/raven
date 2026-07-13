@@ -26,18 +26,19 @@ import * as types from '../frontend/types.js'
 import * as ir from '../utils/ir.js'
 import { MIR, IRValue, Method, Definitions } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
-import { xlist, xpart, xcall } from '../frontend/lower.js'
+import { Lowered, xlist, xpart, xcall } from '../frontend/lower.js'
 import { Pattern, patternType, pattern } from '../frontend/patterns.js'
 import { Inference, Sig, inferexpr, infercall, issubset, maybe_union } from './abstract.js'
 import { some } from '../utils/map.js'
 import { options } from '../utils/options.js'
 import { part_method, isnil_method, notnil_method, partial_isnil, string } from './primitives.js'
-import { EagerCache } from '../utils/cache.js'
+import { Caching, EagerCache, pipe, reset } from '../utils/cache.js'
 import { isEqual } from '../utils/isEqual.js'
 import { repr } from '../frontend/types.js'
+import { Traced } from './tracer.js'
 
 export {
-  Interpreter, MatchMethods, Path, Match, MatchResult, partial_match, indexer, icall,
+  Interpreter, Methods, matchMethods, MatchMethods, Path, Match, MatchResult, partial_match, indexer, icall,
   dispatch_arms, dispatcherDef, dispatcher
 }
 
@@ -48,6 +49,10 @@ type MatchResult = Match | null | undefined // null is known failure, undefined 
 
 interface Interpreter {
   get(func: types.Tag, args: types.Type[]): types.Type | undefined
+}
+
+interface Methods {
+  get(key: [types.Tag, types.Type]): [Method, Match | undefined][]
 }
 
 function _assoc(as: Match, name: string, [val, path]: [types.Type, Path]): MatchResult {
@@ -220,21 +225,31 @@ function trivial_isa(int: Interpreter, val: types.Type, T: types.Type): boolean 
 
 // Filtered methods
 
-function MatchMethods(defs: Definitions, interp: Interpreter) {
-  return new EagerCache<[types.Tag, types.Type], [Method, Match | undefined][]>(([f, Ts]) => {
-    const result: [Method, Match | undefined][] = []
-    const methods = defs.methods(f)
-    for (const meth of methods.slice().reverse()) {
-      const m = partial_match(interp, meth.sig.pattern, Ts)
-      if (m === null) continue
-      result.push([meth, m])
-      if (m !== undefined) break
-    }
-    return result
-  })
+function matchMethods(defs: Definitions, interp: Interpreter, [f, Ts]: [types.Tag, types.Type]) {
+  const result: [Method, Match | undefined][] = []
+  const methods = defs.methods(f)
+  for (const meth of methods.slice().reverse()) {
+    const m = partial_match(interp, meth.sig.pattern, Ts)
+    if (m === null) continue
+    result.push([meth, m])
+    if (m !== undefined) break
+  }
+  return result
 }
 
-type MatchMethods = ReturnType<typeof MatchMethods>
+class MatchMethods implements Caching, Methods {
+  readonly interp: Traced
+  readonly cache: EagerCache<[types.Tag, types.Type], [Method, Match | undefined][]>
+
+  constructor(defs: Definitions, lowered: Lowered) {
+    this.interp = Traced.create(defs, lowered)
+    this.cache = new EagerCache(key => matchMethods(defs, this.interp, key))
+  }
+
+  get subcaches(): Caching[] { return [this.interp, this.cache] }
+  reset(deps: Set<bigint>) { reset(pipe(this.interp, this.cache), deps) }
+  get(key: [types.Tag, types.Type]) { return this.cache.get(key) }
+}
 
 // Generate dispatchers
 

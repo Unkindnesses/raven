@@ -18,7 +18,7 @@ function traceCount(f: Tag, ...args: Type[]) {
 
 beforeAll(async () => {
   const compiler = await Compiler.create(load)
-  tr = new Tracer(compiler.pipe.defs, compiler.pipe.lowered, compiler.pipe.interp)
+  tr = new Tracer(compiler.pipe.defs, compiler.pipe.lowered, compiler.pipe.methods)
 })
 
 test('trace biteqz', () => {

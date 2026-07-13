@@ -6,7 +6,7 @@ import { Def, Stack } from '../dwarf/index.js'
 import * as ir from '../utils/ir.js'
 import { unreachable } from '../utils/ir.js'
 import { Branch, asType } from '../utils/ir.js'
-import { dispatcherDef, partial_match, Path, Interpreter } from './patterns.js'
+import { dispatcherDef, matchMethods, Methods, Path } from './patterns.js'
 import { wasmPartials } from '../backend/wasm.js'
 import { getIntValue, invoke_method, load_method, notnil_method, pack_method, packcat_method, part_method, store_method, tagcast_method } from './primitives.js'
 import { isEqual } from '../utils/isEqual.js'
@@ -200,7 +200,7 @@ function keyindex(Ts: Type[]): Type | undefined {
 class Tracer {
   count = 0
 
-  constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly int: Interpreter) { }
+  constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly methods: Methods) { }
 
   _trace(f: Func, ...args: Type[]): [MIR, ir.Anno<Type>] | undefined {
     this.count = 0
@@ -320,10 +320,7 @@ class Tracer {
     const Ts = asType(code.type(args))
     const fullTs = types.list(F, Ts)
     const full = code.push(code.stmt(xlist<IRValue>(f, args), { type: fullTs }))
-    const methods = this.defs.methods(func)
-    for (const meth of methods.slice().reverse()) {
-      const m = partial_match(this.int, meth.sig.pattern, fullTs)
-      if (m === null) continue
+    for (const [meth, m] of this.methods.get([func, fullTs])) {
       if (m === undefined) return
       const as = meth.sig.args.map((a, i) => indexer(code, fullTs, full, m.get(a)![1]))
       let result = this.traceMethod(code, meth, as)
@@ -339,18 +336,16 @@ class Tracer {
 }
 
 class Traced implements Caching {
-  readonly results: Accessor<[Func, ...Type[]], Trace>
+  private constructor(readonly results: Accessor<[Func, ...Type[]], Trace>) { }
 
-  constructor(readonly defs: Definitions, readonly lowered: Lowered, results?: Accessor<[Func, ...Type[]], Trace>) {
-    if (results) {
-      this.results = results
-    } else {
-      const init = (_: [Func, ...Type[]]): Trace => undefined
-      this.results = new CycleCache<[Func, ...Type[]], Trace>(init, (self, sig) => {
-        const int = new Traced(defs, lowered, self)
-        return new Tracer(defs, lowered, int)._trace(...sig)
-      })
-    }
+  static create(defs: Definitions, lowered: Lowered, methods?: Methods) {
+    const init = (_: [Func, ...Type[]]): Trace => undefined
+    const results = new CycleCache<[Func, ...Type[]], Trace>(init, (self, sig) => {
+      methods ??= { get: key => matchMethods(defs, int, key) }
+      const int = new Traced(self)
+      return new Tracer(defs, lowered, methods)._trace(...sig)
+    })
+    return new Traced(results)
   }
 
   get subcaches() { return [this.results as Caching] }

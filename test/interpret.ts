@@ -25,4 +25,3 @@ test('interpret matchTrait without Bool trait match', () => {
   const result = int.get(types.tag('common.matchTrait'), [args])
   assert.deepEqual(result, types.list(types.nil))
 })
-
