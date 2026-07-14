@@ -442,6 +442,12 @@ function precedence(a: ast.Symbol, b: ast.Symbol): Prec {
   return table.get(a.toString(), b.toString())
 }
 
+function takeTrailing(tree: ast.Tree): string {
+  const trailing = tree.trivia?.trailing ?? ''
+  if (tree.trivia) tree.trivia.trailing = ''
+  return trailing
+}
+
 function infix(r: Reader, syn = true, prev?: ast.Symbol): [ast.Tree, boolean] {
   let left = r.some(r => prefix(r))
   while (true) {
@@ -456,11 +462,12 @@ function infix(r: Reader, syn = true, prev?: ast.Symbol): [ast.Tree, boolean] {
     if (prec === Prec.None) { throw new Error(`Operators ${prev} and ${op} are ambiguous at ${path()}:${curstring(r.cursor())}`) }
     ast.trail(left, ws)
     const optok = new ast.Token(op, { file: path(), loc: opcur })
-    ast.trail(optok, r.skipWhitespace())
+    ast.trail(optok, r.skipTrailing())
     const pending = r.skip()
     const right = syn ? syntax(r, op) : infix(r, syn, op)[0]
     ast.lead(right, pending)
     left = ast.Operator(optok, left, right).withmeta({ file: path(), loc: cur })
+    ast.trail(left, takeTrailing(right))
   }
 }
 
@@ -490,7 +497,9 @@ function syntax(r: Reader, op?: ast.Symbol): ast.Tree {
     args.push(arg)
   }
   if (!args.length) return name
-  return ast.Syntax(name, ...args).withmeta({ file: path(), loc: pos })
+  const ex = ast.Syntax(name, ...args).withmeta({ file: path(), loc: pos })
+  ast.trail(ex, takeTrailing(args[args.length - 1]))
+  return ex
 }
 
 function attr(r: Reader): ast.Tree | undefined {
@@ -509,7 +518,9 @@ function attr(r: Reader): ast.Tree | undefined {
   const pending = r.skip()
   let body = r.parse(attr, syntax)!
   ast.lead(body, pending)
-  return ast.Attribute(name, ...args, body).withmeta({ file: path(), loc: pos })
+  const ex = ast.Attribute(name, ...args, body).withmeta({ file: path(), loc: pos })
+  ast.trail(ex, takeTrailing(body))
+  return ex
 }
 
 function statement(r: Reader): ast.Tree | undefined {

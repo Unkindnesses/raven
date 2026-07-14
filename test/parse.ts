@@ -186,6 +186,32 @@ test('trivia ownership', () => {
   const file = parse('test', 'x\n# eof')
   assert.equal(file.head, 'File')
   assert.equal(file.trivia?.inner, '# eof')
+
+  const operator = ast.asExpr(first('  x * y  \n'), 'Operator')
+  const left = operator.args[1]
+  const right = operator.args[2]
+  assert.equal(operator.trivia?.leading, '  ')
+  assert.equal(left.trivia?.leading ?? '', '')
+  assert.equal(operator.trivia?.trailing, '  \n')
+  assert.equal(right.trivia?.trailing ?? '', '')
+
+  const callOperator = ast.asExpr(first('x * f(y)  \n'), 'Operator')
+  const call = ast.asExpr(callOperator.args[2], 'Call')
+  assert.equal(callOperator.trivia?.trailing, '  \n')
+  assert.equal(call.trivia?.trailing ?? '', '')
+
+  const continued = ast.asExpr(first('x + # foo\n  y'), 'Operator')
+  const continuedOperator = continued.args[0]
+  const continuedRight = continued.args[2]
+  assert.equal(continuedOperator.trivia?.trailing, ' # foo\n')
+  assert.equal(continuedRight.trivia?.leading, '  ')
+
+  const bracket = ast.asExpr(first('[ x * y  ]'), 'List')
+  const bracketedOperator = ast.asExpr(bracket.args[0], 'Operator')
+  assert.equal(bracket.trivia?.leading ?? '', '')
+  assert.equal(bracket.trivia?.trailing ?? '', '')
+  assert.equal(bracketedOperator.trivia?.leading, ' ')
+  assert.equal(bracketedOperator.trivia?.trailing, '  ')
 })
 
 const roundtrips = (src: string) => assert.equal(ast.print(parse('test', src)), src)
