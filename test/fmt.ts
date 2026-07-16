@@ -80,7 +80,14 @@ test('normalize inline commas', () => {
 
   assert.notEqual(formatted, tree)
   assert.equal(ast.print(tree), source)
-  assert.equal(ast.print(formatted), 'f(a, b)\nxs[a, b]\n[ a, b]\n[a, b]\n( a, b)\n(a, b)\n')
+  assert.equal(ast.print(formatted), 'f(a, b)\nxs[a, b]\n[ a, b ]\n[a, b]\n( a, b )\n(a, b)\n')
+})
+
+test('remove inline trivia from empty brackets', () => {
+  const source = 'f( )\nxs[  ]\n[ ]\n( \t)\nfn f() { }\n'
+  const expected = 'f()\nxs[]\n[]\n()\nfn f() {}\n'
+  assert.equal(ast.print(commas(parse('test.rv', source))), expected)
+  assert.equal(ast.print(commas(parse('test.rv', 'f(\n)\n'))), 'f(\n)\n')
 })
 
 test('preserve multiline comma trivia', () => {
@@ -97,6 +104,12 @@ test('normalize trailing brackets', () => {
   assert.notEqual(formatted, tree)
   assert.equal(ast.print(tree), source)
   assert.equal(ast.print(formatted), 'f(\na\n)\ng(\nb\n)\n[\nc\n]\n[\nd\n]\n')
+})
+
+test('match closing spaces to opening spaces', () => {
+  const source = '[ a, b]\n( c)\nfn f() { x}\n[[ y]]\n'
+  const expected = '[ a, b ]\n( c )\nfn f() { x }\n[[ y ]]\n'
+  assert.equal(format('test.rv', source), expected)
 })
 
 test('normalize and indent all trailing bracket types', () => {
@@ -161,7 +174,7 @@ test('fmt yields files with their source and formatted output', async () => {
   const source = '# hello  \nf( a , b )\t\n'
   await fs.writeFile(file, source)
 
-  assert.deepEqual(await collectChanges([file]), [[file, source, '# hello\nf(a, b )\n']])
+  assert.deepEqual(await collectChanges([file]), [[file, source, '# hello\nf(a, b)\n']])
   assert.equal(await fs.readFile(file, 'utf8'), source)
 })
 

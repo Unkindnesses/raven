@@ -45,7 +45,7 @@ fn pop(&xs: List) {
 fn iterate(xs: List) { IndexIterator(xs) }
 
 fn rest(xs: List) {
-  if empty?(xs) { abort("List is empty")  }
+  if empty?(xs) { abort("List is empty") }
   result = []
   for i = range(2, length(xs)) {
     append(&result, xs[i])

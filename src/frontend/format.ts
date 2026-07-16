@@ -53,21 +53,27 @@ function commas(tree: ast.Tree): ast.Tree {
   if (start === undefined) return out
   const args = [...out.args]
   const items = args.slice(start)
-  const spaceFirst = start === 0
+  const allowSpace = start === 0
+  if (items.length === 0) // collapse empty lists without newlines
+    return /[\n#]/.test(out.trivia.inner) ? out : ast.inner(out, '')
   items.forEach((item, i) => {
-    // Strip trailing commas
+    // strip trailing commas
     if (i === items.length - 1 || item.trivia.trailing.includes('\n'))
       item = ast.trailing(item, item.trivia.trailing.replace(/(?<=^[^#]*),/g, ''))
-    // Inline commas
+    // at most one space after opener
     const previous = items[i - 1]
     const prefix = (previous?.trivia.trailing ?? '') + item.trivia.leading
     if (prefix.includes('\n')) { items[i] = item; return }
-    if (previous) {
+    if (!previous) item = ast.leading(item, allowSpace && prefix.length > 0 ? ' ' : '')
+    else { // inline commas
       items[i - 1] = ast.trailing(previous, ',')
       item = ast.leading(item, ' ')
-    } else item = ast.leading(item, spaceFirst && prefix.length > 0 ? ' ' : '')
+    }
     items[i] = item
   })
+  const [first, last] = [items[0], items.at(-1)!]
+  if (!first.trivia.leading.includes('\n') && !last.trivia.trailing.includes('\n'))
+    items[items.length - 1] = ast.trailing(last, first.trivia.leading) // mirror opening space at close
   args.splice(start, items.length, ...items)
   return new ast.Expr(out.head, args, out.meta, out.trivia)
 }
