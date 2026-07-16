@@ -2,7 +2,7 @@ import { Tag } from './types.js'
 
 export {
   Cursor, Symbol, symbol, gensym, Hex, asSymbol, asString, asNumber, Atom, isAtom,
-  Meta, Tree, Token, ExprHead, Expr, isExpr, asExpr, asToken, token, repr, print, isSyntax,
+  Meta, Tree, Traverse, Token, ExprHead, Expr, isExpr, asExpr, asToken, token, repr, print, isSyntax,
   Trivia, leading, trailing, inner, trail, callargs
 }
 
@@ -118,6 +118,41 @@ class Expr {
   ungroup(): Tree {
     if (this.head === 'Group' && this.args.length === 1) return this.args[0].ungroup()
     return this
+  }
+}
+
+function move(loc: Cursor, [lines, columns]: Extent): Cursor {
+  return {
+    line: loc.line + lines,
+    column: lines ? columns + 1 : loc.column + columns
+  }
+}
+
+function childOffset(tree: Expr, index: number): number {
+  return +(index === 0 && ['Group', 'List', 'Block', 'Swap', 'Attribute', 'Quote'].includes(tree.head)
+    || index === 1 && ['Call', 'Index', 'Field'].includes(tree.head))
+}
+
+class Traverse {
+  constructor(private readonly tree: Tree, private readonly start: Cursor = { line: 1, column: 1 }) { }
+
+  get node(): Tree { return this.tree }
+  get loc(): Cursor { return move(this.start, textExtent(this.tree.trivia.leading)) }
+  get trivia(): Trivia { return this.tree.trivia }
+
+  replace(tree: Tree): Traverse { return new Traverse(tree, this.start) }
+
+  map(f: (tree: Traverse, index: number) => Tree): Tree {
+    if (this.tree instanceof Token) return this.tree
+    const tree = this.tree
+    let loc = this.loc
+    const args = tree.args.map((arg, index) => {
+      loc = move(loc, [0, childOffset(tree, index)])
+      const out = f(new Traverse(arg, loc), index)
+      loc = move(loc, out.extent)
+      return out
+    })
+    return new Expr(tree.head, args, tree.meta, tree.trivia)
   }
 }
 

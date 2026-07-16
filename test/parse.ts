@@ -229,6 +229,21 @@ test('source extents', () => {
   assert.deepEqual(parse('test', source).extent, [2, 0])
 })
 
+test('traversal locations account for replaced siblings', () => {
+  const tree = ast.List(
+    new ast.Token(ast.symbol('x')),
+    ast.leading(new ast.Token(ast.symbol('y')), ' ')
+  )
+  const locations: ast.Cursor[] = []
+  const out = new ast.Traverse(tree).map((child, index) => {
+    locations.push(child.loc)
+    return index === 0 ? new ast.Token(ast.symbol('long')) : child.node
+  })
+
+  assert.deepEqual(locations, [{ line: 1, column: 2 }, { line: 1, column: 7 }])
+  assert.equal(ast.print(out), '[long y]')
+})
+
 const roundtrips = (src: string) => assert.equal(ast.print(parse('test', src)), src)
 
 test('round-trip statements', () => {
