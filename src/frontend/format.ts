@@ -1,7 +1,7 @@
 import * as ast from './ast.js'
 import { parse } from './parse.js'
 
-export { format, trailingWhitespace, commas, brackets, indentTree }
+export { format, trailingWhitespace, commas, brackets, indent }
 
 // Final newline
 
@@ -99,34 +99,30 @@ function indentTrivia(text: string, lineStart: boolean, depth: number, closeDept
   return text.slice(prefix.length)
 }
 
-function indentStatements(statements: readonly ast.Tree[], depth: number, lineStart: boolean): ast.Tree[] {
-  return statements.map(statement => {
-    const out = ast.leading(indentTree(statement, depth), indentTrivia(statement.trivia.leading, lineStart, depth))
-    lineStart = statement.trivia.trailing.endsWith('\n')
+function indentTraverse(tree: ast.Traverse, depth: number): ast.Tree {
+  const node = tree.node
+  if (node instanceof ast.Token) return node
+  let lineStart = false
+  let itemDepth = depth
+  const start = bracketStart(node)
+  if (node.head === 'File') lineStart = true
+  else if (start !== undefined) itemDepth += 2
+  const out = tree.map((child, index) => {
+    if (start === undefined || index < start) return indentTraverse(child, depth)
+    if (index === start && node.head !== 'File') {
+      lineStart = /^[^#]*\n/.test(child.trivia.leading)
+      if (!child.trivia.leading.includes('\n')) itemDepth = child.loc.column - 1
+    }
+    child = child.replace(ast.leading(child.node, indentTrivia(child.trivia.leading, lineStart, itemDepth)))
+    const out = indentTraverse(child, itemDepth)
+    lineStart = out.trivia.trailing.endsWith('\n')
     return out
   })
+  return ast.inner(out, indentTrivia(tree.trivia.inner, lineStart, itemDepth, depth))
 }
 
-function indentTree(tree: ast.Tree, depth: number = 0): ast.Tree {
-  if (tree instanceof ast.Token) return tree
-  let args: ast.Tree[]
-  let lineStart = false
-  const start = bracketStart(tree)
-  if (tree.head === 'File') {
-    args = indentStatements(tree.args, depth, true)
-    lineStart = tree.args.at(-1)?.trivia.trailing.endsWith('\n') ?? true
-  } else if (start === undefined) {
-    args = tree.args.map(arg => indentTree(arg, depth))
-  } else {
-    const before = tree.args.slice(0, start).map(arg => indentTree(arg, depth))
-    const statements = tree.args.slice(start)
-    depth += 2
-    lineStart = /^[^#]*\n/.test(statements[0]?.trivia.leading ?? '')
-    args = [...before, ...indentStatements(statements, depth, lineStart)]
-    lineStart = statements.at(-1)?.trivia.trailing.endsWith('\n') ?? false
-  }
-  const out = new ast.Expr(tree.head, args, tree.meta, tree.trivia)
-  return ast.inner(out, indentTrivia(tree.trivia.inner, lineStart, depth, Math.max(depth - 2, 0)))
+function indent(tree: ast.Tree, depth: number = 0): ast.Tree {
+  return indentTraverse(new ast.Traverse(tree), depth)
 }
 
 // Combined pass
@@ -135,7 +131,7 @@ function format(path: string, source: string): string {
   let file: ast.Tree = parse(path, source)
   file = commas(file)
   file = brackets(file)
-  file = indentTree(file)
+  file = indent(file)
   file = trailingWhitespace(file)
   file = ensureFinalNewline(ast.asExpr(file), lineEnding(source))
   return ast.print(file)

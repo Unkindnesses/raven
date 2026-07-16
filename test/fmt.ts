@@ -5,7 +5,7 @@ import assert from 'node:assert'
 import { afterEach, test } from 'vitest'
 import * as ast from '../src/frontend/ast.js'
 import { fmt, formatDiff } from '../src/cli/fmt.js'
-import { indentTree, format, commas, brackets, trailingWhitespace } from '../src/frontend/format.js'
+import { indent, format, commas, brackets, trailingWhitespace } from '../src/frontend/format.js'
 import { parse } from '../src/frontend/parse.js'
 
 const fixtures: string[] = []
@@ -108,7 +108,7 @@ test('normalize and indent all trailing bracket types', () => {
 test('fix indentation of statements on their own line', () => {
   const source = '  x\nfn f() {\ny\n    if true {\n z\n  }\n}\n'
   const tree = parse('test.rv', source)
-  const formatted = indentTree(tree)
+  const formatted = indent(tree)
 
   assert.notEqual(formatted, tree)
   assert.equal(ast.print(tree), source)
@@ -127,6 +127,16 @@ test('indent all bracket types uniformly', () => {
   const source = 'f(\na,\n[\nb,\n],\n(\nc,\n),\n)[\nd,\n]\n'
   const expected = 'f(\n  a\n  [\n    b\n  ]\n  (\n    c\n  )\n)[\n  d\n]\n'
   assert.equal(format('test.rv', source), expected)
+})
+
+test('align continuations with an inline first list item', () => {
+  const source = '1 + foo(a, b\nc, d)\nfn f() {\nfoo(a, b\nc, d)\n}\n'
+  const expected = '1 + foo(a, b\n        c, d)\nfn f() {\n  foo(a, b\n      c, d)\n}\n'
+  assert.equal(format('test.rv', source), expected)
+})
+
+test('align continuations after earlier formatting changes', () => {
+  assert.equal(format('test.rv', 'f(a,b)(c,d\ne)\n'), 'f(a, b)(c, d\n        e)\n')
 })
 
 test('indent closing delimiters without statements', () => {
