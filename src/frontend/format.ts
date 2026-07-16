@@ -3,21 +3,6 @@ import { parse } from './parse.js'
 
 export { format, trailingWhitespace, commas, brackets, indentTree }
 
-function setLeading(tree: ast.Tree, leading: string) {
-  tree.trivia ??= { leading: '', trailing: '', inner: '' }
-  tree.trivia.leading = leading
-}
-
-function setTrailing(tree: ast.Tree, trailing: string) {
-  tree.trivia ??= { leading: '', trailing: '', inner: '' }
-  tree.trivia.trailing = trailing
-}
-
-function setInner(tree: ast.Tree, inner: string) {
-  tree.trivia ??= { leading: '', trailing: '', inner: '' }
-  tree.trivia.inner = inner
-}
-
 // Final newline
 
 function lineEnding(source: string): string {
@@ -30,14 +15,13 @@ function endWith(text: string, newline: string): string {
 
 function ensureFinalNewline(file: ast.Expr, newline: string): ast.Expr {
   const last = file.args.at(-1)
-  const inner = file.trivia?.inner ?? ''
-  if (/\S/.test(inner)) {
-    file.trivia!.inner = endWith(inner, newline)
-  } else if (last) {
-    if (file.trivia) file.trivia.inner = ''
-    setTrailing(last, endWith(last.trivia?.trailing ?? '', newline))
-  } else if (file.trivia) file.trivia.inner = ''
-  return file
+  const inner = file.trivia.inner
+  if (/\S/.test(inner)) return ast.inner(file, endWith(inner, newline))
+  if (!last) return ast.inner(file, '')
+  const out = file.map((arg, i) => i === file.args.length - 1
+    ? ast.trailing(arg, endWith(arg.trivia.trailing, newline))
+    : arg)
+  return ast.inner(out, '')
 }
 
 // Trailing whitespace
@@ -48,12 +32,11 @@ function trim(text: string): string {
 
 function trailingWhitespace(tree: ast.Tree): ast.Tree {
   const out = tree.map(trailingWhitespace)
-  if (tree.trivia) out.trivia = {
-    leading: trim(out.trivia!.leading),
-    trailing: trim(out.trivia!.trailing),
-    inner: trim(out.trivia!.inner)
-  }
-  return out
+  return out.withtrivia({
+    leading: trim(out.trivia.leading),
+    trailing: trim(out.trivia.trailing),
+    inner: trim(out.trivia.inner)
+  })
 }
 
 // Commas
@@ -68,23 +51,25 @@ function commas(tree: ast.Tree): ast.Tree {
   if (out instanceof ast.Token) return out
   const start = bracketStart(out)
   if (start === undefined) return out
-  const items = out.args.slice(start)
+  const args = [...out.args]
+  const items = args.slice(start)
   const spaceFirst = start === 0
   items.forEach((item, i) => {
     // Strip trailing commas
-    const trivia = item.trivia
-    if (trivia && (i === items.length - 1 || trivia.trailing.includes('\n')))
-      trivia.trailing = trivia.trailing.replace(/(?<=^[^#]*),/g, '')
+    if (i === items.length - 1 || item.trivia.trailing.includes('\n'))
+      item = ast.trailing(item, item.trivia.trailing.replace(/(?<=^[^#]*),/g, ''))
     // Inline commas
     const previous = items[i - 1]
-    const prefix = (previous?.trivia?.trailing ?? '') + (item.trivia?.leading ?? '')
-    if (prefix.includes('\n')) return
+    const prefix = (previous?.trivia.trailing ?? '') + item.trivia.leading
+    if (prefix.includes('\n')) { items[i] = item; return }
     if (previous) {
-      setTrailing(previous, ',')
-      setLeading(item, ' ')
-    } else setLeading(item, spaceFirst && prefix.length > 0 ? ' ' : '')
+      items[i - 1] = ast.trailing(previous, ',')
+      item = ast.leading(item, ' ')
+    } else item = ast.leading(item, spaceFirst && prefix.length > 0 ? ' ' : '')
+    items[i] = item
   })
-  return out
+  args.splice(start, items.length, ...items)
+  return new ast.Expr(out.head, args, out.meta, out.trivia)
 }
 
 // Trailing brackets
@@ -96,12 +81,12 @@ function brackets(tree: ast.Tree): ast.Tree {
   if (start === undefined) return out
   const [first, last] = [out.args[start], out.args.at(-1)]
   if (!first || !last) return out
-  const openNewline = (first.trivia?.leading ?? '').match(/\r?\n/)?.[0]
-  const closeNewline = ((last.trivia?.trailing ?? '') + (out.trivia?.inner ?? '')).match(/\r?\n/)?.[0]
+  const openNewline = first.trivia.leading.match(/\r?\n/)?.[0]
+  const closeNewline = (last.trivia.trailing + out.trivia.inner).match(/\r?\n/)?.[0]
   if (openNewline && !closeNewline)
-    setTrailing(last, (last.trivia?.trailing ?? '') + openNewline)
-  else if (closeNewline && !openNewline)
-    ast.lead(first, closeNewline)
+    return out.map((arg, i) => i === out.args.length - 1 ? ast.trail(arg, openNewline) : arg)
+  if (closeNewline && !openNewline)
+    return out.map((arg, i) => i === start ? ast.leading(arg, closeNewline) : arg)
   return out
 }
 
@@ -114,37 +99,34 @@ function indentTrivia(text: string, lineStart: boolean, depth: number, closeDept
   return text.slice(prefix.length)
 }
 
-function indentStatements(statements: ast.Tree[], depth: number, lineStart: boolean): ast.Tree[] {
+function indentStatements(statements: readonly ast.Tree[], depth: number, lineStart: boolean): ast.Tree[] {
   return statements.map(statement => {
-    const out = indentTree(statement, depth)
-    setLeading(out, indentTrivia(out.trivia?.leading ?? '', lineStart, depth))
-    lineStart = statement.trivia?.trailing.endsWith('\n') ?? false
+    const out = ast.leading(indentTree(statement, depth), indentTrivia(statement.trivia.leading, lineStart, depth))
+    lineStart = statement.trivia.trailing.endsWith('\n')
     return out
   })
 }
 
 function indentTree(tree: ast.Tree, depth: number = 0): ast.Tree {
-  if (tree instanceof ast.Token) return tree.clone()
+  if (tree instanceof ast.Token) return tree
   let args: ast.Tree[]
   let lineStart = false
   const start = bracketStart(tree)
   if (tree.head === 'File') {
     args = indentStatements(tree.args, depth, true)
-    lineStart = tree.args.at(-1)?.trivia?.trailing.endsWith('\n') ?? true
+    lineStart = tree.args.at(-1)?.trivia.trailing.endsWith('\n') ?? true
   } else if (start === undefined) {
     args = tree.args.map(arg => indentTree(arg, depth))
   } else {
     const before = tree.args.slice(0, start).map(arg => indentTree(arg, depth))
     const statements = tree.args.slice(start)
     depth += 2
-    lineStart = /^[^#]*\n/.test(statements[0]?.trivia?.leading ?? '')
+    lineStart = /^[^#]*\n/.test(statements[0]?.trivia.leading ?? '')
     args = [...before, ...indentStatements(statements, depth, lineStart)]
-    lineStart = statements.at(-1)?.trivia?.trailing.endsWith('\n') ?? false
+    lineStart = statements.at(-1)?.trivia.trailing.endsWith('\n') ?? false
   }
-  const out = new ast.Expr(tree.head, args, tree.meta)
-  if (tree.trivia) out.trivia = { ...tree.trivia }
-  setInner(out, indentTrivia(out.trivia?.inner ?? '', lineStart, depth, Math.max(depth - 2, 0)))
-  return out
+  const out = new ast.Expr(tree.head, args, tree.meta, tree.trivia)
+  return ast.inner(out, indentTrivia(tree.trivia.inner, lineStart, depth, Math.max(depth - 2, 0)))
 }
 
 // Combined pass

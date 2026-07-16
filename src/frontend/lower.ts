@@ -447,8 +447,8 @@ function lowermatch(sc: Scope, code: LIR, val: Val<LIR>, pat: ast.Tree): Val<LIR
   return _lowermatch(sc, code, val, pattern, args, pat)
 }
 
-function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): Val<LIR> {
-  if (Array.isArray(x)) {
+function lower(sc: Scope, code: LIR, x: ast.Tree | readonly ast.Tree[], value = true): Val<LIR> {
+  if (!(x instanceof ast.Token || x instanceof ast.Expr)) {
     if (x.length === 0) return nil
     x.slice(0, -1).forEach(item => lower(sc, code, item, false))
     return lower(sc, code, x[x.length - 1], value)
@@ -529,7 +529,7 @@ function lowerOperator(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LI
   }
 }
 
-function argtuple(sc: Scope, code: LIR, args: ast.Tree[], src?: ast.Meta): [Val<LIR>, Map<string, number>] {
+function argtuple(sc: Scope, code: LIR, args: readonly ast.Tree[], src?: ast.Meta): [Val<LIR>, Map<string, number>] {
   const swaps = new Map<string, number>()
   const parts: Val<LIR>[] = []
   let idx = 1

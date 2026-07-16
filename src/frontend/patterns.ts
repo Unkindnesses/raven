@@ -72,7 +72,7 @@ function resolvetags(ex: ast.Tree, mod: Tag): ast.Tree {
   if (ex instanceof ast.Token) return ex
   if (ex.head == 'Template') {
     if (!symbol('tag').isEqual(ex.args[0].unwrap())) return ex
-    return new ast.Token(modtag(mod, ast.asString(ex.args[1])), ex.meta)
+    return new ast.Token(modtag(mod, ast.asString(ex.args[1]))).withmeta(ex.meta)
   }
   return ex.map(x => resolvetags(x, mod))
 }

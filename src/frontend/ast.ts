@@ -3,16 +3,16 @@ import { Tag } from './types.js'
 export {
   Cursor, Symbol, symbol, gensym, Hex, asSymbol, asString, asNumber, Atom, isAtom,
   Meta, Tree, Token, ExprHead, Expr, isExpr, asExpr, asToken, token, repr, print, isSyntax,
-  Trivia, lead, trail, inner, callargs
+  Trivia, leading, trailing, inner, trail, callargs
 }
 
 interface Cursor {
-  line: number
-  column: number
+  readonly line: number
+  readonly column: number
 }
 
 class Symbol {
-  constructor(public name: string) { }
+  constructor(readonly name: string) { }
   toString() { return this.name }
   isEqual(other: unknown): other is Symbol {
     return other instanceof Symbol && this.name === other.name
@@ -27,7 +27,7 @@ let counter = 0
 function gensym(name = '') { return symbol(`${name}_${counter++}`) }
 
 class Hex {
-  constructor(public digits: string) { }
+  constructor(readonly digits: string) { }
 }
 
 function unwrapToken<T>(x: unknown, check: (v: unknown) => v is T, type: string): T {
@@ -52,36 +52,45 @@ function isAtom(x: unknown): x is Atom {
 }
 
 interface Meta {
-  file: string
-  loc: Cursor
+  readonly file: string
+  readonly loc: Cursor
 }
 
 // Source text around a node: `leading` before its first character, `trailing`
 // from its last character to the end of the line (including separators and the
 // line break), `inner` before its closing delimiter, after all children.
 interface Trivia {
-  leading: string
-  trailing: string
-  inner: string
+  readonly leading: string
+  readonly trailing: string
+  readonly inner: string
 }
 
 type Tree = Token | Expr
 
-function trivia(node: Tree): Trivia {
-  return node.trivia ??= { leading: '', trailing: '', inner: '' }
+const emptyTrivia: Trivia = { leading: '', trailing: '', inner: '' }
+
+function leading<T extends Tree>(node: T, text: string): T {
+  return node.withtrivia({ leading: text }) as T
 }
 
-function lead(node: Tree, text: string) { if (text) trivia(node).leading += text }
-function trail(node: Tree, text: string) { if (text) trivia(node).trailing += text }
-function inner(node: Tree, text: string) { if (text) trivia(node).inner += text }
+function trailing<T extends Tree>(node: T, text: string): T {
+  return node.withtrivia({ trailing: text }) as T
+}
+
+function trail<T extends Tree>(node: T, text: string): T {
+  return trailing(node, node.trivia.trailing + text)
+}
+
+function inner<T extends Tree>(node: T, text: string): T {
+  return node.withtrivia({ inner: text }) as T
+}
 
 class Token {
-  constructor(public value: Atom, public meta?: Meta, public raw?: string, public trivia?: Trivia) { }
+  constructor(readonly value: Atom, readonly raw?: string, readonly meta?: Meta, readonly trivia = emptyTrivia) { }
   unwrap(): Atom { return this.value }
-  clone(): Token { return new Token(this.value, this.meta, this.raw, this.trivia && { ...this.trivia }) }
-  map(_: (tree: Tree, index: number) => Tree): Token { return this.clone() }
-  withmeta(meta: Meta): Token { return new Token(this.value, meta, this.raw, this.trivia && { ...this.trivia }) }
-  withraw(raw: string): Token { return new Token(this.value, this.meta, raw, this.trivia && { ...this.trivia }) }
+  map(_: (tree: Tree, index: number) => Tree): Token { return this }
+  withmeta(meta: Meta | undefined): Token { return new Token(this.value, this.raw, meta, this.trivia) }
+  withtrivia(value: Partial<Trivia>): Token { return new Token(this.value, this.raw, this.meta, { ...this.trivia, ...value }) }
   toString(): string { return repr(this) }
   ungroup(): Token { return this }
 }
@@ -91,21 +100,12 @@ type ExprHead =
   | 'Operator' | 'Swap' | 'Block' | 'Syntax' | 'Quote' | 'Template' | 'Attribute'
 
 class Expr {
-  trivia?: Trivia
-  constructor(public head: ExprHead, public args: Tree[], public meta?: Meta) { }
-
+  constructor(readonly head: ExprHead, readonly args: readonly Tree[], readonly meta?: Meta, readonly trivia = emptyTrivia) { }
   get length(): number { return this.args.length }
   unwrap(): Expr { return this }
-  map(f: (tree: Tree, index: number) => Tree): Expr {
-    const ex = new Expr(this.head, this.args.map(f), this.meta)
-    if (this.trivia) ex.trivia = { ...this.trivia }
-    return ex
-  }
-  withmeta(m: Meta | undefined): Expr {
-    const ex = new Expr(this.head, this.args, m)
-    if (this.trivia) ex.trivia = { ...this.trivia }
-    return ex
-  }
+  map(f: (tree: Tree, index: number) => Tree) { return new Expr(this.head, this.args.map(f), this.meta, this.trivia) }
+  withmeta(m: Meta | undefined) { return new Expr(this.head, this.args, m, this.trivia) }
+  withtrivia(value: Partial<Trivia>) { return new Expr(this.head, this.args, this.meta, { ...this.trivia, ...value }) }
   toString(): string { return repr(this) }
   ungroup(): Tree {
     if (this.head === 'Group' && this.args.length === 1) return this.args[0].ungroup()
@@ -135,7 +135,7 @@ function token(x: Atom | Tree): Tree {
   return x instanceof Expr || x instanceof Token ? x : new Token(x)
 }
 
-function callargs(ex: Expr & { head: 'Call' | 'Operator' }): Tree[] {
+function callargs(ex: Expr & { head: 'Call' | 'Operator' }): readonly Tree[] {
   if (ex.head === 'Call' || ex.args.length === 2) return ex.args
   return [ex.args[1], ex.args[0], ex.args[2]]
 }
@@ -198,12 +198,12 @@ function repr(item: Tree, indent: number = 0): string {
 
 // Reconstruct source text from a parsed tree. Separators (commas, newlines)
 // live in trivia, so composite nodes emit only their own delimiters.
-function print(x: Tree | Tree[]): string {
-  if (Array.isArray(x)) return x.map(t => print(t)).join('')
-  return (x.trivia?.leading ?? '') + printBody(x) + (x.trivia?.trailing ?? '')
+function print(x: Tree | readonly Tree[]): string {
+  if (!(x instanceof Token || x instanceof Expr)) return x.map(t => print(t)).join('')
+  return x.trivia.leading + printBody(x) + x.trivia.trailing
 }
 
-function printInner(x: Expr): string { return x.trivia?.inner ?? '' }
+function printInner(x: Expr): string { return x.trivia.inner }
 
 function printBody(x: Tree): string {
   if (x instanceof Token) return x.raw ?? repr(x)

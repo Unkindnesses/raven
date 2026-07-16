@@ -172,46 +172,46 @@ test('prefix negation binds tighter than infix operators', () => {
 
 test('trivia ownership', () => {
   const [lineTrail, lineLead] = parsed('a, # foo\nb')
-  assert.equal(lineTrail.trivia?.trailing, ', # foo\n')
-  assert.equal(lineLead.trivia?.leading ?? '', '')
+  assert.equal(lineTrail.trivia.trailing, ', # foo\n')
+  assert.equal(lineLead.trivia.leading, '')
 
   const [sameLineTrail, sameLineLead] = parsed('a,  b')
-  assert.equal(sameLineTrail.trivia?.trailing, ',')
-  assert.equal(sameLineLead.trivia?.leading, '  ')
+  assert.equal(sameLineTrail.trivia.trailing, ',')
+  assert.equal(sameLineLead.trivia.leading, '  ')
 
   const [newlineTrail, newlineLead] = parsed('a,  \nb')
-  assert.equal(newlineTrail.trivia?.trailing, ',  \n')
-  assert.equal(newlineLead.trivia?.leading ?? '', '')
+  assert.equal(newlineTrail.trivia.trailing, ',  \n')
+  assert.equal(newlineLead.trivia.leading, '')
 
   const file = parse('test', 'x\n# eof')
   assert.equal(file.head, 'File')
-  assert.equal(file.trivia?.inner, '# eof')
+  assert.equal(file.trivia.inner, '# eof')
 
   const operator = ast.asExpr(first('  x * y  \n'), 'Operator')
   const left = operator.args[0]
   const right = operator.args[2]
-  assert.equal(operator.trivia?.leading, '  ')
-  assert.equal(left.trivia?.leading ?? '', '')
-  assert.equal(operator.trivia?.trailing, '  \n')
-  assert.equal(right.trivia?.trailing ?? '', '')
+  assert.equal(operator.trivia.leading, '  ')
+  assert.equal(left.trivia.leading, '')
+  assert.equal(operator.trivia.trailing, '  \n')
+  assert.equal(right.trivia.trailing, '')
 
   const callOperator = ast.asExpr(first('x * f(y)  \n'), 'Operator')
   const call = ast.asExpr(callOperator.args[2], 'Call')
-  assert.equal(callOperator.trivia?.trailing, '  \n')
-  assert.equal(call.trivia?.trailing ?? '', '')
+  assert.equal(callOperator.trivia.trailing, '  \n')
+  assert.equal(call.trivia.trailing, '')
 
   const continued = ast.asExpr(first('x + # foo\n  y'), 'Operator')
   const continuedOperator = continued.args[1]
   const continuedRight = continued.args[2]
-  assert.equal(continuedOperator.trivia?.trailing, ' # foo\n')
-  assert.equal(continuedRight.trivia?.leading, '  ')
+  assert.equal(continuedOperator.trivia.trailing, ' # foo\n')
+  assert.equal(continuedRight.trivia.leading, '  ')
 
   const bracket = ast.asExpr(first('[ x * y  ]'), 'List')
   const bracketedOperator = ast.asExpr(bracket.args[0], 'Operator')
-  assert.equal(bracket.trivia?.leading ?? '', '')
-  assert.equal(bracket.trivia?.trailing ?? '', '')
-  assert.equal(bracketedOperator.trivia?.leading, ' ')
-  assert.equal(bracketedOperator.trivia?.trailing, '  ')
+  assert.equal(bracket.trivia.leading, '')
+  assert.equal(bracket.trivia.trailing, '')
+  assert.equal(bracketedOperator.trivia.leading, ' ')
+  assert.equal(bracketedOperator.trivia.trailing, '  ')
 })
 
 const roundtrips = (src: string) => assert.equal(ast.print(parse('test', src)), src)

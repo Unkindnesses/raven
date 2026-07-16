@@ -111,7 +111,7 @@ interface LiftState {
   count: number
 }
 
-function lambdaParts(ex: ast.Expr): [ast.Tree[], ast.Tree] | undefined {
+function lambdaParts(ex: ast.Expr): [readonly ast.Tree[], ast.Tree] | undefined {
   if (!ast.isSyntax(ex, 'fn')) return
   if (ex.args.length === 2 && ast.isExpr(ex.args[1], 'Block')) return [[], ex.args[1]]
   if (ex.args.length === 3 && ast.isExpr(ex.args[2], 'Block')) {
@@ -121,7 +121,7 @@ function lambdaParts(ex: ast.Expr): [ast.Tree[], ast.Tree] | undefined {
   return
 }
 
-function registerLambda(cx: LoadState, name: Tag, params: ast.Tree[], body: ast.Tree, meta?: ast.Meta): void {
+function registerLambda(cx: LoadState, name: Tag, params: readonly ast.Tree[], body: ast.Tree, meta?: ast.Meta): void {
   const resolve = (x: ast.Symbol) => resolve_static(cx, x)
   const lambdaType = ast.Call(tag('common.core.pack'), name)
   const self = ast.Operator(ast.symbol('_'), ast.symbol(':'), lambdaType)

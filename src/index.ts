@@ -81,7 +81,7 @@ class StreamCompiler {
       const defs = this.pipe.sources
       const module = defs.module(tag(''))
       const cx = new LoadState(defs, module, load)
-      const exprs = parse('repl', src).args
+      const exprs = [...parse('repl', src).args]
       if (exprs.length) exprs[exprs.length - 1] = wrapPrint(exprs[exprs.length - 1])
       for (const expr of exprs) await vload(cx, expr)
     })

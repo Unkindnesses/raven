@@ -84,7 +84,7 @@ class REPL {
   async eval(src: string) {
     this.output = ''
     await withOptions(this.options, async () => {
-      const exprs = parse('repl', src).args
+      const exprs = [...parse('repl', src).args]
       const undoCount = getUndoCount(exprs)
       if (undoCount !== null) return this.undo(undoCount)
       if (!exprs.length) return
@@ -182,7 +182,7 @@ function wrapPrint(ex: ast.Tree) {
   return ast.Call(ast.Template(ast.symbol('tag'), 'common.replshow'), ex)
 }
 
-function getUndoCount(exprs: ast.Tree[]): number | null {
+function getUndoCount(exprs: readonly ast.Tree[]): number | null {
   if (exprs.length !== 1) return null
   const node = exprs[0].ungroup()
   if (node instanceof ast.Token)

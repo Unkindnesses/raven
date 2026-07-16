@@ -39,8 +39,8 @@ test('end file with a single newline owned by the final statement', () => {
   assert.equal(format('test.rv', 'x\r\n\r\n'), 'x\r\n')
 
   const file = parse('test.rv', format('test.rv', 'x\n  \n'))
-  assert.equal(file.args.at(-1)?.trivia?.trailing, '\n')
-  assert.equal(file.trivia?.inner ?? '', '')
+  assert.equal(file.args.at(-1)?.trivia.trailing, '\n')
+  assert.equal(file.trivia.inner, '')
 })
 
 test('end trailing comments with a newline owned by the file', () => {
@@ -49,8 +49,8 @@ test('end trailing comments with a newline owned by the file', () => {
   assert.equal(format('test.rv', '# only comment'), '# only comment\n')
 
   const file = parse('test.rv', formatted)
-  assert.equal(file.args.at(-1)?.trivia?.trailing, '\n')
-  assert.equal(file.trivia?.inner, '# trailing comment\n')
+  assert.equal(file.args.at(-1)?.trivia.trailing, '\n')
+  assert.equal(file.trivia.inner, '# trailing comment\n')
 })
 
 test('trim trailing whitespace', () => {

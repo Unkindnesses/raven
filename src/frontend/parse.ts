@@ -289,9 +289,9 @@ function tripleString(r: Reader): ast.Tree | undefined {
     if (r.parse(r => exact(r, close))) {
       const trimmed = trimCommonIndent(s)
       const t = raw ? trimmed : processEscapes(trimmed, escape)
-      if (tag === undefined) return new ast.Token(t).withraw(r.text(start))
-      const tagTok = new ast.Token(tag).withraw(tagRaw)
-      const strTok = new ast.Token(t).withraw(r.text(body))
+      if (tag === undefined) return new ast.Token(t, r.text(start))
+      const tagTok = new ast.Token(tag, tagRaw)
+      const strTok = new ast.Token(t, r.text(body))
       return ast.Template(tagTok, strTok)
     }
     if (!raw && r.parse(r => exact(r, escape))) {
@@ -332,7 +332,7 @@ function template(r: Reader): ast.Tree | undefined {
   const from = r.mark()
   const str = string(r)
   if (str === undefined) return
-  return ast.Template(name, new ast.Token(str).withraw(r.text(from)))
+  return ast.Template(name, new ast.Token(str, r.text(from)))
 }
 
 function sequence(r: Reader, close?: string): [ast.Tree[], string] {
@@ -342,8 +342,7 @@ function sequence(r: Reader, close?: string): [ast.Tree[], string] {
     if (close !== undefined && r.char === close) { r.read(); return [xs, pending] }
     const x = statement(r)
     if (x === undefined) return [xs, pending]
-    ast.lead(x, pending)
-    xs.push(x)
+    xs.push(ast.leading(x, pending))
   }
 }
 
@@ -355,9 +354,7 @@ function brackets(r: Reader, open: string, close: string): [ast.Tree[], string] 
 function bracketsTo(r: Reader, open: string, close: string, f: (...xs: ast.Tree[]) => ast.Expr): ast.Expr | undefined {
   const res = brackets(r, open, close)
   if (res === undefined) return
-  const ex = f(...res[0])
-  ast.inner(ex, res[1])
-  return ex
+  return ast.inner(f(...res[0]), res[1])
 }
 
 function group(r: Reader) { return bracketsTo(r, '(', ')', ast.Group) }
@@ -368,7 +365,7 @@ function token(r: Reader): ast.Tree | undefined {
   const from = r.mark()
   const x = r.parse<ast.Atom | undefined>(symbol, string, number, opsymbol)
   if (x === undefined) return
-  return new ast.Token(x).withraw(r.text(from))
+  return new ast.Token(x, r.text(from))
 }
 
 // Combine all simple expressions with little backtracking
@@ -391,13 +388,13 @@ function postfix(r: Reader): ast.Tree | undefined {
     let args = r.parse(r => brackets(r, '(', ')'))
     if (args !== undefined) {
       ex = ast.Call(ex, ...args[0]).withmeta({ file: path(), loc: cur })
-      ast.inner(ex, args[1])
+      ex = ast.inner(ex, args[1])
       continue
     }
     args = r.parse(r => brackets(r, '[', ']'))
     if (args !== undefined) {
       ex = ast.Index(ex, ...args[0]).withmeta({ file: path(), loc: cur })
-      ast.inner(ex, args[1])
+      ex = ast.inner(ex, args[1])
       continue
     }
     if (r.peek(r => exact(r, '...'))) { break }
@@ -442,10 +439,8 @@ function precedence(a: ast.Symbol, b: ast.Symbol): Prec {
   return table.get(a.toString(), b.toString())
 }
 
-function takeTrailing(tree: ast.Tree): string {
-  const trailing = tree.trivia?.trailing ?? ''
-  if (tree.trivia) tree.trivia.trailing = ''
-  return trailing
+function takeTrailing<T extends ast.Tree>(tree: T): [T, string] {
+  return [ast.trailing(tree, ''), tree.trivia.trailing]
 }
 
 function infix(r: Reader, syn = true, prev?: ast.Symbol): [ast.Tree, boolean] {
@@ -460,21 +455,21 @@ function infix(r: Reader, syn = true, prev?: ast.Symbol): [ast.Tree, boolean] {
     const prec = prev ? precedence(prev, op) : Prec.Right
     if (prec === Prec.Left) { r.reset(mark); return [left, true] }
     if (prec === Prec.None) { throw new Error(`Operators ${prev} and ${op} are ambiguous at ${path()}:${curstring(r.cursor())}`) }
-    ast.trail(left, ws)
-    const optok = new ast.Token(op, { file: path(), loc: opcur })
-    ast.trail(optok, r.skipTrailing())
+    left = ast.trail(left, ws)
+    const optok = ast.trail(new ast.Token(op, undefined, { file: path(), loc: opcur }), r.skipTrailing())
     const pending = r.skip()
-    const right = syn ? syntax(r, op) : infix(r, syn, op)[0]
-    ast.lead(right, pending)
+    let right = ast.leading(syn ? syntax(r, op) : infix(r, syn, op)[0], pending)
+    let trailing
+    [right, trailing] = takeTrailing(right)
     left = ast.Operator(left, optok, right).withmeta({ file: path(), loc: cur })
-    ast.trail(left, takeTrailing(right))
+    left = ast.trail(left, trailing)
   }
 }
 
 function splat(r: Reader, syn = true, op?: ast.Symbol): [ast.Tree, boolean] {
   let [ex, backedOut] = infix(r, syn, op)
   if (backedOut) return [ex, backedOut]
-  ast.trail(ex, r.skipWhitespace())
+  ex = ast.trail(ex, r.skipWhitespace())
   if (r.parse(r => exact(r, '...'))) ex = ast.Splat(ex)
   return [ex, false]
 }
@@ -485,11 +480,12 @@ const terminators = new Set(['}', ')', ']', ',', '\n'])
 
 function syntax(r: Reader, op?: ast.Symbol): ast.Tree {
   const pos = r.cursor()
-  const [name, backedOut] = splat(r, true, op)
+  let [name, backedOut] = splat(r, true, op)
   if (backedOut || !(name.unwrap() instanceof ast.Symbol)) return name
   const args: ast.Tree[] = []
   while (!r.eof()) {
-    ast.trail(args.at(-1) ?? name, r.skipWhitespace())
+    if (args.length) args[args.length - 1] = ast.trail(args.at(-1)!, r.skipWhitespace())
+    else name = ast.trail(name, r.skipWhitespace())
     if (terminators.has(r.char)) break
     // `syn` fixes eg `fn x + y {}`, where `y {}` would be
     // parsed as an argument to `+` otherwise.
@@ -497,9 +493,9 @@ function syntax(r: Reader, op?: ast.Symbol): ast.Tree {
     args.push(arg)
   }
   if (!args.length) return name
-  const ex = ast.Syntax(name, ...args).withmeta({ file: path(), loc: pos })
-  ast.trail(ex, takeTrailing(args[args.length - 1]))
-  return ex
+  let trailing
+  [args[args.length - 1], trailing] = takeTrailing(args[args.length - 1])
+  return ast.trail(ast.Syntax(name, ...args).withmeta({ file: path(), loc: pos }), trailing)
 }
 
 function attr(r: Reader): ast.Tree | undefined {
@@ -507,37 +503,35 @@ function attr(r: Reader): ast.Tree | undefined {
   if (r.read() !== '@') return
   const sym = symbol(r)
   if (sym === undefined) return
-  const name = new ast.Token(sym)
+  let name = new ast.Token(sym)
   const args: ast.Tree[] = []
   while (!r.eof()) {
-    ast.trail(args.at(-1) ?? name, r.skipWhitespace())
+    if (args.length) args[args.length - 1] = ast.trail(args.at(-1)!, r.skipWhitespace())
+    else name = ast.trail(name, r.skipWhitespace())
     if (terminators.has(r.char)) break
     const [arg] = splat(r, false)
     args.push(arg)
   }
   const pending = r.skip()
   let body = r.parse(attr, syntax)!
-  ast.lead(body, pending)
-  const ex = ast.Attribute(name, ...args, body).withmeta({ file: path(), loc: pos })
-  ast.trail(ex, takeTrailing(body))
-  return ex
+  body = ast.leading(body, pending)
+  let trailing
+  [body, trailing] = takeTrailing(body)
+  return ast.trail(ast.Attribute(name, ...args, body).withmeta({ file: path(), loc: pos }), trailing)
 }
 
 function statement(r: Reader): ast.Tree | undefined {
   if (r.eof()) return
   let ex = r.parse(attr, syntax)!
-  ast.trail(ex, r.skipWhitespace())
+  ex = ast.trail(ex, r.skipWhitespace())
   if (!r.eof() && !terminators.has(r.char)) throw new Error(`Expected statement end at ${curstring(r.cursor())}`)
-  ast.trail(ex, r.skipTrailing())
-  return ex
+  return ast.trail(ex, r.skipTrailing())
 }
 
 function parse(path: string, src: string): ast.Expr {
   return withPath(path, () => {
     const [result, pending] = sequence(new Reader(src))
-    const file = ast.File(...result)
-    ast.inner(file, pending)
-    return file
+    return ast.inner(ast.File(...result), pending)
   })
 }
 
