@@ -132,7 +132,7 @@ function registerLambda(cx: LoadState, name: Tag, params: ast.Tree[], body: ast.
 function replaceInnerFns(cx: LoadState, x: ast.Tree, st: LiftState): ast.Tree {
   if (x instanceof ast.Token) return x
   const lambda = lambdaParts(x)
-  if (!lambda) return new ast.Expr(x.head, x.args.map(arg => replaceInnerFns(cx, arg, st)), x.meta)
+  if (!lambda) return x.map(arg => replaceInnerFns(cx, arg, st))
   const [params, body] = lambda
   const lambdaTag = new Tag(st.owner, `λ/${++st.count}`)
   const liftedBody = replaceInnerFns(cx, body, { owner: lambdaTag, count: 0 })

@@ -74,7 +74,7 @@ function resolvetags(ex: ast.Tree, mod: Tag): ast.Tree {
     if (!symbol('tag').isEqual(ex.args[0].unwrap())) return ex
     return new ast.Token(modtag(mod, ast.asString(ex.args[1])), ex.meta)
   }
-  return new ast.Expr(ex.head, ex.args.map(x => resolvetags(x, mod)), ex.meta)
+  return ex.map(x => resolvetags(x, mod))
 }
 
 function lowerisa(ex: ast.Tree, as: string[], resolve: (x: Symbol) => Type): Pattern {

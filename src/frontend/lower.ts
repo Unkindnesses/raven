@@ -242,7 +242,7 @@ function expand(ex: ast.Tree): ast.Tree {
   if (ex instanceof ast.Token) return ex
   const name = macroName(ex)
   if (name && macros.has(name)) return expand(macros.get(name)!(ex))
-  return new ast.Expr(ex.head, ex.args.map(expand), ex.meta)
+  return ex.map(expand)
 }
 
 // Expr -> IR lowering

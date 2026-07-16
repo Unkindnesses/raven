@@ -76,22 +76,12 @@ function trail(node: Tree, text: string) { if (text) trivia(node).trailing += te
 function inner(node: Tree, text: string) { if (text) trivia(node).inner += text }
 
 class Token {
-  trivia?: Trivia
-  raw?: string
-  constructor(public value: Atom, public meta?: Meta) { }
+  constructor(public value: Atom, public meta?: Meta, public raw?: string, public trivia?: Trivia) { }
   unwrap(): Atom { return this.value }
-  withmeta(m: Meta): Token {
-    const t = new Token(this.value, m)
-    t.raw = this.raw
-    if (this.trivia) t.trivia = { ...this.trivia }
-    return t
-  }
-  withraw(raw: string): Token {
-    const t = new Token(this.value, this.meta)
-    t.raw = raw
-    if (this.trivia) t.trivia = { ...this.trivia }
-    return t
-  }
+  clone(): Token { return new Token(this.value, this.meta, this.raw, this.trivia && { ...this.trivia }) }
+  map(_: (tree: Tree, index: number) => Tree): Token { return this.clone() }
+  withmeta(meta: Meta): Token { return new Token(this.value, meta, this.raw, this.trivia && { ...this.trivia }) }
+  withraw(raw: string): Token { return new Token(this.value, this.meta, raw, this.trivia && { ...this.trivia }) }
   toString(): string { return repr(this) }
   ungroup(): Token { return this }
 }
@@ -106,6 +96,11 @@ class Expr {
 
   get length(): number { return this.args.length }
   unwrap(): Expr { return this }
+  map(f: (tree: Tree, index: number) => Tree): Expr {
+    const ex = new Expr(this.head, this.args.map(f), this.meta)
+    if (this.trivia) ex.trivia = { ...this.trivia }
+    return ex
+  }
   withmeta(m: Meta | undefined): Expr {
     const ex = new Expr(this.head, this.args, m)
     if (this.trivia) ex.trivia = { ...this.trivia }

@@ -7,6 +7,7 @@ import * as os from 'os'
 import * as path from 'path'
 import { Compiler, compile, compileJS, exec } from './compile.js'
 import { REPL } from './repl.js'
+import { fmt, formatDiff } from './fmt.js'
 import { Caching, time, size } from '../utils/cache.js'
 import pkg from '../../package.json' with { type: 'json' }
 import { Options } from '../utils/options.js'
@@ -105,6 +106,11 @@ async function startRepl(options: Partial<Options>) {
   }
 }
 
+function relativePath(file: string): string {
+  const relative = path.relative(process.cwd(), file)
+  return relative === '..' || relative.startsWith(`..${path.sep}`) ? file : relative
+}
+
 async function main() {
   const program = new commander.Command()
   program
@@ -134,6 +140,23 @@ async function main() {
         output, embed, esbuild, strip
       })
       if (time) printTiming(compiler)
+    })
+
+  program
+    .command('fmt')
+    .description('Format Raven source files')
+    .argument('[files...]', 'Files or directories to format')
+    .option('--check', 'Print files that would be reformatted')
+    .option('--diff', 'Print the changes that would be made')
+    .action(async (files, { check, diff }) => {
+      let changed = false
+      for await (const [file, source, formatted] of fmt(files.length ? files : ['.'])) {
+        changed = true
+        if (diff) process.stdout.write(formatDiff(relativePath(file), source, formatted))
+        else if (check) console.log(relativePath(file))
+        else await fs.writeFile(file, formatted, 'utf8')
+      }
+      if (changed && (check || diff)) process.exitCode = 1
     })
 
   program
