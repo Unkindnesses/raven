@@ -42,5 +42,8 @@ jobs:
     - name: Check and compile
       run: npm run build
 
+    - name: Check formatting
+      run: node --enable-source-maps dist/cli/index.js fmt --diff common
+
     - name: Run tests
       run: npm test
