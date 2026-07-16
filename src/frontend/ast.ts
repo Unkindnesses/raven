@@ -65,6 +65,8 @@ interface Trivia {
   readonly inner: string
 }
 
+type Extent = readonly [number, number]
+
 type Tree = Token | Expr
 
 const emptyTrivia: Trivia = { leading: '', trailing: '', inner: '' }
@@ -86,7 +88,10 @@ function inner<T extends Tree>(node: T, text: string): T {
 }
 
 class Token {
-  constructor(readonly value: Atom, readonly raw?: string, readonly meta?: Meta, readonly trivia = emptyTrivia) { }
+  readonly extent: Extent
+  constructor(readonly value: Atom, readonly raw?: string, readonly meta?: Meta, readonly trivia = emptyTrivia) {
+    this.extent = extent(this)
+  }
   unwrap(): Atom { return this.value }
   map(_: (tree: Tree, index: number) => Tree): Token { return this }
   withmeta(meta: Meta | undefined): Token { return new Token(this.value, this.raw, meta, this.trivia) }
@@ -100,7 +105,10 @@ type ExprHead =
   | 'Operator' | 'Swap' | 'Block' | 'Syntax' | 'Quote' | 'Template' | 'Attribute'
 
 class Expr {
-  constructor(readonly head: ExprHead, readonly args: readonly Tree[], readonly meta?: Meta, readonly trivia = emptyTrivia) { }
+  readonly extent: Extent
+  constructor(readonly head: ExprHead, readonly args: readonly Tree[], readonly meta?: Meta, readonly trivia = emptyTrivia) {
+    this.extent = extent(this)
+  }
   get length(): number { return this.args.length }
   unwrap(): Expr { return this }
   map(f: (tree: Tree, index: number) => Tree) { return new Expr(this.head, this.args.map(f), this.meta, this.trivia) }
@@ -196,35 +204,67 @@ function repr(item: Tree, indent: number = 0): string {
   throw new Error('unreachable')
 }
 
-// Reconstruct source text from a parsed tree. Separators (commas, newlines)
-// live in trivia, so composite nodes emit only their own delimiters.
-function print(x: Tree | readonly Tree[]): string {
-  if (!(x instanceof Token || x instanceof Expr)) return x.map(t => print(t)).join('')
-  return x.trivia.leading + printBody(x) + x.trivia.trailing
+// Printing and source extents
+
+type Source = string | Tree | readonly Source[]
+
+function textExtent(text: string): Extent {
+  const lines = text.split('\n')
+  return [lines.length - 1, lines.at(-1)!.length]
 }
 
-function printInner(x: Expr): string { return x.trivia.inner }
+function addExtents(...extents: Extent[]): Extent {
+  let lines = 0, cols = 0
+  for (const [l, c] of extents) {
+    lines += l
+    cols = l ? c : cols + c
+  }
+  return [lines, cols]
+}
 
-function printBody(x: Tree): string {
-  if (x instanceof Token) return x.raw ?? repr(x)
-  const args = x.args
-  switch (x.head) {
-    case 'File': return `${print(args)}${printInner(x)}`
-    case 'Group': return `(${print(args)}${printInner(x)})`
-    case 'List': return `[${print(args)}${printInner(x)}]`
-    case 'Block': return `{${print(args)}${printInner(x)}}`
-    case 'Call': return `${print(args[0])}(${print(args.slice(1))}${printInner(x)})`
-    case 'Index': return `${print(args[0])}[${print(args.slice(1))}${printInner(x)}]`
-    case 'Field': return `${print(args[0])}.${print(args[1])}`
-    case 'Splat': return `${print(args[0])}...`
-    case 'Swap': return `&${print(args[0])}`
-    case 'Operator': return print(args)
+function sourceExtent(source: Source): Extent {
+  if (typeof source === 'string') return textExtent(source)
+  if (source instanceof Token || source instanceof Expr) return source.extent
+  let extent: Extent = [0, 0]
+  for (const part of source) extent = addExtents(extent, sourceExtent(part))
+  return extent
+}
+
+function bodySource(tree: Tree, inner: string): Source {
+  if (tree instanceof Token) return tree.raw ?? repr(tree)
+  const args = tree.args
+  switch (tree.head) {
+    case 'File': return [args, inner]
+    case 'Group': return ['(', args, inner, ')']
+    case 'List': return ['[', args, inner, ']']
+    case 'Block': return ['{', args, inner, '}']
+    case 'Call': return [args[0], '(', args.slice(1), inner, ')']
+    case 'Index': return [args[0], '[', args.slice(1), inner, ']']
+    case 'Field': return [args[0], '.', args[1]]
+    case 'Splat': return [args[0], '...']
+    case 'Swap': return ['&', args[0]]
+    case 'Operator':
     case 'Syntax':
-    case 'Template': return print(args)
-    case 'Attribute': return `@${print(args)}`
-    case 'Quote': return repr(x)
+    case 'Template': return args
+    case 'Attribute': return ['@', args]
+    case 'Quote': return repr(tree)
     default:
-      let _: never = x.head
+      let _: never = tree.head
       throw new Error('unreachable')
   }
+}
+
+function extent(tree: Tree): Extent {
+  return sourceExtent([tree.trivia.leading, bodySource(tree, tree.trivia.inner), tree.trivia.trailing])
+}
+
+function printSource(source: Source): string {
+  if (typeof source === 'string') return source
+  if (source instanceof Token || source instanceof Expr) return print(source)
+  return source.map(printSource).join('')
+}
+
+function print(x: Tree | readonly Tree[]): string {
+  if (!(x instanceof Token || x instanceof Expr)) return x.map(t => print(t)).join('')
+  return x.trivia.leading + printSource(bodySource(x, x.trivia.inner)) + x.trivia.trailing
 }

@@ -214,6 +214,21 @@ test('trivia ownership', () => {
   assert.equal(bracketedOperator.trivia.trailing, '  ')
 })
 
+test('source extents', () => {
+  const token = new ast.Token(ast.symbol('value'), 'foo\nbar')
+  assert.deepEqual(token.extent, [1, 3])
+
+  const list = ast.List(token)
+  assert.deepEqual(list.extent, [1, 4])
+
+  const withTrivia = ast.trailing(ast.leading(list, '\n  '), '\n')
+  assert.deepEqual(withTrivia.extent, [3, 0])
+
+  const source = '  x + # note\n  y,\n'
+  assert.deepEqual(first(source).extent, [2, 0])
+  assert.deepEqual(parse('test', source).extent, [2, 0])
+})
+
 const roundtrips = (src: string) => assert.equal(ast.print(parse('test', src)), src)
 
 test('round-trip statements', () => {
