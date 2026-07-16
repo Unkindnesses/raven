@@ -85,10 +85,10 @@ function lowerisa(ex: ast.Tree, as: string[], resolve: (x: Symbol) => Type): Pat
     const args = ex.args.map(x => x.unwrap()).map(x => typeof x === 'bigint' ? Type(x) : resolve(asSymbol(x)))
     return Trait(pack(tag('common.Params'), ...args))
   }
-  if (ex.head == 'Operator' && ex.args[0].unwrap() == '|')
-    return Or(...ex.args.slice(1).map(x => lowerisa(x, as, resolve)))
-  if (ex.head == 'Operator' && ex.args[0].unwrap() == '&')
-    return And(...ex.args.slice(1).map(x => lowerisa(x, as, resolve)))
+  if (ex.head == 'Operator' && ex.args[1].unwrap() == '|')
+    return Or(lowerisa(ex.args[0], as, resolve), lowerisa(ex.args[2], as, resolve))
+  if (ex.head == 'Operator' && ex.args[1].unwrap() == '&')
+    return And(lowerisa(ex.args[0], as, resolve), lowerisa(ex.args[2], as, resolve))
   return _lowerpattern(ex, as, resolve)
 }
 
@@ -102,8 +102,8 @@ function _lowerpattern(ex: ast.Tree, as: string[], resolve: (x: Symbol) => Type)
   if (typeof x === 'string') throw new Error(`Unsupported string literal ${x}`)
   if (ast.isAtom(x)) return Literal(atomValue(x))
   if (x.head === 'List') return Pack(Literal(tag('common.List')), ...x.args.map(x => _lowerpattern(x, as, resolve)))
-  if (x.head === 'Operator' && x.args[0].unwrap() == ':') {
-    let name = asSymbol(x.args[1].unwrap())
+  if (x.head === 'Operator' && x.args[1].unwrap() == ':') {
+    let name = asSymbol(x.args[0].unwrap())
     let T = x.args[2]
     if (name.toString() == '_') return lowerisa(T, as, resolve)
     if (!as.includes(name.toString())) as.push(name.toString())
@@ -128,9 +128,9 @@ function _lowersig(ex: ast.Tree, as: string[], swaps: Map<number, string>, resol
     if (x.head === 'Swap') {
       swaps.set(i + 1, asSymbol(x.args[0].unwrap()).toString())
       return _lowerpattern(x.args[0], as, resolve)
-    } else if (x.head === 'Operator' && asSymbol(x.args[0].unwrap()).toString() == ':' && x.args[1] instanceof ast.Expr && x.args[1].head === 'Swap') {
-      swaps.set(i + 1, asSymbol(x.args[1].args[0].unwrap()).toString())
-      return _lowerpattern(ast.Operator(symbol(':'), x.args[1].args[0], ...x.args.slice(2)), as, resolve)
+    } else if (x.head === 'Operator' && asSymbol(x.args[1].unwrap()).toString() == ':' && x.args[0] instanceof ast.Expr && x.args[0].head === 'Swap') {
+      swaps.set(i + 1, asSymbol(x.args[0].args[0].unwrap()).toString())
+      return _lowerpattern(ast.Operator(x.args[0].args[0], ...x.args.slice(1)), as, resolve)
     } else {
       return _lowerpattern(x, as, resolve)
     }

@@ -100,7 +100,7 @@ function load_expr(cx: LoadState, x: ast.Tree): void {
 
 function receiverTag(cx: LoadState, ex: ast.Tree): Tag {
   ex = ex.ungroup()
-  if (!(ast.isExpr(ex, 'Operator') && ast.symbol(':').isEqual(ex.args[0].unwrap())))
+  if (!(ast.isExpr(ex, 'Operator') && ast.symbol(':').isEqual(ex.args[1].unwrap())))
     throw new Error('Call overloads need a typed receiver, eg fn (f: T)(args...)')
   const trait = ex.args[2].ungroup().unwrap()
   return calltarget(resolve_static(cx, ast.asSymbol(trait)))
@@ -124,7 +124,7 @@ function lambdaParts(ex: ast.Expr): [ast.Tree[], ast.Tree] | undefined {
 function registerLambda(cx: LoadState, name: Tag, params: ast.Tree[], body: ast.Tree, meta?: ast.Meta): void {
   const resolve = (x: ast.Symbol) => resolve_static(cx, x)
   const lambdaType = ast.Call(tag('common.core.pack'), name)
-  const self = ast.Operator(ast.symbol(':'), ast.symbol('_'), lambdaType)
+  const self = ast.Operator(ast.symbol('_'), ast.symbol(':'), lambdaType)
   const sig = callablepattern(ast.List(self, ...params), cx.mod.name, resolve)
   cx.mod.method(name, sig, { kind: 'fn', body, meta: Def(name.path, meta && source(meta)) })
 }
@@ -154,7 +154,8 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
   if (!ast.isExpr(signature, 'Call') && !ast.isExpr(signature, 'Operator'))
     throw new Error(`Expected function signature, got ${ast.repr(signature)}`)
   const resolve = (x: ast.Symbol) => resolve_static(cx, x)
-  const variable = signature.args[0].unwrap()
+  const [callee, ...params] = ast.callargs(signature)
+  const variable = callee.unwrap()
   const callable = ast.isExpr(signature, 'Call') &&
     !(variable instanceof Tag) &&
     !(variable instanceof ast.Symbol)
@@ -170,7 +171,7 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
           new Tag(cx.mod.name, ast.asSymbol(variable).toString())
     if (!extend && variable instanceof ast.Symbol)
       cx.mod.set(variable.toString(), fnTag)
-    sigPattern = callpattern(fnTag, ast.List(...signature.args.slice(1)), cx.mod.name, resolve)
+    sigPattern = callpattern(fnTag, ast.List(...params), cx.mod.name, resolve)
   }
   const meta = Def(fnTag.path, x.meta && source(x.meta))
   const liftedBody = replaceInnerFns(cx, body, { owner: fnTag, count: 0 })
@@ -195,11 +196,11 @@ async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> 
     return
   }
   if (ast.isExpr(x, 'Operator')) {
-    if (x.args.length >= 3 && ast.symbol('=').isEqual(x.args[0].unwrap()) &&
-      x.args[1].unwrap() instanceof ast.Symbol) {
+    if (x.args.length >= 3 && ast.symbol('=').isEqual(x.args[1].unwrap()) &&
+      x.args[0].unwrap() instanceof ast.Symbol) {
       const c = simpleconst(cx, x.args[2])
       if (c !== undefined) {
-        cx.mod.set(x.args[1].unwrap().toString(), c)
+        cx.mod.set(x.args[0].unwrap().toString(), c)
         return
       }
     }

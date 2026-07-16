@@ -466,7 +466,7 @@ function infix(r: Reader, syn = true, prev?: ast.Symbol): [ast.Tree, boolean] {
     const pending = r.skip()
     const right = syn ? syntax(r, op) : infix(r, syn, op)[0]
     ast.lead(right, pending)
-    left = ast.Operator(optok, left, right).withmeta({ file: path(), loc: cur })
+    left = ast.Operator(left, optok, right).withmeta({ file: path(), loc: cur })
     ast.trail(left, takeTrailing(right))
   }
 }

@@ -23,7 +23,7 @@ const s = symbol
 
 function namify(x: ast.Tree, suffix = ""): ast.Expr | ast.Symbol {
   if (x.unwrap() instanceof Symbol) return ast.symbol(x.unwrap().toString() + suffix)
-  if (ast.isExpr(x, 'Operator')) return namify(x.args[1], suffix)
+  if (ast.isExpr(x, 'Operator')) return namify(ast.callargs(x)[1], suffix)
   if (ast.isExpr(x, 'Splat')) return ast.Splat(namify(x.args[0], suffix))
   throw new Error(`Unsupported namify argument ${ast.repr(x)}`)
 }
@@ -32,7 +32,7 @@ function patternArgExpr(x: ast.Tree): ast.Tree {
   if (x instanceof ast.Token && x.unwrap() instanceof Symbol)
     return ast.Call(tag('common.Bind'), tag(x.unwrap().toString()), ast.Call(tag('common.Hole')))
   if (ast.isExpr(x, 'Operator')) {
-    const name = asSymbol(x.args[1].unwrap())
+    const name = asSymbol(x.args[0].unwrap())
     return ast.Call(tag('common.Bind'), tag(name.toString()), ast.Call(tag('common.Trait'), x.args[2]))
   }
   throw new Error(`Unsupported bundle pattern argument ${ast.repr(x)}`)
@@ -57,7 +57,7 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
     body.push(
       ast.Syntax(s('fn'),
         ast.Call(tag('common.matchTrait'), T,
-          ast.Operator(s(':'), s('_val'), ast.Call(tag('common.core.pack'), T, ...argNames))),
+          ast.Operator(s('_val'), s(':'), ast.Call(tag('common.core.pack'), T, ...argNames))),
         ast.Block(ast.Call(s('Some'), s('_val')))))
     body.push(
       ast.Syntax(s('fn'), ast.Call(tag('common.constructorPattern'), T, ...argNames),
@@ -69,7 +69,7 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
     body.push(
       ast.Syntax(s('fn'), ast.Call(tag('common.castTrait'), T, s('_val')),
         ast.Block(
-          ast.Operator(s('='), s('_match'), ast.Call(tag('common._match'), s('_val'), pat, s('true'))),
+          ast.Operator(s('_match'), s('='), ast.Call(tag('common._match'), s('_val'), pat, s('true'))),
           ast.Syntax(s('if'), ast.Operator(s('!'), ast.Call(tag('common.core.nil?'), s('_match'))),
             ast.Block(
               ast.Call(tag('common.Some'),
@@ -85,8 +85,8 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
           ast.Call(s('print'), ')'))))
     const lhs = args.map(a => namify(a, '_1'))
     const rhs = args.map(a => namify(a, '_2'))
-    const comps = lhs.map((l, i) => ast.Operator(s('=='), l, rhs[i]))
-    const eqBody = comps.length === 0 ? s('true') : comps.reduce((a, b) => ast.Operator(s('&&'), a, b))
+    const comps = lhs.map((l, i) => ast.Operator(l, s('=='), rhs[i]))
+    const eqBody = comps.length === 0 ? s('true') : comps.reduce((a, b) => ast.Operator(a, s('&&'), b))
     body.push(
       ast.Syntax(s('fn'),
         ast.Call(tag('common.=='), ast.Call(name, ...lhs), ast.Call(name, ...rhs)),
@@ -94,12 +94,12 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
   }
   if (superSpec) {
     const superTag = ast.Template(symbol('tag'), `.${asSymbol(superSpec.unwrap())}`)
-    body.push(ast.Operator(symbol('='), superSpec, superTag))
+    body.push(ast.Operator(superSpec, symbol('='), superTag))
     body.push(
       ast.Syntax(s('fn'),
         ast.Call(tag('common.matchTrait'), superTag,
-          ast.Operator(symbol(':'), s('_val'),
-            ast.Operator(symbol('|'), ...names))),
+          ast.Operator(s('_val'), symbol(':'),
+            names.slice(1).reduce((a, b) => ast.Operator(a, symbol('|'), b), token(names[0])))),
         ast.Block(ast.Call(tag('common.Some'), s('_val')))))
   }
   return ast.Group(...body)
@@ -126,17 +126,17 @@ function formacro(ex: ast.Expr): ast.Expr {
   let [forExpr, as] = attrs(ex)
   forExpr = ast.asExpr(forExpr, 'Syntax')
   const assign = ast.asExpr(forExpr.args[1], 'Operator')
-  if (!symbol('=').isEqual(assign.args[0].unwrap()))
+  if (!symbol('=').isEqual(assign.args[1].unwrap()))
     throw new Error('for syntax expects `=` assignment')
-  const [x, xs, body] = [assign.args[1], assign.args[2], forExpr.args[2]]
+  const [x, xs, body] = [assign.args[0], assign.args[2], forExpr.args[2]]
   const [itr, val] = [gensym("itr"), gensym("val")]
   return ast.Block(
-    ast.Operator(s("="), itr, ast.Call(tag("common.iterate"), xs)),
+    ast.Operator(itr, s("="), ast.Call(tag("common.iterate"), xs)),
     withAttrs(ast.Syntax(s("while"), s("true"), ast.Block(
-      ast.Operator(s("="), val, ast.Call(tag("common.next"), ast.Swap(itr))),
+      ast.Operator(val, s("="), ast.Call(tag("common.next"), ast.Swap(itr))),
       ast.Syntax(s("if"), ast.Call(symbol("nil?"), val), ast.Block(s("break"))),
       ast.Syntax(s("let"),
-        ast.Operator(s("="), x, ast.Call(tag("common.core.part"), ast.Call(tag("common.core.notnil"), val), 1n)),
+        ast.Operator(x, s("="), ast.Call(tag("common.core.part"), ast.Call(tag("common.core.notnil"), val), 1n)),
         ast.asExpr(body, 'Block')))), as))
 }
 
@@ -149,7 +149,7 @@ function matchmacro(ex: ast.Expr): ast.Expr {
     if (i > 0) body.push(token(s('else')), token(s('if')))
     if (!ast.isSyntax(clause, 'let'))
       throw new Error('matchmacro: clause must be a let')
-    body.push(token(s('let')), ast.Operator(s('='), clause.args[1], val), ast.asExpr(clause.args[2], 'Block'))
+    body.push(token(s('let')), ast.Operator(clause.args[1], s('='), val), ast.asExpr(clause.args[2], 'Block'))
   }
   body.push(token(s('else')), ast.Block(ast.Call(tag('common.abort'), "Match clause failed")))
   return ast.Syntax(...body)
@@ -159,7 +159,7 @@ function showmacro(ex: ast.Expr, pack = false): ast.Expr {
   const arg = ex.args[1]
   const name = gensym()
   return ast.Block(
-    ast.Operator(s('='), name, arg),
+    ast.Operator(name, s('='), arg),
     ast.Call(s('print'), new ast.Token(ast.repr(arg) + " = ")),
     ast.Call(pack ? s('showPack') : s('show'), name),
     ast.Call(s('println')),
@@ -184,10 +184,10 @@ interface SelectCase {
 
 function parseSelectCall(ex: ast.Tree): { pattern?: ast.Tree, call: ast.Expr } {
   ex = ex.ungroup()
-  if (ast.isExpr(ex, 'Operator') && symbol('=').isEqual(ex.args[0].unwrap())) {
+  if (ast.isExpr(ex, 'Operator') && symbol('=').isEqual(ex.args[1].unwrap())) {
     const call = ex.args[2].ungroup()
     if (!ast.isExpr(call, 'Call')) throw new Error('select case assignment must be of the form `x = f(...)`')
-    return { pattern: ex.args[1], call }
+    return { pattern: ex.args[0], call }
   }
   if (!ast.isExpr(ex, 'Call')) throw new Error('select case must be of the form `f(...)` or `x = f(...)`')
   return { call: ex }
@@ -209,9 +209,9 @@ function allocsmacro(ex: ast.Expr): ast.Expr {
   const arg = ex.args[1]
   const before = gensym("before")
   return ast.Group(
-    ast.Operator(s('='), before, ast.Call(tag('common.core.allocs'), ast.Call(s('Int32'), 0n))),
+    ast.Operator(before, s('='), ast.Call(tag('common.core.allocs'), ast.Call(s('Int32'), 0n))),
     arg,
-    ast.Operator(s('-'), ast.Call(tag('common.core.allocs'), ast.Call(s('Int32'), 0n)), before)
+    ast.Operator(ast.Call(tag('common.core.allocs'), ast.Call(s('Int32'), 0n)), s('-'), before)
   )
 }
 
@@ -387,10 +387,10 @@ function lowerPatternIsa(sc: Scope, code: LIR, ex: ast.Tree, as: string[]): Val<
     const trait = _push(code, xpack(tag('common.Params'), ...params))
     return patternNode(code, 'Trait', trait)
   }
-  if (ex.head === 'Operator' && ex.args[0].unwrap() === '|')
-    return patternNode(code, 'Or', ...ex.args.slice(1).map(x => lowerPatternIsa(sc, code, x, as)))
-  if (ex.head === 'Operator' && ex.args[0].unwrap() === '&')
-    return patternNode(code, 'And', ...ex.args.slice(1).map(x => lowerPatternIsa(sc, code, x, as)))
+  if (ex.head === 'Operator' && ex.args[1].unwrap() === '|')
+    return patternNode(code, 'Or', lowerPatternIsa(sc, code, ex.args[0], as), lowerPatternIsa(sc, code, ex.args[2], as))
+  if (ex.head === 'Operator' && ex.args[1].unwrap() === '&')
+    return patternNode(code, 'And', lowerPatternIsa(sc, code, ex.args[0], as), lowerPatternIsa(sc, code, ex.args[2], as))
   return lowerPatternExpr(sc, code, ex, as)
 }
 
@@ -407,8 +407,8 @@ function lowerPatternExpr(sc: Scope, code: LIR, ex: ast.Tree, as: string[]): Val
     const parts = x.args.map(x => lowerPatternExpr(sc, code, x, as))
     return patternNode(code, 'Pack', patternNode(code, 'Literal', tag('common.List')), ...parts)
   }
-  if (x.head === 'Operator' && x.args[0].unwrap() === ':') {
-    const name = asSymbol(x.args[1].unwrap())
+  if (x.head === 'Operator' && x.args[1].unwrap() === ':') {
+    const name = asSymbol(x.args[0].unwrap())
     const pat = lowerPatternIsa(sc, code, x.args[2], as)
     if (name.toString() === '_') return pat
     patternArg(as, name.toString())
@@ -493,37 +493,38 @@ function lower(sc: Scope, code: LIR, x: ast.Tree | ast.Tree[], value = true): Va
 }
 
 function lowerOperator(sc: Scope, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
-  const op = asSymbol(ex.args[0].unwrap()).toString()
-  if (op === '=' && ex.args[1] instanceof ast.Token && ex.args[1].unwrap() instanceof Symbol) {
+  const [operator, ...args] = ast.callargs(ast.asExpr(ex, 'Operator'))
+  const op = asSymbol(operator.unwrap()).toString()
+  if (op === '=' && args[0] instanceof ast.Token && args[0].unwrap() instanceof Symbol) {
     // Simple assignment: x = value
-    const y = lower(sc, code, ex.args[2])
+    const y = lower(sc, code, args[1])
     // Globals are side effects (if they error) so don't let the SSA transform move them around
     const ySlot = y instanceof Binding ? _push(code, xglobal(y)) : y
-    const x = sc.var(ex.args[1].unwrap().toString())
+    const x = sc.var(args[0].unwrap().toString())
     _push(code, ir.expr('set', x, ySlot))
     return x
-  } else if (op === '=' && ast.isExpr(ex.args[1], 'Index')) {
+  } else if (op === '=' && ast.isExpr(args[0], 'Index')) {
     // Index assignment: xs[i, ...] = x
-    const [xs, ...idxs] = ast.asExpr(ex.args[1]).args
-    const x = ex.args[2]
+    const [xs, ...idxs] = ast.asExpr(args[0]).args
+    const x = args[1]
     return lower(sc, code, ast.Call(tag('common.set'), ast.Swap(xs), ast.List(...idxs), x).withmeta(ex.meta))
   } else if (op === '=') {
     // Pattern assignment: pat = val
-    const pat = ex.args[1]
-    const val = lower(sc, code, ex.args[2])
+    const pat = args[0]
+    const val = lower(sc, code, args[1])
     return lowermatch(sc, code, val, pat)
   } else if (op === '&&' || op === '||') {
     const condVar = gensym('cond')
-    const clauses = op === '&&' ? [ex.args[2], condVar] : [condVar, ex.args[2]]
+    const clauses = op === '&&' ? [args[1], condVar] : [condVar, args[1]]
     const letStmt = ast.Block(
-      ast.Operator(symbol('='), condVar, ex.args[1]),
+      ast.Operator(condVar, symbol('='), args[0]),
       ast.Syntax(symbol('if'), condVar, clauses[0], symbol('else'), clauses[1]))
     return lower(sc, code, letStmt, value)
   } else {
     // General operator call
-    const func = lower(sc, code, ex.args[0])
-    const args = _push(code, xlist(...ex.args.slice(1).map(x => lower(sc, code, x))))
-    const result = _push(code, xcall(func, args), { src: ex.meta, bp: true })
+    const func = lower(sc, code, operator)
+    const arglist = _push(code, xlist(...args.map(x => lower(sc, code, x))))
+    const result = _push(code, xcall(func, arglist), { src: ex.meta, bp: true })
     return _push(code, xpart(result, Type(1n)), { src: ex.meta })
   }
 }
@@ -635,7 +636,7 @@ const wtypes = new Map<string, [Type, ValueType[]]>([
 function intrinsic(ex: ast.Tree): [string | [string, string], ir.Anno<Type>, ValueType[]?] {
   let T: ir.Anno<Type> = types.nil
   let ret: ValueType[] | undefined
-  if (ast.isExpr(ex, 'Operator') && symbol(':').isEqual(ex.args[0].unwrap())) {
+  if (ast.isExpr(ex, 'Operator') && symbol(':').isEqual(ex.args[1].unwrap())) {
     const type = ex.args[2]
     if (symbol('unreachable').isEqual(type.unwrap())) T = ir.unreachable
     else if (ast.isExpr(type, 'Group')) {
@@ -645,7 +646,7 @@ function intrinsic(ex: ast.Tree): [string | [string, string], ir.Anno<Type>, Val
     } else {
       [T, ret] = some(wtypes.get(ast.asSymbol(type).name))
     }
-    ex = ex.args[1]
+    ex = ex.args[0]
   }
   let op = ast.asExpr(ex).args[0].ungroup()
   if (symbol('call').isEqual(op.unwrap())) {
@@ -659,13 +660,13 @@ function intrinsic(ex: ast.Tree): [string | [string, string], ir.Anno<Type>, Val
 }
 
 function intrinsic_args(ex: ast.Tree): ast.Tree[] {
-  if (ast.isExpr(ex, 'Operator') && symbol(':').isEqual(ex.args[0].unwrap()))
-    return intrinsic_args(ex.args[1])
+  if (ast.isExpr(ex, 'Operator') && symbol(':').isEqual(ex.args[1].unwrap()))
+    return intrinsic_args(ex.args[0])
   const e = ast.asExpr(ex)
   const op = e.args[0].ungroup()
   const start = symbol('call').isEqual(op.unwrap()) ? 2 : 1
   return e.args.slice(start).map(x =>
-    ast.isExpr(x, 'Operator') && symbol(':').isEqual(x.args[0].unwrap()) ? x.args[1] : x)
+    ast.isExpr(x, 'Operator') && symbol(':').isEqual(x.args[1].unwrap()) ? x.args[0] : x)
 }
 
 function jsinline(ex: ast.Expr): [string, string[]] {
@@ -863,9 +864,9 @@ function lowerLet(sc: Scope, code: LIR, _ex: ast.Expr, value = true): Val<LIR> {
   let [ex, as] = attrs(_ex)
   ex = ast.asExpr(ex)
   const assignments = ex.args.slice(1, -1).map(x => ast.asExpr(x, 'Operator'))
-  if (!assignments.every(x => asSymbol(x.args[0].unwrap()).toString() === '='))
+  if (!assignments.every(x => asSymbol(x.args[1].unwrap()).toString() === '='))
     throw new Error('let statement: all assignments must be of the form (= var val)')
-  const pats = assignments.map(x => x.args[1])
+  const pats = assignments.map(x => x.args[0])
   const vals = assignments.map(x => lower(sc, code, x.args[2]))
   sc = Scope(sc)
   for (let i = 0; i < pats.length; i++) {
@@ -901,7 +902,7 @@ function lowerIf(sc: Scope, code: LIR, ex: IfStmt, value = true): Val<LIR> {
       break
     }
     if ('kind' in cond && cond.kind === 'let') {
-      const [_, patternExpr, valueExpr] = ast.asExpr(cond.ex).args
+      const [patternExpr, _, valueExpr] = ast.asExpr(cond.ex).args
       const val = lower(sc, code, valueExpr)
       const [pattern, args] = lowerpattern(sc, code, patternExpr)
       let match = rcall(code, tag('common.match'), [val, pattern])

@@ -3,7 +3,7 @@ import { Tag } from './types.js'
 export {
   Cursor, Symbol, symbol, gensym, Hex, asSymbol, asString, asNumber, Atom, isAtom,
   Meta, Tree, Token, ExprHead, Expr, isExpr, asExpr, asToken, token, repr, print, isSyntax,
-  Trivia, lead, trail, inner
+  Trivia, lead, trail, inner, callargs
 }
 
 interface Cursor {
@@ -135,6 +135,11 @@ function token(x: Atom | Tree): Tree {
   return x instanceof Expr || x instanceof Token ? x : new Token(x)
 }
 
+function callargs(ex: Expr & { head: 'Call' | 'Operator' }): Tree[] {
+  if (ex.head === 'Call' || ex.args.length === 2) return ex.args
+  return [ex.args[1], ex.args[0], ex.args[2]]
+}
+
 const constructor = (head: ExprHead) => (...args: (Tree | Atom)[]) => new Expr(head, args.map(token))
 
 export const [File, Group, List, Splat, Call, Index, Field, Operator, Swap, Block, Syntax, Quote, Template, Attribute] =
@@ -161,9 +166,8 @@ function repr(item: Tree, indent: number = 0): string {
       case 'Field': return `${_repr(item.args[0])}.${_repr(item.args[1])}`
       case 'Splat': return `${_repr(item.args[0])}...`
       case 'Operator': {
-        const op = String(item.args[0].unwrap())
-        if (item.args.length === 2) return `(${op}${_repr(item.args[1])})`
-        return `(${item.args.slice(1).map(_repr).join(` ${op} `)})`
+        if (item.args.length === 2) return `(${String(item.args[0].unwrap())}${_repr(item.args[1])})`
+        return `(${_repr(item.args[0])} ${String(item.args[1].unwrap())} ${_repr(item.args[2])})`
       }
       case 'Swap': return `&${_repr(item.args[0])}`
       case 'Quote': return `\`${String(item.args[0].unwrap())}\``
@@ -214,9 +218,7 @@ function printBody(x: Tree): string {
     case 'Field': return `${print(args[0])}.${print(args[1])}`
     case 'Splat': return `${print(args[0])}...`
     case 'Swap': return `&${print(args[0])}`
-    case 'Operator':
-      if (args.length === 2) return `${print(args[0])}${print(args[1])}`
-      return `${print(args[1])}${print(args[0])}${print(args[2])}`
+    case 'Operator': return print(args)
     case 'Syntax':
     case 'Template': return print(args)
     case 'Attribute': return `@${print(args)}`

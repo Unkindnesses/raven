@@ -188,7 +188,7 @@ test('trivia ownership', () => {
   assert.equal(file.trivia?.inner, '# eof')
 
   const operator = ast.asExpr(first('  x * y  \n'), 'Operator')
-  const left = operator.args[1]
+  const left = operator.args[0]
   const right = operator.args[2]
   assert.equal(operator.trivia?.leading, '  ')
   assert.equal(left.trivia?.leading ?? '', '')
@@ -201,7 +201,7 @@ test('trivia ownership', () => {
   assert.equal(call.trivia?.trailing ?? '', '')
 
   const continued = ast.asExpr(first('x + # foo\n  y'), 'Operator')
-  const continuedOperator = continued.args[0]
+  const continuedOperator = continued.args[1]
   const continuedRight = continued.args[2]
   assert.equal(continuedOperator.trivia?.trailing, ' # foo\n')
   assert.equal(continuedRight.trivia?.leading, '  ')
