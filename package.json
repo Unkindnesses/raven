@@ -17,7 +17,7 @@
     }
   },
   "scripts": {
-    "prepare": "npm run build",
+    "prepack": "npm run build",
     "build:cli": "esbuild --platform=node --sourcemap --bundle --format=esm --external:commander --external:vscode-languageserver --external:vscode-languageserver/* --outdir=dist/cli src/cli/index.ts src/cli/worker.ts src/cli/exec.ts src/cli/lib.ts",
     "watch": "npm run build:cli -- --watch",
     "start": "npm run build:cli && node --enable-source-maps dist/cli/index.js",
