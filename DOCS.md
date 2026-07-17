@@ -92,6 +92,14 @@ import { add } from './math.js'
 console.log(await add(2, 3))
 ```
 
+Format source files in place (defaulting to the current directory):
+
+```bash
+$ raven fmt hello.rv
+```
+
+Instead of writing changes, `--check` lists files that would be reformatted and `--diff` prints the changes; both exit non-zero if anything would change, for use in CI.
+
 Profile the compiler:
 
 ```bash
@@ -105,6 +113,12 @@ Inlining         1.04s
 Refcounts     257.79ms
 WASM          158.22ms
 Total            2.38s
+```
+
+Start the language server (used by [editor tooling](https://github.com/Unkindnesses/vscode-raven), which provides diagnostics and formatting):
+
+```bash
+$ raven lsp
 ```
 
 ## The Syntax
