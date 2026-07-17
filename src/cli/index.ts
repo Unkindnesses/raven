@@ -6,6 +6,7 @@ import * as nodeRepl from 'node:repl'
 import * as os from 'os'
 import * as path from 'path'
 import { Compiler, compile, compileJS, exec } from './compile.js'
+import { startLsp } from './lsp.js'
 import { REPL } from './repl.js'
 import { fmt, formatDiff } from './fmt.js'
 import { Caching, time, size } from '../utils/cache.js'
@@ -158,6 +159,11 @@ async function main() {
       }
       if (changed && (check || diff)) process.exitCode = 1
     })
+
+  program
+    .command('lsp')
+    .description('Start the Raven language server over stdio')
+    .action(startLsp)
 
   program
     .argument('[source] [args...]', 'Source file to execute')
