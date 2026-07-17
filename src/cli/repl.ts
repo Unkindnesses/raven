@@ -120,7 +120,7 @@ class REPL {
 
   private attachIO() {
     this.worker.on('message', msg => this.handleMessage(msg as WorkerResponse))
-    this.worker.on('error', err => this.fail(err))
+    this.worker.on('error', err => this.fail(err as Error))
     this.worker.on('exit', code => {
       if (!this.closed && code !== 0)
         this.fail(new Error(`REPL worker exited with code ${code}`))

@@ -1,5 +1,5 @@
 import * as process from 'process'
-import * as lsp from 'vscode-languageserver/node.js'
+import * as lsp from 'vscode-languageserver/node'
 import { format } from '../frontend/format.js'
 
 export { startLsp }
@@ -44,7 +44,7 @@ function startLsp() {
     if (documents.has(textDocument.uri) && change) documents.set(textDocument.uri, change.text)
   })
 
-  conn.onDidCloseTextDocument(({ textDocument }) => documents.delete(textDocument.uri))
+  conn.onDidCloseTextDocument(({ textDocument }) => { documents.delete(textDocument.uri) })
 
   conn.onDocumentFormatting(({ textDocument }) => {
     const source = documents.get(textDocument.uri)

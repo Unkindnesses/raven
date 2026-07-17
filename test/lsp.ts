@@ -1,7 +1,7 @@
 import * as assert from 'assert'
 import * as path from 'node:path'
 import { ChildProcess, spawn } from 'node:child_process'
-import * as jsonrpc from 'vscode-jsonrpc/node.js'
+import * as jsonrpc from 'vscode-jsonrpc/node'
 import { test } from 'vitest'
 
 const cliPath = path.join(process.cwd(), 'dist/cli/index.js')
