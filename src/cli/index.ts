@@ -25,7 +25,7 @@ function printTiming(c: Compiler) {
     ['Definitions', [c.pipe.defs, c.pipe.methods]],
     ['Lowering   ', [c.pipe.lowered]],
     ['Interpret  ', [c.pipe.interp]],
-    ['Inference  ', [c.pipe.traits, c.pipe.inferred]],
+    ['Inference  ', [c.pipe.inferred]],
     ['Expansion  ', [c.pipe.expanded]],
     ['Inlining   ', [c.pipe.inlined]],
     ['Refcounts  ', [c.pipe.counted]],

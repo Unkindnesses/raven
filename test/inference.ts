@@ -66,11 +66,11 @@ test('castTrait narrows any', () => {
 })
 
 test('trait types', () => {
-  const cache = compiler.pipe.traits
-  assert.deepEqual(cache.get(tag('common.Int64')), int64())
-  assert.deepEqual(cache.get(pack(tag('common.Params'), tag('common.UInt'), 21n)), pack(tag('common.UInt'), bits(21)))
-  assert.deepEqual(cache.get(tag('common.String')), String())
-  assert.deepEqual(cache.get(tag('NoSuchTrait')), unreachable)
+  const inf = compiler.pipe.inferred
+  assert.deepEqual(inf.traitType(tag('common.Int64')), int64())
+  assert.deepEqual(inf.traitType(pack(tag('common.Params'), tag('common.UInt'), 21n)), pack(tag('common.UInt'), bits(21)))
+  assert.deepEqual(inf.traitType(tag('common.String')), String())
+  assert.deepEqual(inf.traitType(tag('NoSuchTrait')), unreachable)
 })
 
 test('infer pow', async () => {
