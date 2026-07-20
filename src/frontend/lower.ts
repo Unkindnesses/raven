@@ -5,12 +5,13 @@ import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast.js"
 import * as types from "./types.js"
 import { Type, Tag, tag, pack, bits, nil, atomValue } from "./types.js"
 import { ValueType, AbsHeapType, i32, i64, f32, f64, externref } from "../wasm/wasm.js"
-import { Module, Signature, Binding, MIR, xstring, xjs, Method, xglobal, xset, SetGlobal, Invoke, Wasm, Modules } from "./modules.js"
+import { Module, Binding, MIR, xstring, xjs, Method, xglobal, xset, SetGlobal, Invoke, Wasm, Modules } from "./modules.js"
 import { Def } from "../dwarf/index.js"
 import { asBigInt, some } from "../utils/map.js"
 import { isnil_method, notnil_method, part_method, packcat_method } from "../middle/primitives.js"
-import { modtag } from "./patterns.js"
+import { callablepattern, modtag } from "./patterns.js"
 import { Cache, Caching } from "../utils/cache.js"
+import { resolve_static } from "../middle/load.js"
 
 export {
   Lowered, lower_toplevel, bundlemacro, expand, lowerfn, source,
@@ -312,9 +313,9 @@ interface Scope {
 }
 
 class Lowering {
-  constructor(readonly mod: Tag, readonly sc = GlobalScope(mod)) { }
+  constructor(readonly sources: Modules, readonly mod: Tag, readonly owner: Tag, readonly sc = GlobalScope(mod)) { }
   scope(swap?: Map<number, string>): Lowering {
-    return new Lowering(this.mod, Scope(this.sc, swap))
+    return new Lowering(this.sources, this.mod, this.owner, Scope(this.sc, swap))
   }
 }
 
@@ -713,9 +714,36 @@ function lowerSyntax(cx: Lowering, code: LIR, ex: ast.Expr, value = true): Val<L
     return _push(code, new Wasm(op, args, ret), { src: ex.meta, type: T, bp: true })
   } else if (syntax === 'let') {
     return lowerLet(cx, code, ex, value)
+  } else if (syntax === 'fn') {
+    return lowerLambda(cx, code, ex)
   } else {
     throw new Error(`unrecognised syntax: ${syntax}`)
   }
+}
+
+function lambdaParts(ex: ast.Expr): [readonly ast.Tree[], ast.Tree] | undefined {
+  if (!ast.isSyntax(ex, 'fn')) return
+  if (ex.args.length === 2 && ast.isExpr(ex.args[1], 'Block')) return [[], ex.args[1]]
+  if (ex.args.length === 3 && ast.isExpr(ex.args[2], 'Block')) {
+    if (!ast.isExpr(ex.args[1], 'Group'))
+      throw new Error(`Expected anonymous function argument list, got ${ast.repr(ex.args[1])}`)
+    return [ex.args[1].args, ex.args[2]]
+  }
+  return
+}
+
+function lowerLambda(cx: Lowering, code: LIR, ex: ast.Expr): Val<LIR> {
+  const fn = ast.asExpr(attrs(ex)[0])
+  const [params, body] = some(lambdaParts(fn), `Expected anonymous function, got ${ast.repr(fn)}`)
+  const name = new Tag(cx.owner, gensym('/λ'))
+  const resolve = (x: ast.Symbol): Type => resolve_static(cx.sources, cx.mod, x)
+  const lambdaType = ast.Call(tag('common.core.pack'), name)
+  const self = ast.Operator(symbol('_'), symbol(':'), lambdaType)
+  const sig = callablepattern(ast.List(self, ...params), cx.mod, resolve)
+  const method = new Method(cx.mod, name, sig)
+  const methodSource = { kind: 'fn' as const, body, meta: Def(name.path, fn.meta && source(fn.meta)) }
+  cx.sources.closures.set(name, [method, methodSource])
+  return lower(cx, code, ast.Call(tag('common.core.pack'), name).withmeta(fn.meta))
 }
 
 function lowerSelect(cx: Lowering, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
@@ -944,17 +972,17 @@ function lowerIf(cx: Lowering, code: LIR, ex: IfStmt, value = true): Val<LIR> {
   else return nil
 }
 
-function lowerfn(mod: Tag, sig: Signature, body: ast.Tree, meta: Def): MIR {
+function lowerfn(sources: Modules, method: Method, body: ast.Tree, meta: Def): MIR {
   body = expand(body)
-  const cx = new Lowering(mod).scope(sig.swap)
+  const cx = new Lowering(sources, method.mod, method.name).scope(method.sig.swap)
   const code = LIR(meta)
-  for (const arg of sig.args) {
+  for (const arg of method.sig.args) {
     const slot = ir.slot(arg)
     cx.sc.set(arg, slot)
     _push(code, ir.expr('set', slot, code.argument(ir.unreachable)))
   }
   const out = lower(cx, code, body)
-  if (code.block().canbranch()) swapreturn(code, out, sig.swap)
+  if (code.block().canbranch()) swapreturn(code, out, method.sig.swap)
   return toMIR(globals(prune(ssa(fuseblocks(code)))))
 }
 
@@ -995,9 +1023,9 @@ function assigned_globals(code: MIR): Map<Binding, Type> {
   return out
 }
 
-function lower_toplevel(mod: Module, ex: ast.Tree, meta: Def): [MIR, Set<string>] {
+function lower_toplevel(sources: Modules, mod: Module, ex: ast.Tree, meta: Def): [MIR, Set<string>] {
   ex = expand(ex)
-  const cx = new Lowering(mod.name)
+  const cx = new Lowering(sources, mod.name, mod.name)
   const code = LIR(meta)
   lower(cx, code, ex, false)
   code.return(nil)
@@ -1035,6 +1063,6 @@ class Lowered implements Caching {
   private lower(method: Method): MIR {
     const source = this.sources.source(method)
     if (source.kind === 'ir') return source.body
-    return lowerfn(method.mod, method.sig, source.body, source.meta)
+    return lowerfn(this.sources, method, source.body, source.meta)
   }
 }

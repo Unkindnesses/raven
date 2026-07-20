@@ -6,7 +6,7 @@ import { callpattern } from '../src/frontend/patterns.js'
 import { tag, Type } from '../src/frontend/types.js'
 import { asSymbol } from '../src/frontend/ast.js'
 import * as ast from '../src/frontend/ast.js'
-import { Module } from '../src/frontend/modules.js'
+import { Method, Modules } from '../src/frontend/modules.js'
 import { Def } from '../src/dwarf/index.js'
 
 const parsed = (src: string, file = 'test') => parse(file, src).args
@@ -308,7 +308,7 @@ function lower(def: string) {
   const params = sig.args.slice(1)
   const body = ex.args[2]
   const pat = callpattern(fn, ast.List(...params))
-  return lowerfn(tag(''), pat, body, Def('test'))
+  return lowerfn(new Modules(), new Method(tag(''), fn, pat), body, Def('test'))
 }
 
 test('lower simple function', () => {
@@ -403,10 +403,11 @@ test('lower while loop', () => {
 })
 
 test('lower toplevel expression', () => {
-  const mod = new Module(tag('test'))
+  const sources = new Modules()
+  const mod = sources.module(tag('test'))
   mod.set('x', Type(42))
   const expr = first('{ x = x+1, y = y+1 }')
-  const [ir, _] = lower_toplevel(mod, expr, Def('common.core.main'))
+  const [ir, _] = lower_toplevel(sources, mod, expr, Def('common.core.main'))
   assert.equal(ir.toString(), `Function common.core.main at undefined
 1:
   %1 = global tag"test".x

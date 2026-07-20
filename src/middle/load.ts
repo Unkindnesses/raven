@@ -9,17 +9,27 @@ import * as ast from "../frontend/ast.js"
 import { parse } from "../frontend/parse.js"
 import { emit } from "../backend/compiler.js"
 
-export { LoadState, Loader, SourceString, src as source, loadmodule, reload, vload }
+export { LoadState, Loader, SourceString, src as source, loadmodule, reload, vload, resolve_static }
 
 function pathtag(p: string): Tag {
   if (!p.endsWith('.rv')) throw new Error(`Invalid path: ${p}`)
   return tag(p.slice(0, -3).split('/').join('.'))
 }
 
+function resolve_static(sources: Modules, mod: Tag, x: ast.Symbol): Type {
+  let y = sources.resolve_static(new Binding(mod, x.toString()))
+  if (y === unreachable) throw new Error(`Could not resolve ${x}`)
+  return y
+}
+
 type Loader = (path: string) => Promise<[string, string]>
 
 class LoadState {
   constructor(readonly comp: Modules, readonly mod: Module, readonly load: Loader) { }
+
+  resolve_static(x: ast.Symbol): Type {
+    return resolve_static(this.comp, this.mod.name, x)
+  }
 }
 
 interface SourceString {
@@ -29,12 +39,6 @@ interface SourceString {
 
 function src(path: string, source: string): SourceString {
   return { path, source }
-}
-
-function resolve_static(cx: LoadState, x: ast.Symbol): Type {
-  let y = cx.comp.resolve_static(new Binding(cx.mod.name, x.toString()))
-  if (y === unreachable) throw new Error(`Could not resolve ${x}`)
-  return y
 }
 
 function simpleconst(cx: LoadState, x: ast.Tree): Anno<Type> | Binding | undefined {
@@ -89,9 +93,8 @@ async function load_include(cx: LoadState, x: ast.Expr): Promise<void> {
 }
 
 function load_expr(cx: LoadState, x: ast.Tree): void {
-  x = replaceInnerFns(cx, x, { owner: new Tag(cx.mod.name, ast.gensym('global')), count: 0 })
   const meta = Def('(global)', x.meta && source(x.meta))
-  const [ir, defs] = lower_toplevel(cx.mod, x, meta)
+  const [ir, defs] = lower_toplevel(cx.comp, cx.mod, x, meta)
   for (const def of defs) if (!cx.mod.has(def)) cx.mod.set(def, unreachable)
   const method = cx.mod.method(tag('common.core.main'), callpattern(tag('common.core.main'), ast.List()),
     { kind: 'ir', body: ir })
@@ -103,41 +106,7 @@ function receiverTag(cx: LoadState, ex: ast.Tree): Tag {
   if (!(ast.isExpr(ex, 'Operator') && ast.symbol(':').isEqual(ex.args[1].unwrap())))
     throw new Error('Call overloads need a typed receiver, eg fn (f: T)(args...)')
   const trait = ex.args[2].ungroup().unwrap()
-  return calltarget(resolve_static(cx, ast.asSymbol(trait)))
-}
-
-interface LiftState {
-  owner: Tag
-  count: number
-}
-
-function lambdaParts(ex: ast.Expr): [readonly ast.Tree[], ast.Tree] | undefined {
-  if (!ast.isSyntax(ex, 'fn')) return
-  if (ex.args.length === 2 && ast.isExpr(ex.args[1], 'Block')) return [[], ex.args[1]]
-  if (ex.args.length === 3 && ast.isExpr(ex.args[2], 'Block')) {
-    if (!ast.isExpr(ex.args[1], 'Group')) throw new Error(`Expected anonymous function argument list, got ${ast.repr(ex.args[1])}`)
-    return [ex.args[1].args, ex.args[2]]
-  }
-  return
-}
-
-function registerLambda(cx: LoadState, name: Tag, params: readonly ast.Tree[], body: ast.Tree, meta?: ast.Meta): void {
-  const resolve = (x: ast.Symbol) => resolve_static(cx, x)
-  const lambdaType = ast.Call(tag('common.core.pack'), name)
-  const self = ast.Operator(ast.symbol('_'), ast.symbol(':'), lambdaType)
-  const sig = callablepattern(ast.List(self, ...params), cx.mod.name, resolve)
-  cx.mod.method(name, sig, { kind: 'fn', body, meta: Def(name.path, meta && source(meta)) })
-}
-
-function replaceInnerFns(cx: LoadState, x: ast.Tree, st: LiftState): ast.Tree {
-  if (x instanceof ast.Token) return x
-  const lambda = lambdaParts(x)
-  if (!lambda) return x.map(arg => replaceInnerFns(cx, arg, st))
-  const [params, body] = lambda
-  const lambdaTag = new Tag(st.owner, `λ/${++st.count}`)
-  const liftedBody = replaceInnerFns(cx, body, { owner: lambdaTag, count: 0 })
-  registerLambda(cx, lambdaTag, params, liftedBody, x.meta)
-  return ast.Call(tag('common.core.pack'), lambdaTag).withmeta(x.meta)
+  return calltarget(cx.resolve_static(ast.asSymbol(trait)))
 }
 
 function load_fn(cx: LoadState, ex: ast.Tree): void {
@@ -153,7 +122,7 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
   }
   if (!ast.isExpr(signature, 'Call') && !ast.isExpr(signature, 'Operator'))
     throw new Error(`Expected function signature, got ${ast.repr(signature)}`)
-  const resolve = (x: ast.Symbol) => resolve_static(cx, x)
+  const resolve = (x: ast.Symbol) => cx.resolve_static(x)
   const [callee, ...params] = ast.callargs(signature)
   const variable = callee.unwrap()
   const callable = ast.isExpr(signature, 'Call') &&
@@ -167,15 +136,14 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
   } else {
     fnTag =
       variable instanceof Tag ? variable :
-        extend ? asTag(resolve_static(cx, ast.asSymbol(variable))) :
+        extend ? asTag(cx.resolve_static(ast.asSymbol(variable))) :
           new Tag(cx.mod.name, ast.asSymbol(variable).toString())
     if (!extend && variable instanceof ast.Symbol)
       cx.mod.set(variable.toString(), fnTag)
     sigPattern = callpattern(fnTag, ast.List(...params), cx.mod.name, resolve)
   }
   const meta = Def(fnTag.path, x.meta && source(x.meta))
-  const liftedBody = replaceInnerFns(cx, body, { owner: fnTag, count: 0 })
-  cx.mod.method(fnTag, sigPattern, { kind: 'fn', body: liftedBody, meta }, ts)
+  cx.mod.method(fnTag, sigPattern, { kind: 'fn', body, meta }, ts)
 }
 
 async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> {

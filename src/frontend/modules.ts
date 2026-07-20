@@ -299,6 +299,7 @@ class Module implements cache.Caching {
 
 class Modules implements cache.Caching {
   private mods = new HashMap<Tag, Module>()
+  readonly closures = new HashMap<Tag, [Method, MethodSource]>()
   get subcaches() { return this.mods.values() }
   module(m: Tag | Module) {
     if (m instanceof Module) {
@@ -312,7 +313,7 @@ class Modules implements cache.Caching {
   }
   get(b: Binding) { return this.mods.get(b.mod)?.get(b.name) }
   set(b: Binding, v: Anno<Type> | Binding) { this.module(b.mod).set(b.name, v) }
-  source(m: Method) { return some(this.mods.get(m.mod)).source(m) }
+  source(m: Method) { return this.closures.get(m.name)?.[1] ?? some(this.mods.get(m.mod)).source(m) }
   resolve_static(b: Binding): Anno<Type> {
     const val = this.get(b)
     if (val === undefined) return unreachable
@@ -323,11 +324,15 @@ class Modules implements cache.Caching {
     const out = new Modules()
     for (const [k, mod] of this.mods)
       out.mods.set(k, mod.clone())
+    for (const [k, closure] of this.closures)
+      out.closures.set(k, closure)
     return out
   }
 }
 
 function methods(cx: Modules, name: Tag, mod: Tag = tag(""), ms: Method[] = [], seen = new Set<Tag>()) {
+  const closure = cx.closures.get(name)
+  if (closure) return [closure[0]]
   for (const m of cx.module(mod).methods.get(name)) {
     if (m instanceof Tag) {
       if (seen.has(m)) continue
