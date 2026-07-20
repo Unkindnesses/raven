@@ -73,6 +73,15 @@ Cacaw, World!
 
 You can embed the wasm into a single JS script with `--embed`.
 
+You can use [Bun](https://bun.sh) to create a self-contained binary:
+
+```bash
+$ raven build --js --esbuild hello.rv
+$ bun build --compile hello.js
+$ ./hello
+Cacaw, World!
+```
+
 You can run with node directly (prior to v25, you need `--experimental-wasm-jspi`).
 
 ```bash
