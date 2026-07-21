@@ -138,9 +138,55 @@ test('anonymous function object', async () => {
   `)
 })
 
+test('anonymous function captures by value', async () => {
+  await rv(`
+    fn add(x) {
+      fn (y) { x + y }
+    }
+
+    fn affine(a, b) {
+      fn (x) { a * x + b }
+    }
+
+    fn nested(x) {
+      fn { fn { x } }
+    }
+
+    fn snapshot() {
+      x = widen(1)
+      f = fn { x }
+      x = widen(2)
+      f()
+    }
+
+    fn increment(x) {
+      fn {
+        x = x + 1
+        x
+      }
+    }
+
+    f = add(40)
+    h = affine(6, 7)
+    g = nested(42)()
+    i = increment(1)
+
+    test f(2) == 42
+    test h(5) == 37
+    test g() == 42
+    test snapshot() == 1
+    test i() == 2
+    test i() == 2
+  `)
+})
+
 test('invoke closure object', async () => {
   await rv(`
-    f = Function(fn (x, y) { Int64(js.Math.pow(x, y)) }, [Int64, Int64], Int64)
-    test f(2, 3) == 8
+    fn power(e) {
+      Function(fn (x) { Int64(js.Math.pow(x, e)) }, [Int64], Int64)
+    }
+
+    g = power(3)
+    test g(2) == 8
   `)
 })

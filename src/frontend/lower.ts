@@ -5,7 +5,7 @@ import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast.js"
 import * as types from "./types.js"
 import { Type, Tag, tag, pack, bits, nil, atomValue } from "./types.js"
 import { ValueType, AbsHeapType, i32, i64, f32, f64, externref } from "../wasm/wasm.js"
-import { Module, Binding, MIR, xstring, xjs, Method, xglobal, xset, SetGlobal, Invoke, Wasm, Modules } from "./modules.js"
+import { Module, Binding, MIR, xstring, xjs, Method, Signature, xglobal, xset, SetGlobal, Invoke, Wasm, Modules } from "./modules.js"
 import { Def } from "../dwarf/index.js"
 import { asBigInt, some } from "../utils/map.js"
 import { isnil_method, notnil_method, part_method, packcat_method } from "../middle/primitives.js"
@@ -344,6 +344,26 @@ function Scope(parent: Scope, swap?: Map<number, string>): Scope {
     loops: parent.loops,
   }
   return sc
+}
+
+function CaptureScope(parent: Scope, captures: ir.Slot[]): Scope {
+  const env = new Map<string, ir.Slot>()
+  return {
+    has: (name: string) => parent.has(name),
+    get: (name: string): ir.Slot | Binding => {
+      if (!parent.has(name)) return parent.get(name)
+      let slot = env.get(name)
+      if (slot) return slot
+      slot = ir.slot(name)
+      env.set(name, slot)
+      captures.push(slot)
+      return slot
+    },
+    set: (name: string, _: ir.Slot) => { throw new Error(`Cannot set ${name} in capture scope`) },
+    var: (name: string) => { throw new Error(`Cannot create ${name} in capture scope`) },
+    swaps: () => undefined,
+    loops: [],
+  }
 }
 
 // don't continue lowering after return
@@ -737,13 +757,21 @@ function lowerLambda(cx: Lowering, code: LIR, ex: ast.Expr): Val<LIR> {
   const [params, body] = some(lambdaParts(fn), `Expected anonymous function, got ${ast.repr(fn)}`)
   const name = new Tag(cx.owner, gensym('/λ'))
   const resolve = (x: ast.Symbol): Type => resolve_static(cx.sources, cx.mod, x)
-  const lambdaType = ast.Call(tag('common.core.pack'), name)
-  const self = ast.Operator(symbol('_'), symbol(':'), lambdaType)
-  const sig = callablepattern(ast.List(self, ...params), cx.mod, resolve)
+  const signature = (captures: string[]) => {
+    const lambdaType = ast.Call(
+      tag('common.core.pack'), name, ...captures.map(name => symbol(name)))
+    const self = ast.Operator(symbol('_'), symbol(':'), lambdaType)
+    return callablepattern(ast.List(self, ...params), cx.mod, resolve)
+  }
+  const baseSig = signature([])
+  const closure = new Lowering(cx.sources, cx.mod, name, cx.sc)
+  const [methodIR, captures] = lowerbody(closure, baseSig, body, Def(name.path, fn.meta && source(fn.meta)))
+  const captureNames = captures.map(capture => capture.name)
+  const sig = signature(captureNames)
   const method = new Method(cx.mod, name, sig)
-  const methodIR = lowerfn(cx.sources, method, body, Def(name.path, fn.meta && source(fn.meta)))
   cx.sources.closures.set(name, [method, methodIR])
-  return lower(cx, code, ast.Call(tag('common.core.pack'), name).withmeta(fn.meta))
+  return lower(cx, code,
+    ast.Call(tag('common.core.pack'), name, ...captureNames.map(name => symbol(name))).withmeta(fn.meta))
 }
 
 function lowerSelect(cx: Lowering, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
@@ -972,18 +1000,34 @@ function lowerIf(cx: Lowering, code: LIR, ex: IfStmt, value = true): Val<LIR> {
   else return nil
 }
 
-function lowerfn(sources: Modules, method: Method, body: ast.Tree, meta: Def): MIR {
-  body = expand(body)
-  const cx = new Lowering(sources, method.mod, method.name).scope(method.sig.swap)
-  const code = LIR(meta)
-  for (const arg of method.sig.args) {
-    const slot = ir.slot(arg)
-    cx.sc.set(arg, slot)
-    _push(code, ir.expr('set', slot, code.argument(ir.unreachable)))
+function initArgs(code: LIR, slots: ir.Slot[]): LIR {
+  if (slots.length === 0) return code
+  const args = slots.map(() => code.argument(ir.unreachable))
+  const pr = new ir.Pipe(code)
+  for (const block of pr.blocks()) {
+    if (block.id === 1)
+      for (let i = 0; i < slots.length; i++)
+        pr.push(pr.stmt(ir.expr('set', slots[i], args[i])))
+    for (const _ of block) continue
   }
-  const out = lower(cx, code, body)
-  if (code.block().canbranch()) swapreturn(code, out, method.sig.swap)
-  return toMIR(globals(prune(ssa(fuseblocks(code)))))
+  return pr.finish()
+}
+
+function lowerbody(cx: Lowering, sig: Signature, body: ast.Tree, meta: Def): [MIR, ir.Slot[]] {
+  let code = LIR(meta)
+  const captures: ir.Slot[] = []
+  const parent = CaptureScope(cx.sc, captures)
+  cx = new Lowering(cx.sources, cx.mod, cx.owner, parent).scope(sig.swap)
+  const params = sig.args.map(arg => ir.slot(arg))
+  for (let i = 0; i < params.length; i++) cx.sc.set(sig.args[i], params[i])
+  const out = lower(cx, code, expand(body))
+  if (code.block().canbranch()) swapreturn(code, out, sig.swap)
+  code = initArgs(code, [...captures, ...params])
+  return [toMIR(globals(prune(ssa(fuseblocks(code))))), captures]
+}
+
+function lowerfn(sources: Modules, method: Method, body: ast.Tree, meta: Def): MIR {
+  return lowerbody(new Lowering(sources, method.mod, method.name), method.sig, body, meta)[0]
 }
 
 function assignments(code: LIR): Set<string> {
