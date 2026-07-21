@@ -313,9 +313,15 @@ interface Scope {
 }
 
 class Lowering {
-  constructor(readonly sources: Modules, readonly mod: Tag, readonly owner: Tag, readonly sc = GlobalScope(mod)) { }
+  constructor(
+    readonly sources: Modules,
+    readonly mod: Tag,
+    readonly owner: Tag,
+    readonly sourceId?: bigint,
+    readonly sc = GlobalScope(mod)
+  ) { }
   scope(swap?: Map<number, string>): Lowering {
-    return new Lowering(this.sources, this.mod, this.owner, Scope(this.sc, swap))
+    return new Lowering(this.sources, this.mod, this.owner, this.sourceId, Scope(this.sc, swap))
   }
 }
 
@@ -764,12 +770,13 @@ function lowerLambda(cx: Lowering, code: LIR, ex: ast.Expr): Val<LIR> {
     return callablepattern(ast.List(self, ...params), cx.mod, resolve)
   }
   const baseSig = signature([])
-  const closure = new Lowering(cx.sources, cx.mod, name, cx.sc)
+  const closure = new Lowering(cx.sources, cx.mod, name, cx.sourceId, cx.sc)
   const [methodIR, captures] = lowerbody(closure, baseSig, body, Def(name.path, fn.meta && source(fn.meta)))
   const captureNames = captures.map(capture => capture.name)
   const sig = signature(captureNames)
   const method = new Method(cx.mod, name, sig)
-  cx.sources.closures.set(name, [method, methodIR])
+  const deps = cx.sourceId === undefined ? new Set<bigint>() : new Set([cx.sourceId])
+  cx.sources.closures.set(name, [method, methodIR], { deps })
   return lower(cx, code,
     ast.Call(tag('common.core.pack'), name, ...captureNames.map(name => symbol(name))).withmeta(fn.meta))
 }
@@ -1017,7 +1024,7 @@ function lowerbody(cx: Lowering, sig: Signature, body: ast.Tree, meta: Def): [MI
   let code = LIR(meta)
   const captures: ir.Slot[] = []
   const parent = CaptureScope(cx.sc, captures)
-  cx = new Lowering(cx.sources, cx.mod, cx.owner, parent).scope(sig.swap)
+  cx = new Lowering(cx.sources, cx.mod, cx.owner, cx.sourceId, parent).scope(sig.swap)
   const params = sig.args.map(arg => ir.slot(arg))
   for (let i = 0; i < params.length; i++) cx.sc.set(sig.args[i], params[i])
   const out = lower(cx, code, expand(body))
@@ -1026,8 +1033,8 @@ function lowerbody(cx: Lowering, sig: Signature, body: ast.Tree, meta: Def): [MI
   return [toMIR(globals(prune(ssa(fuseblocks(code))))), captures]
 }
 
-function lowerfn(sources: Modules, method: Method, body: ast.Tree, meta: Def): MIR {
-  return lowerbody(new Lowering(sources, method.mod, method.name), method.sig, body, meta)[0]
+function lowerfn(sources: Modules, method: Method, body: ast.Tree, meta: Def, id?: bigint): MIR {
+  return lowerbody(new Lowering(sources, method.mod, method.name, id), method.sig, body, meta)[0]
 }
 
 function assignments(code: LIR): Set<string> {
@@ -1067,9 +1074,9 @@ function assigned_globals(code: MIR): Map<Binding, Type> {
   return out
 }
 
-function lower_toplevel(sources: Modules, mod: Module, ex: ast.Tree, meta: Def): [MIR, Set<string>] {
+function lower_toplevel(sources: Modules, mod: Module, ex: ast.Tree, meta: Def, id?: bigint): [MIR, Set<string>] {
   ex = expand(ex)
-  const cx = new Lowering(sources, mod.name, mod.name)
+  const cx = new Lowering(sources, mod.name, mod.name, id)
   const code = LIR(meta)
   lower(cx, code, ex, false)
   code.return(nil)
@@ -1105,8 +1112,9 @@ class Lowered implements Caching {
   }
 
   private lower(method: Method): MIR {
+    const id = this.sources.sourceid(method)
     const source = this.sources.source(method)
     if (source.kind === 'ir') return source.body
-    return lowerfn(this.sources, method, source.body, source.meta)
+    return lowerfn(this.sources, method, source.body, source.meta, id)
   }
 }

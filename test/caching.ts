@@ -53,6 +53,25 @@ test('methods', async () => {
   assert.equal(mainId, defs.table.id(tag('common.core.main')))
 })
 
+test('closures', async () => {
+  const compiler = await Compiler.create(load, source('', 'fn foo() { fn { fn { 1 } } }'))
+  const { lowered, sources } = compiler.pipe
+  const foo = compiler.pipe.defs.methods(tag('foo'))[0]
+  const sourceId = sources.sourceid(foo)
+
+  lowered.ir(foo)
+  const closures = Array.from(sources.closures.keys()).filter(name => name.path.startsWith('foo./λ_'))
+
+  assert.equal(closures.length, 2)
+  for (const closure of closures)
+    assert.deepEqual(sources.closures.deps(closure), new Set([sourceId]))
+  reset(compiler.pipe)
+  for (const closure of closures) assert.ok(sources.closures.iscached(closure))
+
+  await compiler.reload(source('', ''))
+  for (const closure of closures) assert.ok(!sources.closures.iscached(closure))
+})
+
 test('inference', async () => {
   const compiler = await Compiler.create(load, source('', 'n = 1, fn foo(x) { x+n }, foo(5)'))
   const inf = compiler.pipe.inferred

@@ -166,7 +166,7 @@ class Map<K, V> implements Caching {
     return this.data.has(k)
   }
 
-  set(k: K, v: V) {
+  set(k: K, v: V, { id = nft() }: { id?: bigint } = {}) {
     if (this.data.has(k)) {
       this.print.delete(this.data.get(k)![0])
       this.data.delete(k)
@@ -174,7 +174,6 @@ class Map<K, V> implements Caching {
       this.print.delete(this.haskey.get(k)!)
       this.haskey.delete(k)
     }
-    let id = nft()
     this.data.set(k, [id, v])
     this.print.add(id)
     return this
@@ -237,19 +236,23 @@ class Cache<K, V> implements Caching {
     return true
   }
 
-  protected set(k: K, v: V, { id, deps }: { id?: bigint, deps?: Set<bigint> } = {}): Cache<K, V> {
+  protected _set(k: K, v: V, { id, deps }: { id?: bigint, deps?: Set<bigint> } = {}): Cache<K, V> {
     id ??= nft()
     deps ??= new Set()
-    this.delete(k)
     this.print.add(id)
     this.data.set(k, { value: v, id, deps })
     return this
   }
 
+  set(k: K, v: V, options: { id?: bigint, deps?: Set<bigint> } = {}): Cache<K, V> {
+    if (this.iscached(k)) throw new Error(`Cannot overwrite cache value: ${k}`)
+    return this._set(k, v, options)
+  }
+
   _get(k: K): V {
     if (!this.iscached(k)) {
       const [v, deps] = this.value(k)
-      this.set(k, v, { deps })
+      this._set(k, v, { deps })
     }
     track(this.id(k))
     return this.cached(k)
@@ -285,7 +288,10 @@ class EagerCache<K, V> extends Cache<K, V> {
     for (const k of Array.from(this.invalid(deps))) {
       const [, time] = withtime(() => {
         const [v, deps] = this.value(k)
-        if (!isEqual(v, this.cached(k))) this.set(k, v, { deps })
+        if (!isEqual(v, this.cached(k))) {
+          this.delete(k)
+          this._set(k, v, { deps })
+        }
       })
       this.time += time
     }
@@ -296,6 +302,7 @@ class EagerCache<K, V> extends Cache<K, V> {
 
 class DualCache<K, V> extends Cache<K, V> {
   dual: HashMap<V, K> = new HashMap()
+  set(k: K, v: V): Cache<K, V> { throw new Error('Cannot set DualCache value') }
   _get(k: K): V {
     let v = super._get(k)
     this.dual.set(v, k)

@@ -8,6 +8,7 @@ import { symbolValues } from "./primitives.js"
 import * as ast from "../frontend/ast.js"
 import { parse } from "../frontend/parse.js"
 import { emit } from "../backend/compiler.js"
+import { nft } from "../utils/cache.js"
 
 export { LoadState, Loader, SourceString, src as source, loadmodule, reload, vload, resolve_static }
 
@@ -94,10 +95,11 @@ async function load_include(cx: LoadState, x: ast.Expr): Promise<void> {
 
 function load_expr(cx: LoadState, x: ast.Tree): void {
   const meta = Def('(global)', x.meta && source(x.meta))
-  const [ir, defs] = lower_toplevel(cx.comp, cx.mod, x, meta)
+  const id = nft()
+  const [ir, defs] = lower_toplevel(cx.comp, cx.mod, x, meta, id)
   for (const def of defs) if (!cx.mod.has(def)) cx.mod.set(def, unreachable)
   const method = cx.mod.method(tag('common.core.main'), callpattern(tag('common.core.main'), ast.List()),
-    { kind: 'ir', body: ir })
+    { kind: 'ir', body: ir }, { id: id })
   emit(method)
 }
 
@@ -143,7 +145,7 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
     sigPattern = callpattern(fnTag, ast.List(...params), cx.mod.name, resolve)
   }
   const meta = Def(fnTag.path, x.meta && source(x.meta))
-  cx.mod.method(fnTag, sigPattern, { kind: 'fn', body, meta }, ts)
+  cx.mod.method(fnTag, sigPattern, { kind: 'fn', body, meta }, { ts })
 }
 
 async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> {
