@@ -299,7 +299,7 @@ class Module implements cache.Caching {
 
 class Modules implements cache.Caching {
   private mods = new HashMap<Tag, Module>()
-  readonly closures = new HashMap<Tag, [Method, MethodSource]>()
+  readonly closures = new HashMap<Tag, [Method, MIR]>()
   get subcaches() { return this.mods.values() }
   module(m: Tag | Module) {
     if (m instanceof Module) {
@@ -313,7 +313,11 @@ class Modules implements cache.Caching {
   }
   get(b: Binding) { return this.mods.get(b.mod)?.get(b.name) }
   set(b: Binding, v: Anno<Type> | Binding) { this.module(b.mod).set(b.name, v) }
-  source(m: Method) { return this.closures.get(m.name)?.[1] ?? some(this.mods.get(m.mod)).source(m) }
+  source(m: Method): MethodSource {
+    if (this.closures.has(m.name))
+      return { kind: 'ir', body: this.closures.get(m.name)![1] }
+    return some(this.mods.get(m.mod)).source(m)
+  }
   resolve_static(b: Binding): Anno<Type> {
     const val = this.get(b)
     if (val === undefined) return unreachable

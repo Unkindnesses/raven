@@ -741,8 +741,8 @@ function lowerLambda(cx: Lowering, code: LIR, ex: ast.Expr): Val<LIR> {
   const self = ast.Operator(symbol('_'), symbol(':'), lambdaType)
   const sig = callablepattern(ast.List(self, ...params), cx.mod, resolve)
   const method = new Method(cx.mod, name, sig)
-  const methodSource = { kind: 'fn' as const, body, meta: Def(name.path, fn.meta && source(fn.meta)) }
-  cx.sources.closures.set(name, [method, methodSource])
+  const methodIR = lowerfn(cx.sources, method, body, Def(name.path, fn.meta && source(fn.meta)))
+  cx.sources.closures.set(name, [method, methodIR])
   return lower(cx, code, ast.Call(tag('common.core.pack'), name).withmeta(fn.meta))
 }
 
