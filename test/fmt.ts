@@ -5,7 +5,7 @@ import assert from 'node:assert'
 import { afterEach, test } from 'vitest'
 import * as ast from '../src/frontend/ast.js'
 import { fmt, formatDiff } from '../src/cli/fmt.js'
-import { indent, format, commas, brackets, trailingWhitespace } from '../src/frontend/format.js'
+import { indent, format, commas, operators, brackets, trailingWhitespace } from '../src/frontend/format.js'
 import { parse } from '../src/frontend/parse.js'
 
 const fixtures: string[] = []
@@ -96,6 +96,16 @@ test('preserve multiline comma trivia', () => {
   assert.equal(ast.print(commas(parse('test.rv', source))), expected)
 })
 
+test('normalize binary operators', () => {
+  const source = 'x*y\nx  +\ty\nx= -y\nx :y\nx + # keep\n  y\n'
+  const tree = parse('test.rv', source)
+  const formatted = operators(tree)
+
+  assert.notEqual(formatted, tree)
+  assert.equal(ast.print(tree), source)
+  assert.equal(ast.print(formatted), 'x * y\nx + y\nx = -y\nx: y\nx + # keep\n  y\n')
+})
+
 test('normalize trailing brackets', () => {
   const source = 'f(\na)\ng(b\n)\n[\nc]\n[d\n]\n'
   const tree = parse('test.rv', source)
@@ -126,6 +136,12 @@ test('fix indentation of statements on their own line', () => {
   assert.notEqual(formatted, tree)
   assert.equal(ast.print(tree), source)
   assert.equal(ast.print(formatted), 'x\nfn f() {\n  y\n  if true {\n    z\n  }\n}\n')
+})
+
+test('indent binary operator continuations', () => {
+  const source = 'x +\ny\nz + # keep\nw\nfn f() {\nx +\ny\n}\n'
+  const expected = 'x +\n  y\nz + # keep\n  w\nfn f() {\n  x +\n    y\n}\n'
+  assert.equal(ast.print(indent(parse('test.rv', source))), expected)
 })
 
 test('fix indentation of comments on their own line', () => {

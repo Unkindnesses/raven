@@ -37,7 +37,7 @@ fn show(x: Bits) {
   print(`bits"`)
   N = bitsize(x)
   for i = range(1, N) {
-    print(Int64(bitand(bitshr_u(x, bitcast(x, bits(N-i))), bitcast(x, bits(1)))))
+    print(Int64(bitand(bitshr_u(x, bitcast(x, bits(N - i))), bitcast(x, bits(1)))))
   }
   print(`"`)
 }

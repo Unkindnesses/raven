@@ -30,7 +30,7 @@ fn show(x: Bool) {
   print(if x { "true" } else { "false" })
 }
 
-true  = Bool(bits"1")
+true = Bool(bits"1")
 false = Bool(bits"0")
 
 fn condition(x) { abort("Non-boolean used as a condition") }
@@ -91,9 +91,9 @@ fn rem(a: Int, b: Int) { Int(intop(bitrem_s, a, b)) }
 fn (a: Int) == (b: Int) { Bool(intop(biteq, a, b)) }
 fn (a: Int) != (b: Int) { Bool(intop(bitne, a, b)) }
 
-fn (a: Int) >  (b: Int) { Bool(intop(bitgt_s, a, b)) }
+fn (a: Int) > (b: Int) { Bool(intop(bitgt_s, a, b)) }
 fn (a: Int) >= (b: Int) { Bool(intop(bitge_s, a, b)) }
-fn (a: Int) <  (b: Int) { Bool(intop(bitlt_s, a, b)) }
+fn (a: Int) < (b: Int) { Bool(intop(bitlt_s, a, b)) }
 fn (a: Int) <= (b: Int) { Bool(intop(bitle_s, a, b)) }
 
 fn zero?(x: Int) { Bool(biteqz(bits(x))) }
@@ -103,11 +103,11 @@ fn one(x: Int) { oftype(x, 1) }
 
 fn typemin(n: Int) {
   bs = bits(one(n))
-  Int(bitshl(bs, bitcast(bs, bits(bitsize(bs)-1))))
+  Int(bitshl(bs, bitcast(bs, bits(bitsize(bs) - 1))))
 }
 
 fn typemax(n: Int) {
-  typemin(n)-one(n)
+  typemin(n) - one(n)
 }
 
 fn Bool(x: Int) { !zero?(x) }
@@ -207,9 +207,9 @@ fn (a: UInt) & (b: UInt) { UInt(intop(bitand, a, b)) }
 fn (a: UInt) == (b: UInt) { Bool(intop(biteq, a, b)) }
 fn (a: UInt) != (b: UInt) { Bool(intop(bitne, a, b)) }
 
-fn (a: UInt) >  (b: UInt) { Bool(intop(bitgt_u, a, b)) }
+fn (a: UInt) > (b: UInt) { Bool(intop(bitgt_u, a, b)) }
 fn (a: UInt) >= (b: UInt) { Bool(intop(bitge_u, a, b)) }
-fn (a: UInt) <  (b: UInt) { Bool(intop(bitlt_u, a, b)) }
+fn (a: UInt) < (b: UInt) { Bool(intop(bitlt_u, a, b)) }
 fn (a: UInt) <= (b: UInt) { Bool(intop(bitle_u, a, b)) }
 
 fn zero?(x: UInt) { Bool(biteqz(bits(x))) }
@@ -218,7 +218,7 @@ fn zero(x: UInt) { oftype(x, 0) }
 fn one(x: UInt) { oftype(x, 1) }
 
 fn typemin(n: UInt) { zero(n) }
-fn typemax(n: UInt) { typemin(n)-one(n) }
+fn typemax(n: UInt) { typemin(n) - one(n) }
 
 fn Bool(x: UInt) { !zero?(x) }
 

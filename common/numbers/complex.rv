@@ -38,7 +38,7 @@ fn abs(z: Complex) {
 }
 
 fn abs2(Complex(re, im)) {
-  re*re + im*im
+  re * re + im * im
 }
 
 fn arg(Complex(re, im)) {
@@ -46,7 +46,7 @@ fn arg(Complex(re, im)) {
 }
 
 fn Complex(ra, ia) + Complex(rb, ib) {
-  Complex(ra+rb, ia+ib)
+  Complex(ra + rb, ia + ib)
 }
 
 fn (-Complex(re, im)) {
@@ -54,11 +54,11 @@ fn (-Complex(re, im)) {
 }
 
 fn Complex(ra, ia) - Complex(rb, ib) {
-  Complex(ra-rb, ia-ib)
+  Complex(ra - rb, ia - ib)
 }
 
 fn Complex(ra, ia) * Complex(rb, ib) {
-  Complex(ra*rb - ia*ib, ra*ib + rb*ia)
+  Complex(ra * rb - ia * ib, ra * ib + rb * ia)
 }
 
 fn Complex(re, im) / (x: Real) {
@@ -66,7 +66,7 @@ fn Complex(re, im) / (x: Real) {
 }
 
 fn (z: Complex) / (w: Complex) {
-  (z*conj(w)) / abs2(w)
+  (z * conj(w)) / abs2(w)
 }
 
 fn sqrt(Complex(re, im)) {
@@ -82,7 +82,7 @@ fn cbrt(z: Complex) {
 
 fn exp(Complex(re, im)) {
   r = exp(re)
-  Complex(r*cos(im), r*sin(im))
+  Complex(r * cos(im), r * sin(im))
 }
 
 fn log(z: Complex) {
@@ -94,11 +94,11 @@ fn pow(x: Complex, y: Number) {
 }
 
 fn sin(Complex(re, im)) {
-  Complex(sin(re)*cosh(im), cos(re)*sinh(im))
+  Complex(sin(re) * cosh(im), cos(re) * sinh(im))
 }
 
 fn cos(Complex(re, im)) {
-  Complex(cos(re)*cosh(im), -sin(re)*sinh(im))
+  Complex(cos(re) * cosh(im), -sin(re) * sinh(im))
 }
 
 fn tan(z: Complex) {
@@ -106,7 +106,7 @@ fn tan(z: Complex) {
 }
 
 fn asin(z: Complex) {
-  -im(z) * log(im(z)*z + sqrt(one(z) - z*z))
+  -im(z) * log(im(z) * z + sqrt(one(z) - z * z))
 }
 
 fn acos(z: Complex) {
@@ -114,15 +114,15 @@ fn acos(z: Complex) {
 }
 
 fn atan(z: Complex) {
-  im(z) * (log(one(z) - im(z)*z) - log(one(z) + im(z)*z)) / 2
+  im(z) * (log(one(z) - im(z) * z) - log(one(z) + im(z) * z)) / 2
 }
 
 fn sinh(Complex(re, im)) {
-  Complex(sinh(re)*cos(im), cosh(re)*sin(im))
+  Complex(sinh(re) * cos(im), cosh(re) * sin(im))
 }
 
 fn cosh(Complex(re, im)) {
-  Complex(cosh(re)*cos(im), sinh(re)*sin(im))
+  Complex(cosh(re) * cos(im), sinh(re) * sin(im))
 }
 
 fn tanh(z: Complex) {
@@ -130,7 +130,7 @@ fn tanh(z: Complex) {
 }
 
 fn asinh(z: Complex) {
-  log(z + sqrt(z*z + one(z)))
+  log(z + sqrt(z * z + one(z)))
 }
 
 fn acosh(z: Complex) {

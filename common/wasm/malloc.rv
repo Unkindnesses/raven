@@ -16,7 +16,7 @@ export {
 # (User) pointers are guaranteed to be 8-byte aligned, as long as all
 # allocations are a multiple of 8 bytes.
 
-pageSize = Int32(64*1024) # 64 KiB
+pageSize = Int32(64 * 1024) # 64 KiB
 headerSize = Int32(8)
 
 fn memorySize() { memoryPages() * pageSize }
@@ -90,14 +90,14 @@ fn findFreeBlock(n: Int32) {
   }
   if Bool(getBlockUsed(bl)) {
     Block(ptr, size) = bl
-    bl = Block(ptr+size, Int32(0))
+    bl = Block(ptr + size, Int32(0))
   }
   size = getBlockSize(bl)
   if size < n {
     needed = n - size
     alloc = npages(needed)
     memoryGrow!(alloc)
-    size = size + alloc*pageSize
+    size = size + alloc * pageSize
     setBlockSize!(&bl, size)
   }
   return bl
@@ -108,7 +108,7 @@ fn trim(&bl: Block(ptr, size), newsize: Int32) {
   setBlockSize!(&bl, newsize)
   newptr = ptr + newsize
   setBlockUsed!(newptr, Int32(false))
-  setBlockSize!(newptr, size-newsize)
+  setBlockSize!(newptr, size - newsize)
   return
 }
 
@@ -159,7 +159,7 @@ fn release!(p: Ptr) {
     abort("Memory management fault: release")
   }
   # Setting to 0 equates to freeing
-  setBlockUsed!(p, n-Int32(1))
+  setBlockUsed!(p, n - Int32(1))
   if n == Int32(1) frees(Int32(1))
   return
 }

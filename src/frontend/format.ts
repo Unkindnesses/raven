@@ -1,7 +1,7 @@
 import * as ast from './ast.js'
 import { parse } from './parse.js'
 
-export { format, trailingWhitespace, commas, brackets, indent }
+export { format, trailingWhitespace, commas, operators, brackets, indent }
 
 // Final newline
 
@@ -78,6 +78,23 @@ function commas(tree: ast.Tree): ast.Tree {
   return new ast.Expr(out.head, args, out.meta, out.trivia)
 }
 
+// Operators
+
+function operators(tree: ast.Tree): ast.Tree {
+  const out = tree.map(operators)
+  if (!ast.isExpr(out, 'Operator') || out.args.length !== 3) return out
+  const operator = out.args[1]
+  const before = ast.symbol(':').isEqual(operator.unwrap()) ? '' : ' '
+  return out.map((arg, i) => {
+    if (i === 0) return ast.trailing(arg, before)
+    if (!operator.trivia.trailing.includes('\n')) {
+      if (i === 1) return ast.trailing(arg, ' ')
+      return ast.leading(arg, '')
+    }
+    return arg
+  })
+}
+
 // Trailing brackets
 
 function brackets(tree: ast.Tree): ast.Tree {
@@ -110,14 +127,16 @@ function indentTraverse(tree: ast.Traverse, depth: number): ast.Tree {
   if (node instanceof ast.Token) return node
   let lineStart = false
   let itemDepth = depth
-  const start = bracketStart(node)
+  const operatorStart = ast.isExpr(node, 'Operator') && node.args.length === 3 &&
+    node.args[1].trivia.trailing.includes('\n') ? 2 : undefined
+  const start = operatorStart ?? bracketStart(node)
   if (node.head === 'File') lineStart = true
   else if (start !== undefined) itemDepth += 2
   const out = tree.map((child, index) => {
     if (start === undefined || index < start) return indentTraverse(child, depth)
     if (index === start && node.head !== 'File') {
-      lineStart = /^[^#]*\n/.test(child.trivia.leading)
-      if (!child.trivia.leading.includes('\n')) itemDepth = child.loc.column - 1
+      lineStart = operatorStart !== undefined || /^[^#]*\n/.test(child.trivia.leading)
+      if (operatorStart === undefined && !child.trivia.leading.includes('\n')) itemDepth = child.loc.column - 1
     }
     child = child.replace(ast.leading(child.node, indentTrivia(child.trivia.leading, lineStart, itemDepth)))
     const out = indentTraverse(child, itemDepth)
@@ -136,6 +155,7 @@ function indent(tree: ast.Tree, depth: number = 0): ast.Tree {
 function format(path: string, source: string): string {
   let file: ast.Tree = parse(path, source)
   file = commas(file)
+  file = operators(file)
   file = brackets(file)
   file = indent(file)
   file = trailingWhitespace(file)

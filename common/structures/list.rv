@@ -37,7 +37,7 @@ fn append(&xs: List, x) {
 fn pop(&xs: List) {
   last = xs[length(xs)]
   ys = []
-  for i = range(1, length(xs)-1) { append(&ys, xs[i]) }
+  for i = range(1, length(xs) - 1) { append(&ys, xs[i]) }
   xs = ys
   return last
 }

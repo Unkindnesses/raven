@@ -36,7 +36,7 @@ bundle Range(start, stop)
 
 fn range(start, stop) { Range(start, stop) }
 
-fn length(Range(start, stop)) { (stop-start)+1 }
+fn length(Range(start, stop)) { (stop - start) + 1 }
 
 fn Range(start, stop)[i] { (i - 1) + start }
 

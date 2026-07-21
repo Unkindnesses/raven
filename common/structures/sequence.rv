@@ -25,11 +25,11 @@ fn seqRange(start, end) {
   if start > end {
     seq()
   } else {
-    prepend(seqRange(start+one(start), end), start)
+    prepend(seqRange(start + one(start), end), start)
   }
 }
 
-fn repeat(n, x) { prepend(repeat(n-1, x), x) }
+fn repeat(n, x) { prepend(repeat(n - 1, x), x) }
 fn repeat(0, x) { seq() }
 
 fn sum(Empty(), total) { total }

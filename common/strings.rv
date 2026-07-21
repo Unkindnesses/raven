@@ -126,7 +126,7 @@ fn length(UTF16View(s)) {
 }
 
 fn UTF16View(s)[i] {
-  i = widen(bits(Int32(i-1))) # TODO remove widen
+  i = widen(bits(Int32(i - 1))) # TODO remove widen
   ch = wasm call("wasm:js-string".charCodeAt, jsref(s), i: i32): i32
   return UInt16(ch)
 }

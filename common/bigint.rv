@@ -50,9 +50,9 @@ fn rem(a: BigInt, b: BigInt) { BigInt(js`return \a % \b`) }
 fn (a: BigInt) == (b: BigInt) { Bool(js`return \a == \b`) }
 fn (a: BigInt) != (b: BigInt) { Bool(js`return \a != \b`) }
 
-fn (a: BigInt) >  (b: BigInt) { Bool(js`return \a > \b`) }
+fn (a: BigInt) > (b: BigInt) { Bool(js`return \a > \b`) }
 fn (a: BigInt) >= (b: BigInt) { Bool(js`return \a >= \b`) }
-fn (a: BigInt) <  (b: BigInt) { Bool(js`return \a < \b`) }
+fn (a: BigInt) < (b: BigInt) { Bool(js`return \a < \b`) }
 fn (a: BigInt) <= (b: BigInt) { Bool(js`return \a <= \b`) }
 
 fn zero?(x: BigInt) { x == zero(x) }

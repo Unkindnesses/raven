@@ -2,12 +2,12 @@
 
 export { Tag, Bits, Float32, Float64, Ref, Func }
 
-Tag     = tag".Tag"
-Bits    = tag".Bits"
+Tag = tag".Tag"
+Bits = tag".Bits"
 Float32 = tag".Float32"
 Float64 = tag".Float64"
-Ref     = tag".Ref"
-Func    = tag".Func"
+Ref = tag".Ref"
+Func = tag".Func"
 
 # These functions have built-in methods attached.
 # TODO: could add a `fn { foo }` syntax to declare a function with no methods.
@@ -21,16 +21,16 @@ export {
   alloc, load, store, length
 }
 
-pack   = tag".pack"
-part   = tag".part"
+pack = tag".pack"
+part = tag".part"
 nparts = tag".nparts"
 packcat = tag".packcat"
 set = tag".set"
-widen   = tag".widen"
+widen = tag".widen"
 shortcutEquals = tag".shortcutEquals"
 
-bitsize   = tag".bitsize"
-bitcast   = tag".bitcast"
+bitsize = tag".bitsize"
+bitcast = tag".bitcast"
 bitcast_s = tag".bitcast_s"
 
 # TODO rename to `core.shl` etc
@@ -38,7 +38,7 @@ bitshl = tag".bitshl"
 bitshr_u = tag".bitshr_u"
 bitshr_s = tag".bitshr_s"
 bitand = tag".bitand"
-bitor  = tag".bitor"
+bitor = tag".bitor"
 bitxor = tag".bitxor"
 bitadd = tag".bitadd"
 bitsub = tag".bitsub"
@@ -48,9 +48,9 @@ bitdiv_s = tag".bitdiv_s"
 bitrem_u = tag".bitrem_u"
 bitrem_s = tag".bitrem_s"
 
-biteq   = tag".biteq"
-biteqz  = tag".biteqz"
-bitne   = tag".bitne"
+biteq = tag".biteq"
+biteqz = tag".biteqz"
+bitne = tag".bitne"
 bitgt_u = tag".bitgt_u"
 bitge_u = tag".bitge_u"
 bitlt_u = tag".bitlt_u"
@@ -60,13 +60,13 @@ bitge_s = tag".bitge_s"
 bitlt_s = tag".bitlt_s"
 bitle_s = tag".bitle_s"
 
-nil?  = tag".nil?"
+nil? = tag".nil?"
 notnil = tag".notnil"
 tagcast = tag".tagcast"
 tagstring = tag".tagstring"
 
 function = tag".function"
-invoke   = tag".invoke"
+invoke = tag".invoke"
 
 allocs = tag".allocs"
 frees = tag".frees"
