@@ -31,7 +31,7 @@ import { Pattern, patternType, pattern } from '../frontend/patterns.js'
 import { Inference, Sig, inferexpr, infercall, issubset, maybe_union } from './abstract.js'
 import { some } from '../utils/map.js'
 import { options } from '../utils/options.js'
-import { part_method, isnil_method, notnil_method, partial_isnil, string } from './primitives.js'
+import { part_method, isnil_method, notnil_method, string } from './primitives.js'
 import { Caching, EagerCache, pipe, reset } from '../utils/cache.js'
 import { isEqual } from '../utils/isEqual.js'
 import { repr } from '../frontend/types.js'
@@ -208,7 +208,7 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
       return undefined
 
     default:
-      const _: never = pat
+      pat satisfies never
       throw new Error('unreachable')
   }
 }

@@ -42,7 +42,7 @@ function patternType(x: Pattern): Type {
     case 'and': return pack(tag('common.And'), ...x.patterns.map(patternType))
     case 'constructor': return pack(tag('common.Constructor'), x.func, ...x.args.map(patternType))
     default:
-      let _: never = x
+      x satisfies never
       throw new Error('unreachable')
   }
 }

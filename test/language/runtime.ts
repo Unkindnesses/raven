@@ -98,7 +98,7 @@ test('program args', async () => {
 
 test('brainfuck interpreter', async () => {
   const [, js] = await compile(path.join(fixtureDir, 'brainfuck.rv'))
-  const { code, output } = await runNode(js, [path.join(fixtureDir, 'test.bf')])
+  const { output } = await runNode(js, [path.join(fixtureDir, 'test.bf')])
   assert.strictEqual(output, 'Hello World!\n')
 })
 

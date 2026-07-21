@@ -15,7 +15,6 @@ const root = path.join(__dirname, '..')
 const fixtures = path.join(root, 'test/web')
 const libPath = path.join(fixtures, 'lib.rv')
 const libJSPath = path.join(fixtures, 'lib.js')
-const libWasmPath = path.join(fixtures, 'lib.wasm')
 
 let server: http.Server
 let port: number

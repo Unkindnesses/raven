@@ -198,7 +198,7 @@ function repr(item: Tree, indent: number = 0): string {
     if (typeof value === 'number' || typeof value === 'bigint') return String(value)
     if (typeof value === 'string') return JSON.stringify(value)
     if (value instanceof Tag) return value.toString()
-    let _: never = value
+    value satisfies never
   } else if (item instanceof Expr) {
     switch (item.head) {
       case 'File': return item.args.map(_repr).join("\n")
@@ -233,7 +233,7 @@ function repr(item: Tree, indent: number = 0): string {
         const target = _repr(item.args[item.args.length - 1])
         return `@${params.join(' ')}\n${target}`
       }
-      default: let _: never = item.head
+      default: item.head satisfies never
     }
   }
   throw new Error('unreachable')
@@ -284,7 +284,7 @@ function bodySource(tree: Tree, inner: string): Source {
     case 'Attribute': return ['@', args]
     case 'Quote': return repr(tree)
     default:
-      let _: never = tree.head
+      tree.head satisfies never
       throw new Error('unreachable')
   }
 }

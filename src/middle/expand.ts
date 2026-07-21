@@ -170,7 +170,7 @@ function layout(T: Type, heap = false): Type[] {
     case 'tag': return []
     case 'any':
     case 'recurrence': throw new Error('unimplemented')
-    default: { const _: never = T; throw new Error('unreachable') }
+    default: { T satisfies never; throw new Error('unreachable') }
   }
 }
 

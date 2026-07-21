@@ -22,7 +22,7 @@ class Value {
     if (t === NumType.i64) return Value.i64(v)
     if (t === NumType.f32) return Value.f32(v)
     if (t === NumType.f64) return Value.f64(v)
-    let _: never = t
+    t satisfies never
     throw new Error(`unreachable`)
   }
   toString() { return `${this.type}(${this.value})` }

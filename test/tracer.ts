@@ -22,22 +22,22 @@ beforeAll(async () => {
 })
 
 test('trace biteqz', () => {
-  let [ir, ret] = trace(tag('common.core.biteqz'), bits(32))
+  let [, ret] = trace(tag('common.core.biteqz'), bits(32))
   assert.deepEqual(ret, list(bits(1)))
 })
 
 test('trace identity', () => {
-  let [ir, ret] = trace(tag('common.identity'), int64())
+  let [, ret] = trace(tag('common.identity'), int64())
   assert.deepEqual(ret, list(int64()))
 })
 
 test('trace Nil', () => {
-  let [ir, ret] = trace(tag('common.Nil'))
+  let [, ret] = trace(tag('common.Nil'))
   assert.deepEqual(ret, list(pack(tag('common.Nil'))))
 })
 
 test('trace Float64', () => {
-  let [ir, ret] = trace(tag('common.core.Float64'), int64())
+  let [, ret] = trace(tag('common.core.Float64'), int64())
   assert.deepEqual(ret, list(float64()))
 })
 

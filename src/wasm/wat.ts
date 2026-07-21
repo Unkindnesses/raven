@@ -50,7 +50,7 @@ function instructionToString(i: wasm.Instruction, level: number = 0): string {
     case 'loop':
       return i.kind + bodyToString(i.body, i.srcs, level + 1)
     default:
-      let _: never = i
+      i satisfies never
       throw new Error(`unreachable`)
   }
 }

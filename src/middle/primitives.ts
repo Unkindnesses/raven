@@ -631,8 +631,8 @@ inlinePrimitive.set(function_method.id, (code, st) => {
 })
 
 inlinePrimitive.set(invoke_method.id, (code, st) => {
-  const [f, I0, O0, args0] = st.expr.body.slice(0, 4)
-  const [I, O] = [I0, O0].map(x => rvtype(asType(code.type(x))))
+  const [f, I0, , args0] = st.expr.body.slice(0, 4)
+  const I = rvtype(asType(code.type(I0)))
   // TODO conversion
   if (!types.issubset(asType(code.type(args0)), I)) throw new Error('invoke: argument type mismatch')
   const args = cast(code, asType(code.type(args0)), I, args0)

@@ -111,7 +111,7 @@ function _repr(x: Type): string {
       return `(T = ${repr(x.inner)})`
     case 'any':
       return 'Any'
-    default: let _: never = x
+    default: x satisfies never
   }
   throw new Error('unreachable')
 }
@@ -396,7 +396,7 @@ function postwalk<T extends Type | null>(f: (x: Type) => T, x: Type): T {
     })
     y = onion(...ts)
   } else {
-    let _: never = x
+    x satisfies never
     throw new Error('unreachable')
   }
   return f(y)
