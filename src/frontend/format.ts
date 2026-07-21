@@ -1,7 +1,7 @@
 import * as ast from './ast.js'
 import { parse } from './parse.js'
 
-export { format, trailingWhitespace, commas, operators, brackets, indent }
+export { format, trailingWhitespace, comments, commas, operators, brackets, indent }
 
 // Final newline
 
@@ -37,6 +37,22 @@ function trailingWhitespace(tree: ast.Tree): ast.Tree {
     trailing: trim(out.trivia.trailing),
     inner: trim(out.trivia.inner)
   })
+}
+
+// Comments
+
+function comment(text: string): string {
+  return text.replace(/^[ \t]*(?=#)/, ' ')
+}
+
+function comments(tree: ast.Tree): ast.Tree {
+  const out = ast.trailing(tree.map(comments), comment(tree.trivia.trailing))
+  if (out instanceof ast.Token || out.head === 'File') return out
+  const start = bracketStart(out)
+  if (start === undefined) return out
+  const first = out.args[start]
+  if (!first) return ast.inner(out, comment(out.trivia.inner))
+  return out.map((arg, i) => i === start ? ast.leading(arg, comment(arg.trivia.leading)) : arg)
 }
 
 // Commas
@@ -157,8 +173,9 @@ function format(path: string, source: string): string {
   file = commas(file)
   file = operators(file)
   file = brackets(file)
-  file = indent(file)
   file = trailingWhitespace(file)
+  file = comments(file)
+  file = indent(file)
   file = ensureFinalNewline(ast.asExpr(file), lineEnding(source))
   return ast.print(file)
 }
