@@ -12,7 +12,7 @@ fn seq(x, xs...) { prepend(seq(xs...), x) }
 fn first(l: Empty) { abort("first: seq is empty") }
 fn first(l: Prepend) { part(l, 2) }
 
-fn rest(l: Empty)  { abort("rest: seq is empty") }
+fn rest(l: Empty) { abort("rest: seq is empty") }
 fn rest(l: Prepend) { part(l, 1) }
 
 fn empty?(_: Prepend) { false }

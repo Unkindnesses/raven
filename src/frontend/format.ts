@@ -1,7 +1,7 @@
 import * as ast from './ast.js'
 import { parse } from './parse.js'
 
-export { format, trailingWhitespace, comments, commas, operators, brackets, indent }
+export { format, trailingWhitespace, comments, commas, syntaxArgs, operators, brackets, indent }
 
 // Final newline
 
@@ -94,6 +94,14 @@ function commas(tree: ast.Tree): ast.Tree {
   return new ast.Expr(out.head, args, out.meta, out.trivia)
 }
 
+// Syntax arguments
+
+function syntaxArgs(tree: ast.Tree): ast.Tree {
+  const out = tree.map(syntaxArgs)
+  if (!ast.isExpr(out, 'Syntax')) return out
+  return out.map((arg, i) => i < out.args.length - 1 ? ast.trailing(arg, ' ') : arg)
+}
+
 // Operators
 
 function operators(tree: ast.Tree): ast.Tree {
@@ -171,6 +179,7 @@ function indent(tree: ast.Tree, depth: number = 0): ast.Tree {
 function format(path: string, source: string): string {
   let file: ast.Tree = parse(path, source)
   file = commas(file)
+  file = syntaxArgs(file)
   file = operators(file)
   file = brackets(file)
   file = trailingWhitespace(file)

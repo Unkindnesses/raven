@@ -5,7 +5,7 @@ import assert from 'node:assert'
 import { afterEach, test } from 'vitest'
 import * as ast from '../src/frontend/ast.js'
 import { fmt, formatDiff } from '../src/cli/fmt.js'
-import { indent, format, commas, operators, brackets, trailingWhitespace } from '../src/frontend/format.js'
+import { indent, format, commas, syntaxArgs, operators, brackets, trailingWhitespace } from '../src/frontend/format.js'
 import { parse } from '../src/frontend/parse.js'
 
 const fixtures: string[] = []
@@ -100,6 +100,17 @@ test('preserve multiline comma trivia', () => {
   const source = 'f( # opening\n  a, # next\n  b)\n[\n  a,\n  b]\n'
   const expected = 'f( # opening\n  a # next\n  b)\n[\n  a\n  b]\n'
   assert.equal(ast.print(commas(parse('test.rv', source))), expected)
+})
+
+test('normalize syntax args', () => {
+  const source = 'fn   f()\t {}\nif\ttrue   { x }\nx = fn  (y)   { y }\n'
+  const tree = parse('test.rv', source)
+  const formatted = syntaxArgs(tree)
+
+  assert.notEqual(formatted, tree)
+  assert.equal(ast.print(tree), source)
+  assert.equal(ast.print(formatted), 'fn f() {}\nif true { x }\nx = fn (y) { y }\n')
+  assert.equal(format('test.rv', source), 'fn f() {}\nif true { x }\nx = fn (y) { y }\n')
 })
 
 test('normalize binary operators', () => {
