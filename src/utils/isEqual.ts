@@ -1,5 +1,13 @@
 export { isEqual }
 
+interface Equatable {
+  isEqual(other: unknown): boolean
+}
+
+function isEquatable(x: object): x is Equatable {
+  return 'isEqual' in x && typeof x.isEqual === 'function'
+}
+
 function isEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true
   if (typeof a !== typeof b) return false
@@ -7,6 +15,8 @@ function isEqual(a: unknown, b: unknown): boolean {
   if (typeof a !== 'object') return false
   const objA = a as object
   const objB = b as object
+  if (isEquatable(objA)) return objA.isEqual(objB)
+  if (isEquatable(objB)) return objB.isEqual(objA)
   let result: boolean
   if (Array.isArray(objA) || Array.isArray(objB))
     result = arraysEqual(objA, objB)

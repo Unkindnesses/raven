@@ -344,11 +344,13 @@ function elide_counts(code: MIR): MIR {
 function refcounts(c: Accessor<Sig, Redirect | MIR>): Cache<Sig, Redirect | MIR> {
   return new Cache<Sig, Redirect | MIR>(sig => {
     const [F, ...Ts] = sig
-    if (releaseFunction_method.isEqual(F))
-      return release_function_ir(only(F.params))
-    if (retain_method.isEqual(F) || release_method.isEqual(F)) {
-      const T = F.params.length > 0 ? only(F.params) : Ts[0]
-      return count_ir(T, Ts[0], retain_method.isEqual(F) ? 'retain' : 'release', F.params.length > 0)
+    if (F instanceof Method) {
+      if (releaseFunction_method.id === F.id)
+        return release_function_ir(only(F.params))
+      if (retain_method.id === F.id || release_method.id === F.id) {
+        const T = F.params.length > 0 ? only(F.params) : Ts[0]
+        return count_ir(T, Ts[0], retain_method.id === F.id ? 'retain' : 'release', F.params.length > 0)
+      }
     }
     const ir = c.get(sig)
     if (ir instanceof Redirect) return ir

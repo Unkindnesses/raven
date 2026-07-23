@@ -8,6 +8,7 @@ import * as ast from "./ast.js"
 import { Pattern } from "./patterns.js"
 import { Def } from "../dwarf/index.js"
 import { Instruction, Op, ValueType } from "../wasm/wasm.js"
+import { isEqual } from "../utils/isEqual.js"
 
 export {
   Module, Method, Signature, MethodSource, Binding, asBinding, asValue, Modules,
@@ -198,7 +199,9 @@ class Method {
   ) { }
   get [hash]() { return `${this.id}${this.params.map(x => types.repr(x)).join()}` }
   toString() { return `Method(${this.name})` }
-  isEqual(other: unknown): other is Method { return other instanceof Method && this.id === other.id }
+  isEqual(other: unknown): other is Method {
+    return other instanceof Method && this.id === other.id && isEqual(this.params, other.params)
+  }
   param(...Ts: Type[]) {
     return new Method(this.mod, this.name, this.sig, Ts, this.id, this.ts)
   }
