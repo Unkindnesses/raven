@@ -317,11 +317,12 @@ class Lowering {
     readonly sources: Modules,
     readonly mod: Tag,
     readonly owner: Tag,
+    readonly code: LIR,
     readonly sourceId?: bigint,
     readonly sc = GlobalScope(mod)
   ) { }
   scope(swap?: Map<number, string>): Lowering {
-    return new Lowering(this.sources, this.mod, this.owner, this.sourceId, Scope(this.sc, swap))
+    return new Lowering(this.sources, this.mod, this.owner, this.code, this.sourceId, Scope(this.sc, swap))
   }
 }
 
@@ -409,97 +410,97 @@ function patternNode(code: LIR, name: string, ...parts: Val<LIR>[]): Val<LIR> {
   return _push(code, xpack(tag(`common.${name}`), ...parts))
 }
 
-function lowerPatternIsa(cx: Lowering, code: LIR, ex: ast.Tree, as: string[]): Val<LIR> {
+function lowerPatternIsa(cx: Lowering, ex: ast.Tree, as: string[]): Val<LIR> {
   ex = ex.ungroup()
-  if (ex.unwrap() instanceof Symbol) return patternNode(code, 'Trait', lower(cx, code, ex))
-  if (ex instanceof ast.Token) return lowerPatternExpr(cx, code, ex, as)
+  if (ex.unwrap() instanceof Symbol) return patternNode(cx.code, 'Trait', lower(cx, ex))
+  if (ex instanceof ast.Token) return lowerPatternExpr(cx, ex, as)
   if (ex.head === 'Index') {
-    const params = ex.args.map(x => lower(cx, code, x))
-    const trait = _push(code, xpack(tag('common.Params'), ...params))
-    return patternNode(code, 'Trait', trait)
+    const params = ex.args.map(x => lower(cx, x))
+    const trait = _push(cx.code, xpack(tag('common.Params'), ...params))
+    return patternNode(cx.code, 'Trait', trait)
   }
   if (ex.head === 'Operator' && ex.args[1].unwrap() === '|')
-    return patternNode(code, 'Or', lowerPatternIsa(cx, code, ex.args[0], as), lowerPatternIsa(cx, code, ex.args[2], as))
+    return patternNode(cx.code, 'Or', lowerPatternIsa(cx, ex.args[0], as), lowerPatternIsa(cx, ex.args[2], as))
   if (ex.head === 'Operator' && ex.args[1].unwrap() === '&')
-    return patternNode(code, 'And', lowerPatternIsa(cx, code, ex.args[0], as), lowerPatternIsa(cx, code, ex.args[2], as))
-  return lowerPatternExpr(cx, code, ex, as)
+    return patternNode(cx.code, 'And', lowerPatternIsa(cx, ex.args[0], as), lowerPatternIsa(cx, ex.args[2], as))
+  return lowerPatternExpr(cx, ex, as)
 }
 
-function lowerPatternExpr(cx: Lowering, code: LIR, ex: ast.Tree, as: string[]): Val<LIR> {
+function lowerPatternExpr(cx: Lowering, ex: ast.Tree, as: string[]): Val<LIR> {
   const x = ex.ungroup().unwrap()
   if (x instanceof Symbol) {
-    if (x.toString() === '_') return patternNode(code, 'Hole')
+    if (x.toString() === '_') return patternNode(cx.code, 'Hole')
     patternArg(as, x.toString())
-    return patternNode(code, 'Bind', tag(x.toString()), patternNode(code, 'Hole'))
+    return patternNode(cx.code, 'Bind', tag(x.toString()), patternNode(cx.code, 'Hole'))
   }
   if (typeof x === 'string') throw new Error(`Unsupported string literal ${x}`)
-  if (ast.isAtom(x)) return patternNode(code, 'Literal', atomValue(x))
+  if (ast.isAtom(x)) return patternNode(cx.code, 'Literal', atomValue(x))
   if (x.head === 'List') {
-    const parts = x.args.map(x => lowerPatternExpr(cx, code, x, as))
-    return patternNode(code, 'Pack', patternNode(code, 'Literal', tag('common.List')), ...parts)
+    const parts = x.args.map(x => lowerPatternExpr(cx, x, as))
+    return patternNode(cx.code, 'Pack', patternNode(cx.code, 'Literal', tag('common.List')), ...parts)
   }
   if (x.head === 'Operator' && x.args[1].unwrap() === ':') {
     const name = asSymbol(x.args[0].unwrap())
-    const pat = lowerPatternIsa(cx, code, x.args[2], as)
+    const pat = lowerPatternIsa(cx, x.args[2], as)
     if (name.toString() === '_') return pat
     patternArg(as, name.toString())
-    return patternNode(code, 'Bind', tag(name.toString()), pat)
+    return patternNode(cx.code, 'Bind', tag(name.toString()), pat)
   }
-  if (x.head === 'Splat') return patternNode(code, 'Repeat', lowerPatternExpr(cx, code, x.args[0], as))
+  if (x.head === 'Splat') return patternNode(cx.code, 'Repeat', lowerPatternExpr(cx, x.args[0], as))
   if (x.head === 'Call') {
-    const args = x.args.slice(1).map(x => lowerPatternExpr(cx, code, x, as))
-    return patternNode(code, 'Constructor', lower(cx, code, x.args[0]), ...args)
+    const args = x.args.slice(1).map(x => lowerPatternExpr(cx, x, as))
+    return patternNode(cx.code, 'Constructor', lower(cx, x.args[0]), ...args)
   }
   throw new Error(`Invalid pattern syntax ${x}`)
 }
 
-function lowerpattern(cx: Lowering, code: LIR, ex: ast.Tree) {
+function lowerpattern(cx: Lowering, ex: ast.Tree) {
   const args: string[] = []
-  return [lowerPatternExpr(cx, code, ex, args), args] as const
+  return [lowerPatternExpr(cx, ex, args), args] as const
 }
 
-function _lowermatch(cx: Lowering, code: LIR, val: Val<LIR>, pattern: Val<LIR>, args: string[], pat: ast.Tree): Val<LIR> {
-  const m = rcall(code, tag('common.match'), [val, pattern])
-  const isnil = _push(code, xcall(isnil_method, m))
-  code.branch(code._blocks.length + 1, [], { when: isnil })
-  code.branch(code._blocks.length + 2)
-  code.newBlock()
-  rcall(code, tag('common.abort'), [string(code, `match failed: ${ast.repr(pat)}`)])
-  code.newBlock()
-  const matched = _push(code, xcall(notnil_method, m))
+function _lowermatch(cx: Lowering, val: Val<LIR>, pattern: Val<LIR>, args: string[], pat: ast.Tree): Val<LIR> {
+  const m = rcall(cx.code, tag('common.match'), [val, pattern])
+  const isnil = _push(cx.code, xcall(isnil_method, m))
+  cx.code.branch(cx.code._blocks.length + 1, [], { when: isnil })
+  cx.code.branch(cx.code._blocks.length + 2)
+  cx.code.newBlock()
+  rcall(cx.code, tag('common.abort'), [string(cx.code, `match failed: ${ast.repr(pat)}`)])
+  cx.code.newBlock()
+  const matched = _push(cx.code, xcall(notnil_method, m))
   for (const arg of args) {
-    _push(code, ir.expr('set', cx.sc.var(arg), rcall(code, tag('common.getkey'), [matched, tag(arg)])))
+    _push(cx.code, ir.expr('set', cx.sc.var(arg), rcall(cx.code, tag('common.getkey'), [matched, tag(arg)])))
   }
   return matched
 }
 
-function lowermatch(cx: Lowering, code: LIR, val: Val<LIR>, pat: ast.Tree): Val<LIR> {
-  const [pattern, args] = lowerpattern(cx, code, pat)
-  return _lowermatch(cx, code, val, pattern, args, pat)
+function lowermatch(cx: Lowering, val: Val<LIR>, pat: ast.Tree): Val<LIR> {
+  const [pattern, args] = lowerpattern(cx, pat)
+  return _lowermatch(cx, val, pattern, args, pat)
 }
 
-function lower(cx: Lowering, code: LIR, x: ast.Tree | readonly ast.Tree[], value = true): Val<LIR> {
+function lower(cx: Lowering, x: ast.Tree | readonly ast.Tree[], value = true): Val<LIR> {
   if (!(x instanceof ast.Token || x instanceof ast.Expr)) {
     if (x.length === 0) return nil
-    x.slice(0, -1).forEach(item => lower(cx, code, item, false))
-    return lower(cx, code, x[x.length - 1], value)
+    x.slice(0, -1).forEach(item => lower(cx, item, false))
+    return lower(cx, x[x.length - 1], value)
   }
 
   if (x instanceof ast.Token) {
     const val = x.unwrap()
     if (val instanceof Symbol) {
       if (['break', 'continue'].includes(val.toString())) {
-        return loopbranch(cx, code, val.toString())
+        return loopbranch(cx, val.toString())
       } else if (val.toString() === 'return') {
         const result = nil
         // TODO debug info
-        swapreturn(code, result, cx.sc.swaps(), { bp: true })
+        swapreturn(cx.code, result, cx.sc.swaps(), { bp: true })
         return result
       } else {
         return cx.sc.get(val.toString())
       }
     } else if (typeof val === 'string') {
-      return string(code, val)
+      return string(cx.code, val)
     } else {
       return atomValue(val)
     }
@@ -508,59 +509,59 @@ function lower(cx: Lowering, code: LIR, x: ast.Tree | readonly ast.Tree[], value
   if (x instanceof ast.Expr) {
     let [ex, _] = attrs(x)
     ex = ast.asExpr(ex)
-    if (ex.head === 'Group') return lower(cx, code, ex.args, value)
-    if (ex.head === 'Block') return lowerBlock(cx, code, x, value)
-    if (ex.head === 'Operator') return lowerOperator(cx, code, x, value)
-    if (ex.head === 'Call') return lowerCall(cx, code, x)
-    if (ex.head === 'Index') return lowerIndex(cx, code, x)
-    if (ex.head === 'Field') return lowerField(cx, code, x)
-    if (ex.head === 'List') return lowerList(cx, code, x)
-    if (ex.head === 'Template') return lowerTemplate(cx, code, x)
-    if (ex.head === 'Syntax') return lowerSyntax(cx, code, x, value)
+    if (ex.head === 'Group') return lower(cx, ex.args, value)
+    if (ex.head === 'Block') return lowerBlock(cx, x, value)
+    if (ex.head === 'Operator') return lowerOperator(cx, x, value)
+    if (ex.head === 'Call') return lowerCall(cx, x)
+    if (ex.head === 'Index') return lowerIndex(cx, x)
+    if (ex.head === 'Field') return lowerField(cx, x)
+    if (ex.head === 'List') return lowerList(cx, x)
+    if (ex.head === 'Template') return lowerTemplate(cx, x)
+    if (ex.head === 'Syntax') return lowerSyntax(cx, x, value)
     throw new Error(`Unimplemented ast.Expr lowering for head: ${ex.head}`)
   }
 
   throw new Error(`Unimplemented lowering for: ${x}`)
 }
 
-function lowerOperator(cx: Lowering, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
+function lowerOperator(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {
   const [operator, ...args] = ast.callargs(ast.asExpr(ex, 'Operator'))
   const op = asSymbol(operator.unwrap()).toString()
   if (op === '=' && args[0] instanceof ast.Token && args[0].unwrap() instanceof Symbol) {
     // Simple assignment: x = value
-    const y = lower(cx, code, args[1])
+    const y = lower(cx, args[1])
     // Globals are side effects (if they error) so don't let the SSA transform move them around
-    const ySlot = y instanceof Binding ? _push(code, xglobal(y)) : y
+    const ySlot = y instanceof Binding ? _push(cx.code, xglobal(y)) : y
     const x = cx.sc.var(args[0].unwrap().toString())
-    _push(code, ir.expr('set', x, ySlot))
+    _push(cx.code, ir.expr('set', x, ySlot))
     return x
   } else if (op === '=' && ast.isExpr(args[0], 'Index')) {
     // Index assignment: xs[i, ...] = x
     const [xs, ...idxs] = ast.asExpr(args[0]).args
     const x = args[1]
-    return lower(cx, code, ast.Call(tag('common.set'), ast.Swap(xs), ast.List(...idxs), x).withmeta(ex.meta))
+    return lower(cx, ast.Call(tag('common.set'), ast.Swap(xs), ast.List(...idxs), x).withmeta(ex.meta))
   } else if (op === '=') {
     // Pattern assignment: pat = val
     const pat = args[0]
-    const val = lower(cx, code, args[1])
-    return lowermatch(cx, code, val, pat)
+    const val = lower(cx, args[1])
+    return lowermatch(cx, val, pat)
   } else if (op === '&&' || op === '||') {
     const condVar = gensym('cond')
     const clauses = op === '&&' ? [args[1], condVar] : [condVar, args[1]]
     const letStmt = ast.Block(
       ast.Operator(condVar, symbol('='), args[0]),
       ast.Syntax(symbol('if'), condVar, clauses[0], symbol('else'), clauses[1]))
-    return lower(cx, code, letStmt, value)
+    return lower(cx, letStmt, value)
   } else {
     // General operator call
-    const func = lower(cx, code, operator)
-    const arglist = _push(code, xlist(...args.map(x => lower(cx, code, x))))
-    const result = _push(code, xcall(func, arglist), { src: ex.meta, bp: true })
-    return _push(code, xpart(result, Type(1n)), { src: ex.meta })
+    const func = lower(cx, operator)
+    const arglist = _push(cx.code, xlist(...args.map(x => lower(cx, x))))
+    const result = _push(cx.code, xcall(func, arglist), { src: ex.meta, bp: true })
+    return _push(cx.code, xpart(result, Type(1n)), { src: ex.meta })
   }
 }
 
-function argtuple(cx: Lowering, code: LIR, args: readonly ast.Tree[], src?: ast.Meta): [Val<LIR>, Map<string, number>] {
+function argtuple(cx: Lowering, args: readonly ast.Tree[], src?: ast.Meta): [Val<LIR>, Map<string, number>] {
   const swaps = new Map<string, number>()
   const parts: Val<LIR>[] = []
   let idx = 1
@@ -569,7 +570,7 @@ function argtuple(cx: Lowering, code: LIR, args: readonly ast.Tree[], src?: ast.
   while (argQueue.length > 0) {
     if (ast.isExpr(argQueue[0], 'Splat')) {
       const splatArg = argQueue.shift() as ast.Expr
-      parts.push(lower(cx, code, splatArg.args[0]))
+      parts.push(lower(cx, splatArg.args[0]))
       splat = true
     } else {
       const as: Val<LIR>[] = []
@@ -579,57 +580,57 @@ function argtuple(cx: Lowering, code: LIR, args: readonly ast.Tree[], src?: ast.
           arg = arg.args[0]
           swaps.set(asSymbol(arg.unwrap()).toString(), idx)
         }
-        as.push(lower(cx, code, arg))
+        as.push(lower(cx, arg))
         idx += 1
       }
-      parts.push(_push(code, xlist(...as), { src }))
+      parts.push(_push(cx.code, xlist(...as), { src }))
     }
   }
   const result = parts.length === 0
-    ? _push(code, xpack(tag('common.List')))
+    ? _push(cx.code, xpack(tag('common.List')))
     : parts.length === 1
       ? parts[0]
-      : _push(code, xcall(packcat_method, _push(code, xlist(...parts))))
+      : _push(cx.code, xcall(packcat_method, _push(cx.code, xlist(...parts))))
   return [result, swaps]
 }
 
-function lowerCall(cx: Lowering, code: LIR, ex: ast.Expr): Val<LIR> {
+function lowerCall(cx: Lowering, ex: ast.Expr): Val<LIR> {
   // Handle Field calls: obj.method(...) -> common.method(obj, tag, ...)
   if (ast.isExpr(ex.args[0], 'Field')) {
     const [obj, methodName] = ex.args[0].args
     const callExpr = ast.Call(tag('common.method'), obj, tag(asSymbol(methodName.unwrap()).toString()), ...ex.args.slice(1))
-    return lower(cx, code, callExpr.withmeta(ex.meta))
+    return lower(cx, callExpr.withmeta(ex.meta))
   }
   // Regular function call
-  const [args, swaps] = argtuple(cx, code, ex.args.slice(1), ex.meta)
-  const func = lower(cx, code, ex.args[0])
-  const result = _push(code, xcall(func, args), { src: ex.meta, bp: true })
-  const val = _push(code, xpart(result, Type(1n)), { src: ex.meta })
+  const [args, swaps] = argtuple(cx, ex.args.slice(1), ex.meta)
+  const func = lower(cx, ex.args[0])
+  const result = _push(cx.code, xcall(func, args), { src: ex.meta, bp: true })
+  const val = _push(cx.code, xpart(result, Type(1n)), { src: ex.meta })
   for (const [name, i] of swaps) {
-    _push(code, ir.expr('set', cx.sc.var(name), _push(code, xpart(result, Type(BigInt(i + 1))))))
+    _push(cx.code, ir.expr('set', cx.sc.var(name), _push(cx.code, xpart(result, Type(BigInt(i + 1))))))
   }
   return val
 }
 
-function lowerIndex(cx: Lowering, code: LIR, ex: ast.Expr): Val<LIR> {
+function lowerIndex(cx: Lowering, ex: ast.Expr): Val<LIR> {
   const [x, ...idxs] = ex.args
   const callExpr = ast.Call(tag('common.get'), x, ast.List(...idxs))
-  return lower(cx, code, callExpr.withmeta(ex.meta))
+  return lower(cx, callExpr.withmeta(ex.meta))
 }
 
-function lowerField(cx: Lowering, code: LIR, ex: ast.Expr): Val<LIR> {
+function lowerField(cx: Lowering, ex: ast.Expr): Val<LIR> {
   const [obj, fieldName] = ex.args
   const callExpr = ast.Call(tag('common.field'), obj, tag(asSymbol(fieldName.unwrap()).toString()))
-  return lower(cx, code, callExpr.withmeta(ex.meta))
+  return lower(cx, callExpr.withmeta(ex.meta))
 }
 
-function lowerList(cx: Lowering, code: LIR, ex: ast.Expr): Val<LIR> {
+function lowerList(cx: Lowering, ex: ast.Expr): Val<LIR> {
   // TODO: should use the `list` function, but this puts off the need for special argument inference
-  const [args] = argtuple(cx, code, ex.args, ex.meta)
+  const [args] = argtuple(cx, ex.args, ex.meta)
   return args
 }
 
-function lowerTemplate(cx: Lowering, code: LIR, ex: ast.Expr): Val<LIR> {
+function lowerTemplate(cx: Lowering, ex: ast.Expr): Val<LIR> {
   const template = asSymbol(ex.args[0]).toString()
   if (template === 'tag') {
     const tagName = asString(ex.args[1])
@@ -643,12 +644,12 @@ function lowerTemplate(cx: Lowering, code: LIR, ex: ast.Expr): Val<LIR> {
     return pack(tag('common.Char'), pack(tag('common.UInt'), bits(21, BigInt(val))))
   } else if (template === 'r') {
     const pattern = asString(ex.args[1])
-    return rcall(code, tag('common.Regex'), [string(code, pattern)], { src: ex.meta })
+    return rcall(cx.code, tag('common.Regex'), [string(cx.code, pattern)], { src: ex.meta })
   } else if (template === 'js') {
     const [js, params] = jsinline(ex)
-    const args = params.map(name => rcall(code, tag('common.jsref'), [cx.sc.get(name)], { src: ex.meta }))
-    const ref = _push(code, xjs(js, params, args), { type: types.Ref, src: ex.meta })
-    return rcall(code, tag('common.JSObject'), [ref], { src: ex.meta })
+    const args = params.map(name => rcall(cx.code, tag('common.jsref'), [cx.sc.get(name)], { src: ex.meta }))
+    const ref = _push(cx.code, xjs(js, params, args), { type: types.Ref, src: ex.meta })
+    return rcall(cx.code, tag('common.JSObject'), [ref], { src: ex.meta })
   }
   throw new Error(`Unimplemented template type: ${template}`)
 }
@@ -711,7 +712,7 @@ function jsinline(ex: ast.Expr): [string, string[]] {
   return [code, params]
 }
 
-function lowerSyntax(cx: Lowering, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
+function lowerSyntax(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {
   const syntax = asSymbol(ast.asExpr(attrs(ex)[0]).args[0]).toString()
   if (syntax === 'bits') {
     const size = Number(asBigInt(ex.args[1].unwrap()))
@@ -723,25 +724,25 @@ function lowerSyntax(cx: Lowering, code: LIR, ex: ast.Expr, value = true): Val<L
     const size = Number(asBigInt(ex.args[1].unwrap()))
     return pack(tag('common.UInt'), bits(size, 0n))
   } else if (syntax === 'return') {
-    const result = lower(cx, code, ex.args[1])
-    swapreturn(code, result, cx.sc.swaps(), { src: ex.meta, bp: true })
+    const result = lower(cx, ex.args[1])
+    swapreturn(cx.code, result, cx.sc.swaps(), { src: ex.meta, bp: true })
     return result
   } else if (['break', 'continue'].includes(syntax)) {
-    return loopbranch(cx, code, syntax, asSymbol(ex.args[1]).toString(), ex.meta)
+    return loopbranch(cx, syntax, asSymbol(ex.args[1]).toString(), ex.meta)
   } else if (syntax === 'while') {
-    return lowerWhile(cx, code, ex, value)
+    return lowerWhile(cx, ex, value)
   } else if (syntax === 'if') {
-    return lowerIf(cx, code, parseIf(ex), value)
+    return lowerIf(cx, parseIf(ex), value)
   } else if (syntax === 'select') {
-    return lowerSelect(cx, code, ex, value)
+    return lowerSelect(cx, ex, value)
   } else if (syntax === 'wasm') {
     const [op, T, ret] = intrinsic(ex.args[1])
-    const args = intrinsic_args(ex.args[1]).map(arg => lower(cx, code, arg))
-    return _push(code, new Wasm(op, args, ret), { src: ex.meta, type: T, bp: true })
+    const args = intrinsic_args(ex.args[1]).map(arg => lower(cx, arg))
+    return _push(cx.code, new Wasm(op, args, ret), { src: ex.meta, type: T, bp: true })
   } else if (syntax === 'let') {
-    return lowerLet(cx, code, ex, value)
+    return lowerLet(cx, ex, value)
   } else if (syntax === 'fn') {
-    return lowerLambda(cx, code, ex)
+    return lowerLambda(cx, ex)
   } else {
     throw new Error(`unrecognised syntax: ${syntax}`)
   }
@@ -758,7 +759,7 @@ function lambdaParts(ex: ast.Expr): [readonly ast.Tree[], ast.Tree] | undefined 
   return
 }
 
-function lowerLambda(cx: Lowering, code: LIR, ex: ast.Expr): Val<LIR> {
+function lowerLambda(cx: Lowering, ex: ast.Expr): Val<LIR> {
   const fn = ast.asExpr(attrs(ex)[0])
   const [params, body] = some(lambdaParts(fn), `Expected anonymous function, got ${ast.repr(fn)}`)
   const name = new Tag(cx.owner, gensym('/λ'))
@@ -770,52 +771,51 @@ function lowerLambda(cx: Lowering, code: LIR, ex: ast.Expr): Val<LIR> {
     return callablepattern(ast.List(self, ...params), cx.mod, resolve)
   }
   const baseSig = signature([])
-  const closure = new Lowering(cx.sources, cx.mod, name, cx.sourceId, cx.sc)
-  const [methodIR, captures] = lowerbody(closure, baseSig, body, Def(name.path, fn.meta && source(fn.meta)))
+  const [methodIR, captures] = lowerbody(cx, baseSig, body, Def(name.path, fn.meta && source(fn.meta)))
   const captureNames = captures.map(capture => capture.name)
   const sig = signature(captureNames)
   const method = new Method(cx.mod, name, sig)
   const deps = cx.sourceId === undefined ? new Set<bigint>() : new Set([cx.sourceId])
   cx.sources.closures.set(name, [method, methodIR], { deps })
-  return lower(cx, code,
+  return lower(cx,
     ast.Call(tag('common.core.pack'), name, ...captureNames.map(name => symbol(name))).withmeta(fn.meta))
 }
 
-function lowerSelect(cx: Lowering, code: LIR, ex: ast.Expr, value = true): Val<LIR> {
+function lowerSelect(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {
   if (ex.args.length !== 2) throw new Error('select expects a single block')
   const cases = ast.asExpr(ex.args[1], 'Block').args.map(parseSelectCase)
   if (cases.length === 0) throw new Error('select requires at least one case')
-  const index = lower(cx, code, ast.Call(tag('common.select'), ...cases.map(selectDescriptor)).withmeta(ex.meta))
+  const index = lower(cx, ast.Call(tag('common.select'), ...cases.map(selectDescriptor)).withmeta(ex.meta))
   const targets: ir.Block<LIR>[] = []
   const values: Val<LIR>[] = []
 
   const lowerBody = (c: SelectCase): Val<LIR> => {
     const branch = cx.scope()
-    const selected = lower(branch, code, ast.Call(tag('common.selectAccept'), c.call.args[0], ...c.call.args.slice(1)))
+    const selected = lower(branch, ast.Call(tag('common.selectAccept'), c.call.args[0], ...c.call.args.slice(1)))
     if (c.pattern) {
       const pat = c.pattern.ungroup()
       if (pat instanceof ast.Token && pat.unwrap() instanceof Symbol)
-        _push(code, ir.expr('set', branch.sc.var(pat.unwrap().toString()), selected))
+        _push(branch.code, ir.expr('set', branch.sc.var(pat.unwrap().toString()), selected))
       else
-        lowermatch(branch, code, selected, c.pattern)
+        lowermatch(branch, selected, c.pattern)
     }
-    return lower(branch, code, c.body, value)
+    return lower(branch, c.body, value)
   }
 
   for (let i = 0; i < cases.length; i++) {
-    const cond = rcall(code, tag('common.=='), [index, Type(BigInt(i + 1))], { src: ex.meta })
-    const condBlock = code.block()
-    const bodyStart = code.newBlock()
+    const cond = rcall(cx.code, tag('common.=='), [index, Type(BigInt(i + 1))], { src: ex.meta })
+    const condBlock = cx.code.block()
+    const bodyStart = cx.code.newBlock()
     const bodyValue = lowerBody(cases[i])
     if (value) values.push(bodyValue)
-    targets.push(code.block())
-    const next = code.newBlock()
+    targets.push(cx.code.block())
+    const next = cx.code.newBlock()
     condBlock.branch(bodyStart, [], { when: cond, src: ex.meta && source(ex.meta) })
     condBlock.branch(next)
   }
 
-  rcall(code, tag('common.abort'), [string(code, 'select failed')], { src: ex.meta })
-  const after = code.newBlock()
+  rcall(cx.code, tag('common.abort'), [string(cx.code, 'select failed')], { src: ex.meta })
+  const after = cx.code.newBlock()
   for (let i = 0; i < targets.length; i++)
     if (targets[i].canbranch())
       if (value) targets[i].branch(after, [values[i]])
@@ -858,49 +858,49 @@ function sentinel(id: number) {
   return [-(id * 2 + 1), -(id * 2 + 2)]
 }
 
-function loopbranch(cx: Lowering, code: LIR, kind: string, label?: string, meta?: ast.Meta): Val<LIR> {
+function loopbranch(cx: Lowering, kind: string, label?: string, meta?: ast.Meta): Val<LIR> {
   const id = label ?
     cx.sc.loops.findIndex(l => l.label === label) :
     cx.sc.loops.map((l, i) => l.kind === 'loop' ? i : -1).filter(i => i >= 0).pop() ?? -1
   if (id < 0) throw new Error('no loop in scope')
   const [brk, cnt] = sentinel(id)
-  code.branch(kind === 'break' ? brk : cnt, [], meta && { src: source(meta) })
+  cx.code.branch(kind === 'break' ? brk : cnt, [], meta && { src: source(meta) })
   return nil
 }
 
-function rewriteJumps(cx: Lowering, code: LIR, header: [number, Val<LIR>[]], after: [number, Val<LIR>[]]): void {
+function rewriteJumps(cx: Lowering, header: [number, Val<LIR>[]], after: [number, Val<LIR>[]]): void {
   const [brk, cnt] = sentinel(cx.sc.loops.length - 1)
-  for (const block of code.blocks()) {
+  for (const block of cx.code.blocks()) {
     for (const [v, st] of block) {
       if (!(st.expr instanceof ir.Branch)) continue
       if (st.expr.target === brk)
-        code.setStmt(v, { ...st, expr: new ir.Branch(...after, st.expr.when) })
+        cx.code.setStmt(v, { ...st, expr: new ir.Branch(...after, st.expr.when) })
       else if (st.expr.target === cnt)
-        code.setStmt(v, { ...st, expr: new ir.Branch(...header, st.expr.when) })
+        cx.code.setStmt(v, { ...st, expr: new ir.Branch(...header, st.expr.when) })
     }
   }
 }
 
-function lowerWhile(cx: Lowering, code: LIR, _ex: ast.Expr, value = true): Val<LIR> {
+function lowerWhile(cx: Lowering, _ex: ast.Expr, value = true): Val<LIR> {
   cx = cx.scope()
   let [ex, as] = attrs(_ex)
   const label = as.get('label')?.[0]?.toString()
   ex = ast.asExpr(ex)
-  const prevBlock = code.block()
-  const header = code.newBlock()
+  const prevBlock = cx.code.block()
+  const header = cx.code.newBlock()
   prevBlock.branch(header, value ? [types.list()] : [])
   let out = value ? header.argument(ir.unreachable) : nil as Val<LIR>
   let ret = out
-  const cond = lower(cx, code, ex.args[1])
-  const condResult = rcall(code, tag('common.condition'), [cond], { src: ex.meta })
-  const condBlock = code.block()
-  const bodyStart = code.newBlock()
+  const cond = lower(cx, ex.args[1])
+  const condResult = rcall(cx.code, tag('common.condition'), [cond], { src: ex.meta })
+  const condBlock = cx.code.block()
+  const bodyStart = cx.code.newBlock()
   cx.sc.loops.push({ kind: 'loop', label })
-  const val = lower(cx, code, ast.asExpr(ex.args[2], 'Block'), value)
-  if (value) out = rcall(code, tag('common.append'), [out, val])
-  const bodyEnd = code.block()
-  const after = code.newBlock()
-  rewriteJumps(cx, code, [header.id + 1, value ? [out] : []], [after.id + 1, []])
+  const val = lower(cx, ast.asExpr(ex.args[2], 'Block'), value)
+  if (value) out = rcall(cx.code, tag('common.append'), [out, val])
+  const bodyEnd = cx.code.block()
+  const after = cx.code.newBlock()
+  rewriteJumps(cx, [header.id + 1, value ? [out] : []], [after.id + 1, []])
   condBlock.branch(bodyStart, [], { when: condResult, src: ex.meta && source(ex.meta) })
   condBlock.branch(after, [], { src: ex.args[0].meta && source(ex.args[0].meta) })
   if (bodyEnd.canbranch()) bodyEnd.branch(header, value ? [out] : [])
@@ -908,96 +908,96 @@ function lowerWhile(cx: Lowering, code: LIR, _ex: ast.Expr, value = true): Val<L
   return ret
 }
 
-function lowerBlock(cx: Lowering, code: LIR, _ex: ast.Expr, value = true): Val<LIR> {
+function lowerBlock(cx: Lowering, _ex: ast.Expr, value = true): Val<LIR> {
   let [ex, as] = attrs(_ex)
   const label = as.get('label')?.[0]?.toString()
   ex = ast.asExpr(ex)
-  if (!label) return lower(cx.scope(), code, ex.args, value)
+  if (!label) return lower(cx.scope(), ex.args, value)
   if (value) throw new Error('not implemented')
-  const prevBlock = code.block()
-  const header = code.newBlock()
+  const prevBlock = cx.code.block()
+  const header = cx.code.newBlock()
   prevBlock.branch(header, [])
   cx.sc.loops.push({ kind: 'block', label })
-  lower(cx.scope(), code, ex.args, value)
-  const bodyEnd = code.block()
-  const after = code.newBlock()
-  rewriteJumps(cx, code, [header.id + 1, []], [after.id + 1, []])
+  lower(cx.scope(), ex.args, value)
+  const bodyEnd = cx.code.block()
+  const after = cx.code.newBlock()
+  rewriteJumps(cx, [header.id + 1, []], [after.id + 1, []])
   if (bodyEnd.canbranch()) bodyEnd.branch(after)
   cx.sc.loops.pop()
   return nil
 }
 
-function lowerLet(cx: Lowering, code: LIR, _ex: ast.Expr, value = true): Val<LIR> {
+function lowerLet(cx: Lowering, _ex: ast.Expr, value = true): Val<LIR> {
   let [ex, as] = attrs(_ex)
   ex = ast.asExpr(ex)
   const assignments = ex.args.slice(1, -1).map(x => ast.asExpr(x, 'Operator'))
   if (!assignments.every(x => asSymbol(x.args[1].unwrap()).toString() === '='))
     throw new Error('let statement: all assignments must be of the form (= var val)')
   const pats = assignments.map(x => x.args[0])
-  const vals = assignments.map(x => lower(cx, code, x.args[2]))
+  const vals = assignments.map(x => lower(cx, x.args[2]))
   cx = cx.scope()
   for (let i = 0; i < pats.length; i++) {
     const pat = pats[i].ungroup()
     if (pat instanceof ast.Token && pat.unwrap() instanceof Symbol) {
       const name = pat.unwrap().toString()
       cx.sc.set(name, ir.slot(gensym(name).toString()))
-      _push(code, ir.expr('set', cx.sc.get(name), vals[i]))
+      _push(cx.code, ir.expr('set', cx.sc.get(name), vals[i]))
     } else {
-      const [pattern, args] = lowerpattern(cx, code, pats[i])
+      const [pattern, args] = lowerpattern(cx, pats[i])
       for (const arg of args) cx.sc.set(arg, ir.slot(gensym(arg).toString()))
-      _lowermatch(cx, code, vals[i], pattern, args, pats[i])
+      _lowermatch(cx, vals[i], pattern, args, pats[i])
     }
   }
-  return lower(cx, code, withAttrs(ex.args[ex.args.length - 1], as), value)
+  return lower(cx, withAttrs(ex.args[ex.args.length - 1], as), value)
 }
 
-function lowerIf(cx: Lowering, code: LIR, ex: IfStmt, value = true): Val<LIR> {
+function lowerIf(cx: Lowering, ex: IfStmt, value = true): Val<LIR> {
   cx = cx.scope()
   const ts: ir.Block<LIR>[] = []
   const vs: Val<LIR>[] = []
-  const body = (ir: LIR, ex: ast.Tree): void => {
-    if (value) vs.push(lower(cx, ir, ex))
-    else lower(cx, ir, ex, false)
+  const body = (ex: ast.Tree): void => {
+    if (value) vs.push(lower(cx, ex))
+    else lower(cx, ex, false)
   }
   for (let i = 0; i < ex.cond.length; i++) {
     const cond = ex.cond[i]
     const bodyExpr = ex.body[i]
     if (cond === true) {
-      body(code, bodyExpr)
-      ts.push(code.block())
-      code.newBlock()
+      body(bodyExpr)
+      ts.push(cx.code.block())
+      cx.code.newBlock()
       break
     }
     if ('kind' in cond && cond.kind === 'let') {
       const [patternExpr, _, valueExpr] = ast.asExpr(cond.ex).args
-      const val = lower(cx, code, valueExpr)
-      const [pattern, args] = lowerpattern(cx, code, patternExpr)
-      let match = rcall(code, tag('common.match'), [val, pattern])
-      const isnil = _push(code, xcall(isnil_method, match))
-      const c = code.block()
-      const t = code.newBlock()
-      match = _push(code, xcall(notnil_method, match))
+      const val = lower(cx, valueExpr)
+      const [pattern, args] = lowerpattern(cx, patternExpr)
+      let match = rcall(cx.code, tag('common.match'), [val, pattern])
+      const isnil = _push(cx.code, xcall(isnil_method, match))
+      const c = cx.code.block()
+      const t = cx.code.newBlock()
+      match = _push(cx.code, xcall(notnil_method, match))
       for (const arg of args) {
-        _push(code, ir.expr('set', cx.sc.var(arg), rcall(code, tag('common.getkey'), [match, tag(arg)])))
+        _push(cx.code, ir.expr('set', cx.sc.var(arg), rcall(cx.code, tag('common.getkey'), [match, tag(arg)])))
       }
-      body(code, bodyExpr)
-      ts.push(code.block())
-      const f = code.newBlock()
+      body(bodyExpr)
+      ts.push(cx.code.block())
+      const f = cx.code.newBlock()
       c.branch(f, [], { when: isnil })
       c.branch(t, [])
     } else {
-      const condVal = lower(cx, code, cond as ast.Tree)
-      const condResult = rcall(code, tag('common.condition'), [condVal])
-      const c = code.block()
-      const t = code.newBlock()
-      body(code, bodyExpr)
-      ts.push(code.block())
-      const f = code.newBlock()
+      const condVal = lower(cx, cond as ast.Tree)
+      const condResult = rcall(cx.code, tag('common.condition'), [condVal])
+      const c = cx.code.block()
+      const t = cx.code.newBlock()
+      body(bodyExpr)
+      ts.push(cx.code.block())
+      const f = cx.code.newBlock()
       c.branch(t, [], { when: condResult })
       c.branch(f)
     }
   }
-  const b = code.block()
+  const b = cx.code.block()
   for (let i = 0; i < ts.length; i++) {
     if (ts[i].canbranch())
       if (value) ts[i].branch(b, [vs[i]])
@@ -1024,17 +1024,17 @@ function lowerbody(cx: Lowering, sig: Signature, body: ast.Tree, meta: Def): [MI
   let code = LIR(meta)
   const captures: ir.Slot[] = []
   const parent = CaptureScope(cx.sc, captures)
-  cx = new Lowering(cx.sources, cx.mod, cx.owner, cx.sourceId, parent).scope(sig.swap)
+  cx = new Lowering(cx.sources, cx.mod, cx.owner, code, cx.sourceId, parent).scope(sig.swap)
   const params = sig.args.map(arg => ir.slot(arg))
   for (let i = 0; i < params.length; i++) cx.sc.set(sig.args[i], params[i])
-  const out = lower(cx, code, expand(body))
-  if (code.block().canbranch()) swapreturn(code, out, sig.swap)
-  code = initArgs(code, [...captures, ...params])
+  const out = lower(cx, expand(body))
+  if (cx.code.block().canbranch()) swapreturn(cx.code, out, sig.swap)
+  code = initArgs(cx.code, [...captures, ...params])
   return [toMIR(globals(prune(ssa(fuseblocks(code))))), captures]
 }
 
 function lowerfn(sources: Modules, method: Method, body: ast.Tree, meta: Def, id?: bigint): MIR {
-  return lowerbody(new Lowering(sources, method.mod, method.name, id), method.sig, body, meta)[0]
+  return lowerbody(new Lowering(sources, method.mod, method.name, LIR(meta), id), method.sig, body, meta)[0]
 }
 
 function assignments(code: LIR): Set<string> {
@@ -1076,12 +1076,11 @@ function assigned_globals(code: MIR): Map<Binding, Type> {
 
 function lower_toplevel(sources: Modules, mod: Module, ex: ast.Tree, meta: Def, id?: bigint): [MIR, Set<string>] {
   ex = expand(ex)
-  const cx = new Lowering(sources, mod.name, mod.name, id)
-  const code = LIR(meta)
-  lower(cx, code, ex, false)
-  code.return(nil)
-  let [code2, defs] = rewriteGlobals(code, mod)
-  return [toMIR(globals(prune(ssa(fuseblocks(code2))))), defs]
+  const cx = new Lowering(sources, mod.name, mod.name, LIR(meta), id)
+  lower(cx, ex, false)
+  cx.code.return(nil)
+  const [code, defs] = rewriteGlobals(cx.code, mod)
+  return [toMIR(globals(prune(ssa(fuseblocks(code))))), defs]
 }
 
 // Turn global references into explicit load instructions
