@@ -1,7 +1,9 @@
 export { Ptr, Function, Ref, Cell, addr, pointer, invoke, length }
 
+fn matchTrait($Closure, x: pack($Closure, _)) { Some(x) }
 fn matchTrait($Func, x: pack($Func, _)) { Some(x) }
 
+fn show(x: Closure) { print("λ(...)") }
 fn show(x: Func) { print("Func(...)") }
 
 bundle Ptr(x: Int32)

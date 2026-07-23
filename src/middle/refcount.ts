@@ -52,6 +52,7 @@ function isreftype(x: ir.Anno<Type>): x is Type {
   if (iscountedtype(x)) return true
   if (x.kind === 'ref') return true
   if (x.kind === 'func') return true
+  if (x.kind === 'closure') return x.parts.some(isreftype)
   if (x.kind === 'pack') return types.parts(x).some(isreftype)
   if (x.kind === 'union') return x.options.some(isreftype)
   if (x.kind === 'vpack') return layout(some(types.partial_eltype(x))).length !== 0
@@ -108,6 +109,7 @@ function count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: Cou
   if (iscountedtype(T)) return counted_count_inline(code, T, x, mode)
   if (T.kind === 'ref') return ref_count_inline(code, x, mode, heap)
   if (T.kind === 'func') return function_count_inline(code, x, mode)
+  if (T.kind === 'closure') return pack_count_inline(code, types.pack(types.tagOf(T), ...T.parts), x, mode, heap)
   if (T.kind === 'pack') return pack_count_inline(code, T, x, mode, heap)
   if (T.kind === 'vpack') return vpack_count_inline(code, T, x, mode)
   if (T.kind === 'union') return union_count_inline(code, T, x, mode, heap)

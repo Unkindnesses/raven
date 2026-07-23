@@ -158,6 +158,7 @@ function layout(T: Type, heap = false): Type[] {
     case 'float64': return [types.float64()]
     case 'ref': return [heap ? types.bits(32) : types.Ref]
     case 'func': return [types.bits(32)]
+    case 'closure': return T.parts.flatMap(recur)
     case 'bits': {
       if (T.size <= 32) return [types.bits(32)]
       if (T.size <= 64) return [types.bits(64)]

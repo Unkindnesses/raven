@@ -2,10 +2,11 @@ import { isEqual } from '../utils/isEqual.js'
 import { hash } from '../utils/map.js'
 import { Fixpoint, Accessor } from '../utils/fixpoint.js'
 import { Atom, Hex, Symbol } from './ast.js'
+import type { Method } from './modules.js'
 
 export {
   Tag, Bits, Type, atomValue,
-  tag, asTag, bits, pack, packcat, vpack, onion, float32, float64, int32, int64, bool, recursive, recurrence,
+  tag, asTag, bits, pack, packcat, vpack, Closure, onion, float32, float64, int32, int64, bool, recursive, recurrence,
   repr, issubset, isdisjoint, union, unroll, recur, finite, tagOf, part, parts,
   nil, isValue, isAtom, nparts, allparts, abstract, partial_eltype, Ref, Func, String, Ptr, list, asBits, simplify, Any,
   disjuncts, occursin
@@ -63,6 +64,7 @@ type Type =
   | { kind: 'float64'; value?: number }
   | { kind: 'ref' }
   | { kind: 'func' }
+  | { kind: 'closure'; method: Method; parts: Type[] }
   | { kind: 'pack'; parts: Type[] }
   | { kind: 'vpack'; tag: Type; parts: Type }
   | { kind: 'union'; options: Type[] }
@@ -87,6 +89,8 @@ function _repr(x: Type): string {
       return 'ref'
     case 'func':
       return 'func'
+    case 'closure':
+      return `λ(${x.method[hash]}, ${x.parts.map(repr).join(', ')})`
     case 'pack': {
       if (x.parts.length === 2 &&
         x.parts[0].kind === 'tag' && x.parts[0].path === 'common.Int' &&
@@ -203,12 +207,17 @@ function pack(...xs: TypeLike[]): Type {
       return bitsToFloat(data)
     if (tag('common.core.Ref').isEqual(t) && data.kind === 'ref') return data
     if (tag('common.core.Func').isEqual(t) && data.kind === 'func') return data
+    if (tag('common.core.Closure').isEqual(t) && data.kind === 'closure') return data
   }
   return { kind: 'pack', parts }
 }
 
 function vpack(t: TypeLike, x: TypeLike): Type {
   return { kind: 'vpack', tag: Type(t), parts: Type(x) }
+}
+
+function Closure(method: Method, ...parts: TypeLike[]): Type {
+  return { kind: 'closure', method, parts: parts.map(Type) }
 }
 
 const recurrence: Type = { kind: 'recurrence' }
@@ -275,6 +284,7 @@ function isValue(x: Type): boolean {
     case 'bits': return x.value !== undefined
     case 'float32':
     case 'float64': return x.value !== undefined
+    case 'closure': return x.parts.every(isValue)
     case 'pack': return x.parts.every(isValue)
     default: return false
   }
@@ -296,6 +306,7 @@ function tagOf(x: Type): Type {
   if (x.kind === 'float64') return Type(tag('common.core.Float64'))
   if (x.kind === 'ref') return Type(tag('common.core.Ref'))
   if (x.kind === 'func') return Type(tag('common.core.Func'))
+  if (x.kind === 'closure') return Type(tag('common.core.Closure'))
   if (x.kind === 'pack') return x.parts[0]
   if (x.kind === 'vpack') return x.tag
   if (x.kind === 'recursive') return tagOf(x.inner)
@@ -313,6 +324,7 @@ function allparts(x: Type): Type[] {
   if (x.kind === 'float32' || x.kind === 'float64') return [tagOf(x), floatToBits(x)]
   if (x.kind === 'ref') return [tagOf(x), x]
   if (x.kind === 'func') return [tagOf(x), x]
+  if (x.kind === 'closure') return [tagOf(x), x]
   if (x.kind === 'pack') return x.parts
   throw new Error(`No fixed parts for ${repr(x)} type`)
 }
@@ -340,6 +352,7 @@ function packcat(x: Type, y?: Type, ...z: Type[]): Type {
 function sortkey(x: Type): string {
   if (x.kind === 'tag') return [astag(tagOf(x)).path, x.path].join(':')
   if (x.kind === 'bits') return [astag(tagOf(x)).path, x.size.toString()].join(':')
+  if (x.kind === 'closure') return [astag(tagOf(x)).path, x.method[hash]].join(':')
   if (x.kind === 'union') return sortkey(x.options[0])
   if (x.kind === 'recursive') return sortkey(x.inner)
   if (x.kind === 'any') return 'any:'
@@ -379,6 +392,10 @@ function postwalk<T extends Type | null>(f: (x: Type) => T, x: Type): T {
   let y: Type | null
   if (isAtom(x) || x.kind === 'recurrence' || x.kind === 'recursive' || x.kind === 'any') {
     y = x
+  } else if (x.kind === 'closure') {
+    const parts = x.parts.map(inner)
+    if (parts.includes(null)) return null as T
+    y = Closure(x.method, ...parts as Type[])
   } else if (x.kind === 'pack') {
     const parts = x.parts.map(inner)
     if (parts.includes(null)) return null as T
@@ -422,6 +439,9 @@ function _issubset(self: Accessor<[Type, Type], boolean>, x: Type, y: Type): boo
     return iss(_unroll(x), _unroll(y))
   if (x.kind === 'union') return x.options.every(t => iss(t, y))
   if (y.kind === 'union') return y.options.some(t => iss(x, t))
+  if (x.kind === 'closure' && y.kind === 'closure')
+    return x.method.isEqual(y.method) && x.parts.length === y.parts.length &&
+      x.parts.every((t, i) => iss(t, y.parts[i]))
   if (isAtom(x) && isAtom(y))
     return isEqual(x, y) ||
       x.kind === y.kind && !isValue(y) &&
@@ -462,6 +482,9 @@ function _isdisjoint(self: Accessor<[Type, Type], boolean>, x: Type, y: Type): b
     return isd(_unroll(x), _unroll(y))
   if (x.kind === 'union' || y.kind === 'union')
     return disjuncts(x).every(x => disjuncts(y).every(y => isd(x, y)))
+  if (x.kind === 'closure' && y.kind === 'closure')
+    return !x.method.isEqual(y.method) || x.parts.length !== y.parts.length ||
+      x.parts.some((part, i) => isd(part, y.parts[i]))
   if (isAtom(x) && isAtom(y))
     return x.kind !== y.kind ||
       isValue(x) && isValue(y) && !isEqual(x, y) ||
@@ -510,6 +533,8 @@ function _isdistinct(
         if (!isdisjoint(a, b) && ++overlaps >= 2) return false
     return true
   }
+  if (x.kind === 'closure' && y.kind === 'closure')
+    return isdisjoint(x, y) || x.parts.every((t, i) => isdist(t, y.parts[i]))
   if (x.kind === 'pack' && y.kind === 'pack')
     return nparts(x) < 1 || isdisjoint(x, y) ||
       x.parts.every((t, i) => isdist(t, y.parts[i]))
@@ -587,6 +612,10 @@ function _union(x: Type, y: Type): Type {
     return onion(...ys)
   }
   if (sortkey(x) !== sortkey(y)) return onion(x, y)
+  if (x.kind === 'closure' && y.kind === 'closure') {
+    if (x.parts.length !== y.parts.length) throw new Error('closure length mismatch')
+    return Closure(x.method, ...x.parts.map((part, i) => _union(part, y.parts[i])))
+  }
   if (isAtom(x) && isAtom(y)) {
     return isEqual(x, y) ? x : abstract(x)
   }
@@ -617,13 +646,15 @@ function reconstruct(x: Type): [Type[], (xs: Type[]) => Type] {
   const parts =
     x.kind === 'pack' ? x.parts :
       x.kind === 'vpack' ? [x.tag, x.parts] :
-        x.kind === 'union' ? x.options :
-          []
+        x.kind === 'closure' ? x.parts :
+          x.kind === 'union' ? x.options :
+            []
   const re = (xs: Type[]): Type =>
     x.kind === 'pack' ? pack(...xs) :
       x.kind === 'vpack' ? vpack(xs[0], xs[1]) :
-        x.kind === 'union' ? onion(...xs) :
-          x
+        x.kind === 'closure' ? Closure(x.method, ...xs) :
+          x.kind === 'union' ? onion(...xs) :
+            x
   return [parts, re]
 }
 

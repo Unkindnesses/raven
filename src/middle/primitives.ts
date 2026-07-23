@@ -90,7 +90,7 @@ function partial_part(data: Type, i: Type): Anno<Type> {
   // TODO: HACK: we assume index != 0 when indexing dynamically.
   // Should instead have a seperate `index` function that enforces this.
   if (idx === undefined) return partial_eltype(data)
-  if (types.isAtom(data) || data.kind === 'pack')
+  if (types.isAtom(data) || data.kind === 'pack' || data.kind === 'closure')
     return (0 <= idx && idx <= types.nparts(data)) ? types.part(data, idx) : unreachable
   if (data.kind === 'vpack')
     return idx === 0 ? tagOf(data) : partial_eltype(data)
@@ -215,7 +215,7 @@ function partial_tagcast(x: Type, t: Type): Anno<Type> {
   if (x.kind === 'any') return corePrimitive.get(t) ?? types.vpack(t, types.Any)
   if (x.kind !== 'union') return t.isEqual(tagOf(x)) ? x : unreachable
   const ps = x.options.filter(opt => t.isEqual(tagOf(opt)))
-  return ps.length === 0 ? unreachable : only(ps)
+  return ps.length === 0 ? unreachable : types.onion(...ps)
 }
 
 function partial_tagstring(x: Type): Type {
