@@ -13,6 +13,7 @@ import { isEqual } from '../utils/isEqual.js'
 import { Instruction } from '../wasm/wasm.js'
 import { Traced } from './tracer.js'
 import { binding } from '../utils/options.js'
+import { partialPrimitive } from './prim_map.js'
 
 const recursionLimit = 10
 
@@ -124,9 +125,9 @@ function frame(inf: Inference, P: Parent, sig: Sig): Frame | Anno<Type> {
   const k = key(sig)
   if (inf.frames.has(k)) return inf.frame(sig)
   if (f instanceof Method) {
-    if (f.func) return withTraits(T =>
+    if (partialPrimitive.has(f.id)) return withTraits(T =>
       traitResult(some(infercall(inf, some(P.sig), ...traitSig(T)))),
-      () => f.func!(...Ts))
+      () => partialPrimitive.get(f.id)!(...Ts))
     if (P.depth > recursionLimit) return mergeFrames(inf, some(P.sig), sig)
   }
   const [trace, deps] = trackdeps(() => inf.traced.trace(f, ...Ts))

@@ -14,6 +14,7 @@ import { some } from '../utils/map.js'
 import { Caching, CycleCache } from '../utils/cache.js'
 import { Accessor } from '../utils/fixpoint.js'
 import { xcall, xlist, xpart } from '../frontend/lower.js'
+import { partialPrimitive } from './prim_map.js'
 
 export { Tracer, Traced }
 
@@ -299,8 +300,8 @@ class Tracer {
     }
     // We can't evaluate `rvtype` here.
     if ([invoke_method, load_method].includes(meth)) return
-    if (meth.func) {
-      const result = meth.func(...Ts)
+    if (partialPrimitive.has(meth.id)) {
+      const result = partialPrimitive.get(meth.id)!(...Ts)
       if (result === ir.unreachable) return
       if (![invoke_method, store_method].includes(meth) && types.isValue(result)) return result
       return code.push(code.stmt(xcall(meth, ...args), { type: result }))

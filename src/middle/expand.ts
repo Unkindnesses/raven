@@ -33,7 +33,7 @@ import { some } from '../utils/map.js'
 import { xcall, xtuple } from '../frontend/lower.js'
 import { isreftype } from './refcount.js'
 import { partial_part, getIntValue, nparts, constValue, partial_set, copy_method } from './primitives.js'
-import { inlinePrimitive, InvokeSt, outlinePrimitive, primitive } from './prim_map.js'
+import { inlinePrimitive, InvokeSt, outlinePrimitive, partialPrimitive, primitive } from './prim_map.js'
 import { Cache } from '../utils/cache.js'
 
 export {
@@ -653,7 +653,7 @@ function casts(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
       pr.set(v, new Wasm(ex.callee, args, ex.result))
     } else if (ex instanceof Invoke) {
       const S = ex.body.map(a => pr.type(a))
-      if (!ex.method.func && S.every(t => t !== ir.unreachable)) {
+      if (!partialPrimitive.has(ex.method.id) && S.every(t => t !== ir.unreachable)) {
         const sig: Sig = [ex.method, ...S.map(x => asType(x))]
         if (!(inf.get(sig) instanceof Redirect)) continue
         const [_, ...T] = resolveSig(inf.inf, sig)
@@ -699,11 +699,10 @@ function expand(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
 }
 
 function outlineInlinePrimitive(inf: Inferred, F: Method, ...Ts: Type[]): MIR {
-  if (!F.func) throw new Error(`no partial for ${F.name.path}`)
   const code = MIR(Def(F.name.path))
   const args = Ts.map(T => code.argument(T))
   return withTraits(T => inf.traitType(T), () => {
-    const st = code.stmt(new Invoke(F, [...F.params, ...args]), { type: F.func!(...F.params, ...Ts) })
+    const st = code.stmt(new Invoke(F, [...F.params, ...args]), { type: partialPrimitive.get(F.id)!(...F.params, ...Ts) })
     code.return(inlinePrimitive.get(F.id)!(code, st as InvokeSt))
     return code
   })
