@@ -69,8 +69,8 @@ function isglobal(code: MIR, v: number): boolean {
 type CountMode = 'retain' | 'release'
 
 // Used as a key for generated methods
-const retain_method = primitive('common.core.retain', 'args')
-const release_method = primitive('common.core.release', 'args')
+const retain_method = primitive('common.core.retain', '[args...]')
+const release_method = primitive('common.core.release', '[args...]')
 const releaseFunction_method = primitive('common.core.releaseFunction', '[ptr]')
 
 function i32(code: ir.Fragment<MIR>, x: bigint | number | boolean): ir.Val<MIR> {

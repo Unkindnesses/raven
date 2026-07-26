@@ -2,7 +2,7 @@ import { test } from 'vitest'
 import * as assert from 'assert'
 import { parse, expr, PrecTable, Prec, inverse, table } from '../src/frontend/parse.js'
 import { lowerfn, lower_toplevel } from '../src/frontend/lower.js'
-import { callpattern } from '../src/frontend/patterns.js'
+import { callpattern } from '../src/frontend/lower.js'
 import { tag, Type } from '../src/frontend/types.js'
 import { asSymbol } from '../src/frontend/ast.js'
 import * as ast from '../src/frontend/ast.js'
@@ -307,8 +307,8 @@ function lower(def: string) {
   const fn = tag(asSymbol(sig.args[0].unwrap()).toString())
   const params = sig.args.slice(1)
   const body = ex.args[2]
-  const pat = callpattern(fn, ast.List(...params))
-  return lowerfn(new Modules(), new MethodKey(tag(''), fn, pat), body, Def('test'))
+  const pat = callpattern(tag(''), fn, ast.List(fn, ...params))
+  return lowerfn(new MethodKey(tag(''), fn, pat), body, Def('test'))
 }
 
 test('lower simple function', () => {
@@ -407,7 +407,7 @@ test('lower toplevel expression', () => {
   const mod = sources.module(tag('test'))
   mod.set('x', Type(42))
   const expr = first('{ x = x+1, y = y+1 }')
-  const [ir, _] = lower_toplevel(sources, mod, expr, Def('common.core.main'))
+  const [ir, _] = lower_toplevel(mod, expr, Def('common.core.main'))
   assert.equal(ir.toString(), `Function common.core.main at undefined
 1:
   %1 = global tag"test".x
@@ -454,7 +454,7 @@ test('lower function with swap pattern', () => {
   %24 = pack tag"common.List", %20, tag"y"
   %25 = call tag"common.getkey", %24
   %26 = call Method(tag"common.core.part"), %25, 1
-  %27 = pack tag"common.List", pack(tag"common.Nil"), %23, %26
+  %27 = pack tag"common.List", pack(tag"common.Nil"), pack(tag"common.Nil"), %23, %26
   %28 = return %27`)
 })
 
@@ -510,7 +510,7 @@ test('lower for loop', () => {
   %13 = pack tag"common.List", %6
   %14 = call tag"common.next", %13
   %15 = call Method(tag"common.core.part"), %14, 1
-  %16 = call Method(tag"common.core.part"), %14, 2
+  %16 = call Method(tag"common.core.part"), %14, 3
   %17 = pack tag"common.List", %15
   %18 = global tag"".nil?
   %19 = call %18, %17

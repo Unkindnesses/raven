@@ -70,8 +70,8 @@ for (const [op, f] of bitcmpFuncs) {
 // TODO: bit ops should be handled by the backend.
 
 function isInt(x: Type, size?: number): x is { kind: 'pack'; parts: [Type, Type & { kind: 'bits' }] } {
-  return tag('common.Int').isEqual(tagOf(x)) &&
-    x.kind === 'pack' && x.parts[1].kind === 'bits' && (size === undefined || x.parts[1].size === size)
+  return x.kind === 'pack' && tag('common.Int').isEqual(tagOf(x)) &&
+    x.parts[1].kind === 'bits' && (size === undefined || x.parts[1].size === size)
 }
 
 function getIntValue(x: Type): number | undefined {
@@ -239,10 +239,10 @@ function partial_invoke(f: Type, I: Type, O: Type, ...xs: Type[]): Type {
   return rvtype(O)
 }
 
-const pack_method = primitive('common.core.pack', 'args', (args: Type) => types.pack(...types.parts(args)))
+const pack_method = primitive('common.core.pack', '[args...]', (args: Type) => types.pack(...types.parts(args)))
 const part_method = primitive('common.core.part', '[data, i]', partial_part)
 const nparts_method = primitive('common.core.nparts', '[x]', partial_nparts)
-const packcat_method = primitive('common.core.packcat', 'args', (args: Type) => { const parts = types.parts(args); return parts.length === 0 ? unreachable : parts.reduce((x, y) => types.packcat(x, y)) })
+const packcat_method = primitive('common.core.packcat', '[args...]', (args: Type) => { const parts = types.parts(args); return parts.length === 0 ? unreachable : parts.reduce((x, y) => types.packcat(x, y)) })
 const set_method = primitive('common.core.set', '[xs, i, x]', partial_set)
 const widen_method = primitive('common.core.widen', '[x]', partial_widen)
 const shortcutEquals_method = primitive('common.core.shortcutEquals', '[a, b]', partial_shortcutEquals)

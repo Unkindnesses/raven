@@ -5,7 +5,6 @@ import * as types from "./types.js"
 import * as cache from "../utils/cache.js"
 import * as ir from "../utils/ir.js"
 import * as ast from "./ast.js"
-import { Pattern } from "./patterns.js"
 import { Def } from "../dwarf/index.js"
 import { Instruction, Op, ValueType } from "../wasm/wasm.js"
 import { isEqual } from "../utils/isEqual.js"
@@ -183,7 +182,7 @@ function callargs(code: ir.Fragment<MIR>, ex: ir.Expr<IRValue>): [Tag | Method, 
 }
 
 interface Signature {
-  pattern: Pattern
+  pattern: MIR
   args: string[]
   swap: Map<number, string>
 }
@@ -203,16 +202,18 @@ class MethodKey {
 }
 
 class Method {
-  constructor(readonly key: MethodKey, readonly params: Type[] = []) { }
+  constructor(readonly key: MethodKey, readonly isSig = false, readonly params: Type[] = []) { }
   get id() { return this.key.id }
   get name() { return this.key.name }
-  get [hash]() { return `${this.key[hash]}${this.params.map(x => types.repr(x)).join()}` }
+  get [hash]() { return `${this.key[hash]}${this.isSig}${this.params.map(x => types.repr(x)).join()}` }
   toString() { return `Method(${this.name})` }
   isEqual(other: unknown): other is Method {
-    return other instanceof Method && this.key.isEqual(other.key) && isEqual(this.params, other.params)
+    return other instanceof Method && this.key.isEqual(other.key) &&
+      this.isSig === other.isSig && isEqual(this.params, other.params)
   }
+  get signature() { return new Method(this.key, true, this.params) }
   param(...Ts: Type[]) {
-    return new Method(this.key, Ts)
+    return new Method(this.key, this.isSig, Ts)
   }
 }
 
@@ -331,6 +332,7 @@ class Modules implements cache.Caching {
   get(b: Binding) { return this.mods.get(b.mod)?.get(b.name) }
   set(b: Binding, v: Anno<Type> | Binding) { this.module(b.mod).set(b.name, v) }
   source(m: Method): MethodSource {
+    if (m.isSig) return { kind: 'ir', body: m.key.sig.pattern }
     if (this.closures.iscached(m.name))
       return { kind: 'ir', body: this.closures.get(m.name)[1] }
     return some(this.mods.get(m.key.mod)).source(m)

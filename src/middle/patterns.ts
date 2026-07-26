@@ -27,7 +27,7 @@ import * as ir from '../utils/ir.js'
 import { MIR, IRValue, Method, Definitions } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
 import { Lowered, xlist, xpart, xcall } from '../frontend/lower.js'
-import { Pattern, patternType, pattern } from '../frontend/patterns.js'
+import { Pattern, pattern } from '../frontend/patterns.js'
 import { Inference, Sig, inferexpr, infercall, issubset, maybe_union } from './abstract.js'
 import { some } from '../utils/map.js'
 import { options } from '../utils/options.js'
@@ -49,10 +49,11 @@ type MatchResult = Match | null | undefined // null is known failure, undefined 
 
 interface Interpreter {
   get(func: types.Tag, args: types.Type[]): types.Type | undefined
+  trace(method: Method): [MIR, ir.Anno<types.Type>] | undefined
 }
 
 interface Methods {
-  get(key: [types.Tag, types.Type]): [Method, Match | undefined][]
+  get(key: [types.Tag, types.Type]): [Method, Match | undefined, types.Type][]
 }
 
 function _assoc(as: Match, name: string, [val, path]: [types.Type, Path]): MatchResult {
@@ -182,8 +183,7 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
       return null
 
     case 'constructor': {
-      const patType = patternType(pat)
-      const result = mod.get(types.tag('common.constructorPattern'), [types.list(...types.parts(patType))])
+      const result = mod.get(types.tag('common.constructorPattern'), [types.list(...types.parts(pat.value))])
       if (!result || !types.isValue(result)) return undefined
       return partial_match(mod, pattern(types.part(result, 1)), val, path)
     }
@@ -226,12 +226,15 @@ function trivial_isa(int: Interpreter, val: types.Type, T: types.Type): boolean 
 // Filtered methods
 
 function matchMethods(defs: Definitions, interp: Interpreter, [f, Ts]: [types.Tag, types.Type]) {
-  const result: [Method, Match | undefined][] = []
+  const result: [Method, Match | undefined, types.Type][] = []
   const methods = defs.methods(f)
   for (const meth of methods.slice().reverse()) {
-    const m = partial_match(interp, meth.key.sig.pattern, Ts)
+    const [, P] = some(interp.trace(meth.signature), `Could not trace signature for ${meth.name}`)
+    if (P === ir.unreachable || !types.isValue(P))
+      throw new Error(`Signature for ${meth.name} did not trace to a concrete pattern`)
+    const m = partial_match(interp, pattern(P), Ts)
     if (m === null) continue
-    result.push([meth, m])
+    result.push([meth, m, P])
     if (m !== undefined) break
   }
   return result
@@ -239,7 +242,7 @@ function matchMethods(defs: Definitions, interp: Interpreter, [f, Ts]: [types.Ta
 
 class MatchMethods implements Caching, Methods {
   readonly interp: Traced
-  readonly cache: EagerCache<[types.Tag, types.Type], [Method, Match | undefined][]>
+  readonly cache: EagerCache<[types.Tag, types.Type], [Method, Match | undefined, types.Type][]>
 
   constructor(defs: Definitions, lowered: Lowered) {
     this.interp = Traced.create(defs, lowered)
@@ -304,9 +307,8 @@ function dispatcher(inf: Inference, func: types.Tag, F: types.Type, Ts: types.Ty
   let arms = dispatch_arms(fullType)
   const sig: Sig = [func, F, Ts]
   const call = (f: IRValue | Method, ...as: (IRValue | number)[]) => icall(inf, code, sig, f, ...as)
-  for (const [meth, m] of inf.meths.get([func, fullType])) {
+  for (const [meth, m, pat] of inf.meths.get([func, fullType])) {
     if (m === undefined) {
-      const pat = patternType(meth.key.sig.pattern)
       arms = arms.filter(T =>
         issubset(types.list(types.nil), some(infercall(inf, sig, types.tag('common.match'), types.tag('common.match'), types.list(T, pat)))))
       let m = call(types.tag('common.match'), full, pat)

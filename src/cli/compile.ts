@@ -2,7 +2,7 @@ import * as wasm from '../backend/wasm.js'
 import * as types from '../frontend/types.js'
 import * as ast from '../frontend/ast.js'
 import { Binding, MethodSource } from '../frontend/modules.js'
-import { callpattern } from '../frontend/patterns.js'
+import { callpattern } from '../frontend/lower.js'
 import { Options, withOptions } from '../utils/options.js'
 import * as path from 'path'
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises'
@@ -128,7 +128,7 @@ async function compileJS(file: string, config: CompileConfig = {}): Promise<[Com
       if (!isJSIdentifier(name))
         throw new Error(`Cannot export ${JSON.stringify(name)} as a JS binding`)
       const tag = types.tag(`__raven.lib.${i}`)
-      const sig = callpattern(tag, ast.List(ast.symbol('args')))
+      const sig = callpattern(types.tag(''), tag, ast.List(tag, ast.symbol('args')))
       const method = mod.method(tag, sig, libWrapperMethod(tag.path, fn))
       const wname = `raven.lib.${name}`
       compiler.pipe.export(em, [method, types.Ref], wname)

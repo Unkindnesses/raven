@@ -60,7 +60,7 @@ test('closures', async () => {
   const sourceId = sources.sourceid(foo)
 
   lowered.ir(foo)
-  const closures = Array.from(sources.closures.keys()).filter(name => name.path.startsWith('foo./λ_'))
+  const closures = Array.from(sources.closures.keys()).filter(name => name.path.startsWith('foo.λ_'))
 
   assert.equal(closures.length, 2)
   for (const closure of closures)

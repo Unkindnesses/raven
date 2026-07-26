@@ -2,8 +2,7 @@ import { Type, Tag, tag, asTag, atomValue } from "../frontend/types.js"
 import { Module, Modules, Binding, Signature, calltarget } from "../frontend/modules.js"
 import { Def } from "../dwarf/index.js"
 import { Anno, unreachable } from "../utils/ir.js"
-import { callpattern, callablepattern, modtag } from "../frontend/patterns.js"
-import { lower_toplevel, expand, source, attrs } from "../frontend/lower.js"
+import { lower_toplevel, expand, source, attrs, callpattern, modtag } from "../frontend/lower.js"
 import { symbolValues } from "./primitives.js"
 import * as ast from "../frontend/ast.js"
 import { parse } from "../frontend/parse.js"
@@ -96,9 +95,10 @@ async function load_include(cx: LoadState, x: ast.Expr): Promise<void> {
 function load_expr(cx: LoadState, x: ast.Tree): void {
   const meta = Def('(global)', x.meta && source(x.meta))
   const id = nft()
-  const [ir, defs] = lower_toplevel(cx.comp, cx.mod, x, meta, id)
+  const [ir, defs] = lower_toplevel(cx.mod, x, meta, { sources: cx.comp.closures, source: id })
   for (const def of defs) if (!cx.mod.has(def)) cx.mod.set(def, unreachable)
-  const method = cx.mod.method(tag('common.core.main'), callpattern(tag('common.core.main'), ast.List()),
+  const method = cx.mod.method(tag('common.core.main'),
+    callpattern(cx.mod.name, tag('common.core.main'), ast.List(tag('common.core.main'))),
     { kind: 'ir', body: ir }, { id: id })
   emit(method)
 }
@@ -124,7 +124,6 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
   }
   if (!ast.isExpr(signature, 'Call') && !ast.isExpr(signature, 'Operator'))
     throw new Error(`Expected function signature, got ${ast.repr(signature)}`)
-  const resolve = (x: ast.Symbol) => cx.resolve_static(x)
   const [callee, ...params] = ast.callargs(signature)
   const variable = callee.unwrap()
   const callable = ast.isExpr(signature, 'Call') &&
@@ -134,7 +133,7 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
   let sigPattern: Signature
   if (callable) {
     fnTag = receiverTag(cx, signature.args[0])
-    sigPattern = callablepattern(ast.List(...signature.args), cx.mod.name, resolve)
+    sigPattern = callpattern(cx.mod.name, fnTag, ast.List(...signature.args))
   } else {
     fnTag =
       variable instanceof Tag ? variable :
@@ -142,7 +141,7 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
           new Tag(cx.mod.name, ast.asSymbol(variable).toString())
     if (!extend && variable instanceof ast.Symbol)
       cx.mod.set(variable.toString(), fnTag)
-    sigPattern = callpattern(fnTag, ast.List(...params), cx.mod.name, resolve)
+    sigPattern = callpattern(cx.mod.name, fnTag, ast.List(fnTag, ...params))
   }
   const meta = Def(fnTag.path, x.meta && source(x.meta))
   cx.mod.method(fnTag, sigPattern, { kind: 'fn', body, meta }, { ts })
