@@ -308,7 +308,6 @@ interface Scope {
   get(x: string): ir.Slot | Binding
   set(x: string, v: ir.Slot): Scope
   var(name?: string): Binding | ir.Slot
-  swaps(): Map<number, string> | undefined // slight hack; store for `return` lowering
   loops: { kind: 'loop' | 'block', label: string | undefined }[]
 }
 
@@ -319,10 +318,11 @@ class Lowering {
     readonly owner: Tag,
     readonly code: LIR,
     readonly sourceId?: bigint,
-    readonly sc = GlobalScope(mod)
+    readonly sc = GlobalScope(mod),
+    readonly swaps?: Map<number, string>
   ) { }
-  scope(swap?: Map<number, string>): Lowering {
-    return new Lowering(this.sources, this.mod, this.owner, this.code, this.sourceId, Scope(this.sc, swap))
+  scope(): Lowering {
+    return new Lowering(this.sources, this.mod, this.owner, this.code, this.sourceId, Scope(this.sc), this.swaps)
   }
 }
 
@@ -332,12 +332,11 @@ function GlobalScope(mod: Tag): Scope {
     get: (name: string) => new Binding(mod, name),
     set: (name: string, v: ir.Slot) => { throw new Error(`Cannot set ${name} in global scope`) },
     var: (name: string) => new Binding(mod, name),
-    swaps: () => undefined,
     loops: [],
   }
 }
 
-function Scope(parent: Scope, swap?: Map<number, string>): Scope {
+function Scope(parent: Scope): Scope {
   const env = new Map<string, ir.Slot>()
   const sc = {
     has: (x: string) => env.has(x) || parent.has(x),
@@ -347,7 +346,6 @@ function Scope(parent: Scope, swap?: Map<number, string>): Scope {
       if (!sc.has(name)) sc.set(name, ir.slot(name))
       return sc.get(name)!
     },
-    swaps: () => swap ?? parent.swaps(),
     loops: parent.loops,
   }
   return sc
@@ -368,7 +366,6 @@ function CaptureScope(parent: Scope, captures: ir.Slot[]): Scope {
     },
     set: (name: string, _: ir.Slot) => { throw new Error(`Cannot set ${name} in capture scope`) },
     var: (name: string) => { throw new Error(`Cannot create ${name} in capture scope`) },
-    swaps: () => undefined,
     loops: [],
   }
 }
@@ -494,7 +491,7 @@ function lower(cx: Lowering, x: ast.Tree | readonly ast.Tree[], value = true): V
       } else if (val.toString() === 'return') {
         const result = nil
         // TODO debug info
-        swapreturn(cx.code, result, cx.sc.swaps(), { bp: true })
+        swapreturn(cx.code, result, cx.swaps, { bp: true })
         return result
       } else {
         return cx.sc.get(val.toString())
@@ -725,7 +722,7 @@ function lowerSyntax(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {
     return pack(tag('common.UInt'), bits(size, 0n))
   } else if (syntax === 'return') {
     const result = lower(cx, ex.args[1])
-    swapreturn(cx.code, result, cx.sc.swaps(), { src: ex.meta, bp: true })
+    swapreturn(cx.code, result, cx.swaps, { src: ex.meta, bp: true })
     return result
   } else if (['break', 'continue'].includes(syntax)) {
     return loopbranch(cx, syntax, asSymbol(ex.args[1]).toString(), ex.meta)
@@ -1024,11 +1021,11 @@ function lowerbody(cx: Lowering, sig: Signature, body: ast.Tree, meta: Def): [MI
   let code = LIR(meta)
   const captures: ir.Slot[] = []
   const parent = CaptureScope(cx.sc, captures)
-  cx = new Lowering(cx.sources, cx.mod, cx.owner, code, cx.sourceId, parent).scope(sig.swap)
+  cx = new Lowering(cx.sources, cx.mod, cx.owner, code, cx.sourceId, parent, sig.swap).scope()
   const params = sig.args.map(arg => ir.slot(arg))
   for (let i = 0; i < params.length; i++) cx.sc.set(sig.args[i], params[i])
   const out = lower(cx, expand(body))
-  if (cx.code.block().canbranch()) swapreturn(cx.code, out, sig.swap)
+  if (cx.code.block().canbranch()) swapreturn(cx.code, out, cx.swaps)
   code = initArgs(cx.code, [...captures, ...params])
   return [toMIR(globals(prune(ssa(fuseblocks(code))))), captures]
 }
