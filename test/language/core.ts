@@ -354,6 +354,40 @@ test('match overloads', async () => {
   `)
 })
 
+test('runtime signature pattern', async () => {
+  await rv(`
+    bundle Alpha { A() }
+    bundle Beta { B() }
+    T = if widen(true) { Alpha } else { Beta }
+
+    fn classify(_) { "fallback" }
+    fn classify(_: T) { "dynamic" }
+
+    test classify(A()) == "dynamic"
+    test classify(B()) == "fallback"
+  `)
+})
+
+test('signature pattern residual effects', async () => {
+  await rv(`
+    bundle Wrapped { Wrap(x) }
+    bundle Other { OtherValue() }
+    state = js\`return { calls: 0 }\`
+
+    fn patternConstructor() {
+      js\`return \\state.calls += 1\`
+      Wrap
+    }
+
+    fn extract(_) { 0 }
+    fn extract(patternConstructor()(x)) { x }
+
+    test extract(Wrap(42)) == 42
+    test extract(OtherValue()) == 0
+    test Int64(js\`return \\state.calls\`) == 1 # TODO keep side effects from failing sigs
+  `)
+})
+
 test('tag union', async () => {
   await rv(`
     fn eitherSym(x) {

@@ -325,6 +325,7 @@ class Tracer {
     const full = code.push(code.stmt(xlist<IRValue>(f, args), { type: fullTs }))
     for (const [meth, m] of this.methods.get([func, fullTs])) {
       if (m === undefined) return
+      if (this.traceMethod(code, meth.signature, []) === undefined) return // trace side effects
       const as = meth.key.sig.args.map((a, i) => indexer(code, fullTs, full, m.get(a)![1]))
       let result = this.traceMethod(code, meth, as)
       if (result === undefined) return

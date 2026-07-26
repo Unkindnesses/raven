@@ -53,7 +53,7 @@ interface Interpreter {
 }
 
 interface Methods {
-  get(key: [types.Tag, types.Type]): [Method, Match | undefined, types.Type][]
+  get(key: [types.Tag, types.Type]): [Method, Match | undefined][]
 }
 
 function _assoc(as: Match, name: string, [val, path]: [types.Type, Path]): MatchResult {
@@ -226,15 +226,15 @@ function trivial_isa(int: Interpreter, val: types.Type, T: types.Type): boolean 
 // Filtered methods
 
 function matchMethods(defs: Definitions, interp: Interpreter, [f, Ts]: [types.Tag, types.Type]) {
-  const result: [Method, Match | undefined, types.Type][] = []
+  const result: [Method, Match | undefined][] = []
   const methods = defs.methods(f)
   for (const meth of methods.slice().reverse()) {
-    const [, P] = some(interp.trace(meth.signature), `Could not trace signature for ${meth.name}`)
-    if (P === ir.unreachable || !types.isValue(P))
-      throw new Error(`Signature for ${meth.name} did not trace to a concrete pattern`)
-    const m = partial_match(interp, pattern(P), Ts)
+    const P = interp.trace(meth.signature)?.[1]
+    const m = P !== undefined && P !== ir.unreachable && types.isValue(P)
+      ? partial_match(interp, pattern(P), Ts)
+      : undefined
     if (m === null) continue
-    result.push([meth, m, P])
+    result.push([meth, m])
     if (m !== undefined) break
   }
   return result
@@ -242,7 +242,7 @@ function matchMethods(defs: Definitions, interp: Interpreter, [f, Ts]: [types.Ta
 
 class MatchMethods implements Caching, Methods {
   readonly interp: Traced
-  readonly cache: EagerCache<[types.Tag, types.Type], [Method, Match | undefined, types.Type][]>
+  readonly cache: EagerCache<[types.Tag, types.Type], [Method, Match | undefined][]>
 
   constructor(defs: Definitions, lowered: Lowered) {
     this.interp = Traced.create(defs, lowered)
@@ -307,10 +307,13 @@ function dispatcher(inf: Inference, func: types.Tag, F: types.Type, Ts: types.Ty
   let arms = dispatch_arms(fullType)
   const sig: Sig = [func, F, Ts]
   const call = (f: IRValue | Method, ...as: (IRValue | number)[]) => icall(inf, code, sig, f, ...as)
-  for (const [meth, m, pat] of inf.meths.get([func, fullType])) {
+  for (const [meth, m] of inf.meths.get([func, fullType])) {
+    const pat = call(meth.signature)
+    if (code.type(pat) === ir.unreachable) { code.block().unreachable(); return [code, ret] }
     if (m === undefined) {
+      const P = ir.asType(code.type(pat))
       arms = arms.filter(T =>
-        issubset(types.list(types.nil), some(infercall(inf, sig, types.tag('common.match'), types.tag('common.match'), types.list(T, pat)))))
+        issubset(types.list(types.nil), some(infercall(inf, sig, types.tag('common.match'), types.tag('common.match'), types.list(T, P)))))
       let m = call(types.tag('common.match'), full, pat)
       if (code.type(m) === ir.unreachable) { code.block().unreachable(); return [code, ret] }
       m = call(part_method, m, types.Type(1n))
