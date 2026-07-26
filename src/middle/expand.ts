@@ -33,7 +33,10 @@ import { some } from '../utils/map.js'
 import { xcall, xtuple } from '../frontend/lower.js'
 import { isreftype } from './refcount.js'
 import { partial_part, getIntValue, nparts, constValue, partial_set, copy_method } from './primitives.js'
-import { inlinePrimitive, InvokeSt, outlinePrimitive, partialPrimitive, primitive } from './prim_map.js'
+import {
+  InvokeSt, outlinePrimitives,
+  inlinePrimitive, outlinePrimitive, partialPrimitive, primitive
+} from './prim_map.js'
 import { Cache } from '../utils/cache.js'
 
 export {
@@ -462,9 +465,10 @@ function lowerdata(inf: Inferred, code: MIR): MIR {
       if (wasmPartials.has(op) && types.isValue(asType(st.type)))
         pr.replace(v, asType(st.type))
     } else if (ex instanceof Invoke) {
-      if (inlinePrimitive.has(ex.method.id)) {
+      const inline = inlinePrimitive(ex.method)
+      if (inline) {
         pr.delete(v)
-        pr.replace(v, withTraits(T => inf.traitType(T), () => inlinePrimitive.get(ex.method.id)!(pr, st as InvokeSt)))
+        pr.replace(v, withTraits(T => inf.traitType(T), () => inline(pr, st as InvokeSt)))
       }
     } else if (ex instanceof Global && st.type === ir.unreachable) {
       pr.delete(v)
@@ -487,7 +491,7 @@ function refNull(code: Fragment<MIR>): Val<MIR> {
   return code.push(code.stmt(xwasm(wasm.RefNull(wasm.externref.type)), { type: types.Ref }))
 }
 
-outlinePrimitive.set(refHandle_method.id, (): MIR => {
+outlinePrimitives.set(refHandle_method.id, (): MIR => {
   const code = MIR(Def('common.core.refHandle'))
   const ref = code.argument(types.Ref)
   const idx = code.push(code.stmt(xwasm(wasm.GetGlobal(refNext)), { type: types.bits(32) }))
@@ -499,7 +503,7 @@ outlinePrimitive.set(refHandle_method.id, (): MIR => {
   return code
 })
 
-outlinePrimitive.set(refFromHandle_method.id, (): MIR => {
+outlinePrimitives.set(refFromHandle_method.id, (): MIR => {
   const code = MIR(Def('common.core.refFromHandle'))
   const idx: Val<MIR> = code.argument(types.bits(32))
   const out = code.push(code.stmt(xwasm<Val<MIR>>(wasm.TableOp('get', refTable), idx), { type: types.Ref }))
@@ -507,7 +511,7 @@ outlinePrimitive.set(refFromHandle_method.id, (): MIR => {
   return code
 })
 
-outlinePrimitive.set(refRelease_method.id, (): MIR => {
+outlinePrimitives.set(refRelease_method.id, (): MIR => {
   const code = MIR(Def('common.core.refRelease'))
   const idx = code.argument(types.bits(32))
   code.push(code.stmt(xwasm(wasm.TableOp('set', refTable), idx, refNull(code)), { type: types.nil }))
@@ -653,7 +657,7 @@ function casts(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
       pr.set(v, new Wasm(ex.callee, args, ex.result))
     } else if (ex instanceof Invoke) {
       const S = ex.body.map(a => pr.type(a))
-      if (!partialPrimitive.has(ex.method.id) && S.every(t => t !== ir.unreachable)) {
+      if (!partialPrimitive(ex.method) && S.every(t => t !== ir.unreachable)) {
         const sig: Sig = [ex.method, ...S.map(x => asType(x))]
         if (!(inf.get(sig) instanceof Redirect)) continue
         const [_, ...T] = resolveSig(inf.inf, sig)
@@ -702,8 +706,8 @@ function outlineInlinePrimitive(inf: Inferred, F: Method, ...Ts: Type[]): MIR {
   const code = MIR(Def(F.name.path))
   const args = Ts.map(T => code.argument(T))
   return withTraits(T => inf.traitType(T), () => {
-    const st = code.stmt(new Invoke(F, [...F.params, ...args]), { type: partialPrimitive.get(F.id)!(...F.params, ...Ts) })
-    code.return(inlinePrimitive.get(F.id)!(code, st as InvokeSt))
+    const st = code.stmt(new Invoke(F, [...F.params, ...args]), { type: some(partialPrimitive(F))(...F.params, ...Ts) })
+    code.return(some(inlinePrimitive(F))(code, st as InvokeSt))
     return code
   })
 }
@@ -711,10 +715,10 @@ function outlineInlinePrimitive(inf: Inferred, F: Method, ...Ts: Type[]): MIR {
 function Expanded(inf: Inferred): Cache<Sig, Redirect | MIR> {
   return new Cache<Sig, Redirect | MIR>((sig: Sig) => {
     const [F, ...Ts] = sig
-    if (F instanceof Method && outlinePrimitive.has(F.id))
-      return withTraits(T => inf.traitType(T), () => outlinePrimitive.get(F.id)!(...F.params, ...Ts))
-    if (F instanceof Method && inlinePrimitive.has(F.id))
-      return outlineInlinePrimitive(inf, F, ...Ts)
+    if (F instanceof Method) {
+      if (outlinePrimitive(F)) return withTraits(T => inf.traitType(T), () => outlinePrimitive(F)!(...F.params, ...Ts))
+      if (inlinePrimitive(F)) return outlineInlinePrimitive(inf, F, ...Ts)
+    }
     const res = inf.get(sig)
     if (res instanceof Redirect) return res
     return expand(inf, ...res)

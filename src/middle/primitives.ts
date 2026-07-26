@@ -7,7 +7,7 @@ import { Method, MIR, Module, Value, xfunc, xstring } from '../frontend/modules.
 import { Def } from '../dwarf/index.js'
 import { xtuple, xcall } from '../frontend/lower.js'
 import { xwasm } from '../frontend/modules.js'
-import { inlinePrimitive, InvokeSt, outlinePrimitive, primitive } from './prim_map.js'
+import { inlinePrimitives, InvokeSt, outlinePrimitives, inlinePrimitive, outlinePrimitive, primitive } from './prim_map.js'
 import { releaseFunction_method } from './refcount.js'
 import { abort, call, layout, wlayout, sizeof, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir, copyir, i32, store, load } from './expand.js'
 import { isreftype } from './refcount.js'
@@ -15,7 +15,7 @@ import { maybe_union, traitType } from './abstract.js'
 import { GetGlobal, SetGlobal } from '../wasm/wasm.js'
 import { xref } from '../wasm/ir.js'
 
-export { core, symbolValues, string, inlinePrimitive, outlinePrimitive, invoke_method, invokeFunction_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, tagcast_method, copy_method, load_method, store_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue }
+export { core, symbolValues, string, inlinePrimitives, outlinePrimitives, inlinePrimitive, outlinePrimitive, invoke_method, invokeFunction_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, tagcast_method, copy_method, load_method, store_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue }
 
 const bitopFuncs = new Map<string, (x: bigint, y: bigint) => bigint>([
   ['shl', (x, y) => x << y],
@@ -323,7 +323,7 @@ function primitives(): Method[] {
 // definition. `outline` ones return an expanded IR fragment, to be called as a
 // normal function.
 
-inlinePrimitive.set(pack_method.id, (code, st) => {
+inlinePrimitives.set(pack_method.id, (code, st) => {
   const T = asType(st.type)
   if (isEqual(T, types.float64())) {
     const arg = st.expr.body[0]
@@ -345,7 +345,7 @@ inlinePrimitive.set(pack_method.id, (code, st) => {
   }
 })
 
-inlinePrimitive.set(part_method.id, (code, st) => {
+inlinePrimitives.set(part_method.id, (code, st) => {
   let [x, i] = st.expr.body
   let [T, I] = [x, i].map(x => asType(code.type(x)))
   if (T.kind === 'recursive') {
@@ -362,12 +362,12 @@ inlinePrimitive.set(part_method.id, (code, st) => {
   return y
 })
 
-outlinePrimitive.set(part_method.id, partir)
+outlinePrimitives.set(part_method.id, partir)
 
 const copy_method = primitive('common.core.copy', '[src, dst, len]', (...xs) => { throw new Error('unimplemented') })
-outlinePrimitive.set(copy_method.id, copyir)
+outlinePrimitives.set(copy_method.id, copyir)
 
-inlinePrimitive.set(packcat_method.id, (code, st) => {
+inlinePrimitives.set(packcat_method.id, (code, st) => {
   const x = st.expr.body[0]
   const S = asType(code.type(x))
   const T = asType(st.type)
@@ -379,9 +379,9 @@ inlinePrimitive.set(packcat_method.id, (code, st) => {
   return code.push(st)
 })
 
-outlinePrimitive.set(packcat_method.id, packir)
+outlinePrimitives.set(packcat_method.id, packir)
 
-inlinePrimitive.set(set_method.id, (code, st) => {
+inlinePrimitives.set(set_method.id, (code, st) => {
   if (asType(st.type).kind === 'pack') {
     const [xs, i, x] = st.expr.body
     return set_pack(code, xs, i, x)
@@ -389,7 +389,7 @@ inlinePrimitive.set(set_method.id, (code, st) => {
   return code.push(st)
 })
 
-outlinePrimitive.set(set_method.id, setir)
+outlinePrimitives.set(set_method.id, setir)
 
 function nparts(code: Fragment<MIR>, T: Type, x: Val<MIR>): Val<MIR> {
   if (T.kind === 'recursive') {
@@ -406,7 +406,7 @@ function nparts(code: Fragment<MIR>, T: Type, x: Val<MIR>): Val<MIR> {
   }
 }
 
-inlinePrimitive.set(nparts_method.id, (code, st) => {
+inlinePrimitives.set(nparts_method.id, (code, st) => {
   let x = st.expr.body[0]
   let T = asType(code.type(x))
   if (T.kind === 'recursive') {
@@ -419,7 +419,7 @@ inlinePrimitive.set(nparts_method.id, (code, st) => {
   return y
 })
 
-outlinePrimitive.set(nparts_method.id, (x: Type): MIR => {
+outlinePrimitives.set(nparts_method.id, (x: Type): MIR => {
   if (x.kind !== 'union') throw new Error('expected union type')
   const code = MIR(Def('common.core.nparts'))
   const retT = partial_nparts(x)
@@ -438,7 +438,7 @@ function constValue(T: Type): Value | undefined {
     return Value.from(T)
 }
 
-inlinePrimitive.set(widen_method.id, (code, st) => {
+inlinePrimitives.set(widen_method.id, (code, st) => {
   const x = st.expr.body[0]
   const T = asType(code.type(x))
   if (types.isAtom(T) && types.isValue(T)) return constValue(T) ?? T
@@ -447,7 +447,7 @@ inlinePrimitive.set(widen_method.id, (code, st) => {
   return x
 })
 
-inlinePrimitive.set(bitsize_method.id, (code, st) => asType(st.type))
+inlinePrimitives.set(bitsize_method.id, (code, st) => asType(st.type))
 
 type BitsType = Type & { kind: 'bits' }
 
@@ -466,7 +466,7 @@ function extend(code: Fragment<MIR>, T: BitsType, x: Val<MIR>): Val<MIR> {
   return x
 }
 
-inlinePrimitive.set(bitcast_method.id, (code, st) => {
+inlinePrimitives.set(bitcast_method.id, (code, st) => {
   if (types.isValue(asType(st.type))) return asType(st.type)
   let x = st.expr.body[1]
   const F = asType(code.type(x))
@@ -483,13 +483,13 @@ inlinePrimitive.set(bitcast_method.id, (code, st) => {
   return x
 })
 
-inlinePrimitive.set(bitcast_s_method.id, (code, st) => {
+inlinePrimitives.set(bitcast_s_method.id, (code, st) => {
   if (types.isValue(asType(st.type))) return asType(st.type)
   let x = st.expr.body[1]
   const F = asType(code.type(x))
   const T = asType(st.type)
   if (F.kind !== 'bits' || T.kind !== 'bits') throw new Error('bitcast_s: expected bits')
-  if (T.size <= F.size) return inlinePrimitive.get(bitcast_method.id)!(code, st)
+  if (T.size <= F.size) return some(inlinePrimitive(bitcast_method))(code, st)
   if (F.size < sizeof(F) * 8) x = extend(code, F, x)
   if (isEqual([sizeof(T), sizeof(F)], [8, 4])) x = code.push(code.stmt(xwasm('i64.extend_i32_s', x), { type: bits(64) }))
   if (T.size < sizeof(T) * 8) x = mask(code, T, x)
@@ -497,7 +497,7 @@ inlinePrimitive.set(bitcast_s_method.id, (code, st) => {
 })
 
 for (const [op, method] of bitop_methods)
-  inlinePrimitive.set(method.id, (code, st) => {
+  inlinePrimitives.set(method.id, (code, st) => {
     const T = asType(st.type)
     if (types.isValue(T)) return T
     if (T.kind !== 'bits') throw new Error('bitop: expected bits')
@@ -514,7 +514,7 @@ for (const [op, method] of bitop_methods)
   })
 
 for (const [op, method] of bitcmp_methods)
-  inlinePrimitive.set(method.id, (code, st) => {
+  inlinePrimitives.set(method.id, (code, st) => {
     if (types.isValue(asType(st.type))) return asType(st.type)
     let x = st.expr.body[0]
     let y = st.expr.body[1]
@@ -528,7 +528,7 @@ for (const [op, method] of bitcmp_methods)
     return code.push({ ...st, expr: xwasm(`${only(wlayout(T))}.${op}`, x, y) })
   })
 
-inlinePrimitive.set(biteqz_method.id, (code, st) => {
+inlinePrimitives.set(biteqz_method.id, (code, st) => {
   const x = st.expr.body[0]
   const T = asType(code.type(x))
   if (types.isValue(asType(st.type))) return asType(st.type)
@@ -543,7 +543,7 @@ function symOverlap(x: Type, y: Type): number[] {
   throw new Error('unimplemented')
 }
 
-inlinePrimitive.set(shortcutEquals_method.id, (code, st) => {
+inlinePrimitives.set(shortcutEquals_method.id, (code, st) => {
   if (types.isValue(asType(st.type))) return asType(st.type)
   let a = st.expr.body[0]
   let b = st.expr.body[1]
@@ -555,7 +555,7 @@ inlinePrimitive.set(shortcutEquals_method.id, (code, st) => {
   return code.push({ ...st, expr: xwasm('i32.eq', i, bits(32, only(ov))) })
 })
 
-inlinePrimitive.set(isnil_method.id, (code, st) => {
+inlinePrimitives.set(isnil_method.id, (code, st) => {
   const x = st.expr.body[0]
   const T = asType(code.type(x))
   if (types.isValue(asType(st.type))) return asType(st.type)
@@ -567,7 +567,7 @@ inlinePrimitive.set(isnil_method.id, (code, st) => {
   return result
 })
 
-inlinePrimitive.set(notnil_method.id, (code, st) => {
+inlinePrimitives.set(notnil_method.id, (code, st) => {
   const x = st.expr.body[0]
   const T = asType(code.type(x))
   const V = st.type
@@ -580,7 +580,7 @@ inlinePrimitive.set(notnil_method.id, (code, st) => {
   return union_downcast(code, T, i, x)
 })
 
-inlinePrimitive.set(tagcast_method.id, (code, st) => {
+inlinePrimitives.set(tagcast_method.id, (code, st) => {
   let x = st.expr.body[0]
   let T = asType(code.type(x))
   const V = st.type
@@ -600,13 +600,13 @@ function string(pr: Fragment<MIR>, s: string) {
   return pr.push(pr.stmt(xstring(s), { type: types.String() }))
 }
 
-inlinePrimitive.set(tagstring_method.id, (code, st) => {
+inlinePrimitives.set(tagstring_method.id, (code, st) => {
   const T = asType(code.type(st.expr.body[0]))
   if (T.kind === 'tag') return string(code, types.asTag(T).path)
   return code.push(st)
 })
 
-outlinePrimitive.set(tagstring_method.id, (T: Type): MIR => {
+outlinePrimitives.set(tagstring_method.id, (T: Type): MIR => {
   if (T.kind !== 'union') throw new Error('expected union type')
   const code = MIR(Def('common.core.tagstring'))
   const x = code.argument(T)
@@ -616,7 +616,7 @@ outlinePrimitive.set(tagstring_method.id, (T: Type): MIR => {
 
 // UB if inferred output type is not `O`
 // TODO wrap with a type check / conversion
-inlinePrimitive.set(function_method.id, (code, st) => {
+inlinePrimitives.set(function_method.id, (code, st) => {
   const [F, I, O] = st.expr.body.slice(0, 3).map(x => asType(code.type(x)))
   if (![I, O].every(types.isValue)) throw new Error('nope')
   const id = code.push(code.stmt(xfunc(invokeFunction_method.param(F, rvtype(O)), types.int32(), rvtype(I)), { type: types.bits(32) }))
@@ -630,7 +630,7 @@ inlinePrimitive.set(function_method.id, (code, st) => {
   return code.push(code.stmt(xtuple(ptr), { type: asType(st.type) }))
 })
 
-inlinePrimitive.set(invoke_method.id, (code, st) => {
+inlinePrimitives.set(invoke_method.id, (code, st) => {
   const [f, I0, , args0] = st.expr.body.slice(0, 4)
   const I = rvtype(asType(code.type(I0)))
   // TODO conversion
@@ -643,7 +643,7 @@ inlinePrimitive.set(invoke_method.id, (code, st) => {
   return result
 })
 
-outlinePrimitive.set(invokeFunction_method.id, (F: Type, O: Type, _: Type, I: Type): MIR => {
+outlinePrimitives.set(invokeFunction_method.id, (F: Type, O: Type, _: Type, I: Type): MIR => {
   const code = MIR(Def('common.core.invokeFunction'))
   const ptr = code.argument(types.int32())
   const args = code.argument(I)
@@ -663,7 +663,7 @@ function ptrOffset(code: Fragment<MIR>, ptr: Val<MIR>, i: Val<MIR>, I: Type, T: 
   return call(code, types.tag('common.+'), [ptr, off], types.int32())
 }
 
-inlinePrimitive.set(alloc_method.id, (code, st) => {
+inlinePrimitives.set(alloc_method.id, (code, st) => {
   const T = rvtype(asType(code.type(st.expr.body[0])))
   const n = st.expr.body[1]
   const count = getIntValue(asType(code.type(n))) === undefined
@@ -675,13 +675,13 @@ inlinePrimitive.set(alloc_method.id, (code, st) => {
   return ptr
 })
 
-inlinePrimitive.set(load_method.id, (code, st) => {
+inlinePrimitives.set(load_method.id, (code, st) => {
   const [t, ptr, i] = st.expr.body
   const T = rvtype(asType(code.type(t)))
   return load(code, T, ptrOffset(code, ptr, i, asType(code.type(i)), T))
 })
 
-inlinePrimitive.set(store_method.id, (code, st) => {
+inlinePrimitives.set(store_method.id, (code, st) => {
   const [t, ptr, i, x] = st.expr.body
   const T = rvtype(asType(code.type(t)))
   const X = asType(code.type(x))
@@ -689,7 +689,7 @@ inlinePrimitive.set(store_method.id, (code, st) => {
   return types.nil
 })
 
-inlinePrimitive.set(length_method.id, (code, st) => {
+inlinePrimitives.set(length_method.id, (code, st) => {
   const ptr = st.expr.body[0]
   const len = load(code, types.int32(), ptr)
   return call(code, types.tag('common.Int64'), [len], types.int64())
@@ -705,8 +705,8 @@ function counter(code: Fragment<MIR>, st: InvokeSt, global: string): Val<MIR> {
   return next
 }
 
-inlinePrimitive.set(allocs_method.id, (code, st) => counter(code, st, 'allocs'))
-inlinePrimitive.set(frees_method.id, (code, st) => counter(code, st, 'frees'))
+inlinePrimitives.set(allocs_method.id, (code, st) => counter(code, st, 'allocs'))
+inlinePrimitives.set(frees_method.id, (code, st) => counter(code, st, 'frees'))
 
 // Core module
 

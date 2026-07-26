@@ -300,8 +300,9 @@ class Tracer {
     }
     // We can't evaluate `rvtype` here.
     if ([invoke_method, load_method].includes(meth)) return
-    if (partialPrimitive.has(meth.id)) {
-      const result = partialPrimitive.get(meth.id)!(...Ts)
+    const partial = partialPrimitive(meth)
+    if (partial) {
+      const result = partial(...Ts)
       if (result === ir.unreachable) return
       if (![invoke_method, store_method].includes(meth) && types.isValue(result)) return result
       return code.push(code.stmt(xcall(meth, ...args), { type: result }))

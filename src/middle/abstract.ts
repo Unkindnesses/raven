@@ -125,9 +125,10 @@ function frame(inf: Inference, P: Parent, sig: Sig): Frame | Anno<Type> {
   const k = key(sig)
   if (inf.frames.has(k)) return inf.frame(sig)
   if (f instanceof Method) {
-    if (partialPrimitive.has(f.id)) return withTraits(T =>
+    const partial = partialPrimitive(f)
+    if (partial) return withTraits(T =>
       traitResult(some(infercall(inf, some(P.sig), ...traitSig(T)))),
-      () => partialPrimitive.get(f.id)!(...Ts))
+      () => partial(...Ts))
     if (P.depth > recursionLimit) return mergeFrames(inf, some(P.sig), sig)
   }
   const [trace, deps] = trackdeps(() => inf.traced.trace(f, ...Ts))
