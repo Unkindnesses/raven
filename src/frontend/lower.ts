@@ -5,7 +5,7 @@ import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast.js"
 import * as types from "./types.js"
 import { Type, Tag, tag, pack, bits, nil, atomValue } from "./types.js"
 import { ValueType, AbsHeapType, i32, i64, f32, f64, externref } from "../wasm/wasm.js"
-import { Module, Binding, MIR, xstring, xjs, Method, Signature, xglobal, xset, SetGlobal, Invoke, Wasm, Modules } from "./modules.js"
+import { Module, Binding, MIR, xstring, xjs, MethodKey, Method, Signature, xglobal, xset, SetGlobal, Invoke, Wasm, Modules } from "./modules.js"
 import { Def } from "../dwarf/index.js"
 import { asBigInt, some } from "../utils/map.js"
 import { isnil_method, notnil_method, part_method, packcat_method } from "../middle/primitives.js"
@@ -774,7 +774,7 @@ function lowerLambda(cx: Lowering, ex: ast.Expr): Val<LIR> {
   const [methodIR, captures] = lowerbody(cx, baseSig, body, Def(name.path, fn.meta && source(fn.meta)))
   const captureNames = captures.map(capture => capture.name)
   const sig = signature(captureNames)
-  const method = new Method(cx.mod, name, sig)
+  const method = new Method(new MethodKey(cx.mod, name, sig))
   const deps = cx.sourceId === undefined ? new Set<bigint>() : new Set([cx.sourceId])
   cx.sources.closures.set(name, [method, methodIR], { deps })
   return lower(cx,
@@ -1033,8 +1033,10 @@ function lowerbody(cx: Lowering, sig: Signature, body: ast.Tree, meta: Def): [MI
   return [toMIR(globals(prune(ssa(fuseblocks(code))))), captures]
 }
 
-function lowerfn(sources: Modules, method: Method, body: ast.Tree, meta: Def, id?: bigint): MIR {
-  return lowerbody(new Lowering(sources, method.mod, method.name, LIR(meta), id), method.sig, body, meta)[0]
+function lowerfn(sources: Modules, method: MethodKey, body: ast.Tree, meta: Def, id?: bigint): MIR {
+  return lowerbody(
+    new Lowering(sources, method.mod, method.name, LIR(meta), id),
+    method.sig, body, meta)[0]
 }
 
 function assignments(code: LIR): Set<string> {
@@ -1114,6 +1116,6 @@ class Lowered implements Caching {
     const id = this.sources.sourceid(method)
     const source = this.sources.source(method)
     if (source.kind === 'ir') return source.body
-    return lowerfn(this.sources, method, source.body, source.meta, id)
+    return lowerfn(this.sources, method.key, source.body, source.meta, id)
   }
 }

@@ -84,7 +84,7 @@ function libWrapperMethod(name: string, f: types.Tag): MethodSource {
 function exportTSSignature(compiler: Compiler, fn: types.Tag): string | undefined {
   const methods = compiler.pipe.defs.methods(fn)
   const tss = methods
-    .map(method => method.ts?.trim())
+    .map(method => method.key.ts?.trim())
     .filter((ts): ts is string => !!ts)
   if (!tss.length) return '(...args: any[]) => Promise<any>'
   const signatures: string[] = []

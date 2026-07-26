@@ -11,7 +11,7 @@ import { Instruction, Op, ValueType } from "../wasm/wasm.js"
 import { isEqual } from "../utils/isEqual.js"
 
 export {
-  Module, Method, Signature, MethodSource, Binding, asBinding, asValue, Modules,
+  Module, MethodKey, Method, Signature, MethodSource, Binding, asBinding, asValue, Modules,
   Definitions, Value, MIR, IRValue, showIRValue,
   StringRef, xstring, JS, xjs, Global, SetGlobal, xglobal, xset, Invoke, Func, xfunc, Wasm, xwasm, calltarget, callargs
 }
@@ -188,22 +188,31 @@ interface Signature {
   swap: Map<number, string>
 }
 
-class Method {
+class MethodKey {
   constructor(
     readonly mod: Tag,
     readonly name: Tag,
     readonly sig: Signature,
-    readonly params: Type[] = [],
+    readonly ts?: string,
     readonly id = cache.nft(),
-    readonly ts?: string
   ) { }
-  get [hash]() { return `${this.id}${this.params.map(x => types.repr(x)).join()}` }
+  get [hash]() { return `${this.id}` }
+  isEqual(other: unknown): other is MethodKey {
+    return other instanceof MethodKey && this.id === other.id
+  }
+}
+
+class Method {
+  constructor(readonly key: MethodKey, readonly params: Type[] = []) { }
+  get id() { return this.key.id }
+  get name() { return this.key.name }
+  get [hash]() { return `${this.key[hash]}${this.params.map(x => types.repr(x)).join()}` }
   toString() { return `Method(${this.name})` }
   isEqual(other: unknown): other is Method {
-    return other instanceof Method && this.id === other.id && isEqual(this.params, other.params)
+    return other instanceof Method && this.key.isEqual(other.key) && isEqual(this.params, other.params)
   }
   param(...Ts: Type[]) {
-    return new Method(this.mod, this.name, this.sig, Ts, this.id, this.ts)
+    return new Method(this.key, Ts)
   }
 }
 
@@ -214,17 +223,18 @@ type MethodSource =
 class Methods implements cache.Caching {
   private imports = new cache.Ref<Tag[]>([])
   private methods = new cache.Map<Tag, (Method | Tag)[]>()
-  private code = new cache.Map<Method, MethodSource>()
+  private code = new cache.Map<MethodKey, MethodSource>()
 
   get subcaches() { return [this.imports, this.methods, this.code] }
   get(k: Tag) { return this.methods.get(k) ?? this.imports.get() }
-  source(m: Method) { return some(this.code.get(m)) }
-  sourceid(m: Method) { return this.code.id(m) }
+  source(m: Method) { return some(this.code.get(m.key)) }
+  sourceid(m: Method) { return this.code.id(m.key) }
 
-  method(m: Method, source?: MethodSource, { id }: { id?: bigint } = {}) {
-    const ms = this.methods.get(m.name) ?? this.imports.get()
-    this.methods.set(m.name, [...ms, m])
-    if (source) this.code.set(m, source, { id })
+  method(key: MethodKey, source?: MethodSource, { id }: { id?: bigint } = {}) {
+    const m = new Method(key)
+    const ms = this.methods.get(key.name) ?? this.imports.get()
+    this.methods.set(key.name, [...ms, m])
+    if (source) this.code.set(key, source, { id })
     return m
   }
 
@@ -243,7 +253,7 @@ class Methods implements cache.Caching {
 
   delete(k: Tag) {
     for (const m of this.get(k))
-      if (m instanceof Method) this.code.delete(m)
+      if (m instanceof Method) this.code.delete(m.key)
     return this.methods.delete(k)
   }
 
@@ -273,7 +283,7 @@ class Module implements cache.Caching {
 
   get subcaches() { return [this.defs, this.methods] }
   method(name: Tag, sig: Signature, source: MethodSource, { ts, id }: { ts?: string, id?: bigint } = {}) {
-    return this.methods.method(new Method(this.name, name, sig, [], undefined, ts), source, { id })
+    return this.methods.method(new MethodKey(this.name, name, sig, ts), source, { id })
   }
   source(m: Method) { return this.methods.source(m) }
   sourceid(m: Method) { return this.methods.sourceid(m) }
@@ -323,11 +333,11 @@ class Modules implements cache.Caching {
   source(m: Method): MethodSource {
     if (this.closures.iscached(m.name))
       return { kind: 'ir', body: this.closures.get(m.name)[1] }
-    return some(this.mods.get(m.mod)).source(m)
+    return some(this.mods.get(m.key.mod)).source(m)
   }
   sourceid(m: Method): bigint {
     if (this.closures.iscached(m.name)) return this.closures.id(m.name)
-    return some(this.mods.get(m.mod)).sourceid(m)
+    return some(this.mods.get(m.key.mod)).sourceid(m)
   }
   resolve_static(b: Binding): Anno<Type> {
     const val = this.get(b)

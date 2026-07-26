@@ -29,9 +29,9 @@ function parts(ir: MIR, v: ir.Val<MIR>): ir.Val<MIR>[] | undefined {
   if (!ir.has(v)) return
   const st = ir.get(v)
   if (st.expr.head === 'pack') return st.expr.body
-  if (st.expr instanceof Invoke && st.expr.method === pack_method)
+  if (st.expr instanceof Invoke && pack_method.isEqual(st.expr.method))
     return parts(ir, st.expr.body[0])?.slice(1)
-  if (st.expr instanceof Invoke && st.expr.method === packcat_method) {
+  if (st.expr instanceof Invoke && packcat_method.isEqual(st.expr.method)) {
     const xs = parts(ir, st.expr.body[0])?.slice(1)
     if (!xs || xs.length === 0) return
     const init = parts(ir, xs[0])
@@ -49,7 +49,7 @@ function parts(ir: MIR, v: ir.Val<MIR>): ir.Val<MIR>[] | undefined {
 function ispure(ex: ir.Expr<IRValue>): boolean {
   if (ex.head === 'pack') return true
   if (ex instanceof Invoke) {
-    if ([pack_method, part_method, packcat_method].some(x => x === ex.method)) return true
+    if ([pack_method, part_method, packcat_method].some(x => x.isEqual(ex.method))) return true
   }
   return false
 }
@@ -100,11 +100,12 @@ class TraceIR implements ir.Fragment<MIR> {
 
   push(stmt: ir.Statement<IRValue, Type>) {
     stmt = { ...stmt, expr: stmt.expr.map(x => this.substitute(x)), src: [...this.stack.flatMap(x => x[1]), ...stmt.src] }
-    if (stmt.expr instanceof Invoke && (stmt.expr.method === notnil_method || stmt.expr.method === tagcast_method)) {
+    if (stmt.expr instanceof Invoke &&
+      (notnil_method.isEqual(stmt.expr.method) || tagcast_method.isEqual(stmt.expr.method))) {
       let x = stmt.expr.body[0]
       if (isEqual(this.ir.type(x), stmt.type)) return this.substitution(x)
     }
-    if (stmt.expr instanceof Invoke && stmt.expr.method === part_method) {
+    if (stmt.expr instanceof Invoke && part_method.isEqual(stmt.expr.method)) {
       let i = asType(this.ir.type(stmt.expr.body[1]))
       let ps = parts(this.ir, stmt.expr.body[0])
       if (ps && getIntValue(i)) return this.substitution(ps[getIntValue(i)!])
@@ -299,12 +300,12 @@ class Tracer {
       if (result !== undefined) return result
     }
     // We can't evaluate `rvtype` here.
-    if ([invoke_method, load_method].includes(meth)) return
+    if ([invoke_method, load_method].some(m => m.isEqual(meth))) return
     const partial = partialPrimitive(meth)
     if (partial) {
       const result = partial(...Ts)
       if (result === ir.unreachable) return
-      if (![invoke_method, store_method].includes(meth) && types.isValue(result)) return result
+      if (![invoke_method, store_method].some(m => m.isEqual(meth)) && types.isValue(result)) return result
       return code.push(code.stmt(xcall(meth, ...args), { type: result }))
     } else {
       const ir = this.lowered.ir(meth)
@@ -324,11 +325,11 @@ class Tracer {
     const full = code.push(code.stmt(xlist<IRValue>(f, args), { type: fullTs }))
     for (const [meth, m] of this.methods.get([func, fullTs])) {
       if (m === undefined) return
-      const as = meth.sig.args.map((a, i) => indexer(code, fullTs, full, m.get(a)![1]))
+      const as = meth.key.sig.args.map((a, i) => indexer(code, fullTs, full, m.get(a)![1]))
       let result = this.traceMethod(code, meth, as)
       if (result === undefined) return
       const T = asType(code.type(result))
-      if (meth.sig.swap.size === 0)
+      if (meth.key.sig.swap.size === 0)
         result = types.isValue(T)
           ? types.list(T)
           : code.push(code.stmt(xlist(result), { type: types.list(T) }))

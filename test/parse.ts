@@ -6,7 +6,7 @@ import { callpattern } from '../src/frontend/patterns.js'
 import { tag, Type } from '../src/frontend/types.js'
 import { asSymbol } from '../src/frontend/ast.js'
 import * as ast from '../src/frontend/ast.js'
-import { Method, Modules } from '../src/frontend/modules.js'
+import { MethodKey, Modules } from '../src/frontend/modules.js'
 import { Def } from '../src/dwarf/index.js'
 
 const parsed = (src: string, file = 'test') => parse(file, src).args
@@ -308,7 +308,7 @@ function lower(def: string) {
   const params = sig.args.slice(1)
   const body = ex.args[2]
   const pat = callpattern(fn, ast.List(...params))
-  return lowerfn(new Modules(), new Method(tag(''), fn, pat), body, Def('test'))
+  return lowerfn(new Modules(), new MethodKey(tag(''), fn, pat), body, Def('test'))
 }
 
 test('lower simple function', () => {

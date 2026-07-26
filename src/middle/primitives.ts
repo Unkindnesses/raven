@@ -712,6 +712,6 @@ inlinePrimitives.set(frees_method.id, (code, st) => counter(code, st, 'frees'))
 
 function core() {
   const mod = new Module(tag('common.core'))
-  for (const meth of primitives()) mod.methods.method(meth)
+  for (const meth of primitives()) mod.methods.method(meth.key)
   return mod
 }
