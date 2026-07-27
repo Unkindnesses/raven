@@ -1,13 +1,13 @@
 export { Bits, Bool, true, false, Int, Int64, Int32, UInt, UInt64, UInt32, UInt16, UInt8, bits, oftype, typemin, typemax, bitsize }
 
-fn matchTrait(tag"common.core.Bits", x: pack(tag"common.core.Bits", _)) { Some(x) }
+fn matchTrait($Bits, x: pack($Bits, _)) { Some(x) }
 
 # TODO lower symbols to literals
 fn tag"common.core.Bits"[N] { Params(Bits, N) }
 
 fn (a: Bits) == (b: Bits) { Bool(biteq(a, b)) }
 
-fn matchTrait(Params(tag"common.core.Bits", N), x: Bits) {
+fn matchTrait(Params($Bits, N), x: Bits) {
   if bitsize(x) == N { Some(tagcast(x, N)) }
 }
 
@@ -43,7 +43,7 @@ bundle Int(x: Bits)
 
 fn tag"common.Int"[N] { Params(Int, N) }
 
-fn matchTrait(Params(tag"common.Int", N), Int(b)) {
+fn matchTrait(Params($Int, N), Int(b)) {
   # TODO b: Bits[N] = ...
   if let Some(b) = matchTrait(Bits[N], b) {
     Some(Int(b))
@@ -143,8 +143,8 @@ fn show(x: Int) {
 
 # Special sizes
 
-fn matchTrait(tag".Int32", x: Int[32]) { Some(x) }
-fn matchTrait(tag".Int64", x: Int[64]) { Some(x) }
+fn matchTrait($Int32, x: Int[32]) { Some(x) }
+fn matchTrait($Int64, x: Int[64]) { Some(x) }
 
 fn Int32(x) { oftype(int 32, x) }
 fn Int64(x) { oftype(int 64, x) }
@@ -163,7 +163,7 @@ bundle UInt(x: Bits)
 
 fn tag"common.UInt"[N] { Params(UInt, N) }
 
-fn matchTrait(Params(tag"common.UInt", N), UInt(b)) {
+fn matchTrait(Params($UInt, N), UInt(b)) {
   if let Some(b) = matchTrait(Bits[N], b) {
     Some(UInt(b))
   }
@@ -245,10 +245,10 @@ fn show(x: UInt) {
 
 # Special sizes
 
-fn matchTrait(tag".UInt8", x: UInt[8]) { Some(x) }
-fn matchTrait(tag".UInt16", x: UInt[16]) { Some(x) }
-fn matchTrait(tag".UInt32", x: UInt[32]) { Some(x) }
-fn matchTrait(tag".UInt64", x: UInt[64]) { Some(x) }
+fn matchTrait($UInt8, x: UInt[8]) { Some(x) }
+fn matchTrait($UInt16, x: UInt[16]) { Some(x) }
+fn matchTrait($UInt32, x: UInt[32]) { Some(x) }
+fn matchTrait($UInt64, x: UInt[64]) { Some(x) }
 
 fn UInt8(x) { oftype(uint 8, x) }
 fn UInt16(x) { oftype(uint 16, x) }

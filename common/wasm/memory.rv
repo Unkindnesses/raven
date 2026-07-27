@@ -1,6 +1,6 @@
 export { Ptr, Function, Ref, Cell, addr, pointer, invoke, length }
 
-fn matchTrait(tag"common.core.Func", x: pack(tag"common.core.Func", _)) { Some(x) }
+fn matchTrait($Func, x: pack($Func, _)) { Some(x) }
 
 fn show(x: Func) { print("Func(...)") }
 

@@ -4,7 +4,7 @@ export {
   readline, import, typeof
 }
 
-fn matchTrait(tag"common.core.Ref", x: pack(tag"common.core.Ref", _)) { Some(x) }
+fn matchTrait($Ref, x: pack($Ref, _)) { Some(x) }
 
 fn show(x: Ref) { print("Ref(...)") }
 
@@ -35,7 +35,7 @@ fn set(&obj: JSObject, [prop: JSObject], x: JSObject) {
   return obj
 }
 
-fn field(tag".js", f: Tag) { field(js(), f) }
+fn field($js, f: Tag) { field(js(), f) }
 
 fn field(obj: JSObject, f: Tag) { obj[string(f)] }
 
@@ -64,7 +64,7 @@ fn call(obj: JSObject, meth: JSObject, x: JSObject) {
   return JSObject(ref)
 }
 
-fn method(tag".js", meth: Tag, args...) {
+fn method($js, meth: Tag, args...) {
   method(js(), meth, args...)
 }
 
@@ -161,7 +161,7 @@ fn primitive?(x: JSObject) {
 
 Primitive = tag".Primitive"
 
-fn matchTrait(tag".Primitive", x: JSObject) {
+fn matchTrait($Primitive, x: JSObject) {
   if primitive?(x) { Some(x) }
 }
 

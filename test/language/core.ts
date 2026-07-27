@@ -115,6 +115,24 @@ test('prefix arithmetic negation operator', async () => {
   `)
 })
 
+test('pattern literal interpolation', async () => {
+  await rv(`
+    Answer = tag".Answer"
+
+    fn answer(_) { false }
+    fn answer($Answer) { true }
+
+    test answer(Answer)
+    test !answer(tag".Other")
+
+    expected = widen(42)
+    matches = if let $expected = widen(42) { true } else { false }
+    differs = if let $expected = widen(41) { false } else { true }
+    test matches
+    test differs
+  `)
+})
+
 test('relu', async () => {
   await rv(`
     fn relu(x) {

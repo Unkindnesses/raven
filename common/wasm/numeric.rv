@@ -1,5 +1,5 @@
-fn matchTrait(tag"common.core.Float32", x: pack(tag"common.core.Float32", _)) { Some(x) }
-fn matchTrait(tag"common.core.Float64", x: pack(tag"common.core.Float64", _)) { Some(x) }
+fn matchTrait($Float32, x: pack($Float32, _)) { Some(x) }
+fn matchTrait($Float64, x: pack($Float64, _)) { Some(x) }
 
 @extend
 fn Float32(x: Float64) {

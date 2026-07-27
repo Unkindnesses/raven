@@ -7,7 +7,7 @@ fn Complex(re: Real, im: Real) {
 
 fn Complex(re: Real) { Complex(re, zero(re)) }
 
-fn matchTrait(tag".Number", x: Complex) { Some(x) }
+fn matchTrait($Number, x: Complex) { Some(x) }
 
 fn real(Complex(re, im)) { re }
 fn imag(Complex(re, im)) { im }

@@ -159,6 +159,10 @@ fn pow(x, n: Int) {
 
 `x: Foo` is a type annotation, which is always optional. Plain `x` in a function signature is the same as `x: Any`.
 
+Prefixing an expression with `$` interpolates its value as a literal in a
+pattern. For example, `fn answer($Answer) { ... }` matches the value stored in
+`Answer`, rather than binding a new argument named `Answer`.
+
 `return`s can be implicit; a function returns whatever its body evaluated to.
 
 ```rust

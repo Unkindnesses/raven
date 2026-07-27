@@ -412,7 +412,7 @@ function prefix(r: Reader): ast.Tree | undefined {
   if (r.eof()) return
   if (r.peek(r => exact(r, '!='))) return postfix(r)
   const loc = r.cursor()
-  if (r.char === '!' || r.char === '-') {
+  if (r.char === '!' || r.char === '-' || r.char === '$') {
     const op = r.read()
     let ex = prefix(r)
     if (ex === undefined) return new ast.Token(ast.symbol(op))

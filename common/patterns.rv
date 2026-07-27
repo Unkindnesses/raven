@@ -3,17 +3,17 @@ export { Any, NotNil, Hole, Literal, Trait, Pack, Bind, Constructor, And
 
 Any = tag".Any"
 
-fn matchTrait(tag".Any", x) { Some(x) }
+fn matchTrait($Any, x) { Some(x) }
 
 NotNil = tag".NotNil"
 
-fn matchTrait(tag".NotNil", x) {
+fn matchTrait($NotNil, x) {
   if !nil?(x) { Some(notnil(x)) }
 }
 
 bundle Params(T, Ts)
 
-fn show(pack(tag".Params", T, Ts...)) {
+fn show(pack($Params, T, Ts...)) {
   show(T)
   show(Ts)
 }
@@ -28,26 +28,26 @@ bundle Pattern {
   And(p, q)
 }
 
-fn constructorPattern(tag"common.core.pack", args...) {
+fn constructorPattern($pack, args...) {
   Pack(args...)
 }
 
-fn _match(val, pack(tag"common.Hole"), deep) {
+fn _match(val, pack($Hole), deep) {
   return [val, record()]
 }
 
-fn _match(val, pack(tag"common.Literal", pat), deep) {
+fn _match(val, pack($Literal, pat), deep) {
   (val == pat) || return
   return [pat, record()]
 }
 
-fn _match(val, pack(tag"common.Trait", T), deep) {
+fn _match(val, pack($Trait, T), deep) {
   m = if deep { castTrait(T, val) } else { matchTrait(T, val) }
   nil?(m) && return
   return [part(notnil(m), 1), record()]
 }
 
-fn _match(val, pack(tag"common.Bind", name, p), deep) {
+fn _match(val, pack($Bind, name, p), deep) {
   m = _match(val, p, deep)
   nil?(m) && return
   m = notnil(m)
@@ -90,7 +90,7 @@ fn _match(xs, p: Pack, deep) {
   return result
 }
 
-fn _match(val, pack(tag".Constructor", name, args...), deep) {
+fn _match(val, pack($Constructor, name, args...), deep) {
   _match(val, constructorPattern(name, args...), deep)
 }
 

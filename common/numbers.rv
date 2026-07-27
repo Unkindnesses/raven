@@ -4,11 +4,11 @@ export {
   zero?, zero, one, round, min, max, factorial
 }
 
-fn matchTrait(tag".Real", x: (Float32 | Float64)) { Some(x) }
-fn matchTrait(tag".Integer", x: (Int | UInt | BigInt)) { Some(x) }
+fn matchTrait($Real, x: (Float32 | Float64)) { Some(x) }
+fn matchTrait($Integer, x: (Int | UInt | BigInt)) { Some(x) }
 
-fn matchTrait(tag".Real", x: Integer) { Some(x) }
-fn matchTrait(tag".Number", x: Real) { Some(x) }
+fn matchTrait($Real, x: Integer) { Some(x) }
+fn matchTrait($Number, x: Real) { Some(x) }
 
 fn coerce(a: Float64, b: Integer) { [a, Float64(b)] }
 

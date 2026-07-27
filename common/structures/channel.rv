@@ -106,7 +106,7 @@ fn take!(&ch: Channel(buf, readers, writers)) {
   return take!(ch)
 }
 
-fn selectPrepare(tag".take!", future: JSFuture, i: Int64, Channel(buf, readers, _)) {
+fn selectPrepare($take!, future: JSFuture, i: Int64, Channel(buf, readers, _)) {
   if length(buf) != 0 {
     resolve!(future, i)
   } else {
@@ -115,12 +115,12 @@ fn selectPrepare(tag".take!", future: JSFuture, i: Int64, Channel(buf, readers, 
   return
 }
 
-fn selectAccept(tag".take!", &ch: Channel) {
+fn selectAccept($take!, &ch: Channel) {
   if let Some(x) = tryTake!(ch) { return x }
   abort("select take failed")
 }
 
-fn selectPrepare(tag".put!", future: JSFuture, i: Int64, Channel(buf, _, writers), _) {
+fn selectPrepare($put!, future: JSFuture, i: Int64, Channel(buf, _, writers), _) {
   if length(buf) != capacity(buf) {
     resolve!(future, i)
   } else {
@@ -129,17 +129,17 @@ fn selectPrepare(tag".put!", future: JSFuture, i: Int64, Channel(buf, _, writers
   return
 }
 
-fn selectAccept(tag".put!", &ch: Channel, x) {
+fn selectAccept($put!, &ch: Channel, x) {
   if !tryPut!(ch, x) { abort("select put failed") }
   return
 }
 
-fn selectPrepare(tag".await", future: JSFuture, i: Int64, promise: JSObject) {
+fn selectPrepare($await, future: JSFuture, i: Int64, promise: JSObject) {
   promise.then(js`return () => \future.resolve(\i)`)
   return
 }
 
-fn selectAccept(tag".await", promise: JSObject) {
+fn selectAccept($await, promise: JSObject) {
   await(promise)
 }
 

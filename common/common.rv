@@ -35,7 +35,7 @@ fn a != b { !(a == b) }
 
 fn matchTrait(_, _) {}
 
-fn matchTrait(tag"common.core.Tag", t: pack(tag"common.core.Tag", _)) { Some(t) }
+fn matchTrait($Tag, t: pack($Tag, _)) { Some(t) }
 
 # matchTrait is a shallow check, looking only at the tag. castTrait also checks
 # the contents, which lets us narrow Any types.

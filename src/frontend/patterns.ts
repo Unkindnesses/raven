@@ -88,6 +88,9 @@ function lowerExpr(cx: Lowering, ex: ast.Tree): Val<LIR> {
   }
   if (typeof x === 'string') throw new Error(`Unsupported string literal ${x}`)
   if (ast.isAtom(x)) return cx.node('Literal', types.atomValue(x))
+  if (x.head === 'Operator' && x.args.length === 2 &&
+    ast.symbol('$').isEqual(x.args[0].unwrap()))
+    return cx.node('Literal', cx.expr(x.args[1]))
   if (x.head === 'Template') return cx.node('Literal', cx.expr(x))
   if (x.head === 'List') {
     const parts = x.args.map(x => lowerExpr(cx, x))
