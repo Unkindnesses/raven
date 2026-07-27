@@ -1,9 +1,15 @@
 import { unreachable, expand, Anno, Block, Expr, Branch, prune, asType } from '../utils/ir.js'
 import { LoopIR, looped, Path, block, nextpath, nextpathTo, blockargs, loop, unloop } from './loop.js'
 import { MatchMethods, dispatcher } from './patterns.js'
-import { Tag, Type, repr, union, issubset as iss, isValue, pack, tag, tagOf, parts, String as RString, Ref, nil, Any, disjuncts } from '../frontend/types.js'
+import {
+  Tag, Type, repr, union, issubset as iss, isValue, pack, Closure,
+  tag, tagOf, parts, String as RString, Ref, nil, Any, disjuncts
+} from '../frontend/types.js'
 import { wasmPartials } from '../backend/wasm.js'
-import { MIR, IRValue, Binding, Method, Definitions, StringRef, JS, Global, SetGlobal, Wasm, callargs } from '../frontend/modules.js'
+import {
+  MIR, IRValue, Binding, Method, Definitions, StringRef, JS, Closure as XClosure,
+  Global, SetGlobal, Wasm, callargs
+} from '../frontend/modules.js'
 import { Lowered } from '../frontend/lower.js'
 import { Def } from '../dwarf/index.js'
 import { WorkQueue } from '../utils/fixpoint.js'
@@ -266,6 +272,10 @@ function update(inf: Inference, k: string): void {
         const Ts = ex.body.map(x => bl.type(x))
         if (Ts.some(t => t === unreachable)) break
         bl.ir.setType(v, pack(...Ts as Type[]))
+      } else if (ex instanceof XClosure) {
+        const Ts = ex.args.map(x => bl.type(x))
+        if (Ts.some(t => t === unreachable)) break
+        bl.ir.setType(v, Closure(ex.method, ...Ts as Type[]))
       } else if (ex instanceof Global) {
         const g = globalFrame(inf, ex.binding)
         fr.deps.add(ex.binding[hash])

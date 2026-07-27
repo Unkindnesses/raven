@@ -1,6 +1,9 @@
 import * as types from '../frontend/types.js'
 import { Tag, Type } from '../frontend/types.js'
-import { Method, Definitions, IRValue, Wasm, Invoke, Global, MIR, SetGlobal, StringRef, JS, Value } from '../frontend/modules.js'
+import {
+  Method, Definitions, IRValue, Wasm, Invoke, Closure, Global, MIR, SetGlobal,
+  StringRef, JS, Value
+} from '../frontend/modules.js'
 import { Lowered } from '../frontend/lower.js'
 import { Def, Stack } from '../dwarf/index.js'
 import * as ir from '../utils/ir.js'
@@ -232,7 +235,7 @@ class Tracer {
       for (const [v, st] of ir.block(bl)) {
         if (st.expr.head === 'call') {
           const op = code.type(st.expr.body[0])
-          if (!(op instanceof Tag)) return
+          if (!(op instanceof Tag)) return // TODO support closures
           const result = this.trace(code, op, st.expr.body, st.src)
           if (result === undefined) return
           code.replace(v, result)
@@ -258,6 +261,10 @@ class Tracer {
           const T = types.pack(...args)
           if (types.isValue(T)) code.replace(v, T)
           else code.replace(v, code.push({ ...st, type: types.pack(...args) }))
+        } else if (st.expr instanceof Closure) {
+          const T = types.Closure(st.expr.method, ...st.expr.args.map(a => asType(code.type(a))))
+          if (types.isValue(T)) code.replace(v, T)
+          else code.replace(v, code.push({ ...st, type: T }))
         } else if (st.expr instanceof Branch) {
           if (st.expr.isreturn()) return st.expr.args[0]
           if (st.expr.isunreachable()) throw new Error('unimplemented')

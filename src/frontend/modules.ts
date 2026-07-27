@@ -12,7 +12,8 @@ import { isEqual } from "../utils/isEqual.js"
 export {
   Module, MethodKey, Method, Signature, MethodSource, MethodIR, Binding, asBinding, asValue, Modules,
   Definitions, Value, MIR, IRValue, showIRValue,
-  StringRef, xstring, JS, xjs, Global, SetGlobal, xglobal, xset, Invoke, Func, xfunc, Wasm, xwasm, calltarget, callargs
+  StringRef, xstring, JS, xjs, Global, SetGlobal, xglobal, xset,
+  Invoke, Closure, xclosure, Func, xfunc, Wasm, xwasm, calltarget, callargs
 }
 
 class Binding {
@@ -119,9 +120,26 @@ class Invoke<T> extends ir.Expr<T> {
   map(f: (x: T | number) => T | number): Invoke<T> { return new Invoke(this.method, this.args.map(f)) }
   show(pr: (x: T | number) => string): string {
     return this.args.length > 0
-      ? `call ${this.method.toString()}, ${this.args.map(pr).join(', ')}`
-      : `call ${this.method.toString()}`
+      ? `call ${this.method}, ${this.args.map(pr).join(', ')}`
+      : `call ${this.method}`
   }
+}
+
+class Closure<T> extends ir.Expr<T> {
+  constructor(readonly method: Method, readonly args: (T | number)[]) {
+    super('closure', args)
+  }
+  map(f: (x: T | number) => T | number): Closure<T> {
+    return new Closure(this.method, this.args.map(f))
+  }
+  show(pr: (x: T | number) => string): string {
+    const captures = this.args.length > 0 ? `, ${this.args.map(pr).join(', ')}` : ''
+    return `closure ${this.method}${captures}`
+  }
+}
+
+function xclosure<T>(method: Method, ...captures: (T | number)[]) {
+  return new Closure<T>(method, captures)
 }
 
 class Func<T> extends ir.Expr<T> {
@@ -129,8 +147,8 @@ class Func<T> extends ir.Expr<T> {
   map(f: (x: T | number) => T | number): Func<T> { return new Func(this.method, this.args.map(f)) }
   show(pr: (x: T | number) => string): string {
     return this.args.length > 0
-      ? `func ${this.method.toString()}, ${this.args.map(pr).join(', ')}`
-      : `func ${this.method.toString()}`
+      ? `func ${this.method}, ${this.args.map(pr).join(', ')}`
+      : `func ${this.method}`
   }
 }
 

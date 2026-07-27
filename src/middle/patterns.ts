@@ -42,6 +42,8 @@ export {
   dispatch_arms, dispatcherDef, dispatcher
 }
 
+type Func = types.Tag | Method
+
 type Path = (number | { start: number, end: number })[]
 
 type Match = Map<string, [types.Type, Path]>
@@ -53,7 +55,7 @@ interface Interpreter {
 }
 
 interface Methods {
-  get(key: [types.Tag, types.Type]): [Method, Match | undefined][]
+  get(key: [Func, types.Type]): [Method, Match | undefined][]
 }
 
 function _assoc(as: Match, name: string, [val, path]: [types.Type, Path]): MatchResult {
@@ -189,7 +191,7 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
     }
 
     case 'pack':
-      if (types.isAtom(val) || val.kind === 'pack') {
+      if (types.isAtom(val) || val.kind === 'closure' || val.kind === 'pack') {
         return partial_match_pack(mod, pat, val, path)
       } else if (val.kind === 'vpack') {
         return partial_match_vpack(mod, pat, val, path)
@@ -225,9 +227,9 @@ function trivial_isa(int: Interpreter, val: types.Type, T: types.Type): boolean 
 
 // Filtered methods
 
-function matchMethods(defs: Definitions, interp: Interpreter, [f, Ts]: [types.Tag, types.Type]) {
+function matchMethods(defs: Definitions, interp: Interpreter, [f, Ts]: [Func, types.Type]) {
   const result: [Method, Match | undefined][] = []
-  const methods = defs.methods(f)
+  const methods = f instanceof Method ? [f] : defs.methods(f)
   for (const meth of methods.slice().reverse()) {
     const P = interp.trace(meth.signature)?.[1]
     const m = P !== undefined && P !== ir.unreachable && types.isValue(P)
@@ -244,14 +246,19 @@ class MatchMethods implements Caching, Methods {
   readonly interp: Traced
   readonly cache: EagerCache<[types.Tag, types.Type], [Method, Match | undefined][]>
 
-  constructor(defs: Definitions, lowered: Lowered) {
+  constructor(readonly defs: Definitions, lowered: Lowered) {
     this.interp = Traced.create(defs, lowered)
     this.cache = new EagerCache(key => matchMethods(defs, this.interp, key))
   }
 
   get subcaches(): Caching[] { return [this.interp, this.cache] }
   reset(deps: Set<bigint>) { reset(pipe(this.interp, this.cache), deps) }
-  get(key: [types.Tag, types.Type]) { return this.cache.get(key) }
+  get(key: [Func, types.Type]) {
+    // TODO closure deletion interacts badly with eager cache recomputes
+    return key[0] instanceof Method
+      ? matchMethods(this.defs, this.interp, key)
+      : this.cache.get([key[0], key[1]])
+  }
 }
 
 // Generate dispatchers
@@ -299,15 +306,19 @@ function dispatcherDef(func: types.Tag) {
 
 function dispatcher(inf: Inference, func: types.Tag, F: types.Type, Ts: types.Type): [MIR, ir.Anno<types.Type>] {
   const code = MIR(dispatcherDef(func))
-  const f = code.argument(F)
+  let f: ir.Val<MIR> = code.argument(F)
   const args = code.argument(Ts)
-  const fullType = types.list(F, Ts)
+  if (F.kind === 'closure') {
+    const P = types.pack(F.method.name, ...F.parts)
+    f = types.isValue(P) ? P : code.push(code.stmt(ir.expr<IRValue>('cast', f), { type: P }))
+  }
+  const fullType = types.list(ir.asType(code.type(f)), Ts)
   const full = code.push(code.stmt(xlist<IRValue>(f, args), { type: fullType }))
   let ret: ir.Anno<types.Type> = ir.unreachable
   let arms = dispatch_arms(fullType)
   const sig: Sig = [func, F, Ts]
   const call = (f: IRValue | Method, ...as: (IRValue | number)[]) => icall(inf, code, sig, f, ...as)
-  for (const [meth, m] of inf.meths.get([func, fullType])) {
+  for (const [meth, m] of inf.meths.get([F.kind === 'closure' ? F.method : func, fullType])) {
     const pat = call(meth.signature)
     if (code.type(pat) === ir.unreachable) { code.block().unreachable(); return [code, ret] }
     if (m === undefined) {

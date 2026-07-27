@@ -5,7 +5,10 @@ import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast.js"
 import * as types from "./types.js"
 import { Type, Tag, tag, pack, bits, nil, atomValue } from "./types.js"
 import { ValueType, AbsHeapType, i32, i64, f32, f64, externref } from "../wasm/wasm.js"
-import { Module, Binding, MIR, xstring, xjs, MethodKey, Method, Signature, MethodSource, MethodIR, xglobal, xset, SetGlobal, Invoke, Wasm, Modules } from "./modules.js"
+import {
+  Module, Binding, MIR, xstring, xjs, MethodKey, Method, Signature, MethodSource, MethodIR,
+  xglobal, xset, SetGlobal, Invoke, Wasm, Modules, xclosure
+} from "./modules.js"
 import { Def } from "../dwarf/index.js"
 import { asBigInt, some } from "../utils/map.js"
 import { isnil_method, notnil_method, part_method, packcat_method } from "../middle/primitives.js"
@@ -755,7 +758,7 @@ function lowerLambda(cx: Lowering, ex: ast.Expr): Val<LIR> {
   const name = new Tag(cx.owner, gensym('λ'))
   const signature = (captures: string[]) => {
     const lambdaType = ast.Call(
-      tag('common.core.pack'), name, ...captures.map(name => symbol(name)))
+      tag('common.core.pack'), symbol('_'), ...captures.map(name => symbol(name)))
     const self = ast.Operator(symbol('_'), symbol(':'), lambdaType)
     return callpattern(cx.mod, name, ast.List(self, ...params))
   }
@@ -767,8 +770,7 @@ function lowerLambda(cx: Lowering, ex: ast.Expr): Val<LIR> {
   cx.closure.methods.push([methodIR, pattern])
   const method = new Method(cx.closure.key, sig, cx.closure.methods.length)
   cx.closure.sources.set(name, method, { deps: new Set([cx.closure.source]) })
-  return lower(cx,
-    ast.Call(tag('common.core.pack'), name, ...captureNames.map(name => symbol(name))).withmeta(fn.meta))
+  return _push(cx.code, xclosure(method, ...captureNames.map(name => cx.sc.get(name))), { src: fn.meta })
 }
 
 function lowerSelect(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {

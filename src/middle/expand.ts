@@ -457,7 +457,7 @@ function lowerdata(inf: Inferred, code: MIR): MIR {
   const pr = new Pipe(code)
   for (const [v, st] of pr) {
     const ex = st.expr
-    if (ex.head === 'pack') {
+    if (ex.head === 'pack' || ex.head === 'closure') {
       const args = ex.body.filter(x => !types.isValue(asType(code.type(x))))
       args.length ? pr.set(v, xtuple(...args)) : pr.replace(v, asType(st.type))
     } else if (ex instanceof Wasm && !ex.isImport()) {
