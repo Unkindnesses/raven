@@ -2,7 +2,6 @@ import { test } from 'vitest'
 import * as assert from 'assert'
 import { parse, expr, PrecTable, Prec, inverse, table } from '../src/frontend/parse.js'
 import { lowerfn, lower_toplevel } from '../src/frontend/lower.js'
-import { callpattern } from '../src/frontend/lower.js'
 import { tag, Type } from '../src/frontend/types.js'
 import { asSymbol } from '../src/frontend/ast.js'
 import * as ast from '../src/frontend/ast.js'
@@ -305,10 +304,11 @@ function lower(def: string) {
     throw new Error('Expected function definition starting with "fn"')
   const signature = ast.asExpr(ex.args[1], 'Call')
   const fn = tag(asSymbol(signature.args[0].unwrap()).toString())
-  const params = signature.args.slice(1)
   const body = ex.args[2]
-  const [sig] = callpattern(tag(''), fn, ast.List(fn, ...params))
-  return lowerfn(new MethodKey(tag(''), fn), sig, body, Def('test'))
+  return lowerfn(
+    new MethodKey(tag(''), fn),
+    { sig: ast.List(fn, ...signature.args.slice(1)), body, meta: Def('test') },
+  )[0]
 }
 
 test('lower simple function', () => {

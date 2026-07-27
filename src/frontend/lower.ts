@@ -5,7 +5,7 @@ import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast.js"
 import * as types from "./types.js"
 import { Type, Tag, tag, pack, bits, nil, atomValue } from "./types.js"
 import { ValueType, AbsHeapType, i32, i64, f32, f64, externref } from "../wasm/wasm.js"
-import { Module, Binding, MIR, xstring, xjs, MethodKey, Method, Signature, MethodIR, xglobal, xset, SetGlobal, Invoke, Wasm, Modules } from "./modules.js"
+import { Module, Binding, MIR, xstring, xjs, MethodKey, Method, Signature, MethodSource, MethodIR, xglobal, xset, SetGlobal, Invoke, Wasm, Modules } from "./modules.js"
 import { Def } from "../dwarf/index.js"
 import { asBigInt, some } from "../utils/map.js"
 import { isnil_method, notnil_method, part_method, packcat_method } from "../middle/primitives.js"
@@ -753,7 +753,8 @@ function lowerLambda(cx: Lowering, ex: ast.Expr): Val<LIR> {
     return callpattern(cx.mod, name, ast.List(self, ...params))
   }
   const [baseSig] = signature([])
-  const [methodIR, captures] = lowerbody(cx, baseSig, body, Def(name.path, fn.meta && source(fn.meta)))
+  const λcx = new Lowering(cx.mod, cx.owner, LIR(Def(name.path, fn.meta && source(fn.meta))), cx.closure, cx.sc)
+  const [methodIR, captures] = lowerbody(λcx, baseSig, body)
   const captureNames = captures.map(capture => capture.name)
   const [sig, pattern] = signature(captureNames)
   const method = new Method(new MethodKey(cx.mod, name), sig)
@@ -1001,21 +1002,21 @@ function initArgs(code: LIR, slots: ir.Slot[]): LIR {
   return pr.finish()
 }
 
-function lowerbody(cx: Lowering, sig: Signature, body: ast.Tree, meta: Def): [MIR, ir.Slot[]] {
-  let code = LIR(meta)
+function lowerbody(cx: Lowering, sig: Signature, body: ast.Tree): [MIR, ir.Slot[]] {
   const captures: ir.Slot[] = []
   const parent = CaptureScope(cx.sc, captures)
-  cx = new Lowering(cx.mod, cx.owner, code, cx.closure, parent, sig.swap).scope()
+  cx = new Lowering(cx.mod, cx.owner, cx.code, cx.closure, parent, sig.swap).scope()
   const params = sig.args.map(arg => ir.slot(arg))
   for (let i = 0; i < params.length; i++) cx.sc.set(sig.args[i], params[i])
   const out = lower(cx, expand(body))
   if (cx.code.block().canbranch()) swapreturn(cx.code, out, cx.swaps)
-  code = initArgs(cx.code, [...captures, ...params])
-  return [finalise(code), captures]
+  return [finalise(initArgs(cx.code, [...captures, ...params])), captures]
 }
 
-function lowerfn(method: MethodKey, sig: Signature, body: ast.Tree, meta: Def, closure?: ClosureContext): MIR {
-  return lowerbody(new Lowering(method.mod, method.name, LIR(meta), closure), sig, body, meta)[0]
+function lowerfn(method: MethodKey, source: MethodSource, closure?: ClosureContext): MethodIR {
+  const [sig, pattern] = callpattern(method.mod, method.name, source.sig)
+  const cx = new Lowering(method.mod, method.name, LIR(source.meta), closure)
+  return [lowerbody(cx, sig, source.body)[0], pattern]
 }
 
 function assignments(code: LIR): Set<string> {
@@ -1095,8 +1096,6 @@ class Lowered implements Caching {
   private lower(method: MethodKey): MethodIR {
     const source = this.sources.source(method)
     const id = this.sources.sourceid(method)
-    const [args, pat] = callpattern(method.mod, method.name, source.sig)
-    const ir = lowerfn(method, args, source.body, source.meta, { sources: this.sources.closures, source: id })
-    return [ir, pat]
+    return lowerfn(method, source, { sources: this.sources.closures, source: id })
   }
 }
