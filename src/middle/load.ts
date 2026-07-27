@@ -99,7 +99,7 @@ function load_expr(cx: LoadState, x: ast.Tree): void {
   for (const def of defs) if (!cx.mod.has(def)) cx.mod.set(def, unreachable)
   const method = cx.mod.method(tag('common.core.main'),
     callpattern(cx.mod.name, tag('common.core.main'), ast.List(tag('common.core.main'))),
-    { kind: 'ir', body: ir }, { id: id })
+    ir, { id: id })
   emit(method)
 }
 
@@ -144,7 +144,7 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
     sigPattern = callpattern(cx.mod.name, fnTag, ast.List(fnTag, ...params))
   }
   const meta = Def(fnTag.path, x.meta && source(x.meta))
-  cx.mod.method(fnTag, sigPattern, { kind: 'fn', body, meta }, { ts })
+  cx.mod.method(fnTag, sigPattern, { body, meta }, { ts })
 }
 
 async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> {

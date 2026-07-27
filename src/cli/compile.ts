@@ -78,7 +78,7 @@ function exportedFunctions(compiler: Compiler): [string, types.Tag][] {
 function libWrapperMethod(name: string, f: types.Tag): MethodSource {
   const args = ast.Call(types.tag('common.collect'), ast.Call(types.tag('common.JSObject'), ast.symbol('args')))
   const body = ast.Call(types.tag('common.js'), ast.Call(f, ast.Splat(args)))
-  return { kind: 'fn', body, meta: Def(name) }
+  return { body, meta: Def(name) }
 }
 
 function exportTSSignature(compiler: Compiler, fn: types.Tag): string | undefined {

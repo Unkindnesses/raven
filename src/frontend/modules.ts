@@ -217,25 +217,26 @@ class Method {
   }
 }
 
-type MethodSource =
-  | { kind: 'fn'; body: ast.Tree; meta: Def }
-  | { kind: 'ir'; body: MIR }
+type MethodSource = { body: ast.Tree, meta: Def }
 
 class Methods implements cache.Caching {
   private imports = new cache.Ref<Tag[]>([])
   private methods = new cache.Map<Tag, (Method | Tag)[]>()
-  private code = new cache.Map<MethodKey, MethodSource>()
+  private sources = new cache.Map<MethodKey, MethodSource>()
+  private lowered = new cache.Map<MethodKey, MIR>()
 
-  get subcaches() { return [this.imports, this.methods, this.code] }
+  get subcaches() { return [this.imports, this.methods, this.sources, this.lowered] }
   get(k: Tag) { return this.methods.get(k) ?? this.imports.get() }
-  source(m: Method) { return some(this.code.get(m.key)) }
-  sourceid(m: Method) { return this.code.id(m.key) }
+  source(m: Method) { return some(this.sources.get(m.key)) }
+  sourceid(m: Method) { return this.sources.id(m.key) }
+  ir(m: Method) { return this.lowered.get(m.key) }
 
-  method(key: MethodKey, source?: MethodSource, { id }: { id?: bigint } = {}) {
+  method(key: MethodKey, source?: MethodSource | MIR, { id }: { id?: bigint } = {}) {
     const m = new Method(key)
     const ms = this.methods.get(key.name) ?? this.imports.get()
     this.methods.set(key.name, [...ms, m])
-    if (source) this.code.set(key, source, { id })
+    if (source instanceof ir.IR) this.lowered.set(key, source, { id })
+    else if (source) this.sources.set(key, source, { id })
     return m
   }
 
@@ -249,12 +250,16 @@ class Methods implements cache.Caching {
   clear() {
     this.imports.set([])
     this.methods.clear()
-    this.code.clear()
+    this.sources.clear()
+    this.lowered.clear()
   }
 
   delete(k: Tag) {
-    for (const m of this.get(k))
-      if (m instanceof Method) this.code.delete(m.key)
+    for (const m of this.get(k)) {
+      if (!(m instanceof Method)) continue
+      this.sources.delete(m.key)
+      this.lowered.delete(m.key)
+    }
     return this.methods.delete(k)
   }
 
@@ -262,7 +267,8 @@ class Methods implements cache.Caching {
     const out = new Methods()
     out.imports = this.imports.clone()
     out.methods = this.methods.clone()
-    out.code = this.code.clone()
+    out.sources = this.sources.clone()
+    out.lowered = this.lowered.clone()
     return out
   }
 }
@@ -283,11 +289,12 @@ class Module implements cache.Caching {
   }
 
   get subcaches() { return [this.defs, this.methods] }
-  method(name: Tag, sig: Signature, source: MethodSource, { ts, id }: { ts?: string, id?: bigint } = {}) {
-    return this.methods.method(new MethodKey(this.name, name, sig, ts), source, { id })
+  method(name: Tag, sig: Signature, body: MethodSource | MIR, { ts, id }: { ts?: string, id?: bigint } = {}) {
+    return this.methods.method(new MethodKey(this.name, name, sig, ts), body, { id })
   }
   source(m: Method) { return this.methods.source(m) }
   sourceid(m: Method) { return this.methods.sourceid(m) }
+  ir(m: Method) { return this.methods.ir(m) }
   get(k: string) { return this.defs.get(k) }
   set(k: string, v: Anno<Type> | Binding) { this.defs.set(k, v) }
   has(k: string) { return this.defs.has(k) }
@@ -332,13 +339,14 @@ class Modules implements cache.Caching {
   get(b: Binding) { return this.mods.get(b.mod)?.get(b.name) }
   set(b: Binding, v: Anno<Type> | Binding) { this.module(b.mod).set(b.name, v) }
   source(m: Method): MethodSource {
-    if (m.isSig) return { kind: 'ir', body: m.key.sig.pattern }
-    if (this.closures.iscached(m.name))
-      return { kind: 'ir', body: this.closures.get(m.name)[1] }
     return some(this.mods.get(m.key.mod)).source(m)
   }
+  ir(m: Method): MIR | undefined {
+    if (m.isSig) return m.key.sig.pattern
+    if (this.closures.iscached(m.name)) return this.closures.get(m.name)[1]
+    return this.mods.get(m.key.mod)?.ir(m)
+  }
   sourceid(m: Method): bigint {
-    if (this.closures.iscached(m.name)) return this.closures.id(m.name)
     return some(this.mods.get(m.key.mod)).sourceid(m)
   }
   resolve_static(b: Binding): Anno<Type> {

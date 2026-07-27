@@ -1092,8 +1092,9 @@ class Lowered implements Caching {
   }
 
   private lower(method: Method): MIR {
+    const ir = this.sources.ir(method)
+    if (ir) return ir
     const source = this.sources.source(method)
-    if (source.kind === 'ir') return source.body
     const id = this.sources.sourceid(method)
     return lowerfn(method.key, source.body, source.meta, { sources: this.sources.closures, source: id })
   }
