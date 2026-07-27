@@ -1,8 +1,8 @@
 import { Type, Tag, tag, asTag, atomValue } from "../frontend/types.js"
-import { Module, Modules, Binding, calltarget } from "../frontend/modules.js"
+import { Module, Modules, MethodKey, Binding, calltarget } from "../frontend/modules.js"
 import { Def } from "../dwarf/index.js"
 import { Anno, unreachable } from "../utils/ir.js"
-import { lower_toplevel, expand, source, attrs, callpattern, modtag } from "../frontend/lower.js"
+import { lower_toplevel, expand, source, attrs, modtag } from "../frontend/lower.js"
 import * as patterns from "../frontend/patterns.js"
 import { symbolValues } from "./primitives.js"
 import * as ast from "../frontend/ast.js"
@@ -96,11 +96,11 @@ async function load_include(cx: LoadState, x: ast.Expr): Promise<void> {
 function load_expr(cx: LoadState, x: ast.Tree): void {
   const meta = Def('(global)', x.meta && source(x.meta))
   const id = nft()
-  const [ir, defs] = lower_toplevel(cx.mod, x, meta, { sources: cx.comp.closures, source: id })
+  const key = new MethodKey(cx.mod.name, tag('common.core.main'))
+  const [methods, defs] = lower_toplevel(
+    cx.mod, key, x, meta, { sources: cx.comp.closures, source: id })
   for (const def of defs) if (!cx.mod.has(def)) cx.mod.set(def, unreachable)
-  const [sig, pattern] =
-    callpattern(cx.mod.name, tag('common.core.main'), ast.List(tag('common.core.main')))
-  const method = cx.mod.method(tag('common.core.main'), sig, [ir, pattern], { id: id })
+  const method = cx.mod.methods.method(key, { args: [], swap: new Map() }, methods, { id })
   emit(method)
 }
 

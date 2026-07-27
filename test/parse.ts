@@ -308,7 +308,7 @@ function lower(def: string) {
   return lowerfn(
     new MethodKey(tag(''), fn),
     { sig: ast.List(fn, ...signature.args.slice(1)), body, meta: Def('test') },
-  )[0]
+  )[0][0]
 }
 
 test('lower simple function', () => {
@@ -407,7 +407,9 @@ test('lower toplevel expression', () => {
   const mod = sources.module(tag('test'))
   mod.set('x', Type(42))
   const expr = first('{ x = x+1, y = y+1 }')
-  const [ir, _] = lower_toplevel(mod, expr, Def('common.core.main'))
+  const key = new MethodKey(mod.name, tag('common.core.main'))
+  const [methods, _] = lower_toplevel(mod, key, expr, Def('common.core.main'))
+  const ir = methods[0][0]
   assert.equal(ir.toString(), `Function common.core.main at undefined
 1:
   %1 = global tag"test".x

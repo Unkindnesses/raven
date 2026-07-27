@@ -314,9 +314,16 @@ interface Scope {
   loops: { kind: 'loop' | 'block', label: string | undefined }[]
 }
 
-interface ClosureContext {
-  sources: Cache<Tag, [Method, MethodIR]>
+interface ClosureSources {
+  sources: Cache<Tag, Method>
   source: bigint
+}
+
+interface ClosureContext {
+  sources: Cache<Tag, Method>
+  source: bigint
+  key: MethodKey
+  methods: MethodIR
 }
 
 class Lowering {
@@ -757,8 +764,9 @@ function lowerLambda(cx: Lowering, ex: ast.Expr): Val<LIR> {
   const [methodIR, captures] = lowerbody(λcx, baseSig, body)
   const captureNames = captures.map(capture => capture.name)
   const [sig, pattern] = signature(captureNames)
-  const method = new Method(new MethodKey(cx.mod, name), sig)
-  cx.closure.sources.set(name, [method, [methodIR, pattern]], { deps: new Set([cx.closure.source]) })
+  cx.closure.methods.push([methodIR, pattern])
+  const method = new Method(cx.closure.key, sig, cx.closure.methods.length)
+  cx.closure.sources.set(name, method, { deps: new Set([cx.closure.source]) })
   return lower(cx,
     ast.Call(tag('common.core.pack'), name, ...captureNames.map(name => symbol(name))).withmeta(fn.meta))
 }
@@ -1013,10 +1021,13 @@ function lowerbody(cx: Lowering, sig: Signature, body: ast.Tree): [MIR, ir.Slot[
   return [finalise(initArgs(cx.code, [...captures, ...params])), captures]
 }
 
-function lowerfn(method: MethodKey, source: MethodSource, closure?: ClosureContext): MethodIR {
+function lowerfn(method: MethodKey, source: MethodSource, closure?: ClosureSources): MethodIR {
+  const methods: MethodIR = []
   const [sig, pattern] = callpattern(method.mod, method.name, source.sig)
-  const cx = new Lowering(method.mod, method.name, LIR(source.meta), closure)
-  return [lowerbody(cx, sig, source.body)[0], pattern]
+  const context = closure && { ...closure, key: method, methods }
+  const cx = new Lowering(method.mod, method.name, LIR(source.meta), context)
+  methods.unshift([lowerbody(cx, sig, source.body)[0], pattern])
+  return methods
 }
 
 function assignments(code: LIR): Set<string> {
@@ -1056,13 +1067,16 @@ function assigned_globals(code: MIR): Map<Binding, Type> {
   return out
 }
 
-function lower_toplevel(mod: Module, ex: ast.Tree, meta: Def, closure?: ClosureContext): [MIR, Set<string>] {
+function lower_toplevel(mod: Module, key: MethodKey, ex: ast.Tree, meta: Def, closure?: ClosureSources): [MethodIR, Set<string>] {
+  const methods: MethodIR = []
   ex = expand(ex)
-  const cx = new Lowering(mod.name, mod.name, LIR(meta), closure)
+  const cx = new Lowering(key.mod, key.mod, LIR(meta), closure && { ...closure, methods, key })
   lower(cx, ex, false)
   cx.code.return(nil)
   const [code, defs] = rewriteGlobals(cx.code, mod)
-  return [finalise(code), defs]
+  const [_, pattern] = callpattern(key.mod, key.name, ast.List(key.name))
+  methods.unshift([finalise(code), pattern])
+  return [methods, defs]
 }
 
 // Turn global references into explicit load instructions
@@ -1090,7 +1104,7 @@ class Lowered implements Caching {
 
   ir(method: Method): MIR {
     const lowered = this.sources.ir(method.key) ?? this.irs.get(method.key)
-    return some(lowered[+method.isSig])
+    return some(lowered[method.lambda]?.[+method.isSig])
   }
 
   private lower(method: MethodKey): MethodIR {

@@ -207,25 +207,26 @@ class Method {
   constructor(
     readonly key: MethodKey,
     readonly sig: Signature = { args: [], swap: new Map() },
+    readonly lambda = 0,
     readonly isSig = false,
     readonly params: Type[] = [],
   ) { }
   get id() { return this.key.id }
   get name() { return this.key.name }
-  get [hash]() { return `${this.key[hash]}${this.isSig}${this.params.map(x => types.repr(x)).join()}` }
+  get [hash]() { return `${this.key[hash]}${this.lambda}${this.isSig}${this.params.map(x => types.repr(x)).join()}` }
   toString() { return `Method(${this.name})` }
   isEqual(other: unknown): other is Method {
     return other instanceof Method && this.key.isEqual(other.key) &&
-      this.isSig === other.isSig && isEqual(this.params, other.params)
+      this.lambda === other.lambda && this.isSig === other.isSig && isEqual(this.params, other.params)
   }
-  get signature() { return new Method(this.key, undefined, true, this.params) }
+  get signature() { return new Method(this.key, undefined, this.lambda, true, this.params) }
   param(...Ts: Type[]) {
-    return new Method(this.key, this.sig, this.isSig, Ts)
+    return new Method(this.key, this.sig, this.lambda, this.isSig, Ts)
   }
 }
 
 type MethodSource = { body: ast.Tree, sig: ast.Tree, meta: Def }
-type MethodIR = [body: MIR, pattern: MIR]
+type MethodIR = [body: MIR, pattern: MIR][]
 
 class Methods implements cache.Caching {
   private imports = new cache.Ref<Tag[]>([])
@@ -329,7 +330,7 @@ class Module implements cache.Caching {
 
 class Modules implements cache.Caching {
   private mods = new HashMap<Tag, Module>()
-  readonly closures = new cache.Cache<Tag, [Method, MethodIR]>(name => {
+  readonly closures = new cache.Cache<Tag, Method>(name => {
     throw new Error(`Closure not found: ${name}`)
   })
   get subcaches() { return [...this.mods.values(), this.closures] }
@@ -350,7 +351,6 @@ class Modules implements cache.Caching {
     return some(this.mods.get(m.mod)).source(m)
   }
   ir(m: MethodKey): MethodIR | undefined {
-    if (this.closures.iscached(m.name)) return this.closures.get(m.name)[1]
     return this.mods.get(m.mod)?.ir(m)
   }
   sourceid(m: MethodKey): bigint {
@@ -372,7 +372,7 @@ class Modules implements cache.Caching {
 }
 
 function methods(cx: Modules, name: Tag, mod: Tag = tag(""), ms: Method[] = [], seen = new Set<Tag>()) {
-  if (cx.closures.iscached(name)) return [cx.closures.get(name)[0]]
+  if (cx.closures.iscached(name)) return [cx.closures.get(name)]
   for (const m of cx.module(mod).methods.get(name)) {
     if (m instanceof Tag) {
       if (seen.has(m)) continue
