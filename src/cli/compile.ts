@@ -1,7 +1,7 @@
 import * as wasm from '../backend/wasm.js'
 import * as types from '../frontend/types.js'
 import * as ast from '../frontend/ast.js'
-import { Binding, MethodSource } from '../frontend/modules.js'
+import { Binding } from '../frontend/modules.js'
 import { callpattern } from '../frontend/lower.js'
 import { Options, withOptions } from '../utils/options.js'
 import * as path from 'path'
@@ -75,7 +75,7 @@ function exportedFunctions(compiler: Compiler): [string, types.Tag][] {
 
 // TODO better to have a generic means for converting to JS functions. Exported
 // globals can implicitly convert to JS, and we don't need to wrap.
-function libWrapperMethod(name: string, f: types.Tag): MethodSource {
+function libWrapperMethod(name: string, f: types.Tag) {
   const args = ast.Call(types.tag('common.collect'), ast.Call(types.tag('common.JSObject'), ast.symbol('args')))
   const body = ast.Call(types.tag('common.js'), ast.Call(f, ast.Splat(args)))
   return { body, meta: Def(name) }
@@ -128,8 +128,8 @@ async function compileJS(file: string, config: CompileConfig = {}): Promise<[Com
       if (!isJSIdentifier(name))
         throw new Error(`Cannot export ${JSON.stringify(name)} as a JS binding`)
       const tag = types.tag(`__raven.lib.${i}`)
-      const sig = callpattern(types.tag(''), tag, ast.List(tag, ast.symbol('args')))
-      const method = mod.method(tag, sig, libWrapperMethod(tag.path, fn))
+      const [sig, pattern] = callpattern(types.tag(''), tag, ast.List(tag, ast.symbol('args')))
+      const method = mod.method(tag, sig, { ...libWrapperMethod(tag.path, fn), pattern })
       const wname = `raven.lib.${name}`
       compiler.pipe.export(em, [method, types.Ref], wname)
       exports.push([name, wname, exportTSSignature(compiler, fn)])

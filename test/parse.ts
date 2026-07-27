@@ -303,12 +303,12 @@ function lower(def: string) {
   const ex = first(def)
   if (!ast.isSyntax(ex, 'fn'))
     throw new Error('Expected function definition starting with "fn"')
-  const sig = ast.asExpr(ex.args[1], 'Call')
-  const fn = tag(asSymbol(sig.args[0].unwrap()).toString())
-  const params = sig.args.slice(1)
+  const signature = ast.asExpr(ex.args[1], 'Call')
+  const fn = tag(asSymbol(signature.args[0].unwrap()).toString())
+  const params = signature.args.slice(1)
   const body = ex.args[2]
-  const pat = callpattern(tag(''), fn, ast.List(fn, ...params))
-  return lowerfn(new MethodKey(tag(''), fn, pat), body, Def('test'))
+  const [sig] = callpattern(tag(''), fn, ast.List(fn, ...params))
+  return lowerfn(new MethodKey(tag(''), fn, sig), body, Def('test'))
 }
 
 test('lower simple function', () => {

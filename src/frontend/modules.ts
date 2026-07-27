@@ -10,7 +10,7 @@ import { Instruction, Op, ValueType } from "../wasm/wasm.js"
 import { isEqual } from "../utils/isEqual.js"
 
 export {
-  Module, MethodKey, Method, Signature, MethodSource, Binding, asBinding, asValue, Modules,
+  Module, MethodKey, Method, Signature, MethodSource, MethodIR, Binding, asBinding, asValue, Modules,
   Definitions, Value, MIR, IRValue, showIRValue,
   StringRef, xstring, JS, xjs, Global, SetGlobal, xglobal, xset, Invoke, Func, xfunc, Wasm, xwasm, calltarget, callargs
 }
@@ -182,7 +182,6 @@ function callargs(code: ir.Fragment<MIR>, ex: ir.Expr<IRValue>): [Tag | Method, 
 }
 
 interface Signature {
-  pattern: MIR
   args: string[]
   swap: Map<number, string>
 }
@@ -217,25 +216,30 @@ class Method {
   }
 }
 
-type MethodSource = { body: ast.Tree, meta: Def }
+type MethodSource = { body: ast.Tree, pattern: MIR, meta: Def }
+type MethodIR = [body: MIR | undefined, pattern: MIR]
 
 class Methods implements cache.Caching {
   private imports = new cache.Ref<Tag[]>([])
   private methods = new cache.Map<Tag, (Method | Tag)[]>()
   private sources = new cache.Map<MethodKey, MethodSource>()
-  private lowered = new cache.Map<MethodKey, MIR>()
+  private lowered = new cache.Map<MethodKey, MethodIR>()
 
   get subcaches() { return [this.imports, this.methods, this.sources, this.lowered] }
   get(k: Tag) { return this.methods.get(k) ?? this.imports.get() }
   source(m: Method) { return some(this.sources.get(m.key)) }
   sourceid(m: Method) { return this.sources.id(m.key) }
-  ir(m: Method) { return this.lowered.get(m.key) }
+  ir(m: Method) {
+    const source = this.sources.get(m.key)
+    const lowered = this.lowered.get(m.key)
+    return m.isSig ? source?.pattern ?? lowered?.[1] : lowered?.[0]
+  }
 
-  method(key: MethodKey, source?: MethodSource | MIR, { id }: { id?: bigint } = {}) {
+  method(key: MethodKey, source?: MethodSource | MethodIR, { id }: { id?: bigint } = {}) {
     const m = new Method(key)
     const ms = this.methods.get(key.name) ?? this.imports.get()
     this.methods.set(key.name, [...ms, m])
-    if (source instanceof ir.IR) this.lowered.set(key, source, { id })
+    if (Array.isArray(source)) this.lowered.set(key, source, { id })
     else if (source) this.sources.set(key, source, { id })
     return m
   }
@@ -289,7 +293,7 @@ class Module implements cache.Caching {
   }
 
   get subcaches() { return [this.defs, this.methods] }
-  method(name: Tag, sig: Signature, body: MethodSource | MIR, { ts, id }: { ts?: string, id?: bigint } = {}) {
+  method(name: Tag, sig: Signature, body: MethodSource | MethodIR, { ts, id }: { ts?: string, id?: bigint } = {}) {
     return this.methods.method(new MethodKey(this.name, name, sig, ts), body, { id })
   }
   source(m: Method) { return this.methods.source(m) }
@@ -321,7 +325,7 @@ class Module implements cache.Caching {
 
 class Modules implements cache.Caching {
   private mods = new HashMap<Tag, Module>()
-  readonly closures = new cache.Cache<Tag, [Method, MIR]>(name => {
+  readonly closures = new cache.Cache<Tag, [Method, MethodIR]>(name => {
     throw new Error(`Closure not found: ${name}`)
   })
   get subcaches() { return [...this.mods.values(), this.closures] }
@@ -342,8 +346,7 @@ class Modules implements cache.Caching {
     return some(this.mods.get(m.key.mod)).source(m)
   }
   ir(m: Method): MIR | undefined {
-    if (m.isSig) return m.key.sig.pattern
-    if (this.closures.iscached(m.name)) return this.closures.get(m.name)[1]
+    if (this.closures.iscached(m.name)) return this.closures.get(m.name)[1][+m.isSig]
     return this.mods.get(m.key.mod)?.ir(m)
   }
   sourceid(m: Method): bigint {

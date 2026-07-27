@@ -1,5 +1,5 @@
 import { Type, Tag, tag, asTag, atomValue } from "../frontend/types.js"
-import { Module, Modules, Binding, Signature, calltarget } from "../frontend/modules.js"
+import { Module, Modules, Binding, calltarget } from "../frontend/modules.js"
 import { Def } from "../dwarf/index.js"
 import { Anno, unreachable } from "../utils/ir.js"
 import { lower_toplevel, expand, source, attrs, callpattern, modtag } from "../frontend/lower.js"
@@ -97,9 +97,9 @@ function load_expr(cx: LoadState, x: ast.Tree): void {
   const id = nft()
   const [ir, defs] = lower_toplevel(cx.mod, x, meta, { sources: cx.comp.closures, source: id })
   for (const def of defs) if (!cx.mod.has(def)) cx.mod.set(def, unreachable)
-  const method = cx.mod.method(tag('common.core.main'),
-    callpattern(cx.mod.name, tag('common.core.main'), ast.List(tag('common.core.main'))),
-    ir, { id: id })
+  const [sig, pattern] =
+    callpattern(cx.mod.name, tag('common.core.main'), ast.List(tag('common.core.main')))
+  const method = cx.mod.method(tag('common.core.main'), sig, [ir, pattern], { id: id })
   emit(method)
 }
 
@@ -130,10 +130,10 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
     !(variable instanceof Tag) &&
     !(variable instanceof ast.Symbol)
   let fnTag: Tag
-  let sigPattern: Signature
+  let call
   if (callable) {
     fnTag = receiverTag(cx, signature.args[0])
-    sigPattern = callpattern(cx.mod.name, fnTag, ast.List(...signature.args))
+    call = callpattern(cx.mod.name, fnTag, ast.List(...signature.args))
   } else {
     fnTag =
       variable instanceof Tag ? variable :
@@ -141,10 +141,11 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
           new Tag(cx.mod.name, ast.asSymbol(variable).toString())
     if (!extend && variable instanceof ast.Symbol)
       cx.mod.set(variable.toString(), fnTag)
-    sigPattern = callpattern(cx.mod.name, fnTag, ast.List(fnTag, ...params))
+    call = callpattern(cx.mod.name, fnTag, ast.List(fnTag, ...params))
   }
+  const [sigPattern, pattern] = call
   const meta = Def(fnTag.path, x.meta && source(x.meta))
-  cx.mod.method(fnTag, sigPattern, { body, meta }, { ts })
+  cx.mod.method(fnTag, sigPattern, { body, pattern, meta }, { ts })
 }
 
 async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> {

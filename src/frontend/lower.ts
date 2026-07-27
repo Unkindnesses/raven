@@ -5,7 +5,7 @@ import { asSymbol, asString, Symbol, symbol, gensym, token } from "./ast.js"
 import * as types from "./types.js"
 import { Type, Tag, tag, pack, bits, nil, atomValue } from "./types.js"
 import { ValueType, AbsHeapType, i32, i64, f32, f64, externref } from "../wasm/wasm.js"
-import { Module, Binding, MIR, xstring, xjs, MethodKey, Method, Signature, xglobal, xset, SetGlobal, Invoke, Wasm, Modules } from "./modules.js"
+import { Module, Binding, MIR, xstring, xjs, MethodKey, Method, Signature, MethodIR, xglobal, xset, SetGlobal, Invoke, Wasm, Modules } from "./modules.js"
 import { Def } from "../dwarf/index.js"
 import { asBigInt, some } from "../utils/map.js"
 import { isnil_method, notnil_method, part_method, packcat_method } from "../middle/primitives.js"
@@ -315,7 +315,7 @@ interface Scope {
 }
 
 interface ClosureContext {
-  sources: Cache<Tag, [Method, MIR]>
+  sources: Cache<Tag, [Method, MethodIR]>
   source: bigint
 }
 
@@ -423,7 +423,7 @@ function lowerpattern(cx: Lowering, ex: ast.Tree) {
 
 // TODO [f, args...] would be more elegant, but for that we need a linked-list
 // like representation for arg lists which can preserve types when splatting.
-function callpattern(mod: Tag, func: Tag, ex: ast.Tree): Signature {
+function callpattern(mod: Tag, func: Tag, ex: ast.Tree): [Signature, MIR] {
   if (ast.asExpr(ex).args.length === 0)
     throw new Error('callpattern: expected a callee and argument list')
   const meta = Def(`${func.path} (signature)`, ex.meta && source(ex.meta))
@@ -433,7 +433,7 @@ function callpattern(mod: Tag, func: Tag, ex: ast.Tree): Signature {
   const [callee, ...xs] = ast.asExpr(pattern, 'List').args
   const [result, args] = patterns.lowerPattern(patternBuilder(cx), ast.List(callee, ast.List(...xs)))
   code.return(result)
-  return { pattern: finalise(code), args, swap }
+  return [{ args, swap }, finalise(code)]
 }
 
 function _lowermatch(cx: Lowering, val: Val<LIR>, pattern: Val<LIR>, args: string[], pat: ast.Tree): Val<LIR> {
@@ -752,12 +752,12 @@ function lowerLambda(cx: Lowering, ex: ast.Expr): Val<LIR> {
     const self = ast.Operator(symbol('_'), symbol(':'), lambdaType)
     return callpattern(cx.mod, name, ast.List(self, ...params))
   }
-  const baseSig = signature([])
+  const [baseSig] = signature([])
   const [methodIR, captures] = lowerbody(cx, baseSig, body, Def(name.path, fn.meta && source(fn.meta)))
   const captureNames = captures.map(capture => capture.name)
-  const sig = signature(captureNames)
+  const [sig, pattern] = signature(captureNames)
   const method = new Method(new MethodKey(cx.mod, name, sig))
-  cx.closure.sources.set(name, [method, methodIR], { deps: new Set([cx.closure.source]) })
+  cx.closure.sources.set(name, [method, [methodIR, pattern]], { deps: new Set([cx.closure.source]) })
   return lower(cx,
     ast.Call(tag('common.core.pack'), name, ...captureNames.map(name => symbol(name))).withmeta(fn.meta))
 }
