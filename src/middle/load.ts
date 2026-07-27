@@ -3,6 +3,7 @@ import { Module, Modules, Binding, calltarget } from "../frontend/modules.js"
 import { Def } from "../dwarf/index.js"
 import { Anno, unreachable } from "../utils/ir.js"
 import { lower_toplevel, expand, source, attrs, callpattern, modtag } from "../frontend/lower.js"
+import * as patterns from "../frontend/patterns.js"
 import { symbolValues } from "./primitives.js"
 import * as ast from "../frontend/ast.js"
 import { parse } from "../frontend/parse.js"
@@ -116,24 +117,23 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
   x = ast.asExpr(x)
   const extend = as.has('extend')
   const ts = attrString('ts', as.get('ts'))
-  const [sig, body] = x.args.slice(1)
-  let signature = sig.ungroup()
-  if (ast.isExpr(signature, 'Index')) {
-    const [x, ...idxs] = signature.args
-    signature = ast.Call(tag('common.get'), x, ast.List(...idxs))
+  let [sig, body] = x.args.slice(1)
+  sig = sig.ungroup()
+  if (ast.isExpr(sig, 'Index')) {
+    const [x, ...idxs] = sig.args
+    sig = ast.Call(tag('common.get'), x, ast.List(...idxs))
   }
-  if (!ast.isExpr(signature, 'Call') && !ast.isExpr(signature, 'Operator'))
-    throw new Error(`Expected function signature, got ${ast.repr(signature)}`)
-  const [callee, ...params] = ast.callargs(signature)
+  if (!ast.isExpr(sig, 'Call') && !ast.isExpr(sig, 'Operator'))
+    throw new Error(`Expected function signature, got ${ast.repr(sig)}`)
+  const [callee, ...params] = ast.callargs(sig)
   const variable = callee.unwrap()
-  const callable = ast.isExpr(signature, 'Call') &&
+  const callable = ast.isExpr(sig, 'Call') &&
     !(variable instanceof Tag) &&
     !(variable instanceof ast.Symbol)
   let fnTag: Tag
-  let call
   if (callable) {
-    fnTag = receiverTag(cx, signature.args[0])
-    call = callpattern(cx.mod.name, fnTag, ast.List(...signature.args))
+    fnTag = receiverTag(cx, sig.args[0])
+    sig = ast.List(...sig.args)
   } else {
     fnTag =
       variable instanceof Tag ? variable :
@@ -141,11 +141,10 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
           new Tag(cx.mod.name, ast.asSymbol(variable).toString())
     if (!extend && variable instanceof ast.Symbol)
       cx.mod.set(variable.toString(), fnTag)
-    call = callpattern(cx.mod.name, fnTag, ast.List(fnTag, ...params))
+    sig = ast.List(fnTag, ...params)
   }
-  const [sigPattern, pattern] = call
   const meta = Def(fnTag.path, x.meta && source(x.meta))
-  cx.mod.method(fnTag, sigPattern, { body, pattern, meta }, { ts })
+  cx.mod.method(fnTag, patterns.signature(sig), { body, sig, meta }, { ts })
 }
 
 async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> {

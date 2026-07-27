@@ -1,9 +1,10 @@
 import { tag, Type } from '../frontend/types.js'
-import { IRValue, Invoke, MIR, MethodKey, Method, Signature, MethodIR } from '../frontend/modules.js'
+import { IRValue, Invoke, MIR, MethodKey, Method, MethodIR } from '../frontend/modules.js'
 import { Anno, Fragment, Statement, Val } from '../utils/ir.js'
 import * as parse from '../frontend/parse.js'
 import * as ast from '../frontend/ast.js'
 import { callpattern } from '../frontend/lower.js'
+import * as patterns from '../frontend/patterns.js'
 
 export {
   InvokeSt, partialPrimitives, inlinePrimitives, outlinePrimitives,
@@ -41,14 +42,9 @@ function primitiveIR(method: Method): MethodIR {
 function primitive(name: string, pattern: string, func?: (...args: Type[]) => Anno<Type>): Method {
   func ??= (...args) => { throw new Error(`no partial for ${name}`) }
   const ex = ast.asExpr(parse.expr(pattern), 'List')
-  let call: [Signature, MIR] | undefined
-  const get = () => call ??= callpattern(tag('common.core'), tag(name), ast.List(tag(name), ...ex.args))
-  const lazy: Signature = { // TODO awful
-    get args() { return get()[0].args },
-    get swap() { return get()[0].swap }
-  }
+  const sigExpr = ast.List(tag(name), ...ex.args)
   const method = new MethodKey(tag('common.core'), tag(name))
-  primitivePatterns.set(method.id, () => get()[1])
+  primitivePatterns.set(method.id, () => callpattern(tag('common.core'), tag(name), sigExpr)[1])
   partialPrimitives.set(method.id, func)
-  return new Method(method, lazy)
+  return new Method(method, patterns.signature(sigExpr))
 }

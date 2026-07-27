@@ -4,7 +4,7 @@ import { Type } from './types.js'
 import { LIR } from './lower.js'
 import { Val } from '../utils/ir.js'
 
-export { Pattern, Builder, pattern, swaps as processSwaps, lowerPattern }
+export { Pattern, Builder, pattern, signature, swaps as processSwaps, lowerPattern }
 
 type Pattern =
   | { kind: 'hole' }
@@ -112,4 +112,10 @@ function lowerExpr(cx: Lowering, ex: ast.Tree): Val<LIR> {
 function lowerPattern(builder: Builder, ex: ast.Tree): [Val<LIR>, string[]] {
   const cx = lowering(builder)
   return [lowerExpr(cx, ex), cx.args]
+}
+
+function signature(ex: ast.Tree): { args: string[], swap: Map<number, string> } {
+  const [pattern, swap] = swaps(ex)
+  const [, args] = lowerPattern({ expr: () => 0, node: () => 0 }, pattern)
+  return { args, swap }
 }

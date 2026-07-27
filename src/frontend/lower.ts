@@ -1079,23 +1079,24 @@ function globals(code: LIR): LIR {
 }
 
 class Lowered implements Caching {
-  readonly irs: Cache<Method, MIR>
+  readonly irs: Cache<MethodKey, MethodIR>
 
   constructor(readonly sources: Modules) {
-    this.irs = new Cache<Method, MIR>(method => this.lower(method))
+    this.irs = new Cache<MethodKey, MethodIR>(key => this.lower(key))
   }
 
   get subcaches() { return [this.irs] }
 
   ir(method: Method): MIR {
-    return this.irs.get(method)
+    const lowered = this.sources.ir(method.key) ?? this.irs.get(method.key)
+    return some(lowered[+method.isSig])
   }
 
-  private lower(method: Method): MIR {
-    const ir = this.sources.ir(method)
-    if (ir) return ir
+  private lower(method: MethodKey): MethodIR {
     const source = this.sources.source(method)
     const id = this.sources.sourceid(method)
-    return lowerfn(method.key, method.sig, source.body, source.meta, { sources: this.sources.closures, source: id })
+    const [args, pat] = callpattern(method.mod, method.name, source.sig)
+    const ir = lowerfn(method, args, source.body, source.meta, { sources: this.sources.closures, source: id })
+    return [ir, pat]
   }
 }

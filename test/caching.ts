@@ -57,7 +57,7 @@ test('closures', async () => {
   const compiler = await Compiler.create(load, source('', 'fn foo() { fn { fn { 1 } } }'))
   const { lowered, sources } = compiler.pipe
   const foo = compiler.pipe.defs.methods(tag('foo'))[0]
-  const sourceId = sources.sourceid(foo)
+  const sourceId = sources.sourceid(foo.key)
 
   lowered.ir(foo)
   const closures = Array.from(sources.closures.keys()).filter(name => name.path.startsWith('foo.λ_'))

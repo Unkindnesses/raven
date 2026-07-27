@@ -186,6 +186,10 @@ interface Signature {
   swap: Map<number, string>
 }
 
+// MethodKey roughly corresponds to a source definition, `fn foo(...) { ... }`.
+// One source implies multiple callable fragments (the body, a pattern
+// constructor, lambdas etc), represented by `Method`.
+
 class MethodKey {
   constructor(
     readonly mod: Tag,
@@ -220,7 +224,7 @@ class Method {
   }
 }
 
-type MethodSource = { body: ast.Tree, pattern: MIR, meta: Def }
+type MethodSource = { body: ast.Tree, sig: ast.Tree, meta: Def }
 type MethodIR = [body: MIR | undefined, pattern: MIR]
 
 class Methods implements cache.Caching {
@@ -231,13 +235,9 @@ class Methods implements cache.Caching {
 
   get subcaches() { return [this.imports, this.methods, this.sources, this.lowered] }
   get(k: Tag) { return this.methods.get(k) ?? this.imports.get() }
-  source(m: Method) { return some(this.sources.get(m.key)) }
-  sourceid(m: Method) { return this.sources.id(m.key) }
-  ir(m: Method) {
-    const source = this.sources.get(m.key)
-    const lowered = this.lowered.get(m.key)
-    return m.isSig ? source?.pattern ?? lowered?.[1] : lowered?.[0]
-  }
+  source(m: MethodKey) { return some(this.sources.get(m)) }
+  sourceid(m: MethodKey) { return this.sources.id(m) }
+  ir(m: MethodKey) { return this.lowered.get(m) }
 
   method(key: MethodKey, sig: Signature, source?: MethodSource | MethodIR, { id }: { id?: bigint } = {}) {
     const m = new Method(key, sig)
@@ -300,9 +300,9 @@ class Module implements cache.Caching {
   method(name: Tag, sig: Signature, body: MethodSource | MethodIR, { ts, id }: { ts?: string, id?: bigint } = {}) {
     return this.methods.method(new MethodKey(this.name, name, ts), sig, body, { id })
   }
-  source(m: Method) { return this.methods.source(m) }
-  sourceid(m: Method) { return this.methods.sourceid(m) }
-  ir(m: Method) { return this.methods.ir(m) }
+  source(m: MethodKey) { return this.methods.source(m) }
+  sourceid(m: MethodKey) { return this.methods.sourceid(m) }
+  ir(m: MethodKey) { return this.methods.ir(m) }
   get(k: string) { return this.defs.get(k) }
   set(k: string, v: Anno<Type> | Binding) { this.defs.set(k, v) }
   has(k: string) { return this.defs.has(k) }
@@ -346,15 +346,15 @@ class Modules implements cache.Caching {
   }
   get(b: Binding) { return this.mods.get(b.mod)?.get(b.name) }
   set(b: Binding, v: Anno<Type> | Binding) { this.module(b.mod).set(b.name, v) }
-  source(m: Method): MethodSource {
-    return some(this.mods.get(m.key.mod)).source(m)
+  source(m: MethodKey): MethodSource {
+    return some(this.mods.get(m.mod)).source(m)
   }
-  ir(m: Method): MIR | undefined {
-    if (this.closures.iscached(m.name)) return this.closures.get(m.name)[1][+m.isSig]
-    return this.mods.get(m.key.mod)?.ir(m)
+  ir(m: MethodKey): MethodIR | undefined {
+    if (this.closures.iscached(m.name)) return this.closures.get(m.name)[1]
+    return this.mods.get(m.mod)?.ir(m)
   }
-  sourceid(m: Method): bigint {
-    return some(this.mods.get(m.key.mod)).sourceid(m)
+  sourceid(m: MethodKey): bigint {
+    return some(this.mods.get(m.mod)).sourceid(m)
   }
   resolve_static(b: Binding): Anno<Type> {
     const val = this.get(b)
