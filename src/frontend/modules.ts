@@ -252,19 +252,26 @@ class Method {
     readonly lambda = 0,
     readonly isSig = false,
     readonly params: Type[] = [],
+    readonly wrapped?: Method,
   ) { }
   get id() { return this.key.id }
   get name() { return this.key.name }
-  get swaps() { return this.sig.swap.size > 0 }
-  get [hash]() { return `${this.key[hash]}${this.lambda}${this.isSig}${this.params.map(x => types.repr(x)).join()}` }
+  get swaps(): boolean { return this.wrapped?.swaps ?? this.sig.swap.size > 0 }
+  get [hash](): string {
+    return `${this.key[hash]}${this.lambda}${this.isSig}${this.params.map(x => types.repr(x)).join()}${this.wrapped?.[hash] ?? ''}`
+  }
   toString() { return `Method(${this.name})` }
   isEqual(other: unknown): other is Method {
     return other instanceof Method && this.key.isEqual(other.key) &&
-      this.lambda === other.lambda && this.isSig === other.isSig && isEqual(this.params, other.params)
+      this.lambda === other.lambda && this.isSig === other.isSig && isEqual(this.params, other.params) &&
+      isEqual(this.wrapped, other.wrapped)
   }
-  get signature() { return new Method(this.key, undefined, this.lambda, true, this.params) }
+  get signature() { return new Method(this.key, undefined, this.lambda, true, this.params, this.wrapped) }
   param(...Ts: Type[]) {
-    return new Method(this.key, this.sig, this.lambda, this.isSig, Ts)
+    return new Method(this.key, this.sig, this.lambda, this.isSig, Ts, this.wrapped)
+  }
+  wrap(method: Method) {
+    return new Method(this.key, this.sig, this.lambda, this.isSig, this.params, method)
   }
 }
 
