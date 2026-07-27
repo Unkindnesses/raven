@@ -190,7 +190,6 @@ class MethodKey {
   constructor(
     readonly mod: Tag,
     readonly name: Tag,
-    readonly sig: Signature,
     readonly ts?: string,
     readonly id = cache.nft(),
   ) { }
@@ -201,7 +200,12 @@ class MethodKey {
 }
 
 class Method {
-  constructor(readonly key: MethodKey, readonly isSig = false, readonly params: Type[] = []) { }
+  constructor(
+    readonly key: MethodKey,
+    readonly sig: Signature = { args: [], swap: new Map() },
+    readonly isSig = false,
+    readonly params: Type[] = [],
+  ) { }
   get id() { return this.key.id }
   get name() { return this.key.name }
   get [hash]() { return `${this.key[hash]}${this.isSig}${this.params.map(x => types.repr(x)).join()}` }
@@ -210,9 +214,9 @@ class Method {
     return other instanceof Method && this.key.isEqual(other.key) &&
       this.isSig === other.isSig && isEqual(this.params, other.params)
   }
-  get signature() { return new Method(this.key, true, this.params) }
+  get signature() { return new Method(this.key, undefined, true, this.params) }
   param(...Ts: Type[]) {
-    return new Method(this.key, this.isSig, Ts)
+    return new Method(this.key, this.sig, this.isSig, Ts)
   }
 }
 
@@ -235,8 +239,8 @@ class Methods implements cache.Caching {
     return m.isSig ? source?.pattern ?? lowered?.[1] : lowered?.[0]
   }
 
-  method(key: MethodKey, source?: MethodSource | MethodIR, { id }: { id?: bigint } = {}) {
-    const m = new Method(key)
+  method(key: MethodKey, sig: Signature, source?: MethodSource | MethodIR, { id }: { id?: bigint } = {}) {
+    const m = new Method(key, sig)
     const ms = this.methods.get(key.name) ?? this.imports.get()
     this.methods.set(key.name, [...ms, m])
     if (Array.isArray(source)) this.lowered.set(key, source, { id })
@@ -294,7 +298,7 @@ class Module implements cache.Caching {
 
   get subcaches() { return [this.defs, this.methods] }
   method(name: Tag, sig: Signature, body: MethodSource | MethodIR, { ts, id }: { ts?: string, id?: bigint } = {}) {
-    return this.methods.method(new MethodKey(this.name, name, sig, ts), body, { id })
+    return this.methods.method(new MethodKey(this.name, name, ts), sig, body, { id })
   }
   source(m: Method) { return this.methods.source(m) }
   sourceid(m: Method) { return this.methods.sourceid(m) }

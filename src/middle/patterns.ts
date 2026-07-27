@@ -324,23 +324,23 @@ function dispatcher(inf: Inference, func: types.Tag, F: types.Type, Ts: types.Ty
       m = call(notnil_method, m)
       if (code.type(m) !== ir.unreachable) {
         const as: ir.Val<MIR>[] = []
-        for (const arg of meth.key.sig.args)
+        for (const arg of meth.sig.args)
           as.push(call(part_method, call(types.tag('common.getkey'), m, types.tag(arg)), types.Type(1n)))
         let result = call(meth, ...as)
-        if (meth.key.sig.swap.size === 0 && code.type(result) !== ir.unreachable)
+        if (meth.sig.swap.size === 0 && code.type(result) !== ir.unreachable)
           result = code.push(code.stmt(xlist(result), { type: types.list(ir.asType(code.type(result))) }))
         code.return(result)
         ret = maybe_union(ret, code.type(result))
       }
       code.newBlock()
     } else { // certain to match
-      const as = meth.key.sig.args.map(x => indexer(code, fullType, full, some(m.get(x))[1]))
+      const as = meth.sig.args.map(x => indexer(code, fullType, full, some(m.get(x))[1]))
       let result = call(meth, ...as)
       if (code.type(result) === ir.unreachable) {
         code.block().unreachable()
         return [code, ret]
       }
-      if (meth.key.sig.swap.size === 0)
+      if (meth.sig.swap.size === 0)
         result = code.push(code.stmt(xlist(result), { type: types.list(ir.asType(code.type(result))) }))
       code.return(result)
       ret = maybe_union(ret, code.type(result))

@@ -756,7 +756,7 @@ function lowerLambda(cx: Lowering, ex: ast.Expr): Val<LIR> {
   const [methodIR, captures] = lowerbody(cx, baseSig, body, Def(name.path, fn.meta && source(fn.meta)))
   const captureNames = captures.map(capture => capture.name)
   const [sig, pattern] = signature(captureNames)
-  const method = new Method(new MethodKey(cx.mod, name, sig))
+  const method = new Method(new MethodKey(cx.mod, name), sig)
   cx.closure.sources.set(name, [method, [methodIR, pattern]], { deps: new Set([cx.closure.source]) })
   return lower(cx,
     ast.Call(tag('common.core.pack'), name, ...captureNames.map(name => symbol(name))).withmeta(fn.meta))
@@ -1014,8 +1014,8 @@ function lowerbody(cx: Lowering, sig: Signature, body: ast.Tree, meta: Def): [MI
   return [finalise(code), captures]
 }
 
-function lowerfn(method: MethodKey, body: ast.Tree, meta: Def, closure?: ClosureContext): MIR {
-  return lowerbody(new Lowering(method.mod, method.name, LIR(meta), closure), method.sig, body, meta)[0]
+function lowerfn(method: MethodKey, sig: Signature, body: ast.Tree, meta: Def, closure?: ClosureContext): MIR {
+  return lowerbody(new Lowering(method.mod, method.name, LIR(meta), closure), sig, body, meta)[0]
 }
 
 function assignments(code: LIR): Set<string> {
@@ -1096,6 +1096,6 @@ class Lowered implements Caching {
     if (ir) return ir
     const source = this.sources.source(method)
     const id = this.sources.sourceid(method)
-    return lowerfn(method.key, source.body, source.meta, { sources: this.sources.closures, source: id })
+    return lowerfn(method.key, method.sig, source.body, source.meta, { sources: this.sources.closures, source: id })
   }
 }

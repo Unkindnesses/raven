@@ -308,7 +308,7 @@ function lower(def: string) {
   const params = signature.args.slice(1)
   const body = ex.args[2]
   const [sig] = callpattern(tag(''), fn, ast.List(fn, ...params))
-  return lowerfn(new MethodKey(tag(''), fn, sig), body, Def('test'))
+  return lowerfn(new MethodKey(tag(''), fn), sig, body, Def('test'))
 }
 
 test('lower simple function', () => {

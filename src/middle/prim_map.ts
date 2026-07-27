@@ -47,8 +47,8 @@ function primitive(name: string, pattern: string, func?: (...args: Type[]) => An
     get args() { return get()[0].args },
     get swap() { return get()[0].swap }
   }
-  const method = new MethodKey(tag('common.core'), tag(name), lazy)
+  const method = new MethodKey(tag('common.core'), tag(name))
   primitivePatterns.set(method.id, () => get()[1])
   partialPrimitives.set(method.id, func)
-  return new Method(method)
+  return new Method(method, lazy)
 }

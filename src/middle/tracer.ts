@@ -326,11 +326,11 @@ class Tracer {
     for (const [meth, m] of this.methods.get([func, fullTs])) {
       if (m === undefined) return
       if (this.traceMethod(code, meth.signature, []) === undefined) return // trace side effects
-      const as = meth.key.sig.args.map((a, i) => indexer(code, fullTs, full, m.get(a)![1]))
+      const as = meth.sig.args.map((a, i) => indexer(code, fullTs, full, m.get(a)![1]))
       let result = this.traceMethod(code, meth, as)
       if (result === undefined) return
       const T = asType(code.type(result))
-      if (meth.key.sig.swap.size === 0)
+      if (meth.sig.swap.size === 0)
         result = types.isValue(T)
           ? types.list(T)
           : code.push(code.stmt(xlist(result), { type: types.list(T) }))
