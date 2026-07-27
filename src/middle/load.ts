@@ -8,7 +8,6 @@ import { symbolValues } from "./primitives.js"
 import * as ast from "../frontend/ast.js"
 import { parse } from "../frontend/parse.js"
 import { emit } from "../backend/compiler.js"
-import { nft } from "../utils/cache.js"
 
 export { LoadState, Loader, SourceString, src as source, loadmodule, reload, vload, resolve_static }
 
@@ -95,12 +94,10 @@ async function load_include(cx: LoadState, x: ast.Expr): Promise<void> {
 
 function load_expr(cx: LoadState, x: ast.Tree): void {
   const meta = Def('(global)', x.meta && source(x.meta))
-  const id = nft()
   const key = new MethodKey(cx.mod.name, tag('common.core.main'))
-  const [methods, defs] = lower_toplevel(
-    cx.mod, key, x, meta, { sources: cx.comp.closures, source: id })
+  const [methods, defs] = lower_toplevel(cx.mod, key, x, meta)
   for (const def of defs) if (!cx.mod.has(def)) cx.mod.set(def, unreachable)
-  const method = cx.mod.methods.method(key, { args: [], swap: new Map() }, methods, { id })
+  const method = cx.mod.methods.method(key, { args: [], swap: new Map() }, methods)
   emit(method)
 }
 

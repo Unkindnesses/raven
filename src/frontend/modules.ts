@@ -255,15 +255,14 @@ class Methods implements cache.Caching {
   get subcaches() { return [this.imports, this.methods, this.sources, this.lowered] }
   get(k: Tag) { return this.methods.get(k) ?? this.imports.get() }
   source(m: MethodKey) { return some(this.sources.get(m)) }
-  sourceid(m: MethodKey) { return this.sources.id(m) }
   ir(m: MethodKey) { return this.lowered.get(m) }
 
-  method(key: MethodKey, sig: Signature, source?: MethodSource | MethodIR, { id }: { id?: bigint } = {}) {
+  method(key: MethodKey, sig: Signature, source?: MethodSource | MethodIR) {
     const m = new Method(key, sig)
     const ms = this.methods.get(key.name) ?? this.imports.get()
     this.methods.set(key.name, [...ms, m])
-    if (Array.isArray(source)) this.lowered.set(key, source, { id })
-    else if (source) this.sources.set(key, source, { id })
+    if (Array.isArray(source)) this.lowered.set(key, source)
+    else if (source) this.sources.set(key, source)
     return m
   }
 
@@ -316,11 +315,10 @@ class Module implements cache.Caching {
   }
 
   get subcaches() { return [this.defs, this.methods] }
-  method(name: Tag, sig: Signature, body: MethodSource | MethodIR, { ts, id }: { ts?: string, id?: bigint } = {}) {
-    return this.methods.method(new MethodKey(this.name, name, ts), sig, body, { id })
+  method(name: Tag, sig: Signature, body: MethodSource | MethodIR, { ts }: { ts?: string } = {}) {
+    return this.methods.method(new MethodKey(this.name, name, ts), sig, body)
   }
   source(m: MethodKey) { return this.methods.source(m) }
-  sourceid(m: MethodKey) { return this.methods.sourceid(m) }
   ir(m: MethodKey) { return this.methods.ir(m) }
   get(k: string) { return this.defs.get(k) }
   set(k: string, v: Anno<Type> | Binding) { this.defs.set(k, v) }
@@ -348,10 +346,7 @@ class Module implements cache.Caching {
 
 class Modules implements cache.Caching {
   private mods = new HashMap<Tag, Module>()
-  readonly closures = new cache.Cache<Tag, Method>(name => {
-    throw new Error(`Closure not found: ${name}`)
-  })
-  get subcaches() { return [...this.mods.values(), this.closures] }
+  get subcaches() { return this.mods.values() }
   reset(deps: Set<bigint>) { cache.reset(cache.pipe(...this.subcaches), deps) }
   module(m: Tag | Module) {
     if (m instanceof Module) {
@@ -371,9 +366,6 @@ class Modules implements cache.Caching {
   ir(m: MethodKey): MethodIR | undefined {
     return this.mods.get(m.mod)?.ir(m)
   }
-  sourceid(m: MethodKey): bigint {
-    return some(this.mods.get(m.mod)).sourceid(m)
-  }
   resolve_static(b: Binding): Anno<Type> {
     const val = this.get(b)
     if (val === undefined) return unreachable
@@ -384,13 +376,11 @@ class Modules implements cache.Caching {
     const out = new Modules()
     for (const [k, mod] of this.mods)
       out.mods.set(k, mod.clone())
-    cache.reuse(out.closures, this.closures)
     return out
   }
 }
 
 function methods(cx: Modules, name: Tag, mod: Tag = tag(""), ms: Method[] = [], seen = new Set<Tag>()) {
-  if (cx.closures.iscached(name)) return [cx.closures.get(name)]
   for (const m of cx.module(mod).methods.get(name)) {
     if (m instanceof Tag) {
       if (seen.has(m)) continue

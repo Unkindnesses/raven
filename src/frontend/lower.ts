@@ -317,29 +317,16 @@ interface Scope {
   loops: { kind: 'loop' | 'block', label: string | undefined }[]
 }
 
-interface ClosureSources {
-  sources: Cache<Tag, Method>
-  source: bigint
-}
-
-interface ClosureContext {
-  sources: Cache<Tag, Method>
-  source: bigint
-  key: MethodKey
-  methods: MethodIR
-}
-
 class Lowering {
   constructor(
-    readonly mod: Tag,
-    readonly owner: Tag,
+    readonly key: MethodKey,
+    readonly methods: MethodIR,
     readonly code: LIR,
-    readonly closure?: ClosureContext,
-    readonly sc = GlobalScope(mod),
+    readonly sc = GlobalScope(key.mod),
     readonly swaps?: Map<number, string>
   ) { }
   scope(): Lowering {
-    return new Lowering(this.mod, this.owner, this.code, this.closure, Scope(this.sc), this.swaps)
+    return new Lowering(this.key, this.methods, this.code, Scope(this.sc), this.swaps)
   }
 }
 
@@ -433,12 +420,12 @@ function lowerpattern(cx: Lowering, ex: ast.Tree) {
 
 // TODO [f, args...] would be more elegant, but for that we need a linked-list
 // like representation for arg lists which can preserve types when splatting.
-function callpattern(mod: Tag, func: Tag, ex: ast.Tree): [Signature, MIR] {
+function callpattern(key: MethodKey, methods: MethodIR, ex: ast.Tree): [Signature, MIR] {
   if (ast.asExpr(ex).args.length === 0)
     throw new Error('callpattern: expected a callee and argument list')
-  const meta = Def(`${func.path} (signature)`, ex.meta && source(ex.meta))
+  const meta = Def(`${key.name.path} (signature)`, ex.meta && source(ex.meta))
   const code = LIR(meta)
-  const cx = new Lowering(mod, func, code)
+  const cx = new Lowering(key, methods, code)
   const [pattern, swap] = patterns.processSwaps(ex)
   const [callee, ...xs] = ast.asExpr(pattern, 'List').args
   const [result, args] = patterns.lowerPattern(patternBuilder(cx), ast.List(callee, ast.List(...xs)))
@@ -626,7 +613,7 @@ function lowerTemplate(cx: Lowering, ex: ast.Expr): Val<LIR> {
   const template = asSymbol(ex.args[0]).toString()
   if (template === 'tag') {
     const tagName = asString(ex.args[1])
-    return modtag(cx.mod, tagName)
+    return modtag(cx.key.mod, tagName)
   } else if (template === 'bits') {
     const bitString = asString(ex.args[1])
     const value = bitString === '' ? 0n : BigInt('0b' + bitString)
@@ -751,26 +738,26 @@ function lambdaParts(ex: ast.Expr): [readonly ast.Tree[], ast.Tree] | undefined 
   return
 }
 
+function lambdaPattern(cx: Lowering, params: readonly ast.Tree[], captures: ir.Slot[]): [Signature, MIR] {
+  const closure = ast.Call(
+    tag('common.core.pack'), symbol('_'), ...captures.map(s => symbol(s.name)))
+  const self = ast.Operator(symbol('_'), symbol(':'), closure)
+  return callpattern(cx.key, cx.methods, ast.List(self, ...params))
+}
+
 function lowerLambda(cx: Lowering, ex: ast.Expr): Val<LIR> {
-  if (!cx.closure) throw new Error('Missing closure context')
   const fn = ast.asExpr(attrs(ex)[0])
   const [params, body] = some(lambdaParts(fn), `Expected anonymous function, got ${ast.repr(fn)}`)
-  const name = new Tag(cx.owner, gensym('λ'))
-  const signature = (captures: string[]) => {
-    const lambdaType = ast.Call(
-      tag('common.core.pack'), symbol('_'), ...captures.map(name => symbol(name)))
-    const self = ast.Operator(symbol('_'), symbol(':'), lambdaType)
-    return callpattern(cx.mod, name, ast.List(self, ...params))
-  }
-  const [baseSig] = signature([])
-  const λcx = new Lowering(cx.mod, cx.owner, LIR(Def(name.path, fn.meta && source(fn.meta))), cx.closure, cx.sc)
-  const [methodIR, captures] = lowerbody(λcx, baseSig, body)
-  const captureNames = captures.map(capture => capture.name)
-  const [sig, pattern] = signature(captureNames)
-  cx.closure.methods.push([methodIR, pattern])
-  const method = new Method(cx.closure.key, sig, cx.closure.methods.length)
-  cx.closure.sources.set(name, method, { deps: new Set([cx.closure.source]) })
-  return _push(cx.code, xclosure(method, ...captureNames.map(name => cx.sc.get(name))), { src: fn.meta })
+  const lowered = lowerbody(cx.key, cx.methods, {
+    sig: ast.List(symbol('_'), ...params), body,
+    meta: Def(`${cx.key.name.path} (lambda)`, fn.meta && source(fn.meta)),
+  }, cx.sc)
+  const [sig, pattern] = lambdaPattern(cx, params, lowered.captures)
+  cx.methods.push([lowered.ir[0], pattern])
+  const method = new Method(cx.key, sig, cx.methods.length)
+  return _push(cx.code,
+    xclosure(method, ...lowered.captures.map(capture => cx.sc.get(capture.name))),
+    { src: fn.meta })
 }
 
 function lowerSelect(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {
@@ -1012,23 +999,33 @@ function initArgs(code: LIR, slots: ir.Slot[]): LIR {
   return pr.finish()
 }
 
-function lowerbody(cx: Lowering, sig: Signature, body: ast.Tree): [MIR, ir.Slot[]] {
-  const captures: ir.Slot[] = []
-  const parent = CaptureScope(cx.sc, captures)
-  cx = new Lowering(cx.mod, cx.owner, cx.code, cx.closure, parent, sig.swap).scope()
-  const params = sig.args.map(arg => ir.slot(arg))
-  for (let i = 0; i < params.length; i++) cx.sc.set(sig.args[i], params[i])
-  const out = lower(cx, expand(body))
-  if (cx.code.block().canbranch()) swapreturn(cx.code, out, cx.swaps)
-  return [finalise(initArgs(cx.code, [...captures, ...params])), captures]
+interface LoweredBody {
+  ir: MethodIR[number]
+  sig: Signature
+  captures: ir.Slot[]
 }
 
-function lowerfn(method: MethodKey, source: MethodSource, closure?: ClosureSources): MethodIR {
+function lowerbody(key: MethodKey, methods: MethodIR, source: MethodSource, scope = GlobalScope(key.mod)): LoweredBody {
+  const captures: ir.Slot[] = []
+  const [sig, pattern] = callpattern(key, methods, source.sig)
+  const cx = new Lowering(
+    key, methods, LIR(source.meta), CaptureScope(scope, captures), sig.swap).scope()
+  const params = sig.args.map(arg => ir.slot(arg))
+  for (let i = 0; i < params.length; i++) cx.sc.set(sig.args[i], params[i])
+  const out = lower(cx, expand(source.body))
+  if (cx.code.block().canbranch()) swapreturn(cx.code, out, cx.swaps)
+  const captureNames = captures.map(capture => capture.name)
+  return {
+    ir: [finalise(initArgs(cx.code, [...captures, ...params])), pattern],
+    sig: { ...sig, args: [...captureNames, ...sig.args] },
+    captures
+  }
+}
+
+function lowerfn(method: MethodKey, source: MethodSource): MethodIR {
   const methods: MethodIR = []
-  const [sig, pattern] = callpattern(method.mod, method.name, source.sig)
-  const context = closure && { ...closure, key: method, methods }
-  const cx = new Lowering(method.mod, method.name, LIR(source.meta), context)
-  methods.unshift([lowerbody(cx, sig, source.body)[0], pattern])
+  const lowered = lowerbody(method, methods, source)
+  methods.unshift(lowered.ir)
   return methods
 }
 
@@ -1069,14 +1066,14 @@ function assigned_globals(code: MIR): Map<Binding, Type> {
   return out
 }
 
-function lower_toplevel(mod: Module, key: MethodKey, ex: ast.Tree, meta: Def, closure?: ClosureSources): [MethodIR, Set<string>] {
+function lower_toplevel(mod: Module, key: MethodKey, ex: ast.Tree, meta: Def): [MethodIR, Set<string>] {
   const methods: MethodIR = []
   ex = expand(ex)
-  const cx = new Lowering(key.mod, key.mod, LIR(meta), closure && { ...closure, methods, key })
+  const cx = new Lowering(key, methods, LIR(meta))
   lower(cx, ex, false)
   cx.code.return(nil)
   const [code, defs] = rewriteGlobals(cx.code, mod)
-  const [_, pattern] = callpattern(key.mod, key.name, ast.List(key.name))
+  const [_, pattern] = callpattern(key, methods, ast.List(key.name))
   methods.unshift([finalise(code), pattern])
   return [methods, defs]
 }
@@ -1111,7 +1108,6 @@ class Lowered implements Caching {
 
   private lower(method: MethodKey): MethodIR {
     const source = this.sources.source(method)
-    const id = this.sources.sourceid(method)
-    return lowerfn(method, source, { sources: this.sources.closures, source: id })
+    return lowerfn(method, source)
   }
 }
