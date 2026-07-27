@@ -7,7 +7,7 @@ import { Method, MIR, Module, Value, xfunc, xstring } from '../frontend/modules.
 import { Def } from '../dwarf/index.js'
 import { xtuple, xcall } from '../frontend/lower.js'
 import { xwasm } from '../frontend/modules.js'
-import { inlinePrimitives, InvokeSt, outlinePrimitives, inlinePrimitive, outlinePrimitive, primitive, primitiveIR } from './prim_map.js'
+import { inlinePrimitives, InvokeSt, outlinePrimitives, inlinePrimitive, outlinePrimitive, primitive, sources } from './prim_map.js'
 import { releaseFunction_method } from './refcount.js'
 import { abort, call, layout, wlayout, sizeof, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir, copyir, i32, store, load } from './expand.js'
 import { isreftype } from './refcount.js'
@@ -712,6 +712,7 @@ inlinePrimitives.set(frees_method.id, (code, st) => counter(code, st, 'frees'))
 
 function core() {
   const mod = new Module(tag('common.core'))
-  for (const meth of primitives()) mod.methods.method(meth.key, meth.sig, primitiveIR(meth))
+  for (const meth of primitives())
+    mod.methods.method(meth.key, meth.sig, some(sources.get(meth.id)))
   return mod
 }

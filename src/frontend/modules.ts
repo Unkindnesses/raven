@@ -225,7 +225,7 @@ class Method {
 }
 
 type MethodSource = { body: ast.Tree, sig: ast.Tree, meta: Def }
-type MethodIR = [body: MIR | undefined, pattern: MIR]
+type MethodIR = [body: MIR, pattern: MIR]
 
 class Methods implements cache.Caching {
   private imports = new cache.Ref<Tag[]>([])
