@@ -9,14 +9,14 @@ import { Def, Stack } from '../dwarf/index.js'
 import * as ir from '../utils/ir.js'
 import { unreachable } from '../utils/ir.js'
 import { Branch, asType } from '../utils/ir.js'
-import { dispatcherDef, matchMethods, Methods, Path } from './patterns.js'
+import { dispatcherDef, indexer, matchMethods, Methods } from './patterns.js'
 import { wasmPartials } from '../backend/wasm.js'
 import { getIntValue, invoke_method, load_method, notnil_method, pack_method, packcat_method, part_method, store_method, tagcast_method } from './primitives.js'
 import { isEqual } from '../utils/isEqual.js'
 import { some } from '../utils/map.js'
 import { Caching, CycleCache } from '../utils/cache.js'
 import { Accessor } from '../utils/fixpoint.js'
-import { xcall, xlist, xpart } from '../frontend/lower.js'
+import { xcall, xlist } from '../frontend/lower.js'
 import { partialPrimitive } from './prim_map.js'
 
 export { Tracer, Traced }
@@ -166,25 +166,6 @@ class TraceIR implements ir.Fragment<MIR> {
     this.maps.pop()
     return this.substitution(val)
   }
-}
-
-function indexer(code: ir.Fragment<MIR>, T: types.Type, arg: ir.Val<MIR>, path: Path): ir.Val<MIR> {
-  if (path.length === 0) return arg
-  const [p, ...rest] = path
-  if (typeof p !== 'number') {
-    const ps: ir.Val<MIR>[] = []
-    for (let i = p.start; i <= p.end; i++) {
-      const part = types.part(T, i)
-      if (types.isValue(part)) ps.push(part)
-      else ps.push(code.push(code.stmt(xpart(arg, types.Type(BigInt(i))), { type: part })))
-    }
-    const L = types.list(...ps.map(v => code.type(v) as types.Type))
-    arg = types.isValue(L) ? L : code.push(code.stmt(xlist<IRValue>(...ps), { type: L }))
-  } else {
-    T = types.part(T, p)
-    arg = types.isValue(T) ? T : code.push(code.stmt(xpart(arg, types.Type(BigInt(p))), { type: T }))
-  }
-  return indexer(code, T, arg, rest)
 }
 
 function keyindex(Ts: Type[]): Type | undefined {

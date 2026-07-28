@@ -275,18 +275,22 @@ function dispatch_arms(T: types.Type): types.Type[] {
   return [T]
 }
 
-function indexer(code: MIR, T: types.Type, arg: ir.Val<MIR>, path: Path): ir.Val<MIR> {
+function push(code: ir.Fragment<MIR>, ex: ir.Expr<IRValue>, T: types.Type): ir.Val<MIR> {
+  return types.isValue(T) ? T : code.push(code.stmt(ex, { type: T }))
+}
+
+function indexer(code: ir.Fragment<MIR>, T: types.Type, arg: ir.Val<MIR>, path: Path): ir.Val<MIR> {
   if (path.length === 0) return arg
   const [p, ...rest] = path
   if (typeof p !== 'number') {
     const ps: ir.Val<MIR>[] = []
     for (let i = p.start; i <= p.end; i++)
-      ps.push(code.push(code.stmt(xpart(arg, types.Type(BigInt(i))), { type: types.part(T, i) })))
-    const L = types.list(...ps.map(v => code.type(v) as types.Type))
-    arg = code.push(code.stmt(xlist(...ps), { type: L }))
+      ps.push(push(code, xpart(arg, types.Type(BigInt(i))), types.part(T, i)))
+    const L = types.list(...ps.map(v => ir.asType(code.type(v))))
+    arg = push(code, xlist<IRValue>(...ps), L)
   } else {
     T = types.part(T, p)
-    arg = code.push(code.stmt(xpart(arg, types.Type(BigInt(p))), { type: T }))
+    arg = push(code, xpart(arg, types.Type(BigInt(p))), T)
   }
   return indexer(code, T, arg, rest)
 }
