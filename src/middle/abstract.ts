@@ -44,9 +44,15 @@ function prepare_ir(ir: MIR): AIR {
   return looped(expand(ir.clone()))
 }
 
-class Parent { constructor(readonly sig: Sig | null, readonly depth: number) { } }
-
-class Redirect { constructor(readonly to: Sig) { } }
+class Stack {
+  constructor(readonly sigs: readonly Sig[] = []) { }
+  push(sig: Sig): Stack { return new Stack([...this.sigs, sig]) }
+  select(f: Func): Sig[] { return this.sigs.filter(([g]) => isEqual(g, f)) }
+  toString(): string {
+    return ['Abstract stack trace:', ...this.sigs.map(([f, ...Ts]) =>
+      `${f.toString()}: ${f instanceof Method ? `(${Ts.map(repr).join(', ')})` : repr(Ts[0])}`)].join('\n')
+  }
+}
 
 class GlobalFrame {
   constructor(
@@ -56,50 +62,36 @@ class GlobalFrame {
 }
 
 class Frame {
+  readonly key: string
   deps = new Set<string>()
   edges = new Set<string>()
   rettype: Anno<Type> = unreachable
-  constructor(readonly sig: Sig, readonly parent: Parent, public ir: AIR) { }
-  static create(P: Parent, ir: MIR, f: Func, ...args: Type[]): Frame {
+  constructor(readonly sig: Sig, readonly stack: Stack, public ir: AIR) { this.key = key(sig) }
+  static create(stack: Stack, ir: MIR, f: Func, ...args: Type[]): Frame {
     const l = prepare_ir(ir.clone())
     if (l.ir.block(1).args.length !== args.length) throw new Error('argument length mismatch')
     const b = l.body[0].block(1)
     for (let i = 0; i < args.length; i++) b.bb.args[i][1] = args[i]
-    return new Frame([f, ...args] as Sig, P, l)
+    return new Frame([f, ...args] as Sig, stack, l)
   }
-}
-
-function asFrame(fr: unknown): Frame {
-  if (!(fr instanceof Frame)) throw new Error('Expected Frame')
-  return fr
 }
 
 class Inference {
   deps = new Map<string, Set<bigint>>()
-  frames = new Map<string, Frame | Redirect>()
+  frames = new Map<string, Frame>()
+  redirects = new Map<string, Sig>()
   globals = new Map<string, GlobalFrame>()
   queue = new WorkQueue<string>()
   constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly meths: MatchMethods, readonly traced: Traced) { }
 }
 
-function sig(inf: Inference, T: Sig): Sig {
-  const fr = some(inf.frames.get(key(T)))
-  if (fr instanceof Redirect) return sig(inf, fr.to)
-  return T
+function resolve(inf: Inference, T: Sig): Sig {
+  const to = inf.redirects.get(key(T))
+  return to ? resolve(inf, to) : T
 }
 
-function parent(inf: Inference, T: Sig): Sig | null {
-  const P = asFrame(inf.frames.get(key(sig(inf, T)))).parent.sig
-  return P ? sig(inf, P) : null
-}
-
-function recursionDepth(inf: Inference, T: Sig | null, F: Func): number {
-  while (T) {
-    if (isEqual(T[0], F))
-      return asFrame(inf.frames.get(key(sig(inf, T)))).parent.depth + 1
-    T = parent(inf, T)
-  }
-  return 1
+function lookup(inf: Inference, T: Sig): Frame | undefined {
+  return inf.frames.get(key(resolve(inf, T)))
 }
 
 function globalFrame(inf: Inference, name: Binding): GlobalFrame {
@@ -119,16 +111,24 @@ function globalFrame(inf: Inference, name: Binding): GlobalFrame {
   return frame
 }
 
-function frame(inf: Inference, P: Parent, sig: Sig): Frame | Redirect {
+function call(inf: Inference, stack: Stack, sig: Sig): Frame {
+  const T = resolve(inf, sig)
+  const existing = inf.frames.get(key(T))
+  if (existing) return existing
+  if (T[0] instanceof Method && stack.select(T[0]).length >= recursionLimit)
+    return widen(inf, stack, T)
+  return frame(inf, stack, T)
+}
+
+function frame(inf: Inference, stack: Stack, sig: Sig): Frame {
+  const existing = lookup(inf, sig)
+  if (existing) return existing
   const [f, ...Ts] = sig
   const k = key(sig)
-  if (inf.frames.get(k)) return inf.frames.get(k)!
-  if (f instanceof Method && P.depth > recursionLimit)
-    return mergeFrames(inf, some(P.sig), sig)
   const [trace, deps] = trackdeps(() => inf.traced.trace(f, ...Ts))
   if (trace) {
     const [ir, ret] = trace
-    const fr = Frame.create(P, ir, f, ...Ts)
+    const fr = Frame.create(stack, ir, f, ...Ts)
     fr.rettype = ret
     inf.deps.set(k, deps)
     inf.frames.set(k, fr)
@@ -137,44 +137,44 @@ function frame(inf: Inference, P: Parent, sig: Sig): Frame | Redirect {
   if (f instanceof Method) {
     const [ir, ideps] = trackdeps(() => inf.lowered.ir(f))
     for (const dep of ideps) deps.add(dep)
-    inf.deps.set(k, deps)
-    inf.frames.set(k, Frame.create(P, ir, f, ...Ts))
-    update(inf, k)
-    return inf.frames.get(k)!
+    inf.frames.set(k, Frame.create(stack, ir, f, ...Ts))
   } else {
-    inf.frames.set(k, new Frame(sig, P, looped(MIR(Def(f.path)))))
-    inf.deps.set(k, deps)
-    update(inf, k)
-    return inf.frames.get(k)!
+    inf.frames.set(k, new Frame(sig, stack, looped(MIR(Def(f.path)))))
+  }
+  inf.deps.set(k, deps)
+  update(inf, k)
+  return some(lookup(inf, sig))
+}
+
+function redirect(inf: Inference, from: Sig, to: Frame): void {
+  const k = key(from)
+  const fr = inf.frames.get(k)
+  inf.redirects.set(k, to.sig)
+  if (!fr) return
+  cleardeps(inf, k)
+  inf.frames.delete(k)
+  for (const c of fr.edges) {
+    const caller = inf.frames.get(c)
+    if (!caller) continue
+    caller.deps.delete(k)
+    caller.deps.add(to.key)
+    to.edges.add(c)
+    inf.queue.push(c)
   }
 }
 
-// TODO some methods become unreachable, remove them somewhere?
-function mergeFrames(inf: Inference, T: Sig, F: Sig): Frame {
-  const sigs = [...stack(inf, T).frames.filter(t => isEqual(t[0], F[0])), F]
-  if (sigs.length <= 1) throw new Error('Expected multiple signatures')
-  const sig = sigs.reduce((a, b) => {
-    const [fa, ...as] = a
-    const [_, ...bs] = b
-    return [fa, ...as.map((x, i) => union(x, bs[i]))] as Sig
-  })
-  const firstFrame = asFrame(inf.frames.get(key(sigs[0])))
-  const P = firstFrame.parent.sig
-  const fr = asFrame(frame(inf, new Parent(P, recursionLimit), sig))
-  for (const s of sigs) {
-    const k = key(s)
-    if (isEqual(s, sig)) continue
-    if (inf.frames.has(k)) {
-      const existing = some(inf.frames.get(k))
-      if (existing instanceof Redirect) {
-        if (!isEqual(sig, existing.to)) throw new Error('Redirect mismatch') // TODO figure out whether to move backedges here
-      } else {
-        for (const edge of existing.edges) fr.edges.add(edge)
-        fr.edges.add(k) // propagate deletions
-      }
-    }
-    inf.frames.set(k, new Redirect(sig))
-  }
+function unionSig(a: Sig, b: Sig): Sig {
+  const [f, ...as] = a
+  const [, ...bs] = b
+  return [f, ...as.map((x, i) => union(x, bs[i]))] as Sig
+}
+
+// TODO some methods become unreachable
+function widen(inf: Inference, stack: Stack, F: Sig): Frame {
+  const sigs = [...stack.select(F[0]).map(s => resolve(inf, s)), F]
+  const widened = sigs.reduce(unionSig)
+  const fr = frame(inf, stack, widened)
+  for (const s of sigs) if (key(s) !== fr.key) redirect(inf, s, fr)
   return fr
 }
 
@@ -185,15 +185,12 @@ function infercall(inf: Inference, P: Sig, F: Func, ...Ts: Anno<Type>[]): Anno<T
     if (partial) return withTraits(T => traitResult(some(infercall(inf, P, ...traitSig(T)))),
       () => partial(...Ts as Type[]))
   }
-  const parent = new Parent(P, recursionDepth(inf, P, F))
-  const s = [F, ...Ts as Type[]] as Sig
-  let fr = frame(inf, parent, s)
-  while (fr instanceof Redirect) fr = some(inf.frames.get(key(fr.to)))
-  const psig = key(some(parent.sig))
-  const pf = some(inf.frames.get(psig))
-  if (pf instanceof Redirect) return
-  pf.deps.add(key(s))
-  fr.edges.add(psig)
+  const stack = some(inf.frames.get(key(P))).stack.push(P)
+  const fr = call(inf, stack, [F, ...Ts as Type[]] as Sig)
+  const caller = inf.frames.get(key(P))
+  if (!caller) return
+  caller.deps.add(fr.key)
+  fr.edges.add(caller.key)
   return fr.rettype
 }
 
@@ -206,13 +203,9 @@ function inferexpr(inf: Inference, P: Sig, ir: MIR | Block<MIR>, ex: Expr<IRValu
   return infercall(inf, P, F, ...Ts.map(x => ir.type(x)))
 }
 
-function cleardeps(inf: Inference, sig: string): void {
-  const fr = asFrame(inf.frames.get(sig))
-  for (const dep of fr.deps) {
-    const f = some(inf.frames.get(dep) ?? inf.globals.get(dep))
-    if (f instanceof Redirect) throw new Error('Redirect in cleardeps')
-    f.edges.delete(sig)
-  }
+function cleardeps(inf: Inference, k: string): void {
+  const fr = some(inf.frames.get(k))
+  for (const dep of fr.deps) (inf.frames.get(dep) ?? inf.globals.get(dep))?.edges.delete(k)
   fr.deps.clear()
 }
 
@@ -222,22 +215,24 @@ function issubset(x: Anno<Type>, y: Anno<Type>): boolean {
   return iss(x, y)
 }
 
-function update_dispatcher(inf: Inference, func: Tag, F: Type, Ts: Type) {
+function settype(inf: Inference, fr: Frame, ret: Anno<Type>): void {
+  if (issubset(ret, fr.rettype)) return
+  fr.rettype = ret
+  for (const s of fr.edges) inf.queue.push(s)
+}
+
+function update_dispatcher(inf: Inference, fr: Frame, func: Tag, F: Type, Ts: Type) {
   const [[ir, ret], deps] = trackdeps(() => dispatcher(inf, func, F, Ts))
-  const k = key([func, F, Ts])
-  inf.deps.set(k, deps)
-  const fr = asFrame(inf.frames.get(k))
+  inf.deps.set(fr.key, deps)
   fr.ir = looped(expand(ir))
-  if (!issubset(ret, fr.rettype)) {
-    fr.rettype = ret
-    for (const s of fr.edges) inf.queue.push(s)
-  }
+  settype(inf, fr, ret)
 }
 
 function update(inf: Inference, k: string): void {
+  const fr = inf.frames.get(k)
+  if (!fr) return
   cleardeps(inf, k)
-  const fr = asFrame(inf.frames.get(k))
-  if (!(fr.sig[0] instanceof Method)) return update_dispatcher(inf, fr.sig[0], fr.sig[1], fr.sig[2])
+  if (!(fr.sig[0] instanceof Method)) return update_dispatcher(inf, fr, fr.sig[0], fr.sig[1], fr.sig[2])
   let ret: Anno<Type> = unreachable
   let path: Path | null = new Path()
   const reachable = new HashSet<Path>([path])
@@ -314,50 +309,18 @@ function update(inf: Inference, k: string): void {
       if (!path || reachable.has(path)) break
     }
   }
-  if (!issubset(ret, fr.rettype)) {
-    fr.rettype = ret
-    for (const s of fr.edges) inf.queue.push(s)
-  }
+  settype(inf, fr, ret)
 }
 
-// TODO remove backedges, so we don't do redundant work
-function remove(inf: Inference, sig: string) {
-  const fr = inf.frames.get(sig) ?? inf.globals.get(sig)
-  if (!fr) return
-  // cleardeps(inf, sig)
-  inf.frames.delete(sig)
-  inf.globals.delete(sig)
-  inf.deps.delete(sig)
-  if (fr instanceof Redirect) return
-  for (const loc of fr.edges) remove(inf, loc)
-}
-
-// Virtual stack traces
-
-class Stack {
-  constructor(readonly frames: Sig[] = []) { }
-  toString(): string {
-    const lines = [
-      'Abstract stack trace:',
-      ...this.frames.map(([f, ...Ts]) => {
-        const head = `${f.toString()}: `
-        const body = f instanceof Method
-          ? `(${Ts.map(repr).join(', ')})`
-          : repr(Ts[0])
-        return head + body
-      })
-    ]
-    return lines.join('\n')
-  }
-}
-
-function stack(inf: Inference, T: Sig | null): Stack {
-  const st = new Stack()
-  while (T !== null) {
-    st.frames.unshift(T)
-    T = parent(inf, T)
-  }
-  return st
+// Invalidate a signature and everything that depends on it.
+function remove(inf: Inference, k: string) {
+  const fr = inf.frames.get(k) ?? inf.globals.get(k)
+  if (fr instanceof Frame) cleardeps(inf, k)
+  inf.frames.delete(k)
+  inf.globals.delete(k)
+  inf.redirects.delete(k)
+  inf.deps.delete(k)
+  for (const loc of fr?.edges ?? []) remove(inf, loc)
 }
 
 class CompileError extends Error {
@@ -374,14 +337,14 @@ class CompileError extends Error {
 
 function infer(inf: Inference, { partial = false }: { partial?: boolean } = {}): Inference {
   while (!inf.queue.empty) {
-    const sig = inf.queue.pop()
+    const k = inf.queue.pop()
     try {
-      update(inf, sig)
+      update(inf, k)
     } catch (e) {
       if (partial) break
-      const fr = inf.frames.get(sig)
-      if (!fr || fr instanceof Redirect) throw e
-      throw new CompileError(e, stack(inf, fr.sig))
+      const fr = inf.frames.get(k)
+      if (!fr) throw e
+      throw new CompileError(e, fr.stack.push(fr.sig))
     }
   }
   return inf
@@ -396,7 +359,7 @@ function redirectCalls(inf: Inference, code: MIR): MIR {
     if (partialPrimitive(st.expr.method)) continue
     const S = st.expr.body.map(x => asType(pr.type(x)))
     const from: Sig = [st.expr.method, ...S]
-    const [_, ...T] = sig(inf, from)
+    const [_, ...T] = resolve(inf, from)
     if (isEqual(S, T)) continue
     pr.delete(v)
     const args = st.expr.body.map((x, i) =>
@@ -425,15 +388,16 @@ class Inferred implements Caching {
     if (this.iscached(k)) return this.results.get(k)!
     // Don't let inference dependencies leak
     const [_, deps] = trackdeps(() => {
-      frame(this.inf, new Parent(null, 1), sig)
+      call(this.inf, new Stack(), sig)
       infer(this.inf)
     })
     if (deps.size !== 0) throw new Error('assertion')
+    for (const r of this.inf.redirects.keys()) this.results.delete(r)
     for (const [k, fr] of this.inf.frames) {
-      if (this.iscached(k) || fr instanceof Redirect) continue
+      if (this.iscached(k)) continue
       this.results.set(k, [redirectCalls(this.inf, prune(unloop(fr.ir))), fr.rettype])
     }
-    if (this.inf.frames.get(k) instanceof Redirect)
+    if (this.inf.redirects.has(k))
       throw new Error(`Cannot request redirected signature: ${k}`)
     return some(this.results.get(k))
   }

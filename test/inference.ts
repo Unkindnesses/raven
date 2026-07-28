@@ -1,7 +1,7 @@
 import { beforeAll, test } from 'vitest'
 import * as assert from 'assert'
 import { Compiler, load } from '../src/cli/compile.js'
-import { tag, list, pack, int64, int32, bits, float64, onion, nil, Any, Ref, Ptr, Tag, String, Type } from '../src/frontend/types.js'
+import { tag, list, pack, vpack, int64, int32, bits, float64, onion, recursive, recurrence, nil, Any, Ref, Ptr, Tag, String, Type } from '../src/frontend/types.js'
 import { key, Sig } from '../src/middle/abstract.js'
 import { source } from '../src/middle/load.js'
 import { Binding } from '../src/frontend/modules.js'
@@ -121,6 +121,44 @@ test('expansion resolves recursion redirects', async () => {
   assert.ok(Array.from(inferred).some(([_, st]) => st.expr.head === 'cast'))
   const expanded = compiler.pipe.expanded.get(dispatcherSig)
   assert.ok(!Array.from(expanded).some(([_, st]) => st.expr.head === 'cast'))
+})
+
+// Widening replaces the deep frames with a single one over the union of their
+// argument types; these all need more than one round to settle afterwards, so
+// they exercise the bookkeeping around retiring the frames it replaces.
+
+test('infer widens growing return type', async () => {
+  await compiler.reload(source('', `
+    fn countdown(n) {
+      if n <= 0 { return nil } else { return Some(countdown(n-1)) }
+    }
+  `))
+  const ret = result(compiler, tag('countdown'), list(40n))
+  assert.deepEqual(ret, list(recursive(onion(nil, some(recurrence)))))
+})
+
+test('infer widens mutual recursion', async () => {
+  await compiler.reload(source('', `
+    fn even(n) { if n <= 0 { return nil } else { return odd(n-1) } }
+    fn odd(n) { Some(even(n-1)) }
+  `))
+  const ret = result(compiler, tag('even'), list(40n))
+  assert.deepEqual(ret, list(recursive(onion(nil, some(recurrence)))))
+})
+
+test('infer widens growing argument type', async () => {
+  await compiler.reload(source('', `
+    fn build(xs, n) {
+      if n <= 0 { return xs } else { return build(append(&xs, n), n-1) }
+    }
+  `))
+  const ret = result(compiler, tag('build'), list(list(), 40n))
+  assert.deepEqual(ret, list(vpack(tag('common.List'), int64())))
+})
+
+test('infer non-terminating recursion', async () => {
+  await compiler.reload(source('', 'fn spin(n) { spin(n+1) }'))
+  assert.deepEqual(result(compiler, tag('spin'), list(1n)), unreachable)
 })
 
 test('infer fib sequence', async () => {
