@@ -5,7 +5,7 @@ import { tag, list, pack, vpack, int64, int32, bits, float64, onion, recursive, 
 import { key, Sig } from '../src/middle/abstract.js'
 import { source } from '../src/middle/load.js'
 import { Binding } from '../src/frontend/modules.js'
-import { asArray, only } from '../src/utils/map.js'
+import { only } from '../src/utils/map.js'
 import { unreachable } from '../src/utils/ir.js'
 
 let compiler: Compiler
@@ -15,7 +15,7 @@ beforeAll(async () => {
 })
 
 function result(comp: Compiler, f: Tag, args: Type) {
-  let [, ret] = asArray(comp.pipe.inferred.get([f, f, args]))
+  let [, ret] = comp.pipe.inferred.get([f, f, args])
   return ret
 }
 
@@ -114,7 +114,8 @@ test('expansion resolves recursion redirects', async () => {
   `))
   const fib = only(compiler.pipe.defs.methods(tag('fib')))
   const sig: Sig = [fib, int64(20)]
-  assert.throws(() => compiler.pipe.inferred.get(sig), /Cannot request redirected signature/)
+  const [, ret] = compiler.pipe.inferred.get(sig)
+  assert.deepEqual(ret, int64())
 
   const dispatcherSig: Sig = [tag('fib'), tag('fib'), list(int64(20))]
   const [inferred] = compiler.pipe.inferred.get(dispatcherSig)
@@ -186,7 +187,7 @@ test('infer traces straight-line code', async () => {
   `))
   const chain = only(compiler.pipe.defs.methods(tag('chain')))
   const plus1 = only(compiler.pipe.defs.methods(tag('plus1')))
-  const [ir, ret] = asArray(compiler.pipe.inferred.get([chain, int64()]))
+  const [ir, ret] = compiler.pipe.inferred.get([chain, int64()])
   assert.deepEqual(ret, int64())
   assert.ok(!compiler.pipe.inferred.inf.frames.has(key([plus1, int64()])))
   assert.ok(!Array.from(ir).some(([_, st]) => st.expr.head === 'call'))

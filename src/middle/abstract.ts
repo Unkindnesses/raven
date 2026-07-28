@@ -370,6 +370,18 @@ function redirectCalls(inf: Inference, code: MIR): MIR {
   return pr.finish()
 }
 
+function forward(inf: Inference, sig: Sig): [MIR, Anno<Type>] {
+  const [, ...S] = sig
+  const [F, ...T] = resolve(inf, sig)
+  if (!(F instanceof Method)) throw new Error(`Cannot forward dispatcher: ${key(sig)}`)
+  const ret = some(lookup(inf, sig)).rettype
+  const code = MIR(Def(`${F.name.path} (forwarder)`))
+  const args = S.map((S, i) =>
+    code.push(code.stmt(expr<IRValue>('cast', code.argument(S)), { type: T[i] })))
+  code.return(code.push(code.stmt(new Invoke(F, args), { type: ret })))
+  return [code, ret]
+}
+
 class Inferred implements Caching {
   readonly inf: Inference
   readonly results: CacheMap<string, [MIR, Anno<Type>]>
@@ -397,8 +409,7 @@ class Inferred implements Caching {
       if (this.iscached(k)) continue
       this.results.set(k, [redirectCalls(this.inf, prune(unloop(fr.ir))), fr.rettype])
     }
-    if (this.inf.redirects.has(k))
-      throw new Error(`Cannot request redirected signature: ${k}`)
+    if (this.inf.redirects.has(k)) this.results.set(k, forward(this.inf, sig))
     return some(this.results.get(k))
   }
 
