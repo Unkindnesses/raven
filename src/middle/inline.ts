@@ -1,6 +1,6 @@
 import * as ir from '../utils/ir.js'
 import { MIR, callargs } from '../frontend/modules.js'
-import { Redirect, Sig } from './abstract.js'
+import { Sig } from './abstract.js'
 import { options } from '../utils/options.js'
 import { CycleCache } from '../utils/cache.js'
 import { layout } from './expand.js'
@@ -27,9 +27,8 @@ function opcount(code: MIR): number {
   return count
 }
 
-function inlineable(cache: Accessor<Sig, Redirect | MIR>, sig: Sig): boolean {
+function inlineable(cache: Accessor<Sig, MIR>, sig: Sig): boolean {
   const ir = cache.get(sig)
-  if (ir instanceof Redirect) return inlineable(cache, ir.to)
   return ir.blockCount === 1 && opcount(ir) <= 3
 }
 
@@ -49,7 +48,7 @@ function inlineHere(pr: ir.Pipe<MIR>, callee: MIR, src: Stack, args: ir.Val<MIR>
   return rename(some(br.args[0]))
 }
 
-function inline(code: MIR, inlined: Accessor<Sig, Redirect | MIR>): MIR {
+function inline(code: MIR, inlined: Accessor<Sig, MIR>): MIR {
   const pr = new ir.Pipe(code)
   for (const [v, st] of pr) {
     if (!['call', 'invoke'].includes(st.expr.head)) continue
@@ -68,12 +67,11 @@ function inline(code: MIR, inlined: Accessor<Sig, Redirect | MIR>): MIR {
   return pr.finish()
 }
 
-function Inlined(cache: Accessor<Sig, Redirect | MIR>): CycleCache<Sig, Redirect | MIR> {
+function Inlined(cache: Accessor<Sig, MIR>): CycleCache<Sig, MIR> {
   const init = (sig: Sig) => cache.get(sig)
-  return new CycleCache<Sig, Redirect | MIR>(init, (self, sig) => {
-    let res = self.get(sig)
+  return new CycleCache<Sig, MIR>(init, (self, sig) => {
+    const res = self.get(sig)
     if (!options().inline) return res
-    if (res instanceof Redirect) return res
     return inline(res, self)
   })
 }

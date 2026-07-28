@@ -2,7 +2,7 @@ import { beforeAll, test } from 'vitest'
 import * as assert from 'assert'
 import { Compiler, load } from '../src/cli/compile.js'
 import { tag, list, pack, int64, int32, bits, float64, onion, nil, Any, Ref, Ptr, Tag, String, Type } from '../src/frontend/types.js'
-import { key } from '../src/middle/abstract.js'
+import { key, Sig } from '../src/middle/abstract.js'
 import { source } from '../src/middle/load.js'
 import { Binding } from '../src/frontend/modules.js'
 import { asArray, only } from '../src/utils/map.js'
@@ -100,6 +100,27 @@ test('infer fib recursive', async () => {
   `))
   let ret = result(compiler, tag('fib'), list(20n))
   assert.deepEqual(ret, list(int64()))
+})
+
+test('expansion resolves recursion redirects', async () => {
+  await compiler.reload(source('', `
+    fn fib(n) {
+      if widen(n <= 1) {
+        return n
+      } else {
+        return fib(n-1) + fib(n-2)
+      }
+    }
+  `))
+  const fib = only(compiler.pipe.defs.methods(tag('fib')))
+  const sig: Sig = [fib, int64(20)]
+  assert.throws(() => compiler.pipe.inferred.get(sig), /Cannot request redirected signature/)
+
+  const dispatcherSig: Sig = [tag('fib'), tag('fib'), list(int64(20))]
+  const [inferred] = compiler.pipe.inferred.get(dispatcherSig)
+  assert.ok(Array.from(inferred).some(([_, st]) => st.expr.head === 'cast'))
+  const expanded = compiler.pipe.expanded.get(dispatcherSig)
+  assert.ok(!Array.from(expanded).some(([_, st]) => st.expr.head === 'cast'))
 })
 
 test('infer fib sequence', async () => {

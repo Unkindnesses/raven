@@ -1,4 +1,4 @@
-import { unreachable, expand, Anno, Block, Expr, Branch, prune, asType } from '../utils/ir.js'
+import { unreachable, expand, Anno, Block, Expr, Branch, Pipe, expr, prune, asType } from '../utils/ir.js'
 import { LoopIR, looped, Path, block, nextpath, nextpathTo, blockargs, loop, unloop } from './loop.js'
 import { MatchMethods, dispatcher } from './patterns.js'
 import {
@@ -7,7 +7,7 @@ import {
 } from '../frontend/types.js'
 import { wasmPartials } from '../backend/wasm.js'
 import {
-  MIR, IRValue, Binding, Method, Definitions, StringRef, JS, Closure as XClosure,
+  MIR, IRValue, Binding, Method, Definitions, StringRef, JS, Invoke, Closure as XClosure,
   Global, SetGlobal, Wasm, callargs
 } from '../frontend/modules.js'
 import { Lowered } from '../frontend/lower.js'
@@ -23,7 +23,7 @@ import { partialPrimitive } from './prim_map.js'
 
 const recursionLimit = 10
 
-export { key, Sig, Inference, Inferred, Redirect, sig, inferexpr, infercall, issubset, maybe_union, traitType, withTraits }
+export { key, Sig, Inference, Inferred, inferexpr, infercall, issubset, maybe_union, traitType, withTraits }
 
 function key(sig: Sig): string {
   const [f, ...Ts] = sig
@@ -398,9 +398,27 @@ function infer(inf: Inference, { partial = false }: { partial?: boolean } = {}):
 
 // Results and caching
 
+function redirectCalls(inf: Inference, code: MIR): MIR {
+  const pr = new Pipe(code)
+  for (const [v, st] of pr) {
+    if (!(st.expr instanceof Invoke)) continue
+    if (partialPrimitive(st.expr.method)) continue
+    const S = st.expr.body.map(x => asType(pr.type(x)))
+    const from: Sig = [st.expr.method, ...S]
+    const [_, ...T] = sig(inf, from)
+    if (isEqual(S, T)) continue
+    pr.delete(v)
+    const args = st.expr.body.map((x, i) =>
+      isEqual(S[i], T[i]) ? x : pr.push(pr.stmt(expr('cast', x), { type: T[i], src: st.src })))
+    const redirected = pr.push({ ...st, expr: new Invoke(st.expr.method, args) })
+    pr.replace(v, redirected)
+  }
+  return pr.finish()
+}
+
 class Inferred implements Caching {
   readonly inf: Inference
-  readonly results: CacheMap<string, [MIR, Anno<Type>] | Redirect>
+  readonly results: CacheMap<string, [MIR, Anno<Type>]>
   time = 0n
 
   constructor(defs: Definitions, lowered: Lowered, meths: MatchMethods, traced: Traced) {
@@ -411,7 +429,7 @@ class Inferred implements Caching {
   get size() { return this.results.size }
   iscached(k: string): boolean { return this.results.iscached(k) }
 
-  _get(sig: Sig): [MIR, Anno<Type>] | Redirect {
+  _get(sig: Sig): [MIR, Anno<Type>] {
     const k = key(sig)
     if (this.iscached(k)) return this.results.get(k)!
     // Don't let inference dependencies leak
@@ -421,14 +439,15 @@ class Inferred implements Caching {
     })
     if (deps.size !== 0) throw new Error('assertion')
     for (const [k, fr] of this.inf.frames) {
-      if (this.iscached(k)) continue
-      if (fr instanceof Redirect) this.results.set(k, fr)
-      else this.results.set(k, [prune(unloop(fr.ir)), fr.rettype])
+      if (this.iscached(k) || fr instanceof Redirect) continue
+      this.results.set(k, [redirectCalls(this.inf, prune(unloop(fr.ir))), fr.rettype])
     }
-    return this.results.get(k)!
+    if (this.inf.frames.get(k) instanceof Redirect)
+      throw new Error(`Cannot request redirected signature: ${k}`)
+    return some(this.results.get(k))
   }
 
-  get(sig: Sig): [MIR, Anno<Type>] | Redirect {
+  get(sig: Sig): [MIR, Anno<Type>] {
     const [res, t] = withtime(() => this._get(sig))
     this.time += t
     return res
@@ -445,9 +464,7 @@ class Inferred implements Caching {
   }
 
   traitType(T: Type): Anno<Type> {
-    const result = this.get(traitSig(T))
-    if (result instanceof Redirect) throw new Error('Unexpected castTrait redirect')
-    return traitResult(result[1])
+    return traitResult(this.get(traitSig(T))[1])
   }
 }
 

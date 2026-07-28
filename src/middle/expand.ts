@@ -25,7 +25,7 @@ import * as wasm from '../wasm/wasm.js'
 import { MIR, Method, Value, xstring, Global, Invoke, Wasm, xwasm } from '../frontend/modules.js'
 import { xref } from '../wasm/ir.js'
 import { Def } from '../dwarf/index.js'
-import { Inferred, Redirect, Sig, sig as resolveSig, withTraits } from './abstract.js'
+import { Inferred, Sig, withTraits } from './abstract.js'
 import { wasmPartials } from '../backend/wasm.js'
 import { isEqual } from '../utils/isEqual.js'
 import { Pipe, Block, Fragment, expr, Branch, Val, Anno, unreachable, asType } from '../utils/ir.js'
@@ -647,7 +647,7 @@ function cast(pr: Fragment<MIR>, from: Anno<Type>, to: Anno<Type>, x: Val<MIR>):
   throw new Error(`unsupported cast: ${types.repr(from)} -> ${types.repr(to)}`)
 }
 
-function casts(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
+function casts(code: MIR, ret: Anno<Type>): MIR {
   const pr = new Pipe(code)
   for (const [v, st] of pr) {
     const ex = st.expr
@@ -656,17 +656,10 @@ function casts(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
     if (ex instanceof Wasm) {
       const args = ex.body.map(a => constValue(asType(pr.type(a))) ?? a)
       pr.set(v, new Wasm(ex.callee, args, ex.result))
-    } else if (ex instanceof Invoke) {
-      const S = ex.body.map(a => pr.type(a))
-      if (!partialPrimitive(ex.method) && S.every(t => t !== ir.unreachable)) {
-        const sig: Sig = [ex.method, ...S.map(x => asType(x))]
-        if (!(inf.get(sig) instanceof Redirect)) continue
-        const [_, ...T] = resolveSig(inf.inf, sig)
-        pr.delete(v)
-        const args = ex.body.map((a, i) => cast(pr, asType(S[i]), T[i], a))
-        const v2 = pr.push(pr.stmt(xcall(ex.method, ...args), { type: st.type }))
-        pr.replace(v, v2)
-      }
+    } else if (ex.head === 'cast') {
+      const x = ex.body[0]
+      pr.delete(v)
+      pr.replace(v, cast(pr, pr.type(x), st.type, x))
     } else if (st.expr instanceof Branch) {
       const br = st.expr
       if (br.isreturn()) {
@@ -699,7 +692,7 @@ function expand(inf: Inferred, code: MIR, ret: Anno<Type>): MIR {
   code = trim_unreachable(code)
   code = ir.fuseblocks(code)
   code = lowerdata(inf, code)
-  code = casts(inf, code, ret)
+  code = casts(code, ret)
   return code
 }
 
@@ -713,15 +706,13 @@ function outlineInlinePrimitive(inf: Inferred, F: Method, ...Ts: Type[]): MIR {
   })
 }
 
-function Expanded(inf: Inferred): Cache<Sig, Redirect | MIR> {
-  return new Cache<Sig, Redirect | MIR>((sig: Sig) => {
+function Expanded(inf: Inferred): Cache<Sig, MIR> {
+  return new Cache<Sig, MIR>((sig: Sig) => {
     const [F, ...Ts] = sig
     if (F instanceof Method) {
       if (outlinePrimitive(F)) return withTraits(T => inf.traitType(T), () => outlinePrimitive(F)!(...F.params, ...Ts))
       if (inlinePrimitive(F)) return outlineInlinePrimitive(inf, F, ...Ts)
     }
-    const res = inf.get(sig)
-    if (res instanceof Redirect) return res
-    return expand(inf, ...res)
+    return expand(inf, ...inf.get(sig))
   })
 }

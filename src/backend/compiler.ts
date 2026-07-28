@@ -3,7 +3,7 @@ import { tag } from '../frontend/types.js'
 import * as mods from '../frontend/modules.js'
 import { Traced } from '../middle/tracer.js'
 import { MatchMethods } from '../middle/patterns.js'
-import { Inferred, Redirect, Sig } from '../middle/abstract.js'
+import { Inferred, Sig } from '../middle/abstract.js'
 import { Expanded } from '../middle/expand.js'
 import { Inlined, opcount } from '../middle/inline.js'
 import { isreftype, release_method, refcounts } from '../middle/refcount.js'
@@ -55,8 +55,7 @@ class Pipeline implements Caching {
 
   // TODO less backend-dependent
   emit(em: wasm.Emitter, m: mods.Method): void {
-    let ir = this.counted.get([m])
-    if (ir instanceof Redirect) throw new Error('nope')
+    const ir = this.counted.get([m])
     const name = this.wasm.names.get([m])
     const gs = assigned_globals(ir)
     let wir = this.wasm.lower(ir)

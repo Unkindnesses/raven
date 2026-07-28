@@ -9,7 +9,7 @@ import { wlayout } from '../middle/expand.js'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe, reuse } from '../utils/cache.js'
 import { Binding, Definitions, MIR, Method, StringRef, JS, Func, Global, SetGlobal, Wasm as WasmCall, callargs, Value as MValue, asValue } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
-import { Redirect, Sig } from '../middle/abstract.js'
+import { Sig } from '../middle/abstract.js'
 import { Accessor } from '../utils/fixpoint.js'
 import { xtuple } from '../frontend/lower.js'
 import { some } from '../utils/map.js'
@@ -191,12 +191,6 @@ function lowerwasm_globals(ir: WIR, globals: Cache<Binding, string[]>): WIR {
   return out
 }
 
-function frame(code: Accessor<Sig, Redirect | MIR>, sig: Sig): MIR {
-  let res = code.get(sig)
-  while (res instanceof Redirect) res = code.get(res.to)
-  return res
-}
-
 type WSig = [[string, string], wasm.ValueType[], wasm.ValueType[]]
 
 function wname(f: types.Tag | Method | [string, string]): string {
@@ -212,7 +206,7 @@ class Wasm implements Caching {
   globals: Cache<Binding, string[]>
   names: DualCache<Sig | WSig, string>
   funcs: Cache<Sig, wasm.Func>
-  constructor(defs: Definitions, code: Accessor<Sig, Redirect | MIR>) {
+  constructor(defs: Definitions, code: Accessor<Sig, MIR>) {
     this.tables = new Tables()
     this.count = new Map<string, number>()
     // TODO pretty sure this is wrong; binding chains lead to duplicated globals
@@ -238,9 +232,7 @@ class Wasm implements Caching {
       return `${id}:${c}`
     })
     this.funcs = new Cache<Sig, wasm.Func>(sig => {
-      // TODO: we use `frame` to avoid redirects, but this can duplicate function
-      // bodies. Should instead avoid calling redirected sigs, eg via casting.
-      return lowerfunc(this.names.get(sig), this.lower(frame(code, sig)))
+      return lowerfunc(this.names.get(sig), this.lower(code.get(sig)))
     })
   }
   lower(ir: MIR) { return lowerwasm(ir, this.names, this.globals, this.tables) }

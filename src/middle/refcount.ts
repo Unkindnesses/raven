@@ -30,7 +30,7 @@ import * as types from '../frontend/types.js'
 import { Type, tag, tagOf } from '../frontend/types.js'
 import { MIR, Value, IRValue, Method, Invoke } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
-import { Redirect, Sig } from './abstract.js'
+import { Sig } from './abstract.js'
 import { Cache } from '../utils/cache.js'
 import { primitive } from './prim_map.js'
 import { isEqual } from '../utils/isEqual.js'
@@ -343,8 +343,8 @@ function elide_counts(code: MIR): MIR {
   return code
 }
 
-function refcounts(c: Accessor<Sig, Redirect | MIR>): Cache<Sig, Redirect | MIR> {
-  return new Cache<Sig, Redirect | MIR>(sig => {
+function refcounts(c: Accessor<Sig, MIR>): Cache<Sig, MIR> {
+  return new Cache<Sig, MIR>(sig => {
     const [F, ...Ts] = sig
     if (F instanceof Method) {
       if (releaseFunction_method.id === F.id)
@@ -355,7 +355,6 @@ function refcounts(c: Accessor<Sig, Redirect | MIR>): Cache<Sig, Redirect | MIR>
       }
     }
     const ir = c.get(sig)
-    if (ir instanceof Redirect) return ir
     return elide_counts(refcountsIR(ir))
   })
 }
