@@ -129,11 +129,6 @@ function lowerwasm(ir: MIR, names: DualCache<Sig | WSig, string>, globals: Cache
         env.set(v, out.push({ ...st, expr: expr('tuple', ...body), type: type(st.type) }))
       } else if (st.expr.head === 'ref') {
         env.set(v, out.push({ ...st, expr: st.expr.map(rename as any) as unknown as Expr<WValue>, type: type(st.type) }))
-      } else if (st.expr.head === 'cast') { // TODO just use `tuple` instead
-        const arg = st.expr.body[0]
-        if (!isEqual(wlayout(asType(st.type)), wlayout(asType(ir.type(arg)))))
-          throw new Error('cast: layout mismatch')
-        env.set(v, rename(arg))
       } else if (st.expr instanceof Global) {
         const ids = globals.get(st.expr.binding)
         const parts = wlayout(asType(st.type))

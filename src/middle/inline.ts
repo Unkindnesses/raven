@@ -14,7 +14,7 @@ export { Inlined, opcount }
 function opcount(code: MIR): number {
   let count = 0
   for (const [_, st] of code) {
-    if (['tuple', 'ref', 'branch', 'cast', 'retain', 'release', 'string'].includes(st.expr.head)) {
+    if (['tuple', 'ref', 'branch', 'retain', 'release', 'string'].includes(st.expr.head)) {
     } else if (st.expr.head === 'global') {
       count += layout(ir.asType(st.type)).length > 0 ? 1 : 0
     } else if (st.expr.head === 'setglobal') {

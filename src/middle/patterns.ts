@@ -26,7 +26,7 @@ import * as types from '../frontend/types.js'
 import * as ir from '../utils/ir.js'
 import { MIR, IRValue, Method, Definitions } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
-import { Lowered, xlist, xpart, xcall } from '../frontend/lower.js'
+import { Lowered, xlist, xpart, xcall, xtuple } from '../frontend/lower.js'
 import { Pattern, pattern } from '../frontend/patterns.js'
 import { Inference, Sig, inferexpr, infercall, issubset, maybe_union } from './abstract.js'
 import { some } from '../utils/map.js'
@@ -314,7 +314,7 @@ function dispatcher(inf: Inference, func: types.Tag, F: types.Type, Ts: types.Ty
   const args = code.argument(Ts)
   if (F.kind === 'closure') {
     const P = types.pack(F.method.name, ...F.parts)
-    f = types.isValue(P) ? P : code.push(code.stmt(ir.expr<IRValue>('cast', f), { type: P }))
+    f = types.isValue(P) ? P : code.push(code.stmt(xtuple<IRValue>(f), { type: P }))
   }
   const fullType = types.list(ir.asType(code.type(f)), Ts)
   const full = code.push(code.stmt(xlist<IRValue>(f, args), { type: fullType }))
