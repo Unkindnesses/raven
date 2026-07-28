@@ -119,17 +119,12 @@ function globalFrame(inf: Inference, name: Binding): GlobalFrame {
   return frame
 }
 
-function frame(inf: Inference, P: Parent, sig: Sig): Frame | Redirect | Anno<Type> {
+function frame(inf: Inference, P: Parent, sig: Sig): Frame | Redirect {
   const [f, ...Ts] = sig
   const k = key(sig)
   if (inf.frames.get(k)) return inf.frames.get(k)!
-  if (f instanceof Method) {
-    const partial = partialPrimitive(f)
-    if (partial) return withTraits(T =>
-      traitResult(some(infercall(inf, some(P.sig), ...traitSig(T)))),
-      () => partial(...Ts))
-    if (P.depth > recursionLimit) return mergeFrames(inf, some(P.sig), sig)
-  }
+  if (f instanceof Method && P.depth > recursionLimit)
+    return mergeFrames(inf, some(P.sig), sig)
   const [trace, deps] = trackdeps(() => inf.traced.trace(f, ...Ts))
   if (trace) {
     const [ir, ret] = trace
@@ -185,11 +180,14 @@ function mergeFrames(inf: Inference, T: Sig, F: Sig): Frame {
 
 function infercall(inf: Inference, P: Sig, F: Func, ...Ts: Anno<Type>[]): Anno<Type> | undefined {
   if (Ts.some(t => t === unreachable)) return unreachable
+  if (F instanceof Method) {
+    const partial = partialPrimitive(F)
+    if (partial) return withTraits(T => traitResult(some(infercall(inf, P, ...traitSig(T)))),
+      () => partial(...Ts as Type[]))
+  }
   const parent = new Parent(P, recursionDepth(inf, P, F))
-  const argTypes: Type[] = Ts.map(t => asType(t))
-  const s = [F, ...argTypes] as Sig
+  const s = [F, ...Ts as Type[]] as Sig
   let fr = frame(inf, parent, s)
-  if (!(fr instanceof Frame || fr instanceof Redirect)) return fr
   while (fr instanceof Redirect) fr = some(inf.frames.get(key(fr.to)))
   const psig = key(some(parent.sig))
   const pf = some(inf.frames.get(psig))
