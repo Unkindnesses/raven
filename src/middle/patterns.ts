@@ -275,11 +275,10 @@ function dispatch_arms(T: types.Type): types.Type[] {
   return [T]
 }
 
-function push(code: ir.Fragment<MIR>, ex: ir.Expr<IRValue>, T: types.Type): ir.Val<MIR> {
-  return types.isValue(T) ? T : code.push(code.stmt(ex, { type: T }))
-}
+type Push = (code: ir.Fragment<MIR>, ex: ir.Expr<IRValue>, T: types.Type) => ir.Val<MIR>
 
-function indexer(code: ir.Fragment<MIR>, T: types.Type, arg: ir.Val<MIR>, path: Path): ir.Val<MIR> {
+function indexer(code: ir.Fragment<MIR>, T: types.Type, arg: ir.Val<MIR>, path: Path, push?: Push): ir.Val<MIR> {
+  push ??= (code, ex, T) => code.push(code.stmt(ex, { type: T }))
   if (path.length === 0) return arg
   const [p, ...rest] = path
   if (typeof p !== 'number') {
@@ -292,7 +291,7 @@ function indexer(code: ir.Fragment<MIR>, T: types.Type, arg: ir.Val<MIR>, path: 
     T = types.part(T, p)
     arg = push(code, xpart(arg, types.Type(BigInt(p))), T)
   }
-  return indexer(code, T, arg, rest)
+  return indexer(code, T, arg, rest, push)
 }
 
 function icall(inf: Inference, code: MIR, sig: Sig, f: IRValue | Method, ...args: (IRValue | number)[]): ir.Val<MIR> {

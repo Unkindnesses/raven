@@ -194,7 +194,7 @@ function packv(code: ir.Fragment<MIR>, ...xs: ir.Val<MIR>[]): ir.Val<MIR> {
 
 function bindings(code: ir.Fragment<MIR>, V: types.Type, val: ir.Val<MIR>, m: Match): ir.Val<MIR> {
   const fields = [...m].map(([name, [, path]]) =>
-    packv(code, types.tag('common.record/Pair'), types.tag(name), indexer(code, V, val, path)))
+    packv(code, types.tag('common.record/Pair'), types.tag(name), indexer(code, V, val, path, push)))
   return packv(code, types.tag('common.record/Record'), ...fields)
 }
 
@@ -203,7 +203,7 @@ function static_match(int: Interpreter, code: ir.Fragment<MIR>, Ts: types.Type, 
   const [V, P] = [types.part(Ts, 1), types.part(Ts, 2)]
   const m = partial_match(int, pattern(P), V)
   if (m === undefined) return
-  return m === null ? types.nil : bindings(code, V, indexer(code, Ts, args, [1]), m)
+  return m === null ? types.nil : bindings(code, V, indexer(code, Ts, args, [1], push), m)
 }
 
 function swapresult(code: ir.Fragment<MIR>, want: boolean, have: boolean, result: ir.Val<MIR>): ir.Val<MIR> {
@@ -350,7 +350,7 @@ class Tracer {
     for (const [meth, m] of this.methods.get([func.func, fullTs])) {
       if (m === undefined) return
       if (this.traceMethod(code, meth.signature, []) === undefined) return // trace side effects
-      const as = meth.sig.args.map((a, i) => indexer(code, fullTs, full, m.get(a)![1]))
+      const as = meth.sig.args.map((a, i) => indexer(code, fullTs, full, m.get(a)![1], push))
       const result = this.traceMethod(code, meth, as)
       if (result === undefined) return
       return swapresult(code, func.swap, meth.swaps, result)
