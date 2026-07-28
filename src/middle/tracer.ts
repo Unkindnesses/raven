@@ -4,12 +4,12 @@ import {
   Method, Definitions, IRValue, Wasm, Invoke, Closure, Global, MIR, SetGlobal,
   StringRef, JS, Value
 } from '../frontend/modules.js'
-import { Lowered } from '../frontend/lower.js'
+import { Lowered, xpack } from '../frontend/lower.js'
 import { Def, Stack } from '../dwarf/index.js'
 import * as ir from '../utils/ir.js'
 import { unreachable } from '../utils/ir.js'
 import { Branch, asType } from '../utils/ir.js'
-import { dispatcherDef, indexer, matchMethods, Interpreter, Methods } from './patterns.js'
+import { dispatcherDef, indexer, matchMethods, Interpreter, Methods, partial_match, Match } from './patterns.js'
 import { wasmPartials } from '../backend/wasm.js'
 import { getIntValue, invoke_method, load_method, notnil_method, pack_method, packcat_method, part_method, store_method, tagcast_method } from './primitives.js'
 import { isEqual } from '../utils/isEqual.js'
@@ -18,6 +18,7 @@ import { Caching, CycleCache } from '../utils/cache.js'
 import { Accessor } from '../utils/fixpoint.js'
 import { xcall, xlist } from '../frontend/lower.js'
 import { partialPrimitive } from './prim_map.js'
+import { pattern } from '../frontend/patterns.js'
 
 export { Tracer, Traced }
 
@@ -25,6 +26,10 @@ type Func = Tag | Method
 type Trace = [MIR, ir.Anno<Type>] | undefined
 
 const TRACE_LIMIT = 1_000
+
+function push(code: ir.Fragment<MIR>, ex: ir.Expr<IRValue>, T: types.Type): ir.Val<MIR> {
+  return types.isValue(T) ? T : code.push(code.stmt(ex, { type: T }))
+}
 
 function parts(ir: MIR, v: ir.Val<MIR>): ir.Val<MIR>[] | undefined {
   if (v instanceof Value) return
@@ -183,10 +188,30 @@ function keyindex(Ts: Type[]): Type | undefined {
   return types.nil
 }
 
+function packv(code: ir.Fragment<MIR>, ...xs: ir.Val<MIR>[]): ir.Val<MIR> {
+  return push(code, xpack<IRValue>(...xs), types.pack(...xs.map(x => ir.asType(code.type(x)))))
+}
+
+function bindings(code: ir.Fragment<MIR>, V: types.Type, val: ir.Val<MIR>, m: Match): ir.Val<MIR> {
+  const fields = [...m].map(([name, [, path]]) =>
+    packv(code, types.tag('common.Pair'), types.tag(name), indexer(code, V, val, path)))
+  return packv(code, types.tag('common.Record'), ...fields)
+}
+
+function static_match(int: Interpreter, code: ir.Fragment<MIR>, Ts: types.Type, args: ir.Val<MIR>): ir.Val<MIR> | undefined {
+  if (Ts.kind !== 'pack' || types.nparts(Ts) !== 2) return
+  const [V, P] = [types.part(Ts, 1), types.part(Ts, 2)]
+  const m = partial_match(int, pattern(P), V)
+  if (m === undefined) return
+  return packv(code, types.tag('common.List'),
+    m === null ? types.nil : bindings(code, V, indexer(code, Ts, args, [1]), m))
+}
+
 class Tracer {
   count = 0
 
-  constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly methods: Methods) { }
+  constructor(readonly defs: Definitions, readonly lowered: Lowered,
+    readonly interp: Interpreter, readonly methods: Methods) { }
 
   trace(f: Func, ...args: Type[]): Trace {
     this.count = 0
@@ -309,6 +334,10 @@ class Tracer {
   traceFunc(code: TraceIR, func: Tag, f: ir.Val<MIR>, args: ir.Val<MIR>): ir.Val<MIR> | undefined {
     const F = asType(code.type(f))
     const Ts = asType(code.type(args))
+    if (types.tag('common.match').isEqual(F)) {
+      const result = static_match(this.interp, code, Ts, args)
+      if (result !== undefined) return result
+    }
     const fullTs = types.list(F, Ts)
     const full = code.push(code.stmt(xlist<IRValue>(f, args), { type: fullTs }))
     for (const [meth, m] of this.methods.get([func, fullTs])) {
@@ -335,7 +364,7 @@ class Traced implements Caching, Interpreter {
     const results = new CycleCache<[Func, ...Type[]], Trace>(init, (self, sig) => {
       const int = new Traced(self)
       methods ??= { get: key => matchMethods(defs, int, key) }
-      return new Tracer(defs, lowered, methods).trace(...sig)
+      return new Tracer(defs, lowered, int, methods).trace(...sig)
     })
     return new Traced(results)
   }

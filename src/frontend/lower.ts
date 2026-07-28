@@ -18,7 +18,7 @@ import * as patterns from "./patterns.js"
 export {
   Lowered, LIR, lower_toplevel, bundlemacro, expand, lowerfn, source,
   lowerpattern, callpattern, modtag,
-  globals, assigned_globals, xlist, xpart, xcall, xtuple, attrs
+  globals, assigned_globals, xpack, xlist, xpart, xcall, xtuple, attrs
 }
 // Built-in macros
 

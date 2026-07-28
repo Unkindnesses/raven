@@ -18,7 +18,7 @@ function traceCount(f: Tag, ...args: Type[]) {
 
 beforeAll(async () => {
   const compiler = await Compiler.create(load)
-  tr = new Tracer(compiler.pipe.defs, compiler.pipe.lowered, compiler.pipe.methods)
+  tr = new Tracer(compiler.pipe.defs, compiler.pipe.lowered, compiler.pipe.interp, compiler.pipe.methods)
 })
 
 test('trace biteqz', () => {
@@ -71,15 +71,29 @@ test('trace print', () => {
   assert.ok(ir.length <= 50) // TODO shorten
 })
 
-test('trace keyindex shortcut', () => {
-  const P = (a: Type, b: Type) => pack(tag('common.Pair'), a, b)
-  const R = (...fields: Type[]) => pack(tag('common.Record'), ...fields)
+const P = (a: Type, b: Type) => pack(tag('common.Pair'), a, b)
+const R = (...fields: Type[]) => pack(tag('common.Record'), ...fields)
 
+test('trace keyindex shortcut', () => {
   const [hit, hitCount] = traceCount(tag('common.keyindex'), R(P(tag('a'), int64()), P(tag('b'), String())), tag('b'))
   assert.deepEqual(hit[1], list(int64(2)))
   assert.equal(hitCount, 1)
 
   const [miss, missCount] = traceCount(tag('common.keyindex'), R(P(tag('a'), int64()), P(tag('b'), String())), tag('c'))
+  assert.deepEqual(miss[1], list(nil))
+  assert.equal(missCount, 1)
+})
+
+test('trace match shortcut', () => {
+  const node = (name: string, ...parts: Type[]) => pack(tag(`common.${name}`), ...parts)
+  const bind = (name: string) => node('Bind', tag(name), node('Hole'))
+  const pat = node('Pack', node('Literal', tag('common.List')), bind('a'), bind('b')) // [a, b]
+
+  const [hit, hitCount] = traceCount(tag('common.match'), list(int64(), String()), pat)
+  assert.deepEqual(hit[1], list(R(P(tag('a'), int64()), P(tag('b'), String()))))
+  assert.equal(hitCount, 1)
+
+  const [miss, missCount] = traceCount(tag('common.match'), list(int64()), pat)
   assert.deepEqual(miss[1], list(nil))
   assert.equal(missCount, 1)
 })
