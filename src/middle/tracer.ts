@@ -9,7 +9,7 @@ import { Def, Stack } from '../dwarf/index.js'
 import * as ir from '../utils/ir.js'
 import { unreachable } from '../utils/ir.js'
 import { Branch, asType } from '../utils/ir.js'
-import { dispatcherDef, indexer, matchMethods, Methods } from './patterns.js'
+import { dispatcherDef, indexer, matchMethods, Interpreter, Methods } from './patterns.js'
 import { wasmPartials } from '../backend/wasm.js'
 import { getIntValue, invoke_method, load_method, notnil_method, pack_method, packcat_method, part_method, store_method, tagcast_method } from './primitives.js'
 import { isEqual } from '../utils/isEqual.js'
@@ -188,19 +188,19 @@ class Tracer {
 
   constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly methods: Methods) { }
 
-  _trace(f: Func, ...args: Type[]): [MIR, ir.Anno<Type>] | undefined {
+  trace(f: Func, ...args: Type[]): Trace {
     this.count = 0
     const meta = f instanceof Tag ? dispatcherDef(f) : this.lowered.ir(f).meta
     const code = new TraceIR(meta)
     const argv = args.map(a => code.argument(a))
-    const ret = this.trace(code, f, argv)
+    const ret = this.traceCall(code, f, argv)
     if (ret === undefined) return
     code.return(ret)
     code.prune()
     return [code.ir, code.type(ret)]
   }
 
-  trace(code: TraceIR, x: Func, args: ir.Val<MIR>[], src?: Stack): ir.Val<MIR> | undefined {
+  traceCall(code: TraceIR, x: Func, args: ir.Val<MIR>[], src?: Stack): ir.Val<MIR> | undefined {
     if (x instanceof Method) return this.traceMethod(code, x, args, src)
     if (args.length !== 2) throw new Error('bug')
     if (this.count++ > TRACE_LIMIT) return
@@ -217,7 +217,7 @@ class Tracer {
         if (st.expr.head === 'call') {
           const op = code.type(st.expr.body[0])
           if (!(op instanceof Tag)) return // TODO support closures
-          const result = this.trace(code, op, st.expr.body, st.src)
+          const result = this.traceCall(code, op, st.expr.body, st.src)
           if (result === undefined) return
           code.replace(v, result)
         } else if (st.expr instanceof Invoke) {
@@ -327,15 +327,15 @@ class Tracer {
   }
 }
 
-class Traced implements Caching {
+class Traced implements Caching, Interpreter {
   private constructor(readonly results: Accessor<[Func, ...Type[]], Trace>) { }
 
   static create(defs: Definitions, lowered: Lowered, methods?: Methods) {
     const init = (_: [Func, ...Type[]]): Trace => undefined
     const results = new CycleCache<[Func, ...Type[]], Trace>(init, (self, sig) => {
-      methods ??= { get: key => matchMethods(defs, int, key) }
       const int = new Traced(self)
-      return new Tracer(defs, lowered, methods)._trace(...sig)
+      methods ??= { get: key => matchMethods(defs, int, key) }
+      return new Tracer(defs, lowered, methods).trace(...sig)
     })
     return new Traced(results)
   }
@@ -346,7 +346,7 @@ class Traced implements Caching {
     return this.results.get([func, ...args])
   }
 
-  get(func: Tag, args: Type[]): Type | undefined {
+  eval(func: Tag, ...args: Type[]): Type | undefined {
     const result = this.results.get([func, func, ...args])
     if (result === undefined || result[1] === ir.unreachable) return
     return asType(result[1])

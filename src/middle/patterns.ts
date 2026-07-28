@@ -50,8 +50,8 @@ type Match = Map<string, [types.Type, Path]>
 type MatchResult = Match | null | undefined // null is known failure, undefined is unknown
 
 interface Interpreter {
-  get(func: types.Tag, args: types.Type[]): types.Type | undefined
-  trace(method: Method): [MIR, ir.Anno<types.Type>] | undefined
+  eval(func: types.Tag, ...args: types.Type[]): types.Type | undefined
+  trace(func: Func, ...args: types.Type[]): [MIR, ir.Anno<types.Type>] | undefined
 }
 
 interface Methods {
@@ -185,7 +185,7 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
       return null
 
     case 'constructor': {
-      const result = mod.get(types.tag('common.constructorPattern'), [types.list(...types.parts(pat.value))])
+      const result = mod.eval(types.tag('common.constructorPattern'), types.list(...types.parts(pat.value)))
       if (!result || !types.isValue(result)) return undefined
       return partial_match(mod, pattern(types.part(result, 1)), val, path)
     }
@@ -217,7 +217,7 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
 
 // TODO assumes the value is unchanged by the match
 function trivial_isa(int: Interpreter, val: types.Type, T: types.Type): boolean | undefined {
-  const r = int.get(types.tag('common.matchTrait'), [types.list(T, val)])
+  const r = int.eval(types.tag('common.matchTrait'), types.list(T, val))
   if (r === undefined) return undefined
   const tag = types.tagOf(types.part(r, 1))
   if (types.tag('common.Some').isEqual(tag)) return true

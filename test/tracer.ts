@@ -8,11 +8,11 @@ import { some } from '../src/utils/map.js'
 let tr: Tracer
 
 function trace(f: Tag, ...args: Type[]) {
-  return some(tr._trace(f, f, list(...args)))
+  return some(tr.trace(f, f, list(...args)))
 }
 
 function traceCount(f: Tag, ...args: Type[]) {
-  const result = some(tr._trace(f, f, list(...args)))
+  const result = some(tr.trace(f, f, list(...args)))
   return [result, tr.count] as const
 }
 
