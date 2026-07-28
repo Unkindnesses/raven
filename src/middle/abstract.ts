@@ -80,14 +80,6 @@ class Inference {
   globals = new Map<string, GlobalFrame>()
   queue = new WorkQueue<string>()
   constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly meths: MatchMethods, readonly traced: Traced) { }
-
-  frame(T: Sig): Frame
-  frame(T: Binding): GlobalFrame
-  frame(T: Sig | Binding): Frame | GlobalFrame {
-    const fr = some(Array.isArray(T) ? this.frames.get(key(T)) : this.globals.get(T[hash]))
-    if (fr instanceof Redirect) return this.frame(fr.to)
-    return fr
-  }
 }
 
 function sig(inf: Inference, T: Sig): Sig {
@@ -97,13 +89,14 @@ function sig(inf: Inference, T: Sig): Sig {
 }
 
 function parent(inf: Inference, T: Sig): Sig | null {
-  const P = inf.frame(T).parent.sig
+  const P = asFrame(inf.frames.get(key(sig(inf, T)))).parent.sig
   return P ? sig(inf, P) : null
 }
 
 function recursionDepth(inf: Inference, T: Sig | null, F: Func): number {
   while (T) {
-    if (isEqual(T[0], F)) return inf.frame(T).parent.depth + 1
+    if (isEqual(T[0], F))
+      return asFrame(inf.frames.get(key(sig(inf, T)))).parent.depth + 1
     T = parent(inf, T)
   }
   return 1
@@ -126,10 +119,10 @@ function globalFrame(inf: Inference, name: Binding): GlobalFrame {
   return frame
 }
 
-function frame(inf: Inference, P: Parent, sig: Sig): Frame | Anno<Type> {
+function frame(inf: Inference, P: Parent, sig: Sig): Frame | Redirect | Anno<Type> {
   const [f, ...Ts] = sig
   const k = key(sig)
-  if (inf.frames.has(k)) return inf.frame(sig)
+  if (inf.frames.get(k)) return inf.frames.get(k)!
   if (f instanceof Method) {
     const partial = partialPrimitive(f)
     if (partial) return withTraits(T =>
@@ -144,7 +137,7 @@ function frame(inf: Inference, P: Parent, sig: Sig): Frame | Anno<Type> {
     fr.rettype = ret
     inf.deps.set(k, deps)
     inf.frames.set(k, fr)
-    return inf.frame(sig)
+    return fr
   }
   if (f instanceof Method) {
     const [ir, ideps] = trackdeps(() => inf.lowered.ir(f))
@@ -152,12 +145,12 @@ function frame(inf: Inference, P: Parent, sig: Sig): Frame | Anno<Type> {
     inf.deps.set(k, deps)
     inf.frames.set(k, Frame.create(P, ir, f, ...Ts))
     update(inf, k)
-    return inf.frame(sig)
+    return inf.frames.get(k)!
   } else {
     inf.frames.set(k, new Frame(sig, P, looped(MIR(Def(f.path)))))
     inf.deps.set(k, deps)
     update(inf, k)
-    return inf.frame(sig)
+    return inf.frames.get(k)!
   }
 }
 
@@ -172,8 +165,7 @@ function mergeFrames(inf: Inference, T: Sig, F: Sig): Frame {
   })
   const firstFrame = asFrame(inf.frames.get(key(sigs[0])))
   const P = firstFrame.parent.sig
-  const fr = frame(inf, new Parent(P, recursionLimit), sig)
-  if (!(fr instanceof Frame)) throw new Error('Expected Frame')
+  const fr = asFrame(frame(inf, new Parent(P, recursionLimit), sig))
   for (const s of sigs) {
     const k = key(s)
     if (isEqual(s, sig)) continue
@@ -196,8 +188,9 @@ function infercall(inf: Inference, P: Sig, F: Func, ...Ts: Anno<Type>[]): Anno<T
   const parent = new Parent(P, recursionDepth(inf, P, F))
   const argTypes: Type[] = Ts.map(t => asType(t))
   const s = [F, ...argTypes] as Sig
-  const fr = frame(inf, parent, s)
-  if (!(fr instanceof Frame)) return fr
+  let fr = frame(inf, parent, s)
+  if (!(fr instanceof Frame || fr instanceof Redirect)) return fr
+  while (fr instanceof Redirect) fr = some(inf.frames.get(key(fr.to)))
   const psig = key(some(parent.sig))
   const pf = some(inf.frames.get(psig))
   if (pf instanceof Redirect) return
