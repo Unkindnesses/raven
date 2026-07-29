@@ -8,13 +8,9 @@ import { symbolValues } from "./primitives.js"
 import * as ast from "../frontend/ast.js"
 import { parse } from "../frontend/parse.js"
 import { emit } from "../backend/compiler.js"
+import { Loader } from "../frontend/packages.js"
 
-export { LoadState, Loader, SourceString, src as source, loadmodule, reload, vload, wrapPrint, resolve_static }
-
-function pathtag(p: string): Tag {
-  if (!p.endsWith('.rv')) throw new Error(`Invalid path: ${p}`)
-  return tag(p.slice(0, -3).split('/').join('.'))
-}
+export { LoadState, SourceString, src as source, loadmodule, reload, vload, wrapPrint, resolve_static }
 
 const declarations = ['fn', 'bundle', 'show', 'showPack', 'clear', 'import', 'export']
 
@@ -32,10 +28,16 @@ function resolve_static(sources: Modules, mod: Tag, x: ast.Symbol): Type {
   return y
 }
 
-type Loader = (path: string) => Promise<[string, string]>
-
 class LoadState {
-  constructor(readonly comp: Modules, readonly mod: Module, readonly load: Loader) { }
+  constructor(
+    readonly comp: Modules,
+    readonly mod: Module,
+    readonly loader: Loader,
+    readonly path: string = '',
+    readonly importing: readonly string[] = [],
+  ) { }
+
+  at(path: string) { return new LoadState(this.comp, this.mod, this.loader, path, this.importing) }
 
   resolve_static(x: ast.Symbol): Type {
     return resolve_static(this.comp, this.mod.name, x)
@@ -76,10 +78,9 @@ function load_export(cx: LoadState, x: ast.Expr): void {
     cx.mod.exports.add(ast.asSymbol(name.unwrap()).toString())
 }
 
-function load_import(cx: LoadState, x: ast.Expr): void {
-  const pathStr = ast.asString(x.args[3])
-  const modTag = new Tag('common', pathtag(pathStr))
-  const mod = cx.comp.module(modTag)
+async function load_import(cx: LoadState, x: ast.Expr): Promise<void> {
+  const path = cx.loader.resolve(cx.path, ast.asString(x.args[3]))
+  const mod = await loadmodule(cx.comp, cx.loader, path, [...cx.importing, cx.path])
   const names = ast.asExpr(x.args[1], 'Block').args.map(name => ast.asSymbol(name.unwrap()).toString())
   cx.mod.import(mod, names)
 }
@@ -98,8 +99,7 @@ function load_clear(cx: LoadState, x: ast.Expr): void {
 }
 
 async function load_include(cx: LoadState, x: ast.Expr): Promise<void> {
-  const filename = ast.asString(x.args[1])
-  await loadfile(cx, filename)
+  await loadfile(cx, cx.loader.resolve(cx.path, ast.asString(x.args[1])))
 }
 
 function load_expr(cx: LoadState, x: ast.Tree): void {
@@ -184,25 +184,41 @@ async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> 
   load_expr(cx, x)
 }
 
-async function loadfile(cx: LoadState, path: SourceString | string, content?: string): Promise<void> {
-  if (typeof path !== 'string')
-    [path, content] = [path.path, path.source]
-  if (content === undefined) [path, content] = await cx.load(path)
-  await vload(cx, parse(path, content))
+async function loadfile(cx: LoadState, src: SourceString | string): Promise<void> {
+  if (typeof src === 'string') src = { path: src, source: await cx.loader.read(src) }
+  await vload(cx.at(src.path), parse(src.path, src.source))
 }
 
-async function loadmodule(comp: Modules, mod: Module | Tag, src: SourceString | string, load: Loader): Promise<Module> {
-  if (mod instanceof Tag) mod = comp.module(mod)
-  const cx = new LoadState(comp, mod, load)
-  await loadfile(cx, src)
+function prelude(comp: Modules, mod: Module): void {
+  if (mod.name.parts[0] === 'common') return
+  const common = comp.module(tag("common"))
+  mod.import(common, [...common.exports])
+}
+
+async function loadmodule(comp: Modules, loader: Loader, path: string, importing: readonly string[] = []): Promise<Module> {
+  if (importing.includes(path)) {
+    const cycle = [...importing.slice(importing.indexOf(path)), path]
+    throw new Error(`Circular import: ${cycle.join(' -> ')}`)
+  }
+  const mod = comp.module(loader.modtag(path))
+  if (mod.path !== undefined) {
+    if (mod.path !== path) throw new Error(`Module ${mod.name} is already loaded from ${mod.path}`)
+    return mod
+  }
+  mod.path = path
+  prelude(comp, mod)
+  // TODO methods are looked up from main, so its imports have to cover every
+  // module, even those it doesn't import directly.
+  comp.module(tag("")).import(mod)
+  await loadfile(new LoadState(comp, mod, loader, '', importing), path)
   return mod
 }
 
-async function reload(comp: Modules, src: SourceString | string, load: Loader): Promise<Modules> {
+async function reload(comp: Modules, src: SourceString | string, loader: Loader): Promise<Modules> {
   const main = comp.module(tag(""))
   main.clear()
-  const common = comp.module(tag("common"))
-  main.import(common, [...common.exports])
-  await loadmodule(comp, main, src, load)
+  loader.package('', typeof src === 'string' ? src : src.path)
+  prelude(comp, main)
+  await loadfile(new LoadState(comp, main, loader), src)
   return comp
 }

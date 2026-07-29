@@ -10,21 +10,24 @@ import { spawn, SpawnOptions } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { dirname } from './dirname.js'
 import { Compiler } from '../backend/compiler.js'
+import { Loader } from '../frontend/packages.js'
 import { Def } from '../dwarf/index.js'
 
-export { Compiler, compile, compileJS, exec, load }
+export { Compiler, compile, compileJS, exec, loader, load }
 
-const common = path.resolve(dirname, "../../common")
+const common = path.resolve(dirname, "../../common/common.rv")
 
-async function load(file: string): Promise<[string, string]> {
-  if (!path.isAbsolute(file)) file = path.join(common, file)
-  return [file, await readFile(file, 'utf8')]
+function loader(packages: Record<string, string> = {}): Loader {
+  return new Loader(file => readFile(file, 'utf8'), { common, ...packages })
 }
+
+const load = loader()
 
 interface CompileConfig {
   dir?: string
   compiler?: Compiler
   options?: Partial<Options>
+  packages?: Record<string, string>
   output?: string
   embed?: boolean
   esbuild?: boolean
@@ -32,12 +35,12 @@ interface CompileConfig {
 }
 
 async function compile(file: string, config: CompileConfig = {}): Promise<[Compiler, string]> {
-  let { dir = path.dirname(file), compiler, options = {}, output, strip = false } = config
+  let { dir = path.dirname(file), compiler, options = {}, packages, output, strip = false } = config
   const base = path.basename(file, path.extname(file))
   const wasmPath = output ?? path.join(dir, `${base}.wasm`)
   await mkdir(path.dirname(wasmPath), { recursive: true })
   await withOptions(options, async () => {
-    compiler ??= await Compiler.create(load)
+    compiler ??= await Compiler.create(loader(packages))
     const em = await compiler.reload(file)
     const bytes = wasm.emitwasm(em, strip)
     await writeFile(wasmPath, Buffer.from(bytes))
@@ -113,13 +116,13 @@ ${doc}export const ${name} = (...args) => ${fn}(args)`
 }
 
 async function compileJS(file: string, config: CompileConfig = {}): Promise<[Compiler, string]> {
-  let { dir = path.dirname(file), compiler, options = {}, output, embed: inlineWasm = false, esbuild = false, strip = false } = config
+  let { dir = path.dirname(file), compiler, options = {}, packages, output, embed: inlineWasm = false, esbuild = false, strip = false } = config
   const memcheck = options.memcheck ?? false
   const paths = buildPaths(file, dir, output)
   await mkdir(path.dirname(paths.js), { recursive: true })
   if (!inlineWasm) await mkdir(path.dirname(paths.wasm), { recursive: true })
   await withOptions({ ...options, memcheck }, async () => {
-    compiler ??= await Compiler.create(load)
+    compiler ??= await Compiler.create(loader(packages))
     const em = await compiler.reload(file)
     const exports: [string, string, string | undefined][] = []
     const runtime = await readFile(libPath, 'utf8')

@@ -1,5 +1,6 @@
 import { Pipeline, withEmit } from './backend/compiler.js'
-import { Loader, LoadState, reload, source, vload, wrapPrint } from './middle/load.js'
+import { LoadState, reload, source, vload, wrapPrint } from './middle/load.js'
+import { Loader } from './frontend/packages.js'
 import bundledStdlibJson from './common.json' with { type: 'json' }
 import * as wasm from './backend/wasm.js'
 import { tag } from './frontend/types.js'
@@ -24,24 +25,11 @@ const lookupBundled = (key: string): string | undefined => {
   return typeof node === 'string' ? node : undefined
 }
 
-const hasBundled = (key: string): boolean => lookupBundled(key) !== undefined
-
-const canonical = (path: string): string => {
-  const normalized = path.replace(/\\/g, '/').replace(/^\//, '')
-  if (hasBundled(normalized)) return normalized
-  const marker = '/common/'
-  const idx = normalized.lastIndexOf(marker)
-  if (idx !== -1) return normalized.slice(idx + marker.length)
-  if (normalized.startsWith('common/')) return normalized.slice('common/'.length)
-  return normalized
-}
-
-const load: Loader = async path => {
-  const key = canonical(path)
-  const contents = lookupBundled(key)
-  if (contents !== undefined) return [`common/${key}`, contents]
+const load = new Loader(async path => {
+  const contents = lookupBundled(path.replace(/^common\//, ''))
+  if (contents !== undefined) return contents
   throw new Error(`Unable to load ${path}; filesystem access is not available in this environment`)
-}
+}, { common: 'common/common.rv' })
 
 // TODO combine with repl.ts
 class StreamCompiler {

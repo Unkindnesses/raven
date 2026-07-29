@@ -1,4 +1,4 @@
-import { hash, HashMap, some } from "../utils/map.js"
+import { hash, HashMap, HashSet, some } from "../utils/map.js"
 import { Anno, unreachable } from "../utils/ir.js"
 import { Type, Tag, tag, repr } from "./types.js"
 import * as types from "./types.js"
@@ -269,7 +269,7 @@ class Methods implements cache.Caching {
   import(mod: Tag) {
     if (this.imports.get().some(m => m.isEqual(mod))) return
     this.imports.set([...this.imports.get(), mod])
-    for (const k of this.methods.keys())
+    for (const k of [...this.methods.keys()])
       this.methods.set(k, [...this.methods.get(k)!, mod])
   }
 
@@ -303,6 +303,7 @@ class Module implements cache.Caching {
   readonly defs: cache.Map<string, Anno<Type> | Binding>
   readonly exports: Set<string>
   readonly methods: Methods
+  path: string | undefined
   constructor(
     readonly name: Tag,
     defs: cache.Map<string, Anno<Type> | Binding> = new cache.Map(),
@@ -329,18 +330,22 @@ class Module implements cache.Caching {
     this.defs.clear()
     this.exports.clear()
     this.methods.clear()
+    this.path = undefined
   }
 
   import(from: Module, vars: string[] = []) {
     this.methods.import(from.name)
     for (const v of vars) {
+      // TODO late binding + static analysis instead
       if (!from.exports.has(v)) throw new Error(`Module ${from.name} does not export ${v} `)
       this.set(v, new Binding(from.name, v))
     }
   }
 
   clone(): Module {
-    return new Module(this.name, this.defs.clone(), new Set(this.exports), this.methods.clone())
+    const out = new Module(this.name, this.defs.clone(), new Set(this.exports), this.methods.clone())
+    out.path = this.path
+    return out
   }
 }
 
@@ -380,7 +385,7 @@ class Modules implements cache.Caching {
   }
 }
 
-function methods(cx: Modules, name: Tag, mod: Tag = tag(""), ms: Method[] = [], seen = new Set<Tag>()) {
+function methods(cx: Modules, name: Tag, mod: Tag = tag(""), ms: Method[] = [], seen = new HashSet<Tag>()) {
   for (const m of cx.module(mod).methods.get(name)) {
     if (m instanceof Tag) {
       if (seen.has(m)) continue

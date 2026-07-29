@@ -1,7 +1,28 @@
 import { PassThrough } from 'node:stream'
+import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
 import * as assert from 'assert'
 import { test } from 'vitest'
 import { REPL } from '../src/cli/repl.js'
+
+// The repl loads relative imports from the working directory, as if it were a
+// file sitting there.
+async function inTempDir(files: Record<string, string>, f: () => Promise<void>) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'raven-repl-'))
+  const cwd = process.cwd()
+  for (const [name, source] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(dir, name)), { recursive: true })
+    fs.writeFileSync(path.join(dir, name), source)
+  }
+  process.chdir(dir)
+  try {
+    await f()
+  } finally {
+    process.chdir(cwd)
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+}
 
 test('basic eval', async () => {
   const repl = new REPL({ stdout: new PassThrough() })
@@ -92,4 +113,33 @@ test('async task', async () => {
   } finally {
     await repl.close()
   }
+})
+
+test('import a file from the working directory', async () => {
+  await inTempDir({
+    'greeting.rv': `
+      export { greet, Greeting }
+
+      bundle Greeting { Greeting() }
+
+      fn greet() { "hello from the repl" }
+    `,
+    'util/twice.rv': `
+      export { twice }
+
+      fn twice(x) { x * 2 }
+    `
+  }, async () => {
+    const repl = new REPL({ stdout: new PassThrough() })
+    try {
+      await repl.init()
+      assert.strictEqual(await repl.eval('import { greet, Greeting } from "./greeting.rv"'), '')
+      assert.strictEqual((await repl.eval('greet()')).trim(), '"hello from the repl"')
+      assert.strictEqual((await repl.eval('string(tag(Greeting()))')).trim(), '"greeting.Greeting"')
+      await repl.eval('import { twice } from "./util/twice.rv"')
+      assert.strictEqual((await repl.eval('twice(21)')).trim(), '42')
+    } finally {
+      await repl.close()
+    }
+  })
 })

@@ -12,7 +12,7 @@ import {
   biteq, biteqz, bitne, bitgt_u, bitge_u, bitlt_u, bitle_u, bitgt_s, bitge_s, bitlt_s, bitle_s
   nil?, notnil, tagcast, tagstring, function, invoke, allocs, frees
   alloc, load, store
-} from "core.rv"
+} from "./core.rv"
 
 export {
   pack, part, nparts, widen

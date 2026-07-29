@@ -107,6 +107,12 @@ async function startRepl(options: Partial<Options>) {
   }
 }
 
+function packageOption(spec: string, packages: Record<string, string>): Record<string, string> {
+  const i = spec.indexOf('=')
+  if (i === -1) throw new commander.InvalidArgumentError('Expected --package name=entry.rv')
+  return { ...packages, [spec.slice(0, i)]: path.resolve(process.cwd(), spec.slice(i + 1)) }
+}
+
 function relativePath(file: string): string {
   const relative = path.relative(process.cwd(), file)
   return relative === '..' || relative.startsWith(`..${path.sep}`) ? file : relative
@@ -133,12 +139,12 @@ async function main() {
     .option('-o, --output <file>', 'Rename output file')
     .option('--time', 'Print compiler phase timing information')
     .action(async (source, { output, js, embed, esbuild, time }) => {
-      let { inline, memcheck, strip } = program.optsWithGlobals()
+      let { inline, memcheck, strip, package: packages } = program.optsWithGlobals()
       source = path.resolve(process.cwd(), source)
       const build = js ? compileJS : compile
       let [compiler] = await build(source, {
         options: { inline, memcheck: js ? false : memcheck },
-        output, embed, esbuild, strip
+        packages, output, embed, esbuild, strip
       })
       if (time) printTiming(compiler)
     })
@@ -170,12 +176,13 @@ async function main() {
     .option('--no-inline', 'Disable function inlining')
     .option('--no-memcheck', 'Disable allocation checks')
     .option('--strip', 'Remove debug metadata from the binary')
+    .option('--package <name=entry.rv>', 'Register a package and its entry point', packageOption, {})
     .action(async (xs) => {
-      let { inline, memcheck, strip } = program.optsWithGlobals()
+      let { inline, memcheck, strip, package: packages } = program.optsWithGlobals()
       let [source, ...args] = xs
       if (!source) return await startRepl({ inline, memcheck })
       source = path.resolve(process.cwd(), source)
-      await exec(source, args, { options: { inline, memcheck }, strip })
+      await exec(source, args, { options: { inline, memcheck }, packages, strip })
     })
 
   await Promise.all([checkUpdate(), program.parseAsync(process.argv)])

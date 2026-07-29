@@ -9,7 +9,8 @@ import { Inlined, opcount } from '../middle/inline.js'
 import { isreftype, release_method, refcounts } from '../middle/refcount.js'
 import * as wasm from './wasm.js'
 import { reset, reuse, pipe, Caching, withtime } from '../utils/cache.js'
-import { Loader, loadmodule, reload, SourceString } from '../middle/load.js'
+import { loadmodule, reload, SourceString } from '../middle/load.js'
+import { Loader } from '../frontend/packages.js'
 import { binding, options } from '../utils/options.js'
 import { Lowered, assigned_globals } from '../frontend/lower.js'
 import { core, invoke_method } from '../middle/primitives.js'
@@ -96,11 +97,7 @@ class Pipeline implements Caching {
     }
     await withEmit(emit, async () => {
       this.sources.module(core())
-      // TODO toplevel exprs should compile in the context of the relevant module,
-      // rather than main. Which would make the following unnecessary.
-      this.sources.module(tag('')).import(this.sources.module(tag('common')))
-      await loadmodule(this.sources, tag('common.core'), 'core.rv', load)
-      await loadmodule(this.sources, tag('common'), 'common.rv', load)
+      await loadmodule(this.sources, load, load.entry('common'))
     })
     reset(this)
     return this
