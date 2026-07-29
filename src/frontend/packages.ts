@@ -52,7 +52,7 @@ class Loader {
 
   // `./foo.rv` is relative to the importing file; `foo` names a package.
   resolve(from: string, spec: string): string {
-    return spec.endsWith('.rv') ? join(dirname(from), spec) : this.entry(spec)
+    return spec.endsWith('.rv') ? join(dirname(join(from)), spec) : this.entry(spec)
   }
 
   // The innermost package a file belongs to.
@@ -70,6 +70,7 @@ class Loader {
   // Entry points take the package's tag, and other files extend it, eg
   // `common/structures/list.rv` is `tag"common.structures.list"`.
   modtag(path: string): Tag {
+    path = join(path)
     const name = this.owner(path)
     const entry = this.entry(name)
     if (path === entry) return tag(name)

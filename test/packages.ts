@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process'
 import { test } from 'vitest'
 import assert from 'assert'
 import { test as rv } from '../src/cli/test.js'
+import { Loader } from '../src/frontend/packages.js'
 
 test('import from common', async () => {
   await rv(`
@@ -81,6 +82,16 @@ function raven(dir: string, args: string[]): string {
   assert.strictEqual(out.status, 0, out.stderr || out.stdout)
   return out.stdout.trim()
 }
+
+test('loader resolves Windows paths', () => {
+  const loader = new Loader(async () => '', {
+    '': String.raw`C:\project\main.rv`,
+    maths: String.raw`C:\project\maths\maths.rv`
+  })
+  const scale = loader.resolve(String.raw`C:\project\main.rv`, './maths/scale.rv')
+  assert.strictEqual(scale, 'C:/project/maths/scale.rv')
+  assert.deepStrictEqual(loader.modtag(scale).parts, ['maths', 'scale'])
+})
 
 test('cli loads packages into main', () => {
   const dir = project()
