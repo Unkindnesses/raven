@@ -1,3 +1,9 @@
+import { ... } from "./core.rv"
+import { ... } from "./numbers.rv"
+import { range } from "./iterate.rv"
+import { Cell } from "./wasm/memory.rv"
+import { JSObject, JSFuture, await, resolve! } from "./wasm/js.rv"
+
 export { RingBuffer, Channel, put!, take! }
 
 bundle RingBuffer(data: Cell, state: Cell)
@@ -10,6 +16,7 @@ fn RingBuffer(T, cap: Int64) {
   RingBuffer(Cell(T, cap), state)
 }
 
+@extend
 fn length(buf: RingBuffer(data, state)) {
   state[2]
 }
@@ -37,6 +44,7 @@ fn (buf: RingBuffer(data, state))[i] {
   data[slot(state, length(data), i)]
 }
 
+@extend
 fn set(&buf: RingBuffer(data, state), [i: Int64], x) {
   requireIndex(i, state[2])
   data[slot(state, length(data), i)] = x

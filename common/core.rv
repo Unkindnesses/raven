@@ -14,19 +14,19 @@ Closure = tag".Closure"
 # TODO: could add a `fn { foo }` syntax to declare a function with no methods.
 
 export {
-  pack, part, nparts, packcat, set, widen, shortcutEquals
+  pack, part, nparts, packcat, widen, shortcutEquals
   bitsize, bitcast, bitcast_s
   bitshl, bitshr_u, bitshr_s, bitand, bitor, bitxor, bitadd, bitsub, bitmul, bitdiv_u, bitdiv_s, bitrem_u, bitrem_s
   biteq, biteqz, bitne, bitgt_u, bitge_u, bitlt_u, bitle_u, bitgt_s, bitge_s, bitlt_s, bitle_s
   nil?, notnil, tagcast, tagstring, function, invoke, allocs, frees
-  alloc, load, store, length
+  alloc, load, store
 }
 
 pack = tag".pack"
 part = tag".part"
 nparts = tag".nparts"
 packcat = tag".packcat"
-set = tag".set"
+# set = tag".set"
 widen = tag".widen"
 shortcutEquals = tag".shortcutEquals"
 
@@ -75,4 +75,160 @@ frees = tag".frees"
 alloc = tag".alloc"
 load = tag".load"
 store = tag".store"
-length = tag".length"
+# length = tag".length"
+
+# Forward declarations, to avoid circularity.
+
+export {
+  ==, !=, !, +, -, *, /, ^, >, <, >=, <=, &, |
+  add, sub, eq, lt
+  show, print, println, replshow, string, concat
+  length, get, set, field, method, append, empty?, rest
+  iterate, next, condition
+  matchTrait, castTrait, match, _match, isa?, constructorPattern
+  abort, js, jsref, Int32, Int64, String
+}
+
+== = tag"common.=="
+!= = tag"common.!="
+! = tag"common.!"
++ = tag"common.+"
+- = tag"common.-"
+* = tag"common.*"
+/ = tag"common./"
+^ = tag"common.^"
+> = tag"common.>"
+< = tag"common.<"
+>= = tag"common.>="
+<= = tag"common.<="
+& = tag"common.&"
+| = tag"common.|"
+|> = tag"common.|>"
+
+add = tag"common.add"
+sub = tag"common.sub"
+eq = tag"common.eq"
+lt = tag"common.lt"
+
+show = tag"common.show"
+print = tag"common.print"
+println = tag"common.println"
+replshow = tag"common.replshow"
+string = tag"common.string"
+concat = tag"common.concat"
+
+length = tag"common.length"
+get = tag"common.get"
+set = tag"common.set"
+field = tag"common.field"
+method = tag"common.method"
+append = tag"common.append"
+empty? = tag"common.empty?"
+rest = tag"common.rest"
+
+iterate = tag"common.iterate"
+next = tag"common.next"
+condition = tag"common.condition"
+
+matchTrait = tag"common.matchTrait"
+castTrait = tag"common.castTrait"
+match = tag"common.match"
+_match = tag"common._match"
+isa? = tag"common.isa?"
+constructorPattern = tag"common.constructorPattern"
+
+abort = tag"common.abort"
+js = tag"common.js"
+jsref = tag"common.jsref"
+
+Int32 = tag"common.Int32"
+Int64 = tag"common.Int64"
+
+String = tag"common.strings.String"
+
+# Core definitions and fallbacks.
+
+export {
+  Optional, Some, Nil, nil, Result, Ok, Err, unwrap, tag, identity, showPack
+  true, false
+}
+
+true = pack(tag"common.integer.Bool", bits"1")
+false = pack(tag"common.integer.Bool", bits"0")
+
+fn tag(x) { part(x, 0) }
+
+@doc """
+    identity(x) == x
+
+The identity function.
+"""
+fn identity(x) { x }
+
+@extend
+fn a == b { shortcutEquals(a, b) }
+
+@extend
+fn a != b { !(a == b) }
+
+@extend
+fn (x |> f) { f(x) }
+
+@extend
+fn matchTrait(_, _) {}
+
+@extend
+fn matchTrait($Tag, t: pack($Tag, _)) { Some(t) }
+
+# matchTrait is a shallow check, looking only at the tag. castTrait also checks
+# the contents, which lets us narrow Any types.
+@extend
+fn castTrait(T, x) { matchTrait(T, x) }
+
+fn showPack(x) {
+  print("pack(")
+  show(tag(x))
+  i = 1
+  while i <= nparts(x) {
+    print(", ")
+    show(part(x, i))
+    i = i + 1
+  }
+  print(")")
+}
+
+@extend
+fn show(x) { showPack(x) }
+
+@extend
+fn print(x) { show(x) }
+
+@extend
+fn println() { print("\n") }
+
+@extend
+fn println(x) {
+  print(x)
+  println()
+}
+
+@extend
+fn replshow(x) {
+  show(x)
+  println()
+}
+
+bundle Optional { Some(x), Nil() }
+
+nil = Nil()
+
+@extend
+fn show(_: Nil) { print("nil") }
+
+@extend
+fn replshow(_: Nil) {}
+
+bundle Result { Ok(x), Err(e) }
+
+fn unwrap(Ok(x)) { x }
+fn unwrap(Err(x)) { abort("Tried to unwrap Err", x) }

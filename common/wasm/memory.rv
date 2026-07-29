@@ -1,9 +1,21 @@
-export { Ptr, Function, Ref, Cell, addr, pointer, invoke, length }
+import { ... } from "../core.rv"
+import { Int, bits } from "../integer.rv"
 
+export {
+  Ptr, Function, Cell, Counted, addr, pointer, invoke, length
+  memoryPages, memoryGrow!, i32load, i32store!
+}
+
+@extend
 fn matchTrait($Closure, x: pack($Closure, _)) { Some(x) }
+
+@extend
 fn matchTrait($Func, x: pack($Func, _)) { Some(x) }
 
+@extend
 fn show(x: Closure) { print("λ(...)") }
+
+@extend
 fn show(x: Func) { print("Func(...)") }
 
 bundle Ptr(x: Int32)
@@ -12,19 +24,23 @@ fn Ptr(x: Int64) { Ptr(Int32(x)) }
 
 fn addr(Ptr(x)) { Int32(x) }
 
+@extend
 fn show(x: Ptr) {
   print("Ptr@")
   print(addr(x))
 }
 
+@extend
 fn (p: Ptr) + x {
   Ptr(addr(p) + Int32(x))
 }
 
+@extend
 fn (p: Ptr) - x {
   Ptr(addr(p) - Int32(x))
 }
 
+@extend
 fn (p: Ptr) == (q: Ptr) {
   addr(p) == addr(q)
 }
@@ -75,10 +91,12 @@ fn (c: Cell(T, Counted(ptr)))[i] {
   load(T, ptr, i)
 }
 
+@extend
 fn set(&c: Cell(T, Counted(ptr)), [i: Int64], x) {
   store(T, ptr, i, x)
 }
 
+@extend
 fn length(Cell(_, Counted(ptr))) {
   tag"common.core.length"(ptr)
 }

@@ -44,7 +44,7 @@ import { Ref, xref } from '../wasm/ir.js'
 export { isreftype, CountMode, retain_method, release_method, refcounts, releaseFunction_method }
 
 function iscountedtype(x: Type): boolean {
-  return x.kind === 'pack' && tag('common.Counted').isEqual(tagOf(x))
+  return x.kind === 'pack' && tag('common.wasm.memory.Counted').isEqual(tagOf(x))
 }
 
 function isreftype(x: ir.Anno<Type>): x is Type {
@@ -94,14 +94,14 @@ function release(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, heap = false):
 }
 
 function countptr(code: ir.Fragment<MIR>, ptr: ir.Val<MIR>, mode: CountMode): void {
-  const f = mode === 'retain' ? tag('common.retain!') : tag('common.release!')
+  const f = mode === 'retain' ? tag('common.wasm.malloc.retain!') : tag('common.wasm.malloc.release!')
   const t = ir.asType(code.type(ptr))
-  if (!tag('common.Ptr').isEqual(tagOf(t))) throw new Error('countptr: expected Ptr')
+  if (!tag('common.wasm.memory.Ptr').isEqual(tagOf(t))) throw new Error('countptr: expected Ptr')
   call(code, f, [ptr], types.nil)
 }
 
 function counted_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode): void {
-  const f = mode === 'retain' ? tag('common.retain!') : tag('common.release!')
+  const f = mode === 'retain' ? tag('common.wasm.malloc.retain!') : tag('common.wasm.malloc.release!')
   call(code, f, [indexer(code, T, types.int64(1), x, types.int64(1))], types.nil)
 }
 
@@ -124,7 +124,7 @@ function function_count_inline(code: ir.Fragment<MIR>, x: ir.Val<MIR>, mode: Cou
     const before = code.block()
     const body = code.newBlock()
     const after = code.newBlock()
-    const unique = call(before, tag('common.blockUnique'), [ptr], types.int32())
+    const unique = call(before, tag('common.wasm.malloc.blockUnique'), [ptr], types.int32())
     before.branch(body, [], { when: unique })
     before.branch(after)
     const releasePtr = call(body, tag('common.+'), [ptr, i32(body, 4)], types.Ptr())
@@ -166,7 +166,7 @@ function vpack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mod
     const body = code.newBlock()
     const after = code.newBlock()
 
-    const unique = call(test, tag('common.blockUnique'), [ptr], types.int32())
+    const unique = call(test, tag('common.wasm.malloc.blockUnique'), [ptr], types.int32())
     test.branch(header, [len, ptr], { when: unique })
     test.branch(after)
 
@@ -200,7 +200,7 @@ function recursive_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>,
     const before = code.block()
     const body = code.newBlock()
     const after = code.newBlock()
-    const unique = call(before, tag('common.blockUnique'), [ptr], types.int32())
+    const unique = call(before, tag('common.wasm.malloc.blockUnique'), [ptr], types.int32())
     before.branch(body, [], { when: unique })
     before.branch(after)
     const U = types.unroll(T)

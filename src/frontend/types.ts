@@ -93,7 +93,7 @@ function _repr(x: Type): string {
       return `λ(${x.method[hash]}, ${x.parts.map(repr).join(', ')})`
     case 'pack': {
       if (x.parts.length === 2 &&
-        x.parts[0].kind === 'tag' && x.parts[0].path === 'common.Int' &&
+        x.parts[0].kind === 'tag' && x.parts[0].path === 'common.integer.Int' &&
         x.parts[1].kind === 'bits') {
         const bits = x.parts[1]
         if (bits.value === undefined) return `int ${bits.size}`
@@ -101,7 +101,7 @@ function _repr(x: Type): string {
         if (bits.size === 64) return value.toString()
         return `int ${bits.size} ${value}`
       }
-      if (tag('common.List').isEqual(tagOf(x)))
+      if (tag('common.list.List').isEqual(tagOf(x)))
         return `[${parts(x).map(repr).join(', ')}]`
       return `pack(${x.parts.map(repr).join(', ')})`
     }
@@ -188,7 +188,7 @@ function Type(x: TypeLike): Type {
 function hexValue(x: Hex): Type {
   const value = BigInt('0x' + x.digits)
   const size = Math.pow(2, Math.ceil(Math.log2(x.digits.length * 4)))
-  return pack(tag('common.UInt'), bits(Math.max(size, 8), value))
+  return pack(tag('common.integer.UInt'), bits(Math.max(size, 8), value))
 }
 
 function atomValue(x: Atom): Type {
@@ -238,30 +238,30 @@ function onion(...xs: TypeLike[]): Type {
   return { kind: 'union', options }
 }
 
-const nil = pack(tag('common.Nil'))
+const nil = pack(tag('common.core.Nil'))
 
 function bool(value?: boolean): Type {
-  return pack(tag('common.Bool'), bits(1, value))
+  return pack(tag('common.integer.Bool'), bits(1, value))
 }
 
 function int32(value?: bigint | number): Type {
-  return pack(tag('common.Int'), bits(32, value))
+  return pack(tag('common.integer.Int'), bits(32, value))
 }
 
 function int64(value?: bigint | number): Type {
-  return pack(tag('common.Int'), bits(64, value))
+  return pack(tag('common.integer.Int'), bits(64, value))
 }
 
 function Ptr(): Type {
-  return pack(tag('common.Ptr'), int32())
+  return pack(tag('common.wasm.memory.Ptr'), int32())
 }
 
 function String(): Type {
-  return pack(tag('common.String'), Ref)
+  return pack(tag('common.strings.String'), Ref)
 }
 
 function list(...args: TypeLike[]): Type {
-  return pack(tag('common.List'), ...args)
+  return pack(tag('common.list.List'), ...args)
 }
 
 function asBits(x: Type): Bits {

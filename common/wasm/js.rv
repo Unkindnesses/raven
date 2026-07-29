@@ -1,23 +1,38 @@
+import { ... } from "../core.rv"
+import { ... } from "../numbers.rv"
+import { Bool, Int, UInt, oftype, bits } from "../integer.rv"
+import { Ptr, Counted, Function } from "./memory.rv"
+import { malloc!, retain!, release!, blockUnique } from "./malloc.rv"
+
 export {
-  JSObject, Primitive, Task, JSFuture, debugger, abort, js, call, errcall, async, await, new, sleep
-  resolve!, reject!, resolved?
+  JSObject, Primitive, Task, JSFuture, debugger, abort, js, call, errcall
+  async, await, new, sleep, resolve!, reject!, resolved?
   readline, import, typeof
 }
 
+@extend
 fn matchTrait($Ref, x: pack($Ref, _)) { Some(x) }
 
+@extend
 fn show(x: Ref) { print("Ref(...)") }
 
 bundle JSObject(ref: Ref)
 
 fn JSObject() { new(js.Object) }
 
+@extend
 fn js(x: JSObject) { x }
 
+@extend
 fn jsref(x) { jsref(js(x)) }
+
+@extend
 fn jsref(ref: Ref) { ref }
+
+@extend
 fn jsref(JSObject(ref)) { ref }
 
+@extend
 fn js() {
   js`return globalThis`
 }
@@ -28,15 +43,19 @@ fn (obj: JSObject)[prop: JSObject] {
   js`return \obj[\prop]`
 }
 
+@extend
 fn set(&obj: JSObject, [prop], x) { obj[js(prop)] = js(x) }
 
+@extend
 fn set(&obj: JSObject, [prop: JSObject], x: JSObject) {
   js`\obj[\prop] = \x`
   return obj
 }
 
+@extend
 fn field($js, f: Tag) { field(js(), f) }
 
+@extend
 fn field(obj: JSObject, f: Tag) { obj[string(f)] }
 
 fn (f: JSObject)(args...) {
@@ -64,10 +83,12 @@ fn call(obj: JSObject, meth: JSObject, x: JSObject) {
   return JSObject(ref)
 }
 
+@extend
 fn method($js, meth: Tag, args...) {
   method(js(), meth, args...)
 }
 
+@extend
 fn method(obj: JSObject, meth: Tag, args...) {
   call(obj, string(meth), args...)
 }
@@ -101,6 +122,7 @@ fn await(obj: JSObject) {
   return JSObject(ref)
 }
 
+@extend
 fn (a: JSObject) == (b: JSObject) {
   result = wasm call(support.equal, jsref(a), jsref(b)): i32
   return Bool(result)
@@ -110,11 +132,13 @@ fn new(T: JSObject, args...) {
   js.Reflect.construct(T, args)
 }
 
+@extend
 fn js(x: Float64) {
   ref = wasm call(support.identity, x: f64): ref
   return JSObject(ref)
 }
 
+@extend
 fn js(x: Float32) { js(Float64(x)) }
 
 @extend
@@ -123,32 +147,43 @@ fn Float64(obj: JSObject) {
   return x
 }
 
+@extend
 fn oftype(to: Int, from: JSObject) {
   oftype(to, Float64(from))
 }
 
+@extend
 fn oftype(to: UInt, from: JSObject) {
   oftype(to, bits(Int32(from)))
 }
 
+@extend
 fn Bool(obj: JSObject) { Bool(Int32(obj)) }
 
+@extend
 fn condition(obj: JSObject) { condition(Bool(obj)) }
+
+@extend
 fn !(obj: JSObject) { !Bool(obj) }
 
 fn debugger() {
   wasm call(support.debugger): ref
 }
 
+@extend
 fn abort(s: JSObject) {
   wasm call(support.abort, jsref(s)): unreachable
 }
 
+@extend
 fn abort(s: JSObject, cause: JSObject) {
   wasm call(support.abort, jsref(s), jsref(cause)): unreachable
 }
 
+@extend
 fn abort(s: String) { abort(js(s)) }
+
+@extend
 fn abort(s: String, cause) { abort(js(s), js(cause)) }
 
 fn typeof(x: JSObject) {
@@ -161,55 +196,67 @@ fn primitive?(x: JSObject) {
 
 Primitive = tag".Primitive"
 
+@extend
 fn matchTrait($Primitive, x: JSObject) {
   if primitive?(x) { Some(x) }
 }
 
+@extend
 fn string(x: JSObject) {
   String(js\`return `${\x}``\)
 }
 
+@extend
 fn string(x: (Float32 | Float64)) {
   String(if integer?(x) { js(x).toFixed(1) } else { js(x).toString() })
 }
 
+@extend
 fn print(x: String) {
   js.process.stdout.write(x)
   return
 }
 
+@extend
 fn print(x: JSObject) {
   print(string(x))
 }
 
+@extend
 fn show(x: JSObject) {
   print(string(x))
 }
 
+@extend
 fn show(x: Primitive) {
   print("js(")
   print(String(js.JSON.stringify(x)))
   print(")")
 }
 
+@extend
 fn println(x: JSObject) {
   js.console.log(x)
   return
 }
 
+@extend
 fn replshow(x: JSObject) {
   println(x)
 }
 
+@extend
 fn replshow(x: Primitive) {
   show(x)
   println()
 }
 
+@extend
 fn iterate(x: JSObject) {
   x[js.Symbol.iterator].call(x)
 }
 
+@extend
 fn next(&x: JSObject) {
   val = x.next()
   if !val.done { Some(val.value) }
@@ -237,14 +284,17 @@ fn Task(ref: Ref) {
   Task(Counted(TaskState(malloc!(Int32(0)), ref)))
 }
 
+@extend
 fn await(TaskState(ptr, promise)) {
   wasm call(support.await, promise)
 }
 
+@extend
 fn retain!(TaskState(ptr, _)) {
   retain!(ptr)
 }
 
+@extend
 fn release!(t: TaskState(ptr, _)) {
   if blockUnique(ptr) { await(t) }
   release!(ptr)
@@ -265,12 +315,14 @@ fn async(f) {
   Task(wasm call(support.async, part(func, 1)): ref)
 }
 
+@extend
 fn await(Task(Counted(state))) {
   await(state)
 }
 
 bundle JSFuture(promise: JSObject)
 
+@extend
 fn js(JSFuture(promise)) { promise }
 
 fn JSFuture() {
@@ -294,6 +346,7 @@ fn JSFuture() {
   return JSFuture(promise)
 }
 
+@extend
 fn await(JSFuture(promise)) {
   await(promise)
 }

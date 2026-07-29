@@ -70,7 +70,7 @@ for (const [op, f] of bitcmpFuncs) {
 // TODO: bit ops should be handled by the backend.
 
 function isInt(x: Type, size?: number): x is { kind: 'pack'; parts: [Type, Type & { kind: 'bits' }] } {
-  return x.kind === 'pack' && tag('common.Int').isEqual(tagOf(x)) &&
+  return x.kind === 'pack' && tag('common.integer.Int').isEqual(tagOf(x)) &&
     x.parts[1].kind === 'bits' && (size === undefined || x.parts[1].size === size)
 }
 
@@ -119,16 +119,16 @@ function partial_set(xs: Type, i: Type, x: Type): Anno<Type> {
 function partial_nparts(x: Type): Type {
   if (x.kind === 'union') return x.options.map(partial_nparts).reduce(types.union)
   if (x.kind === 'recursive') return partial_nparts(types.unroll(x))
-  if (x.kind === 'vpack') return types.pack(tag('common.Int'), bits(64))
-  if (x.kind === 'any') return types.pack(tag('common.Int'), bits(64))
-  return types.pack(tag('common.Int'), bits(64, types.nparts(x)))
+  if (x.kind === 'vpack') return types.pack(tag('common.integer.Int'), bits(64))
+  if (x.kind === 'any') return types.pack(tag('common.integer.Int'), bits(64))
+  return types.pack(tag('common.integer.Int'), bits(64, types.nparts(x)))
 }
 
 function partial_widen(x: Type): Type {
   if (types.isAtom(x)) return types.abstract(x)
   if (x.kind === 'pack') {
     const tg = types.tagOf(x)
-    if (tag('common.Int').isEqual(tg) || tag('common.Bool').isEqual(tg))
+    if (tag('common.integer.Int').isEqual(tg) || tag('common.integer.Bool').isEqual(tg))
       return types.pack(tg, types.abstract(types.part(x, 1)))
   }
   throw new Error('unimplemented')
@@ -147,7 +147,7 @@ function partial_shortcutEquals(a: Type, b: Type): Type {
   if (types.isValue(a) && types.isValue(b)) return Type(isEqual(a, b))
   if (a.kind === 'any' || b.kind === 'any') return types.bool()
   const intersection = new Set([...symbolValues(a)].filter(x => symbolValues(b).has(x)))
-  if (intersection.size > 0) return types.pack(tag('common.Bool'), bits(1))
+  if (intersection.size > 0) return types.pack(tag('common.integer.Bool'), bits(1))
   return Type(false)
 }
 
@@ -187,8 +187,8 @@ function partial_biteqz(x: Type): Type {
 // to deal with unions.
 function partial_isnil(x: Type): Type {
   if (isEqual(x, types.nil)) return Type(true)
-  if (x.kind === 'any') return types.pack(tag('common.Bool'), bits(1))
-  if (types.issubset(types.nil, x)) return types.pack(tag('common.Bool'), bits(1))
+  if (x.kind === 'any') return types.pack(tag('common.integer.Bool'), bits(1))
+  if (types.issubset(types.nil, x)) return types.pack(tag('common.integer.Bool'), bits(1))
   return Type(false)
 }
 
@@ -224,7 +224,7 @@ function partial_tagstring(x: Type): Type {
 
 function rvtype(x: Type): Type {
   if (!types.isValue(x)) throw new Error('Expected value')
-  if (tag('common.List').isEqual(tagOf(x)))
+  if (tag('common.list.List').isEqual(tagOf(x)))
     return types.pack(tagOf(x), ...types.parts(x).map(rvtype))
   const T = traitType(x)
   if (T === unreachable || types.occursin(types.Any, T)) throw new Error(`Invalid type ${types.repr(x)}`)
@@ -442,7 +442,7 @@ inlinePrimitives.set(widen_method.id, (code, st) => {
   const x = st.expr.body[0]
   const T = asType(code.type(x))
   if (types.isAtom(T) && types.isValue(T)) return constValue(T) ?? T
-  if ((tag('common.Int').isEqual(tagOf(T)) || tag('common.Bool').isEqual(tagOf(T))) && types.isValue(T))
+  if ((tag('common.integer.Int').isEqual(tagOf(T)) || tag('common.integer.Bool').isEqual(tagOf(T))) && types.isValue(T))
     return code.push(code.stmt(xtuple(some(constValue(types.part(T, 1)))), { type: asType(st.type) }))
   return x
 })
@@ -620,7 +620,7 @@ inlinePrimitives.set(function_method.id, (code, st) => {
   const [F, I, O] = st.expr.body.slice(0, 3).map(x => asType(code.type(x)))
   if (![I, O].every(types.isValue)) throw new Error('nope')
   const id = code.push(code.stmt(xfunc(invokeFunction_method.param(F, rvtype(O)), types.int32(), rvtype(I)), { type: types.bits(32) }))
-  const ptr = call(code, types.tag('common.malloc!'), [i32(code, 8 + sizeof(F))], types.int32())
+  const ptr = call(code, types.tag('common.wasm.malloc.malloc!'), [i32(code, 8 + sizeof(F))], types.int32())
   code.push(code.stmt(xwasm('i32.store', ptr, id), { type: types.nil }))
   const release = code.push(code.stmt(xwasm('i32.add', ptr, Value.bits(32, 4)), { type: types.int32() }))
   const drop = code.push(code.stmt(xfunc(releaseFunction_method.param(F), types.int32()), { type: types.bits(32) }))
@@ -653,7 +653,7 @@ outlinePrimitives.set(invokeFunction_method.id, (F: Type, O: Type, _: Type, I: T
 
 function ptrOffset(code: Fragment<MIR>, ptr: Val<MIR>, i: Val<MIR>, I: Type, T: Type): Val<MIR> {
   ptr = call(code, types.tag('common.+'), [ptr, i32(code, 4)], types.Ptr())
-  ptr = call(code, types.tag('common.addr'), [ptr], types.int32())
+  ptr = call(code, types.tag('common.wasm.memory.addr'), [ptr], types.int32())
   const idx = getIntValue(I) === undefined
     ? call(code, types.tag('common.-'), [call(code, types.tag('common.Int32'), [i], types.int32()), i32(code, 1)], types.int32())
     : i32(code, some(getIntValue(I)) - 1)
@@ -670,7 +670,7 @@ inlinePrimitives.set(alloc_method.id, (code, st) => {
     ? call(code, types.tag('common.Int32'), [n], types.int32())
     : i32(code, some(getIntValue(asType(code.type(n)))))
   const bytes = sizeof(T) === 1 ? count : call(code, types.tag('common.*'), [count, i32(code, sizeof(T))], types.int32())
-  const ptr = call(code, types.tag('common.malloc!'), [call(code, types.tag('common.+'), [bytes, i32(code, 4)], types.int32())], types.Ptr())
+  const ptr = call(code, types.tag('common.wasm.malloc.malloc!'), [call(code, types.tag('common.+'), [bytes, i32(code, 4)], types.int32())], types.Ptr())
   store(code, types.int32(), ptr, count)
   return ptr
 })

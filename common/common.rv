@@ -4,77 +4,24 @@
 # __|\__\___/\__\___/|______|__/\____
 #       a language for sorcery
 
-import {
-  Tag, Bits, Float32, Float64, Ref, Func, Closure
-  pack, part, nparts, packcat, widen, shortcutEquals
-  bitsize, bitcast, bitcast_s
-  bitshl, bitshr_u, bitshr_s, bitand, bitor, bitxor, bitadd, bitsub, bitmul, bitdiv_u, bitdiv_s, bitrem_u, bitrem_s
-  biteq, biteqz, bitne, bitgt_u, bitge_u, bitlt_u, bitle_u, bitgt_s, bitge_s, bitlt_s, bitle_s
-  nil?, notnil, tagcast, tagstring, function, invoke, allocs, frees
-  alloc, load, store
+export {
+  Tag, Ref, Closure, Some, Nil, Ok, Err
+  pack, part, nparts, widen, tag, identity, showPack
+  nil, nil?, notnil, Ok, Err, unwrap
+  ==, !=, !, +, -, *, /, ^, >, <, >=, <=, &, |
+  show, print, println
 } from "./core.rv"
 
-export {
-  pack, part, nparts, widen
-  Tag, Closure, Some, Nil, nil, nil?, notnil
-  Ok, Err, unwrap
-  tag, identity, ==
-}
-
-fn tag(x) { part(x, 0) }
-
-@doc """
-    identity(x) == x
-
-The identity function.
-"""
-fn identity(x) { x }
-
-fn a == b { shortcutEquals(a, b) }
-fn a != b { !(a == b) }
-
-fn matchTrait(_, _) {}
-
-fn matchTrait($Tag, t: pack($Tag, _)) { Some(t) }
-
-# matchTrait is a shallow check, looking only at the tag. castTrait also checks
-# the contents, which lets us narrow Any types.
-fn castTrait(T, x) { matchTrait(T, x) }
-
-fn show(x) { showPack(x) }
-
-fn (x |> f) { f(x) }
-
-bundle Optional { Some(x), Nil() }
-
-fn show(_: Nil) { print("nil") }
-
-nil = Nil()
-
-bundle Result { Ok(x), Err(e) }
-
-fn unwrap(Ok(x)) { x }
-fn unwrap(Err(x)) { abort("Tried to unwrap Err", x) }
-
-include "patterns.rv"
-include "print.rv"
-
-include "promote.rv"
-include "integer.rv"
-include "wasm/numeric.rv"
-include "wasm/memory.rv"
-include "wasm/js.rv"
-include "bigint.rv"
-include "numbers.rv"
-
-include "iterate.rv"
-include "structures/list.rv"
-include "structures/sequence.rv"
-include "structures/channel.rv"
-include "structures/record.rv"
-
-include "strings.rv"
-
-include "wasm/malloc.rv"
-
-include "io.rv"
+export { ... } from "./numbers.rv"
+export { ... } from "./record.rv"
+export { ... } from "./patterns.rv"
+export { ... } from "./iterate.rv"
+export { ... } from "./list.rv"
+export { ... } from "./integer.rv"
+export { ... } from "./wasm.rv"
+export { ... } from "./strings.rv"
+export { ... } from "./bigint.rv"
+export { ... } from "./complex.rv"
+export { ... } from "./sequence.rv"
+export { ... } from "./channel.rv"
+export { ... } from "./io.rv"

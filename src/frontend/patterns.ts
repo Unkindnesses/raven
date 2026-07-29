@@ -19,16 +19,16 @@ type Pattern =
 
 function pattern(x: Type): Pattern {
   const t = types.asTag(types.tagOf(x)).path
-  if (t === 'common.Hole') return { kind: 'hole' }
-  if (t === 'common.Literal') return { kind: 'literal', value: types.part(x, 1) }
-  if (t === 'common.Bind')
+  if (t === 'common.patterns.Hole') return { kind: 'hole' }
+  if (t === 'common.patterns.Literal') return { kind: 'literal', value: types.part(x, 1) }
+  if (t === 'common.patterns.Bind')
     return { kind: 'bind', name: types.asTag(types.part(x, 1)).path, pattern: pattern(types.part(x, 2)) }
-  if (t === 'common.Repeat') return { kind: 'repeat', pattern: pattern(types.part(x, 1)) }
-  if (t === 'common.Pack') return { kind: 'pack', parts: types.parts(x).map(pattern) }
-  if (t === 'common.Or') return { kind: 'or', patterns: types.parts(x).map(pattern) }
-  if (t === 'common.And') return { kind: 'and', patterns: types.parts(x).map(pattern) }
-  if (t === 'common.Trait') return { kind: 'trait', trait: types.part(x, 1) }
-  if (t === 'common.Constructor') return { kind: 'constructor', value: x }
+  if (t === 'common.patterns.Repeat') return { kind: 'repeat', pattern: pattern(types.part(x, 1)) }
+  if (t === 'common.patterns.Pack') return { kind: 'pack', parts: types.parts(x).map(pattern) }
+  if (t === 'common.patterns.Or') return { kind: 'or', patterns: types.parts(x).map(pattern) }
+  if (t === 'common.patterns.And') return { kind: 'and', patterns: types.parts(x).map(pattern) }
+  if (t === 'common.patterns.Trait') return { kind: 'trait', trait: types.part(x, 1) }
+  if (t === 'common.patterns.Constructor') return { kind: 'constructor', value: x }
   throw new Error(`unsupported pattern ${t}`)
 }
 
@@ -94,7 +94,7 @@ function lowerExpr(cx: Lowering, ex: ast.Tree): Val<LIR> {
   if (x.head === 'Template') return cx.node('Literal', cx.expr(x))
   if (x.head === 'List') {
     const parts = x.args.map(x => lowerExpr(cx, x))
-    return cx.node('Pack', cx.node('Literal', types.tag('common.List')), ...parts)
+    return cx.node('Pack', cx.node('Literal', types.tag('common.list.List')), ...parts)
   }
   if (x.head === 'Operator' && ast.symbol(':').isEqual(x.args[1].unwrap())) {
     const name = ast.asSymbol(x.args[0].unwrap()).toString()

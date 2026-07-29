@@ -1,14 +1,35 @@
-export { Bits, Bool, true, false, Int, Int64, Int32, UInt, UInt64, UInt32, UInt16, UInt8, bits, oftype, typemin, typemax, bitsize }
+import { ... } from "./core.rv"
+import { ... } from "./numbers.rv"
+import { Params } from "./patterns.rv"
+import { range } from "./iterate.rv"
 
+export {
+  Bits, Bool, Int, Int64, Int32, UInt, UInt64, UInt32, UInt16, UInt8
+  true, false, bits, oftype, typemin, typemax, bitsize
+}
+
+@extend
 fn matchTrait($Bits, x: pack($Bits, _)) { Some(x) }
 
 # TODO lower symbols to literals
 fn tag"common.core.Bits"[N] { Params(Bits, N) }
 
+@extend
 fn (a: Bits) == (b: Bits) { Bool(biteq(a, b)) }
 
+@extend
 fn matchTrait(Params($Bits, N), x: Bits) {
   if bitsize(x) == N { Some(tagcast(x, N)) }
+}
+
+@extend
+fn show(x: Bits) {
+  print(`bits"`)
+  N = bitsize(x)
+  for i = range(1, N) {
+    print(Int64(bitand(bitshr_u(x, bitcast(x, bits(N - i))), bitcast(x, bits(1)))))
+  }
+  print(`"`)
 }
 
 # Bool
@@ -21,19 +42,24 @@ fn Bool(x: Bool) { x }
 
 fn bits(Bool(x)) { x }
 
+@extend
 fn Bool(a) & Bool(b) { Bool(bitand(a, b)) }
+
+@extend
 fn Bool(a) | Bool(b) { Bool(bitor(a, b)) }
 
+@extend
 fn !(Bool(x)) { Bool(biteqz(x)) }
 
+@extend
 fn show(x: Bool) {
   print(if x { "true" } else { "false" })
 }
 
-true = Bool(bits"1")
-false = Bool(bits"0")
-
+@extend
 fn condition(x) { abort("Non-boolean used as a condition") }
+
+@extend
 fn condition(x: Bool) { x }
 
 # Int
@@ -41,8 +67,9 @@ fn condition(x: Bool) { x }
 # TODO `bundle Int[N](x: Bits[N])`
 bundle Int(x: Bits)
 
-fn tag"common.Int"[N] { Params(Int, N) }
+fn tag"common.integer.Int"[N] { Params(Int, N) }
 
+@extend
 fn matchTrait(Params($Int, N), Int(b)) {
   # TODO b: Bits[N] = ...
   if let Some(b) = matchTrait(Bits[N], b) {
@@ -61,15 +88,24 @@ fn oftype(to: Int, from: Int) { Int(bitcast_s(bits(to), bits(from))) }
 fn oftype(to: Int, from: Bool) { oftype(to, bits(from)) }
 
 # Simple versions that doesn't get overloaded; to bootstrap matching
+
+@extend
 fn add(a: Int, b: Int) { Int(bitadd(bits(a), bits(b))) }
+
+@extend
 fn sub(a: Int, b: Int) { Int(bitsub(bits(a), bits(b))) }
+
+@extend
 fn eq(a: Int, b: Int) { Bool(biteq(bits(a), bits(b))) }
+
+@extend
 fn lt(a: Int, b: Int) { Bool(bitlt_s(bits(a), bits(b))) }
 
 fn larger(a: Int, b: Int) {
   if lt(bitsize(a), bitsize(b)) { b } else { a }
 }
 
+@extend
 fn promote(a: Int, b: Int) {
   T = larger(a, b)
   [oftype(T, a), oftype(T, b)]
@@ -80,25 +116,49 @@ fn intop(f, a, b) {
   f(bits(a), bits(b))
 }
 
+@extend
 fn (a: Int) + (b: Int) { Int(intop(bitadd, a, b)) }
+
+@extend
 fn (-(x: Int)) { zero(x) - x }
+
+@extend
 fn (a: Int) - (b: Int) { Int(intop(bitsub, a, b)) }
+
+@extend
 fn (a: Int) * (b: Int) { Int(intop(bitmul, a, b)) }
 
+@extend
 fn div(a: Int, b: Int) { Int(intop(bitdiv_s, a, b)) }
+
+@extend
 fn rem(a: Int, b: Int) { Int(intop(bitrem_s, a, b)) }
 
+@extend
 fn (a: Int) == (b: Int) { Bool(intop(biteq, a, b)) }
+
+@extend
 fn (a: Int) != (b: Int) { Bool(intop(bitne, a, b)) }
 
+@extend
 fn (a: Int) > (b: Int) { Bool(intop(bitgt_s, a, b)) }
+
+@extend
 fn (a: Int) >= (b: Int) { Bool(intop(bitge_s, a, b)) }
+
+@extend
 fn (a: Int) < (b: Int) { Bool(intop(bitlt_s, a, b)) }
+
+@extend
 fn (a: Int) <= (b: Int) { Bool(intop(bitle_s, a, b)) }
 
+@extend
 fn zero?(x: Int) { Bool(biteqz(bits(x))) }
 
+@extend
 fn zero(x: Int) { oftype(x, 0) }
+
+@extend
 fn one(x: Int) { oftype(x, 1) }
 
 fn typemin(n: Int) {
@@ -110,6 +170,7 @@ fn typemax(n: Int) {
   typemin(n) - one(n)
 }
 
+@extend
 fn Bool(x: Int) { !zero?(x) }
 
 @extend
@@ -123,15 +184,22 @@ fn oftype(to: Int, x: Float64) {
   oftype(to, wasm i64.trunc_f64_s(x): i64)
 }
 
+@extend
 fn (a: Int) / (b: Int) { Float64(a) / Float64(b) }
 
+@extend
 fn js(x: Int) { js(Float64(x)) }
 
+@extend
 fn string(x: Int, base: Int) { String(js(x).toString(base)) }
+
+@extend
 fn string(x: Int) { string(x, 10) }
 
+@extend
 fn print(x: Int) { print(js(x)) }
 
+@extend
 fn show(x: Int) {
   N = bitsize(bits(x))
   print("oftype(int ")
@@ -143,31 +211,43 @@ fn show(x: Int) {
 
 # Special sizes
 
+@extend
 fn matchTrait($Int32, x: Int[32]) { Some(x) }
+
+@extend
 fn matchTrait($Int64, x: Int[64]) { Some(x) }
 
+@extend
 fn Int32(x) { oftype(int 32, x) }
+
+@extend
 fn Int64(x) { oftype(int 64, x) }
 
+@extend
 fn show(x: Int32) {
   print("Int32(")
   print(x)
   print(")")
 }
 
+@extend
 fn show(x: Int64) { print(x) }
 
 # UInt
 
 bundle UInt(x: Bits)
 
-fn tag"common.UInt"[N] { Params(UInt, N) }
+fn tag"common.integer.UInt"[N] { Params(UInt, N) }
 
+@extend
 fn matchTrait(Params($UInt, N), UInt(b)) {
   if let Some(b) = matchTrait(Bits[N], b) {
     Some(UInt(b))
   }
 }
+
+@extend
+fn matchTrait($Integer, x: (Int | UInt)) { Some(x) }
 
 fn bits(UInt(x)) { x }
 
@@ -188,38 +268,67 @@ fn larger(a: UInt, b: UInt) {
   if lt(bitsize(a), bitsize(b)) { b } else { a }
 }
 
+@extend
 fn promote(a: UInt, b: UInt) {
   T = larger(a, b)
   [oftype(T, a), oftype(T, b)]
 }
 
+@extend
 fn (a: UInt) + (b: UInt) { UInt(intop(bitadd, a, b)) }
+
+@extend
 fn (-(x: UInt)) { zero(x) - x }
+
+@extend
 fn (a: UInt) - (b: UInt) { UInt(intop(bitsub, a, b)) }
+
+@extend
 fn (a: UInt) * (b: UInt) { UInt(intop(bitmul, a, b)) }
 
+@extend
 fn div(a: UInt, b: UInt) { UInt(intop(bitdiv_u, a, b)) }
+
+@extend
 fn rem(a: UInt, b: UInt) { Int(intop(bitrem_u, a, b)) }
 
+@extend
 fn (a: UInt) | (b: UInt) { UInt(intop(bitor, a, b)) }
+
+@extend
 fn (a: UInt) & (b: UInt) { UInt(intop(bitand, a, b)) }
 
+@extend
 fn (a: UInt) == (b: UInt) { Bool(intop(biteq, a, b)) }
+
+@extend
 fn (a: UInt) != (b: UInt) { Bool(intop(bitne, a, b)) }
 
+@extend
 fn (a: UInt) > (b: UInt) { Bool(intop(bitgt_u, a, b)) }
+
+@extend
 fn (a: UInt) >= (b: UInt) { Bool(intop(bitge_u, a, b)) }
+
+@extend
 fn (a: UInt) < (b: UInt) { Bool(intop(bitlt_u, a, b)) }
+
+@extend
 fn (a: UInt) <= (b: UInt) { Bool(intop(bitle_u, a, b)) }
 
+@extend
 fn zero?(x: UInt) { Bool(biteqz(bits(x))) }
 
+@extend
 fn zero(x: UInt) { oftype(x, 0) }
+
+@extend
 fn one(x: UInt) { oftype(x, 1) }
 
 fn typemin(n: UInt) { zero(n) }
 fn typemax(n: UInt) { typemin(n) - one(n) }
 
+@extend
 fn Bool(x: UInt) { !zero?(x) }
 
 @extend
@@ -228,12 +337,16 @@ fn Float64(UInt(x)) {
   wasm f64.convert_i64_u(x: i64): f64
 }
 
+@extend
 fn (a: UInt) / (b: UInt) { Float64(a) / Float64(b) }
 
+@extend
 fn js(x: UInt) { js(Float64(x)) }
 
+@extend
 fn print(x: UInt) { print(js(x)) }
 
+@extend
 fn show(x: UInt) {
   N = bitsize(bits(x))
   print("oftype(uint ")
@@ -245,9 +358,16 @@ fn show(x: UInt) {
 
 # Special sizes
 
+@extend
 fn matchTrait($UInt8, x: UInt[8]) { Some(x) }
+
+@extend
 fn matchTrait($UInt16, x: UInt[16]) { Some(x) }
+
+@extend
 fn matchTrait($UInt32, x: UInt[32]) { Some(x) }
+
+@extend
 fn matchTrait($UInt64, x: UInt[64]) { Some(x) }
 
 fn UInt8(x) { oftype(uint 8, x) }
@@ -255,21 +375,25 @@ fn UInt16(x) { oftype(uint 16, x) }
 fn UInt32(x) { oftype(uint 32, x) }
 fn UInt64(x) { oftype(uint 64, x) }
 
+@extend
 fn show(x: UInt8) {
   print("0x")
   print(js(string(Int64(x), 16)).padStart(2, "0"))
 }
 
+@extend
 fn show(x: UInt16) {
   print("0x")
   print(js(string(Int64(x), 16)).padStart(4, "0"))
 }
 
+@extend
 fn show(x: UInt32) {
   print("0x")
   print(js(string(Int64(x), 16)).padStart(8, "0"))
 }
 
+@extend
 fn show(x: UInt64) {
   print("0x")
   print(js(string(Int64(x), 16)).padStart(16, "0"))
@@ -277,29 +401,71 @@ fn show(x: UInt64) {
 
 # libm
 
+@extend
 fn sqrt(x: (Int | UInt)) { sqrt(Float64(x)) }
+
+@extend
 fn cbrt(x: (Int | UInt)) { cbrt(Float64(x)) }
+
+@extend
 fn hypot(x: (Int | UInt), y: (Int | UInt)) { hypot(Float64(x), Float64(y)) }
 
+@extend
 fn exp(x: (Int | UInt)) { exp(Float64(x)) }
+
+@extend
 fn expm1(x: (Int | UInt)) { expm1(Float64(x)) }
+
+@extend
 fn log(x: (Int | UInt)) { log(Float64(x)) }
+
+@extend
 fn log1p(x: (Int | UInt)) { log1p(Float64(x)) }
+
+@extend
 fn log2(x: (Int | UInt)) { log2(Float64(x)) }
+
+@extend
 fn log10(x: (Int | UInt)) { log10(Float64(x)) }
+
+@extend
 fn pow(x: (Int | UInt), y: (Int | UInt)) { pow(Float64(x), Float64(y)) }
 
+@extend
 fn sin(x: (Int | UInt)) { sin(Float64(x)) }
+
+@extend
 fn cos(x: (Int | UInt)) { cos(Float64(x)) }
+
+@extend
 fn tan(x: (Int | UInt)) { tan(Float64(x)) }
+
+@extend
 fn asin(x: (Int | UInt)) { asin(Float64(x)) }
+
+@extend
 fn acos(x: (Int | UInt)) { acos(Float64(x)) }
+
+@extend
 fn atan(x: (Int | UInt)) { atan(Float64(x)) }
+
+@extend
 fn atan(y: (Int | UInt), x: (Int | UInt)) { atan(Float64(y), Float64(x)) }
 
+@extend
 fn sinh(x: (Int | UInt)) { sinh(Float64(x)) }
+
+@extend
 fn cosh(x: (Int | UInt)) { cosh(Float64(x)) }
+
+@extend
 fn tanh(x: (Int | UInt)) { tanh(Float64(x)) }
+
+@extend
 fn asinh(x: (Int | UInt)) { asinh(Float64(x)) }
+
+@extend
 fn acosh(x: (Int | UInt)) { acosh(Float64(x)) }
+
+@extend
 fn atanh(x: (Int | UInt)) { atanh(Float64(x)) }

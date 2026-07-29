@@ -19,7 +19,7 @@ function result(comp: Compiler, f: Tag, args: Type) {
   return ret
 }
 
-const some = (x: Type) => pack(tag('common.Some'), x)
+const some = (x: Type) => pack(tag('common.core.Some'), x)
 const optional = (x: Type) => onion(nil, some(x))
 
 test('infer identity', async () => {
@@ -29,19 +29,19 @@ test('infer identity', async () => {
 })
 
 test('infer Nil', () => {
-  let ret = result(compiler, tag('common.Nil'), list())
+  let ret = result(compiler, tag('common.core.Nil'), list())
   assert.deepEqual(ret, list(nil))
 })
 
 test('nil const', () => {
-  const ret = compiler.pipe.defs.global(new Binding(tag('common'), 'nil'))
+  const ret = compiler.pipe.defs.resolve_static(new Binding(tag(''), 'nil'))
   assert.deepEqual(ret, nil)
 })
 
 test('infer bool', async () => {
   await compiler.reload(source('', 'fn id() { Bool(bits"1") }'))
   let ret = result(compiler, tag('id'), list())
-  assert.deepEqual(ret, list(pack(tag('common.Bool'), bits(1, 1))))
+  assert.deepEqual(ret, list(pack(tag('common.integer.Bool'), bits(1, 1))))
 })
 
 test('infer int32', async () => {
@@ -55,21 +55,21 @@ test('castTrait narrows any', () => {
   assert.deepEqual(ret, list(optional(float64())))
   ret = result(compiler, tag('common.castTrait'), list(tag('common.Int64'), Any))
   assert.deepEqual(ret, list(optional(int64())))
-  ret = result(compiler, tag('common.castTrait'), list(tag('common.String'), Any))
+  ret = result(compiler, tag('common.castTrait'), list(tag('common.strings.String'), Any))
   assert.deepEqual(ret, list(optional(String())))
-  ret = result(compiler, tag('common.castTrait'), list(tag('common.Nil'), Any))
+  ret = result(compiler, tag('common.castTrait'), list(tag('common.core.Nil'), Any))
   assert.deepEqual(ret, list(optional(nil)))
   ret = result(compiler, tag('common.castTrait'), list(tag('common.core.Ref'), Any))
   assert.deepEqual(ret, list(optional(Ref)))
-  ret = result(compiler, tag('common.castTrait'), list(tag('common.Ptr'), Any))
+  ret = result(compiler, tag('common.castTrait'), list(tag('common.wasm.memory.Ptr'), Any))
   assert.deepEqual(ret, list(optional(Ptr())))
 })
 
 test('trait types', () => {
   const inf = compiler.pipe.inferred
   assert.deepEqual(inf.traitType(tag('common.Int64')), int64())
-  assert.deepEqual(inf.traitType(pack(tag('common.Params'), tag('common.UInt'), 21n)), pack(tag('common.UInt'), bits(21)))
-  assert.deepEqual(inf.traitType(tag('common.String')), String())
+  assert.deepEqual(inf.traitType(pack(tag('common.patterns.Params'), tag('common.integer.UInt'), 21n)), pack(tag('common.integer.UInt'), bits(21)))
+  assert.deepEqual(inf.traitType(tag('common.strings.String')), String())
   assert.deepEqual(inf.traitType(tag('NoSuchTrait')), unreachable)
 })
 
@@ -154,7 +154,7 @@ test('infer widens growing argument type', async () => {
     }
   `))
   const ret = result(compiler, tag('build'), list(list(), 40n))
-  assert.deepEqual(ret, list(vpack(tag('common.List'), int64())))
+  assert.deepEqual(ret, list(vpack(tag('common.list.List'), int64())))
 })
 
 test('infer non-terminating recursion', async () => {
@@ -194,7 +194,7 @@ test('infer traces straight-line code', async () => {
 })
 
 test('infer merge keeps known record structure', async () => {
-  const P = (a: Type, b: Type) => pack(tag('common.Pair'), a, b)
+  const P = (a: Type, b: Type) => pack(tag('common.record.Pair'), a, b)
 
   await compiler.reload(source('', `
     fn mergeRecords() {
@@ -205,7 +205,7 @@ test('infer merge keeps known record structure', async () => {
   `))
 
   let ret = result(compiler, tag('mergeRecords'), list())
-  const record = pack(tag('common.Record'), P(tag('a'), int64(1)), P(tag('b'), int64(2)), P(tag('d'), int64(3)))
+  const record = pack(tag('common.record.Record'), P(tag('a'), int64(1)), P(tag('b'), int64(2)), P(tag('d'), int64(3)))
   assert.deepEqual(ret, list(onion(nil, record)))
 
   await compiler.reload(source('', `

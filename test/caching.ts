@@ -72,7 +72,7 @@ test('inference', async () => {
 test('compiler', async () => {
   const compiler = await Compiler.create(load)
   reset(compiler.pipe)
-  compiler.pipe.wasm.get(callsig(tag('common.malloc!'), types.list(types.int32())))
+  compiler.pipe.wasm.get(callsig(tag('common.wasm.malloc.malloc!'), types.list(types.int32())))
   const before = fingerprint(compiler.pipe)
   reset(compiler.pipe)
   const after = fingerprint(compiler.pipe)

@@ -1,3 +1,8 @@
+import { ... } from "./core.rv"
+import { map } from "./iterate.rv"
+import { String } from "./strings.rv"
+import { await, import } from "./wasm/js.rv"
+
 export { args, readFile }
 
 fn args() {

@@ -1,19 +1,161 @@
+import { ... } from "./core.rv"
+
 export {
-  Integer, Real, Number, BigInt, Float32, Float64, Complex, real, imag
-  ==, !=, !, +, -, *, /, ^, >, <, >=, <=, &, |, abs2, conj, div, rem
-  zero?, zero, one, round, min, max, factorial
+  Integer, Real, Number
+  coerce, promote, min, max, factorial
+  zero, zero?, one, div, rem, round, integer?
+  abs, abs2, conj, real, imag, im
+  sqrt, cbrt, hypot, exp, expm1, log, log1p, log2, log10, pow
+  sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
 }
 
-fn matchTrait($Real, x: (Float32 | Float64)) { Some(x) }
-fn matchTrait($Integer, x: (Int | UInt | BigInt)) { Some(x) }
+Integer = tag".Integer"
+Real = tag".Real"
+Number = tag".Number"
 
+@extend
+fn matchTrait($Real, x: (Float32 | Float64)) { Some(x) }
+
+@extend
 fn matchTrait($Real, x: Integer) { Some(x) }
+
+@extend
 fn matchTrait($Number, x: Real) { Some(x) }
+
+zero = tag".zero"
+zero? = tag".zero?"
+one = tag".one"
+div = tag".div"
+rem = tag".rem"
+round = tag".round"
+integer? = tag".integer?"
+
+abs = tag".abs"
+abs2 = tag".abs2"
+conj = tag".conj"
+real = tag".real"
+imag = tag".imag"
+im = tag".im"
+
+sqrt = tag".sqrt"
+cbrt = tag".cbrt"
+hypot = tag".hypot"
+exp = tag".exp"
+expm1 = tag".expm1"
+log = tag".log"
+log1p = tag".log1p"
+log2 = tag".log2"
+log10 = tag".log10"
+pow = tag".pow"
+
+sin = tag".sin"
+cos = tag".cos"
+tan = tag".tan"
+asin = tag".asin"
+acos = tag".acos"
+atan = tag".atan"
+sinh = tag".sinh"
+cosh = tag".cosh"
+tanh = tag".tanh"
+asinh = tag".asinh"
+acosh = tag".acosh"
+atanh = tag".atanh"
+
+# Promotion
+
+fn coerce(a: Number, b: Number) { nil }
+
+fn promote(a: Number, b: Number) {
+  if let [a, b] = coerce(a, b) { return [a, b] }
+  if let [b, a] = coerce(b, a) { return [a, b] }
+}
 
 fn coerce(a: Float64, b: Integer) { [a, Float64(b)] }
 
-include "numbers/complex.rv"
+@extend
+fn (a: Number) + (b: Number) {
+  if tag(a) == tag(b) { abort("+ not defined for this type") }
+  [a, b] = promote(a, b)
+  return a + b
+}
 
+@extend
+fn (a: Number) - (b: Number) {
+  if tag(a) == tag(b) { abort("- not defined for this type") }
+  [a, b] = promote(a, b)
+  return a - b
+}
+
+@extend
+fn (a: Number) * (b: Number) {
+  if tag(a) == tag(b) { abort("* not defined for this type") }
+  [a, b] = promote(a, b)
+  return a * b
+}
+
+@extend
+fn (a: Number) / (b: Number) {
+  if tag(a) == tag(b) { abort("/ not defined for this type") }
+  [a, b] = promote(a, b)
+  return a / b
+}
+
+@extend
+fn (a: Number) ^ (b: Number) {
+  if tag(a) == tag(b) { abort("^ not defined for this type") }
+  [a, b] = promote(a, b)
+  return a ^ b
+}
+
+@extend
+fn (a: Real) > (b: Real) {
+  if tag(a) == tag(b) { abort("> not defined for this type") }
+  [a, b] = promote(a, b)
+  return a > b
+}
+
+@extend
+fn (a: Real) < (b: Real) {
+  if tag(a) == tag(b) { abort("< not defined for this type") }
+  [a, b] = promote(a, b)
+  return a < b
+}
+
+@extend
+fn (a: Real) >= (b: Real) {
+  if tag(a) == tag(b) { abort(">= not defined for this type") }
+  [a, b] = promote(a, b)
+  return a >= b
+}
+
+@extend
+fn (a: Real) <= (b: Real) {
+  if tag(a) == tag(b) { abort("<= not defined for this type") }
+  [a, b] = promote(a, b)
+  return a <= b
+}
+
+fn min(a: Real, b: Real) {
+  if tag(a) == tag(b) {
+    [a, b] = promote(a, b)
+    if a < b { a } else { b }
+  } else {
+    [a, b] = promote(a, b)
+    return min(a, b)
+  }
+}
+
+fn max(a: Real, b: Real) {
+  if tag(a) == tag(b) {
+    [a, b] = promote(a, b)
+    if a > b { a } else { b }
+  } else {
+    [a, b] = promote(a, b)
+    return max(a, b)
+  }
+}
+
+@extend
 fn (x: Integer) ^ (n: Integer) {
   r = one(x)
   while n > 0 {
@@ -31,27 +173,4 @@ fn factorial(n: Integer) {
     n = n - one(n)
   }
   return r
-}
-
-fn show(x: Bits) {
-  print(`bits"`)
-  N = bitsize(x)
-  for i = range(1, N) {
-    print(Int64(bitand(bitshr_u(x, bitcast(x, bits(N - i))), bitcast(x, bits(1)))))
-  }
-  print(`"`)
-}
-
-fn print(x: (Float64 | Float32)) {
-  print(string(x))
-}
-
-fn show(x: Float64) {
-  print(x)
-}
-
-fn show(x: Float32) {
-  print("Float32(")
-  print(x)
-  print(")")
 }

@@ -237,7 +237,7 @@ function partir_union(x: Type & { kind: 'union' }, i: Type): MIR {
 // TODO: should make sure this comes out as a switch / branch table.
 function partir(x: Type, i: Type): MIR {
   if (x.kind === 'union') return partir_union(x, i)
-  if (!types.tag('common.Int').isEqual(types.tagOf(i))) throw new Error('partir: expected Int index')
+  if (!types.tag('common.integer.Int').isEqual(types.tagOf(i))) throw new Error('partir: expected Int index')
   const T = partial_part(x, i)
   const code = MIR(Def('common.core.part'))
   const vx = code.argument(x)
@@ -372,7 +372,7 @@ function packir(Ts: Type): MIR {
     return code
   }
   const bytes = call(code, types.tag('common.*'), [size, i32(code, sizeof(E))], types.int32())
-  const ptr = call(code, types.tag('common.malloc!'), [bytes], types.int32())
+  const ptr = call(code, types.tag('common.wasm.malloc.malloc!'), [bytes], types.int32())
   let pos: Val<MIR> = ptr
   for (let i = 1; i <= types.nparts(Ts); i++) {
     let P = types.part(Ts, i)
@@ -428,7 +428,7 @@ function set_vpack(T: Type & { kind: 'vpack' }, I: Type, X: Type): MIR {
   let size = code.push(code.stmt(xref(xs, 1), { type: types.int32() }))
   let src = code.push(code.stmt(xref(xs, 2), { type: types.int32() }))
   let bytes = call(code, types.tag('common.*'), [size, i32(code, sizeof(E))], types.int32())
-  let ptr = call(code, types.tag('common.malloc!'), [bytes], types.int32())
+  let ptr = call(code, types.tag('common.wasm.malloc.malloc!'), [bytes], types.int32())
   let result = code.push(code.stmt(xtuple(size, ptr), { type: T }))
 
   i = getIntValue(I) ? i32(code, getIntValue(I)!) : call(code, types.tag('common.Int32'), [i], types.int32())
@@ -567,7 +567,7 @@ function load(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, { count = true, heap = 
 }
 
 function box(pr: Fragment<MIR>, T: Type, x: Val<MIR>): Val<MIR> {
-  const ptr = call(pr, types.tag('common.malloc!'), [i32(pr, sizeof(T))], types.int32())
+  const ptr = call(pr, types.tag('common.wasm.malloc.malloc!'), [i32(pr, sizeof(T))], types.int32())
   store(pr, T, ptr, x)
   return ptr
 }
@@ -615,7 +615,7 @@ function cast(pr: Fragment<MIR>, from: Anno<Type>, to: Anno<Type>, x: Val<MIR>):
     const n = types.nparts(from)
     if (sizeof(E) === 0)
       return pr.push(pr.stmt(xtuple(i32(pr, n)), { type: to }))
-    let ptr = call(pr, types.tag('common.malloc!'), [i32(pr, sizeof(E) * n)], types.int32())
+    let ptr = call(pr, types.tag('common.wasm.malloc.malloc!'), [i32(pr, sizeof(E) * n)], types.int32())
     let pos: Val<MIR> = ptr
     for (let i = 1; i <= n; i++) {
       let el = indexer(pr, from, types.int64(i), x, types.int64(i))

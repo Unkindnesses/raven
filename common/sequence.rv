@@ -1,3 +1,7 @@
+import { ... } from "./core.rv"
+import { ... } from "./numbers.rv"
+import { isa? } from "./patterns.rv"
+
 export {
   Sequence, Prepend, Empty, seq, first, rest, prepend, empty?, length, seqRange, repeat, sum
 }
@@ -12,13 +16,22 @@ fn seq(x, xs...) { prepend(seq(xs...), x) }
 fn first(l: Empty) { abort("first: seq is empty") }
 fn first(l: Prepend) { part(l, 2) }
 
+@extend
 fn rest(l: Empty) { abort("rest: seq is empty") }
+
+@extend
 fn rest(l: Prepend) { part(l, 1) }
 
+@extend
 fn empty?(_: Prepend) { false }
+
+@extend
 fn empty?(_: Empty) { true }
 
+@extend
 fn length(Prepend(xs, _)) { 1 + length(xs) }
+
+@extend
 fn length(Empty()) { 0 }
 
 fn seqRange(start, end) {
@@ -49,6 +62,7 @@ fn printList(Prepend(xs, x)) {
   printList(xs)
 }
 
+@extend
 fn show(xs: Sequence) {
   print("seq(")
   printList(xs)

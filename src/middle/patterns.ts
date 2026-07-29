@@ -220,8 +220,8 @@ function trivial_isa(int: Interpreter, val: types.Type, T: types.Type): boolean 
   const r = int.eval(types.tag('common.matchTrait'), types.list(T, val))
   if (r === undefined) return undefined
   const tag = types.tagOf(types.part(r, 1))
-  if (types.tag('common.Some').isEqual(tag)) return true
-  if (types.tag('common.Nil').isEqual(tag)) return false
+  if (types.tag('common.core.Some').isEqual(tag)) return true
+  if (types.tag('common.core.Nil').isEqual(tag)) return false
   return undefined
 }
 
@@ -340,7 +340,7 @@ function dispatcher(inf: Inference, func: types.Tag, F: types.Type, Ts: types.Ty
       if (code.type(m) !== ir.unreachable) {
         const as: ir.Val<MIR>[] = []
         for (const arg of meth.sig.args)
-          as.push(call(part_method, call(types.tag('common.getkey'), m, types.tag(arg)), types.Type(1n)))
+          as.push(call(part_method, call(types.tag('common.record.getkey'), m, types.tag(arg)), types.Type(1n)))
         let result = call(meth, ...as)
         if (meth.sig.swap.size === 0 && code.type(result) !== ir.unreachable)
           result = code.push(code.stmt(xlist(result), { type: types.list(ir.asType(code.type(result))) }))

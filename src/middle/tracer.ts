@@ -176,11 +176,11 @@ class TraceIR implements ir.Fragment<MIR> {
 function keyindex(Ts: Type[]): Type | undefined {
   if (Ts.length !== 2) return
   const [record, key] = Ts
-  if (!(key instanceof Tag) || record.kind !== 'pack' || !types.tag('common.Record').isEqual(types.tagOf(record))) return
+  if (!(key instanceof Tag) || record.kind !== 'pack' || !types.tag('common.record.Record').isEqual(types.tagOf(record))) return
   const fields = types.parts(record)
   for (let i = 0; i < fields.length; i++) {
     const field = fields[i]
-    if (field.kind !== 'pack' || !types.tag('common.Pair').isEqual(types.tagOf(field))) return
+    if (field.kind !== 'pack' || !types.tag('common.record.Pair').isEqual(types.tagOf(field))) return
     const k = types.part(field, 1)
     if (!(k instanceof Tag)) return
     if (k.isEqual(key)) return types.int64(i + 1)
@@ -194,8 +194,8 @@ function packv(code: ir.Fragment<MIR>, ...xs: ir.Val<MIR>[]): ir.Val<MIR> {
 
 function bindings(code: ir.Fragment<MIR>, V: types.Type, val: ir.Val<MIR>, m: Match): ir.Val<MIR> {
   const fields = [...m].map(([name, [, path]]) =>
-    packv(code, types.tag('common.Pair'), types.tag(name), indexer(code, V, val, path)))
-  return packv(code, types.tag('common.Record'), ...fields)
+    packv(code, types.tag('common.record.Pair'), types.tag(name), indexer(code, V, val, path)))
+  return packv(code, types.tag('common.record.Record'), ...fields)
 }
 
 function static_match(int: Interpreter, code: ir.Fragment<MIR>, Ts: types.Type, args: ir.Val<MIR>): ir.Val<MIR> | undefined {
@@ -203,7 +203,7 @@ function static_match(int: Interpreter, code: ir.Fragment<MIR>, Ts: types.Type, 
   const [V, P] = [types.part(Ts, 1), types.part(Ts, 2)]
   const m = partial_match(int, pattern(P), V)
   if (m === undefined) return
-  return packv(code, types.tag('common.List'),
+  return packv(code, types.tag('common.list.List'),
     m === null ? types.nil : bindings(code, V, indexer(code, Ts, args, [1]), m))
 }
 
@@ -308,7 +308,7 @@ class Tracer {
 
   traceMethod(code: TraceIR, meth: Method, args: ir.Val<MIR>[], src?: Stack): ir.Val<MIR> | undefined {
     const Ts = args.map(a => asType(code.type(a)))
-    if (meth.name.isEqual(types.tag('common.keyindex'))) {
+    if (meth.name.isEqual(types.tag('common.record.keyindex'))) {
       const result = keyindex(Ts)
       if (result !== undefined) return result
     }

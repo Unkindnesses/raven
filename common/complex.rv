@@ -1,3 +1,9 @@
+import { ... } from "./core.rv"
+import { ... } from "./numbers.rv"
+import { pi } from "./wasm/numeric.rv"
+
+export { Complex, real, imag }
+
 bundle Complex(re: Real, im: Real)
 
 fn Complex(re: Real, im: Real) {
@@ -7,36 +13,51 @@ fn Complex(re: Real, im: Real) {
 
 fn Complex(re: Real) { Complex(re, zero(re)) }
 
+@extend
 fn matchTrait($Number, x: Complex) { Some(x) }
 
+@extend
 fn real(Complex(re, im)) { re }
+
+@extend
 fn imag(Complex(re, im)) { im }
 
+@extend
 fn zero(Complex(re, im)) { Complex(zero(re)) }
+
+@extend
 fn one(Complex(re, im)) { Complex(one(re)) }
+
+@extend
 fn im(Complex(re, im)) { Complex(zero(re), one(re)) }
 
+@extend
 fn promote(Complex(ra, ia), Complex(rb, ib)) {
   [ra, rb] = promote(ra, rb)
   [ia, ib] = promote(ia, ib)
   [Complex(ra, ia), Complex(rb, ib)]
 }
 
+@extend
 fn coerce(Complex(re, im), x: Real) {
   [re, x] = promote(re, x)
   [Complex(re, im), Complex(x)]
 }
 
+@extend
 fn conj(x: Real) { x }
 
+@extend
 fn conj(Complex(re, im)) {
   Complex(re, -im)
 }
 
+@extend
 fn abs(z: Complex) {
   hypot(real(z), imag(z))
 }
 
+@extend
 fn abs2(Complex(re, im)) {
   re * re + im * im
 }
@@ -45,30 +66,37 @@ fn arg(Complex(re, im)) {
   atan(im, re)
 }
 
+@extend
 fn Complex(ra, ia) + Complex(rb, ib) {
   Complex(ra + rb, ia + ib)
 }
 
+@extend
 fn (-Complex(re, im)) {
   Complex(-re, -im)
 }
 
+@extend
 fn Complex(ra, ia) - Complex(rb, ib) {
   Complex(ra - rb, ia - ib)
 }
 
+@extend
 fn Complex(ra, ia) * Complex(rb, ib) {
   Complex(ra * rb - ia * ib, ra * ib + rb * ia)
 }
 
+@extend
 fn Complex(re, im) / (x: Real) {
   Complex(re / x, im / x)
 }
 
+@extend
 fn (z: Complex) / (w: Complex) {
   (z * conj(w)) / abs2(w)
 }
 
+@extend
 fn sqrt(Complex(re, im)) {
   r = hypot(re, im)
   y = Complex(sqrt((r + re) / 2), sqrt((r - re) / 2))
@@ -76,71 +104,88 @@ fn sqrt(Complex(re, im)) {
   return y
 }
 
+@extend
 fn cbrt(z: Complex) {
   pow(z, 1.0 / 3.0)
 }
 
+@extend
 fn exp(Complex(re, im)) {
   r = exp(re)
   Complex(r * cos(im), r * sin(im))
 }
 
+@extend
 fn log(z: Complex) {
   Complex(log(abs(z)), arg(z))
 }
 
+@extend
 fn pow(x: Complex, y: Number) {
   exp(y * log(x))
 }
 
+@extend
 fn sin(Complex(re, im)) {
   Complex(sin(re) * cosh(im), cos(re) * sinh(im))
 }
 
+@extend
 fn cos(Complex(re, im)) {
   Complex(cos(re) * cosh(im), -sin(re) * sinh(im))
 }
 
+@extend
 fn tan(z: Complex) {
   sin(z) / cos(z)
 }
 
+@extend
 fn asin(z: Complex) {
   -im(z) * log(im(z) * z + sqrt(one(z) - z * z))
 }
 
+@extend
 fn acos(z: Complex) {
   Complex(pi / 2.0) - asin(z)
 }
 
+@extend
 fn atan(z: Complex) {
   im(z) * (log(one(z) - im(z) * z) - log(one(z) + im(z) * z)) / 2
 }
 
+@extend
 fn sinh(Complex(re, im)) {
   Complex(sinh(re) * cos(im), cosh(re) * sin(im))
 }
 
+@extend
 fn cosh(Complex(re, im)) {
   Complex(cosh(re) * cos(im), sinh(re) * sin(im))
 }
 
+@extend
 fn tanh(z: Complex) {
   sinh(z) / cosh(z)
 }
 
+@extend
 fn asinh(z: Complex) {
   log(z + sqrt(z * z + one(z)))
 }
 
+@extend
 fn acosh(z: Complex) {
   log(z + sqrt(z + one(z)) * sqrt(z - one(z)))
 }
 
+@extend
 fn atanh(z: Complex) {
   (log(one(z) + z) - log(one(z) - z)) / 2
 }
 
+@extend
 fn show(Complex(re, im)) {
   show(re)
   print(" + ")

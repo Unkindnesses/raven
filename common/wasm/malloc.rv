@@ -1,5 +1,10 @@
+import { ... } from "../core.rv"
+import { ... } from "../numbers.rv"
+import { Bool } from "../integer.rv"
+import { Ptr, addr, i32load, i32store!, memoryPages, memoryGrow! } from "./memory.rv"
+
 export {
-  malloc!, free!, retain!, release!, blockSize, blockCount
+  malloc!, free!, retain!, release!, blockSize, blockCount, blockUnique
   setBlockUsed!, headerSize, pageSize, allocationCount
 }
 
@@ -53,6 +58,7 @@ fn firstBlock() {
   Block(Ptr(0), getBlockSize(Ptr(0)))
 }
 
+@extend
 fn next(&bl: Block(ptr, size)) {
   ptr = ptr + size
   bl = Block(ptr, getBlockSize(ptr))

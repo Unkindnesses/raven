@@ -1,4 +1,17 @@
+import { ... } from "../core.rv"
+import { ... } from "../numbers.rv"
+import { Bool } from "../integer.rv"
+
+export {
+  Float32, Float64, Inf, NaN, pi
+  sqrt, cbrt, hypot, exp, expm1, log, log1p, log2, log10, pow
+  sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
+}
+
+@extend
 fn matchTrait($Float32, x: pack($Float32, _)) { Some(x) }
+
+@extend
 fn matchTrait($Float64, x: pack($Float64, _)) { Some(x) }
 
 @extend
@@ -11,58 +24,77 @@ fn Float64(x: Float32) {
   wasm f64.promote_f32(x: f32): f64
 }
 
+@extend
 fn one(x: Float64) { 1.0 }
+
+@extend
 fn zero(x: Float64) { 0.0 }
 
+@extend
 fn promote(x: Float64, y: Float64) { [x, y] }
+
+@extend
 fn promote(x: Float32, y: Float32) { [x, y] }
 
+@extend
 fn coerce(x: Float64, y: Float32) { [x, Float64(y)] }
 
+@extend
 fn (a: Float64) + (b: Float64) {
   wasm f64.add(a: f64, b: f64): f64
 }
 
+@extend
 fn (-(x: Float64)) {
   wasm f64.neg(x: f64): f64
 }
 
+@extend
 fn (a: Float64) - (b: Float64) {
   wasm f64.sub(a: f64, b: f64): f64
 }
 
+@extend
 fn (a: Float64) * (b: Float64) {
   wasm f64.mul(a: f64, b: f64): f64
 }
 
+@extend
 fn (a: Float64) / (b: Float64) {
   wasm f64.div(a: f64, b: f64): f64
 }
 
+@extend
 fn (a: Float64) == (b: Float64) {
   Bool(wasm f64.eq(a: f64, b: f64): i32)
 }
 
+@extend
 fn (a: Float64) > (b: Float64) {
   Bool(wasm f64.gt(a: f64, b: f64): i32)
 }
 
+@extend
 fn (a: Float64) < (b: Float64) {
   Bool(wasm f64.lt(a: f64, b: f64): i32)
 }
 
+@extend
 fn (a: Float32) == (b: Float32) {
   Bool(wasm f32.eq(a: f32, b: f32): i32)
 }
 
+@extend
 fn abs(a: Float64) {
   wasm f64.abs(a: f64): f64
 }
 
+@extend
 fn min(a: Float64, b: Float64) {
   wasm f64.min(a: f64, b: f64): f64
 }
 
+@extend
 fn max(a: Float64, b: Float64) {
   wasm f64.max(a: f64, b: f64): f64
 }
@@ -71,54 +103,111 @@ fn i64trunc(x: Float64) {
   Int64(wasm i64.trunc_f64_s(x: f64): i64)
 }
 
+@extend
 fn round(x: Float64) {
   x = wasm f64.nearest(x: f64): f64
   return i64trunc(x)
 }
 
+@extend
 fn integer?(x: Float64) {
   abs(x) == one(x) / zero(x) && return false
   x == wasm f64.floor(x: f64): f64
 }
 
+@extend
 fn integer?(x: Float32) {
   integer?(Float64(x))
 }
 
-# libm
-
-export {
-  Inf, NaN, pi, sqrt, cbrt, hypot, exp, expm1, log, log1p, log2, log10, pow
-  sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh
+@extend
+fn print(x: (Float64 | Float32)) {
+  print(string(x))
 }
+
+@extend
+fn show(x: Float64) {
+  print(x)
+}
+
+@extend
+fn show(x: Float32) {
+  print("Float32(")
+  print(x)
+  print(")")
+}
+
+# libm
 
 Inf = 1.0 / 0.0
 NaN = 0.0 / 0.0
 pi = 3.141592653589793
 
+@extend
 fn sqrt(x: Float64) { Float64(js.Math.sqrt(x)) }
+
+@extend
 fn cbrt(x: Float64) { Float64(js.Math.cbrt(x)) }
+
+@extend
 fn hypot(x: Float64, y: Float64) { Float64(js.Math.hypot(x, y)) }
 
+@extend
 fn exp(x: Float64) { Float64(js.Math.exp(x)) }
+
+@extend
 fn expm1(x: Float64) { Float64(js.Math.expm1(x)) }
+
+@extend
 fn log(x: Float64) { Float64(js.Math.log(x)) }
+
+@extend
 fn log1p(x: Float64) { Float64(js.Math.log1p(x)) }
+
+@extend
 fn log2(x: Float64) { Float64(js.Math.log2(x)) }
+
+@extend
 fn log10(x: Float64) { Float64(js.Math.log10(x)) }
+
+@extend
 fn pow(x: Float64, y: Float64) { Float64(js.Math.pow(x, y)) }
 
+@extend
 fn sin(x: Float64) { Float64(js.Math.sin(x)) }
+
+@extend
 fn cos(x: Float64) { Float64(js.Math.cos(x)) }
+
+@extend
 fn tan(x: Float64) { Float64(js.Math.tan(x)) }
+
+@extend
 fn asin(x: Float64) { Float64(js.Math.asin(x)) }
+
+@extend
 fn acos(x: Float64) { Float64(js.Math.acos(x)) }
+
+@extend
 fn atan(x: Float64) { Float64(js.Math.atan(x)) }
+
+@extend
 fn atan(y: Float64, x: Float64) { Float64(js.Math.atan2(y, x)) }
 
+@extend
 fn sinh(x: Float64) { Float64(js.Math.sinh(x)) }
+
+@extend
 fn cosh(x: Float64) { Float64(js.Math.cosh(x)) }
+
+@extend
 fn tanh(x: Float64) { Float64(js.Math.tanh(x)) }
+
+@extend
 fn asinh(x: Float64) { Float64(js.Math.asinh(x)) }
+
+@extend
 fn acosh(x: Float64) { Float64(js.Math.acosh(x)) }
+
+@extend
 fn atanh(x: Float64) { Float64(js.Math.atanh(x)) }

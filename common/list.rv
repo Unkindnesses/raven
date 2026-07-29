@@ -1,9 +1,13 @@
+import { ... } from "./core.rv"
+import { IndexIterator, range } from "./iterate.rv"
+
 export { List, length, set, append, pop, empty? }
 
 bundle List(xs...)
 
 fn list(xs...) { List(xs...) }
 
+@extend
 fn length(xs: List) {
   nparts(xs)
 }
@@ -13,6 +17,7 @@ fn (xs: List)[i] {
 }
 
 # TODO fallback equality
+@extend
 fn (xs: List) == (ys: List) {
   if length(xs) != length(ys) { return false }
   for i = range(1, length(xs)) {
@@ -21,14 +26,17 @@ fn (xs: List) == (ys: List) {
   return true
 }
 
+@extend
 fn set(&xs: List, [i: Int64], x) {
   xs = tag"common.core.set"(xs, i, x)
 }
 
+@extend
 fn empty?(xs: List) {
   length(xs) == 0
 }
 
+@extend
 fn append(&xs: List, x) {
   xs = [xs..., x]
   return xs
@@ -42,8 +50,10 @@ fn pop(&xs: List) {
   return last
 }
 
+@extend
 fn iterate(xs: List) { IndexIterator(xs) }
 
+@extend
 fn rest(xs: List) {
   if empty?(xs) { abort("List is empty") }
   result = []
@@ -53,6 +63,7 @@ fn rest(xs: List) {
   return result
 }
 
+@extend
 fn show(x: List) {
   print("[")
   for i = range(1, nparts(x)) {
@@ -65,6 +76,7 @@ fn show(x: List) {
   print("]")
 }
 
+@extend
 fn js(xs: List) {
   ys = js.Array.of()
   for x = xs { ys.push(x) }

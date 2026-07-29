@@ -199,14 +199,14 @@ test('recursive type', async () => {
 
     {
       xs = foo(widen(0))
-      test string(tag(xs)) == "common.Empty"
+      test string(tag(xs)) == "common.sequence.Empty"
       test nparts(xs) == 0
       test empty?(xs)
       test length(xs) == 0
       test allocationCount() == 0
 
       xs = foo(widen(5))
-      test string(tag(xs)) == "common.Prepend"
+      test string(tag(xs)) == "common.sequence.Prepend"
       test nparts(xs) == 2
       test part(xs, 2) == 5
       test part(part(xs, 1), 2) == 4

@@ -1,3 +1,10 @@
+import { ... } from "./core.rv"
+import { ... } from "./numbers.rv"
+import { Bool, Int, UInt, UInt8, UInt16, UInt32, bits, oftype } from "./integer.rv"
+import { IndexIterator, collect, count, nth, map, mapping } from "./iterate.rv"
+import { List } from "./list.rv"
+import { JSObject } from "./wasm/js.rv"
+
 export { Char, String, Regex, string, concat, compare, chars, utf8, utf16, contains?, matches }
 
 # Chars
@@ -8,20 +15,25 @@ fn Char(x: (Int | UInt)) { Char(oftype(uint 21, x)) }
 
 fn Char(x: UInt[21]) { pack(Char, x) }
 
+@extend
 fn UInt32(Char(x)) { UInt32(x) }
 
+@extend
 fn string(Char(val)) {
   ref = wasm call("wasm:js-string".fromCodePoint, widen(bits(val)): i32): ref!
   return unsafeString(ref)
 }
 
+@extend
 fn print(ch: Char) { print(string(ch)) }
 
+@extend
 fn show(ch: Char) {
   print(`c`)
   show(string(ch))
 }
 
+@extend
 fn js(ch: Char) { js(string(ch)) }
 
 # Strings
@@ -38,17 +50,23 @@ fn String(ref: Ref) {
 
 fn String(obj: JSObject) { String(jsref(obj)) }
 
+@extend
 fn js(String(r)) { JSObject(r) }
+
+@extend
 fn jsref(String(r)) { r }
 
+@extend
 fn show(x: String) {
   print(String(js.JSON.stringify(x)))
 }
 
 bundle StringItr(s: String, i: Int64)
 
+@extend
 fn iterate(x: String) { StringItr(x, 0) }
 
+@extend
 fn next(&itr: StringItr(s, i)) {
   if i >= length(utf16(s)) { return }
   idx = widen(bits(Int32(i)))
@@ -58,15 +76,18 @@ fn next(&itr: StringItr(s, i)) {
   return Some(ch)
 }
 
+@extend
 fn length(s: String) { count(s) }
 
 fn (s: String)[i] { nth(s, i) }
 
+@extend
 fn concat(a: String, b: String) {
   ref = wasm call("wasm:js-string".concat, jsref(a), jsref(b)): ref!
   return unsafeString(ref)
 }
 
+@extend
 fn (a: String) == (b: String) {
   r = wasm call("wasm:js-string".equals, jsref(a), jsref(b)): i32
   return Bool(r)
@@ -84,7 +105,11 @@ bundle Chars(data: List)
 fn chars(s: String) { Chars(collect(s)) }
 
 fn Chars(data)[i] { data[i] }
+
+@extend
 fn length(Chars(data)) { length(data) }
+
+@extend
 fn iterate(Chars(data)) { iterate(data) }
 
 bundle UTF8View(data: List)
@@ -113,13 +138,18 @@ fn utf8(s: String) {
 }
 
 fn UTF8View(data)[i] { data[i] }
+
+@extend
 fn length(UTF8View(data)) { length(data) }
+
+@extend
 fn iterate(UTF8View(data)) { iterate(data) }
 
 bundle UTF16View(s: String)
 
 fn utf16(s: String) { UTF16View(s) }
 
+@extend
 fn length(UTF16View(s)) {
   len = wasm call("wasm:js-string".length, jsref(s)): i32
   return Int64(len)
@@ -131,12 +161,15 @@ fn UTF16View(s)[i] {
   return UInt16(ch)
 }
 
+@extend
 fn iterate(v: UTF16View) { IndexIterator(v) }
 
 # Tags
 
+@extend
 fn string(x: Tag) { tagstring(x) }
 
+@extend
 fn show(x: Tag) {
   print(`tag"`)
   print(string(x))
@@ -150,8 +183,10 @@ bundle Regex(r: JSObject)
 # TODO flags
 fn Regex(r: String) { Regex(js.RegExp(r, "vg")) }
 
+@extend
 fn js(Regex(r)) { r }
 
+@extend
 fn show(Regex(r)) {
   print("r`")
   print(r.source)
@@ -170,6 +205,7 @@ fn matches(s: String, r: Regex) { Matches(s, r) }
 # TODO lambdas
 fn collectStrings(xs) { map(xs, String) }
 
+@extend
 fn iterate(Matches(s, r)) {
   mapping(js(s).matchAll(r), collectStrings)
 }

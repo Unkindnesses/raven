@@ -1,3 +1,8 @@
+import { ... } from "./core.rv"
+import { ... } from "./numbers.rv"
+import { Bool, Int, UInt, UInt64, bits } from "./integer.rv"
+import { JSObject, typeof } from "./wasm/js.rv"
+
 export { BigInt, big }
 
 bundle BigInt(x: JSObject)
@@ -24,45 +29,84 @@ fn BigInt(x: UInt) {
 
 fn BigInt(x: String) { BigInt(js(x)) }
 
+@extend
 fn js(BigInt(x)) { x }
 
 fn big(x: Integer) { BigInt(x) }
 
 @extend
+fn matchTrait($Integer, x: BigInt) { Some(x) }
+
+@extend
 fn Float64(x: BigInt) { Float64(js.Number(x)) }
 
+@extend
 fn Int64(x: BigInt) { Int64(js(x)) }
 
+@extend
 fn promote(a: BigInt, b: BigInt) { [a, b] }
 
+@extend
 fn coerce(a: BigInt, b: (Int | UInt)) { [a, BigInt(b)] }
 
+@extend
 fn (a: BigInt) + (b: BigInt) { BigInt(js`return \a + \b`) }
+
+@extend
 fn (-(x: BigInt)) { BigInt(js`return -\x`) }
+
+@extend
 fn (a: BigInt) - (b: BigInt) { BigInt(js`return \a - \b`) }
+
+@extend
 fn (a: BigInt) * (b: BigInt) { BigInt(js`return \a * \b`) }
+
+@extend
 fn (a: BigInt) / (b: BigInt) { Float64(a) / Float64(b) }
+
+@extend
 fn (a: BigInt) ^ (b: BigInt) { BigInt(js`return \a ** \b`) }
 
+@extend
 fn div(a: BigInt, b: BigInt) { BigInt(js`return \a / \b`) }
+
+@extend
 fn rem(a: BigInt, b: BigInt) { BigInt(js`return \a % \b`) }
 
+@extend
 fn (a: BigInt) == (b: BigInt) { Bool(js`return \a == \b`) }
+
+@extend
 fn (a: BigInt) != (b: BigInt) { Bool(js`return \a != \b`) }
 
+@extend
 fn (a: BigInt) > (b: BigInt) { Bool(js`return \a > \b`) }
+
+@extend
 fn (a: BigInt) >= (b: BigInt) { Bool(js`return \a >= \b`) }
+
+@extend
 fn (a: BigInt) < (b: BigInt) { Bool(js`return \a < \b`) }
+
+@extend
 fn (a: BigInt) <= (b: BigInt) { Bool(js`return \a <= \b`) }
 
+@extend
 fn zero?(x: BigInt) { x == zero(x) }
+
+@extend
 fn zero(_: BigInt) { BigInt(0) }
+
+@extend
 fn one(_: BigInt) { BigInt(1) }
 
+@extend
 fn string(BigInt(x)) { String(x.toString()) }
 
+@extend
 fn print(x: BigInt) { print(string(x)) }
 
+@extend
 fn show(x: BigInt) {
   print("big(")
   print(x)

@@ -1,10 +1,13 @@
 # Struct-like record backed by ordered tag/value pairs.
 
+import { ... } from "./core.rv"
+
 export { Pair, Record, record, keyindex, setkey, upsertkey, getkey, haskey, merge }
 
 bundle Pair(k: Tag, v)
 bundle Record(fields...)
 
+@extend
 fn show(p: Pair) {
   show(part(p, 1))
   print(" => ")
@@ -13,6 +16,7 @@ fn show(p: Pair) {
 
 fn record(fields...) { Record(fields...) }
 
+@extend
 fn length(r: Record) { nparts(r) }
 
 fn keyindex(r: Record, k: Tag) {

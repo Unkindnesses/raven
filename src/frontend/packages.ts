@@ -68,7 +68,7 @@ class Loader {
   }
 
   // Entry points take the package's tag, and other files extend it, eg
-  // `common/structures/list.rv` is `tag"common.structures.list"`.
+  // `common/wasm/memory.rv` is `tag"common.wasm.memory"`.
   modtag(path: string): Tag {
     path = join(path)
     const name = this.owner(path)

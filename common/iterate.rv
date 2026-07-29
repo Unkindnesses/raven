@@ -1,11 +1,18 @@
-export { iterate, next, count, nth, Range, range, Mapping, mapping, collect, map, reduce }
+import { ... } from "./core.rv"
+
+export {
+  IndexIterator, iterate, next, count, nth, Range, range
+  Mapping, mapping, collect, map, reduce
+}
 
 bundle IndexIterator(xs, i: Int64)
 
 fn IndexIterator(xs) { IndexIterator(xs, 1) }
 
+@extend
 fn iterate(i: IndexIterator) { i }
 
+@extend
 fn next(&itr: IndexIterator(xs, i)) {
   if i > length(xs) {
     return nil
@@ -36,16 +43,20 @@ bundle Range(start, stop)
 
 fn range(start, stop) { Range(start, stop) }
 
+@extend
 fn length(Range(start, stop)) { (stop - start) + 1 }
 
 fn Range(start, stop)[i] { (i - 1) + start }
 
+@extend
 fn iterate(xs: Range) { IndexIterator(xs) }
 
 bundle Mapping(itr, func)
 
+@extend
 fn iterate(m: Mapping) { m }
 
+@extend
 fn next(&m: Mapping(itr, func)) {
   next = next(&itr)
   m = Mapping(itr, func)

@@ -27,13 +27,13 @@ test('trace biteqz', () => {
 })
 
 test('trace identity', () => {
-  let [, ret] = trace(tag('common.identity'), int64())
+  let [, ret] = trace(tag('common.core.identity'), int64())
   assert.deepEqual(ret, list(int64()))
 })
 
 test('trace Nil', () => {
-  let [, ret] = trace(tag('common.Nil'))
-  assert.deepEqual(ret, list(pack(tag('common.Nil'))))
+  let [, ret] = trace(tag('common.core.Nil'))
+  assert.deepEqual(ret, list(pack(tag('common.core.Nil'))))
 })
 
 test('trace Float64', () => {
@@ -71,23 +71,23 @@ test('trace print', () => {
   assert.ok(ir.length <= 50) // TODO shorten
 })
 
-const P = (a: Type, b: Type) => pack(tag('common.Pair'), a, b)
-const R = (...fields: Type[]) => pack(tag('common.Record'), ...fields)
+const P = (a: Type, b: Type) => pack(tag('common.record.Pair'), a, b)
+const R = (...fields: Type[]) => pack(tag('common.record.Record'), ...fields)
 
 test('trace keyindex shortcut', () => {
-  const [hit, hitCount] = traceCount(tag('common.keyindex'), R(P(tag('a'), int64()), P(tag('b'), String())), tag('b'))
+  const [hit, hitCount] = traceCount(tag('common.record.keyindex'), R(P(tag('a'), int64()), P(tag('b'), String())), tag('b'))
   assert.deepEqual(hit[1], list(int64(2)))
   assert.equal(hitCount, 1)
 
-  const [miss, missCount] = traceCount(tag('common.keyindex'), R(P(tag('a'), int64()), P(tag('b'), String())), tag('c'))
+  const [miss, missCount] = traceCount(tag('common.record.keyindex'), R(P(tag('a'), int64()), P(tag('b'), String())), tag('c'))
   assert.deepEqual(miss[1], list(nil))
   assert.equal(missCount, 1)
 })
 
 test('trace match shortcut', () => {
-  const node = (name: string, ...parts: Type[]) => pack(tag(`common.${name}`), ...parts)
+  const node = (name: string, ...parts: Type[]) => pack(tag(`common.patterns.${name}`), ...parts)
   const bind = (name: string) => node('Bind', tag(name), node('Hole'))
-  const pat = node('Pack', node('Literal', tag('common.List')), bind('a'), bind('b')) // [a, b]
+  const pat = node('Pack', node('Literal', tag('common.list.List')), bind('a'), bind('b')) // [a, b]
 
   const [hit, hitCount] = traceCount(tag('common.match'), list(int64(), String()), pat)
   assert.deepEqual(hit[1], list(R(P(tag('a'), int64()), P(tag('b'), String()))))
