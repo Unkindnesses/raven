@@ -110,10 +110,6 @@ function load_clear(cx: LoadState, x: ast.Expr): void {
   }
 }
 
-async function load_include(cx: LoadState, x: ast.Expr): Promise<void> {
-  await loadfile(cx, cx.loader.resolve(cx.path, ast.asString(x.args[1])))
-}
-
 function load_expr(cx: LoadState, x: ast.Tree): void {
   const meta = Def('(global)', x.meta && source(x.meta))
   const key = new MethodKey(cx.mod.name, tag('common.core.main'))
@@ -172,7 +168,6 @@ async function vload(cx: LoadState, x: ast.Tree, extend = false): Promise<void> 
   if (ast.isExpr(ex, 'Syntax')) {
     x = x as ast.Expr
     const first = ex.args[0].unwrap()
-    if (ast.symbol('include').isEqual(first)) return load_include(cx, x)
     if (ast.symbol('export').isEqual(first)) return load_export(cx, x)
     if (ast.symbol('import').isEqual(first)) return load_import(cx, x)
     if (ast.symbol('clear').isEqual(first)) return load_clear(cx, x)
