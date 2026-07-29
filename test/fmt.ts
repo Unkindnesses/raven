@@ -63,6 +63,12 @@ test('trim trailing whitespace', () => {
   assert.equal(ast.print(formatted), '# hello\n\nf(\n  a\n)\nx = 1\ny = 2\n')
 })
 
+test('preserve commas at the end of comments', () => {
+  const source = '# standalone,\nx # trailing,\nf(\n  a, # item,\n  b,\n)\n'
+  const expected = '# standalone,\nx # trailing,\nf(\n  a # item,\n  b\n)\n'
+  assert.equal(format('test.rv', source), expected)
+})
+
 test('normalize space before trailing comments', () => {
   const source = '# standalone\nx# none\ny   # spaces\nz\t# tab\nf(a,# comma\nb)\nfn f() {# opening\nx\n}\n'
   const expected = '# standalone\nx # none\ny # spaces\nz # tab\nf(a # comma\n  b)\nfn f() { # opening\n  x\n}\n'

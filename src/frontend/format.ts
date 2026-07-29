@@ -27,7 +27,9 @@ function ensureFinalNewline(file: ast.Expr, newline: string): ast.Expr {
 // Trailing whitespace
 
 function trim(text: string): string {
-  return text.replace(/[ \t,]+(?=\r?\n)/g, '')
+  return text
+    .replace(/[ \t]+(?=\r?\n)/g, '')
+    .replace(/(^|[\r\n])([^#\r\n]*),+(?=\r?\n)/g, '$1$2')
 }
 
 function trailingWhitespace(tree: ast.Tree): ast.Tree {
