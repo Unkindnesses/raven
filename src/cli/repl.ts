@@ -7,7 +7,7 @@ import * as wasm from '../backend/wasm.js'
 import { Pipeline, withEmit } from '../backend/compiler.js'
 import { load } from './compile.js'
 import { reset } from '../utils/cache.js'
-import { LoadState, vload, reload, source } from '../middle/load.js'
+import { LoadState, vload, reload, source, wrapPrint } from '../middle/load.js'
 import * as types from '../frontend/types.js'
 import { tag } from '../frontend/types.js'
 import { parse } from '../frontend/parse.js'
@@ -171,15 +171,6 @@ class REPL {
       this.stdout?.write(line)
     }
   }
-}
-
-function wrapPrint(ex: ast.Tree) {
-  if (ast.isExpr(ex, 'Syntax')) {
-    const head = ex.args[0].unwrap()
-    if (head instanceof ast.Symbol && ['fn', 'bundle', 'show', 'showPack', 'clear'].includes(head.toString()))
-      return ex
-  }
-  return ast.Call(ast.Template(ast.symbol('tag'), 'common.replshow'), ex)
 }
 
 function getUndoCount(exprs: readonly ast.Tree[]): number | null {

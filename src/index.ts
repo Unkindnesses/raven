@@ -1,12 +1,11 @@
 import { Pipeline, withEmit } from './backend/compiler.js'
-import { Loader, LoadState, reload, source, vload } from './middle/load.js'
+import { Loader, LoadState, reload, source, vload, wrapPrint } from './middle/load.js'
 import bundledStdlibJson from './common.json' with { type: 'json' }
 import * as wasm from './backend/wasm.js'
 import { tag } from './frontend/types.js'
 import { reset } from './utils/cache.js'
 import { binary } from './wasm/binary.js'
 import { parse } from './frontend/parse.js'
-import * as ast from './frontend/ast.js'
 
 export { compiler, Compiler }
 
@@ -42,15 +41,6 @@ const load: Loader = async path => {
   const contents = lookupBundled(key)
   if (contents !== undefined) return [`common/${key}`, contents]
   throw new Error(`Unable to load ${path}; filesystem access is not available in this environment`)
-}
-
-function wrapPrint(ex: ast.Tree) {
-  if (ast.isExpr(ex, 'Syntax')) {
-    const head = ex.args[0].unwrap()
-    if (head instanceof ast.Symbol && ['fn', 'bundle', 'show', 'showPack'].includes(head.toString()))
-      return ex
-  }
-  return ast.Call(ast.Template(ast.symbol('tag'), 'common.replshow'), ex)
 }
 
 // TODO combine with repl.ts

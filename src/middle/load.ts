@@ -9,11 +9,21 @@ import * as ast from "../frontend/ast.js"
 import { parse } from "../frontend/parse.js"
 import { emit } from "../backend/compiler.js"
 
-export { LoadState, Loader, SourceString, src as source, loadmodule, reload, vload, resolve_static }
+export { LoadState, Loader, SourceString, src as source, loadmodule, reload, vload, wrapPrint, resolve_static }
 
 function pathtag(p: string): Tag {
   if (!p.endsWith('.rv')) throw new Error(`Invalid path: ${p}`)
   return tag(p.slice(0, -3).split('/').join('.'))
+}
+
+const declarations = ['fn', 'bundle', 'show', 'showPack', 'clear', 'import', 'export']
+
+function wrapPrint(ex: ast.Tree): ast.Tree {
+  if (ast.isExpr(ex, 'Syntax')) {
+    const head = ex.args[0].unwrap()
+    if (head instanceof ast.Symbol && declarations.includes(head.toString())) return ex
+  }
+  return ast.Call(ast.Template(ast.symbol('tag'), 'common.replshow'), ex)
 }
 
 function resolve_static(sources: Modules, mod: Tag, x: ast.Symbol): Type {
