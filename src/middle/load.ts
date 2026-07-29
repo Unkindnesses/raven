@@ -72,17 +72,29 @@ function attrString(name: string, args?: ast.Tree[]): string | undefined {
   return value.trim()
 }
 
-function load_export(cx: LoadState, x: ast.Expr): void {
-  const names = ast.asExpr(x.args[1], 'Block').args
-  for (const name of names)
-    cx.mod.exports.add(ast.asSymbol(name.unwrap()).toString())
+function importnames(x: ast.Expr, from?: Module): string[] {
+  const items = ast.asExpr(x.args[1], 'Block').args
+  if (items.length === 1 && ast.isExpr(items[0], 'Splat') && items[0].args.length === 0) {
+    if (from === undefined) throw new Error('`{ ... }` needs a module to take names from')
+    return [...from.exports.keys()]
+  }
+  return items.map(name => ast.asSymbol(name.unwrap()).toString())
+}
+
+function frommodule(cx: LoadState, x: ast.Expr): Promise<Module> {
+  const path = cx.loader.resolve(cx.path, ast.asString(x.args[3]))
+  return loadmodule(cx.comp, cx.loader, path, [...cx.importing, cx.path])
+}
+
+async function load_export(cx: LoadState, x: ast.Expr): Promise<void> {
+  if (x.args.length === 2) return cx.mod.export(importnames(x))
+  const from = await frommodule(cx, x)
+  cx.mod.export(importnames(x, from), from)
 }
 
 async function load_import(cx: LoadState, x: ast.Expr): Promise<void> {
-  const path = cx.loader.resolve(cx.path, ast.asString(x.args[3]))
-  const mod = await loadmodule(cx.comp, cx.loader, path, [...cx.importing, cx.path])
-  const names = ast.asExpr(x.args[1], 'Block').args.map(name => ast.asSymbol(name.unwrap()).toString())
-  cx.mod.import(mod, names)
+  const from = await frommodule(cx, x)
+  cx.mod.import(from, importnames(x, from))
 }
 
 function load_clear(cx: LoadState, x: ast.Expr): void {
@@ -192,7 +204,7 @@ async function loadfile(cx: LoadState, src: SourceString | string): Promise<void
 function prelude(comp: Modules, mod: Module): void {
   if (mod.name.parts[0] === 'common') return
   const common = comp.module(tag("common"))
-  mod.import(common, [...common.exports])
+  mod.import(common, [...common.exports.keys()])
 }
 
 async function loadmodule(comp: Modules, loader: Loader, path: string, importing: readonly string[] = []): Promise<Module> {

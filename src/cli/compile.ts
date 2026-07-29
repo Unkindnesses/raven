@@ -68,7 +68,7 @@ function buildPaths(file: string, dir: string, output?: string): { js: string, w
 function exportedFunctions(compiler: Compiler): [string, types.Tag][] {
   const mod = compiler.pipe.sources.module(types.tag(''))
   const out: [string, types.Tag][] = []
-  for (const name of [...mod.exports].sort()) {
+  for (const name of [...mod.exports.keys()].sort()) {
     const value = compiler.pipe.defs.resolve_static(new Binding(types.tag(''), name))
     if (!(value instanceof types.Tag)) continue
     out.push([name, value])

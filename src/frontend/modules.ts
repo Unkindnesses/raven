@@ -301,13 +301,13 @@ class Methods implements cache.Caching {
 
 class Module implements cache.Caching {
   readonly defs: cache.Map<string, Anno<Type> | Binding>
-  readonly exports: Set<string>
+  readonly exports: Map<string, Binding>
   readonly methods: Methods
   path: string | undefined
   constructor(
     readonly name: Tag,
     defs: cache.Map<string, Anno<Type> | Binding> = new cache.Map(),
-    exports: Set<string> = new Set<string>(),
+    exports: Map<string, Binding> = new Map(),
     methods: Methods = new Methods(),
   ) {
     this.defs = defs
@@ -333,17 +333,26 @@ class Module implements cache.Caching {
     this.path = undefined
   }
 
+  // TODO late binding + static analysis instead
+  exported(v: string): Binding {
+    const b = this.exports.get(v)
+    if (b === undefined) throw new Error(`Module ${this.name} does not export ${v}`)
+    return b
+  }
+
+  export(vars: string[], from?: Module) {
+    if (from) this.methods.import(from.name)
+    for (const v of vars)
+      this.exports.set(v, from ? from.exported(v) : new Binding(this.name, v))
+  }
+
   import(from: Module, vars: string[] = []) {
     this.methods.import(from.name)
-    for (const v of vars) {
-      // TODO late binding + static analysis instead
-      if (!from.exports.has(v)) throw new Error(`Module ${from.name} does not export ${v} `)
-      this.set(v, new Binding(from.name, v))
-    }
+    for (const v of vars) this.set(v, from.exported(v))
   }
 
   clone(): Module {
-    const out = new Module(this.name, this.defs.clone(), new Set(this.exports), this.methods.clone())
+    const out = new Module(this.name, this.defs.clone(), new Map(this.exports), this.methods.clone())
     out.path = this.path
     return out
   }

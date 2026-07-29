@@ -271,6 +271,15 @@ test('round-trip operators', () => {
   roundtrips('foo.bar(a).baz')
 })
 
+test('round-trip module syntax', () => {
+  roundtrips('import { a, b } from "./foo.rv"')
+  roundtrips('import { ... } from "./foo.rv"')
+  roundtrips('export { ... } from "foo"')
+  const ex = ast.asExpr(expr('import { ... } from "foo"'), 'Syntax')
+  const [dots] = ast.asExpr(ex.args[1], 'Block').args
+  assert.deepEqual(ast.asExpr(dots, 'Splat').args, [])
+})
+
 test('round-trip tokens', () => {
   roundtrips('x = 0xFF + 1_000 - 1.5 + 1.')
   roundtrips('s = "a\\nb"')

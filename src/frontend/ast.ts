@@ -207,7 +207,7 @@ function repr(item: Tree, indent: number = 0): string {
       case 'Call': return `${_repr(item.args[0])}(${item.args.slice(1).map(_repr).join(", ")})`
       case 'Index': return `${_repr(item.args[0])}[${item.args.slice(1).map(_repr).join(", ")}]`
       case 'Field': return `${_repr(item.args[0])}.${_repr(item.args[1])}`
-      case 'Splat': return `${_repr(item.args[0])}...`
+      case 'Splat': return item.args.length ? `${_repr(item.args[0])}...` : '...'
       case 'Operator': {
         if (item.args.length === 2) return `(${String(item.args[0].unwrap())}${_repr(item.args[1])})`
         return `(${_repr(item.args[0])} ${String(item.args[1].unwrap())} ${_repr(item.args[2])})`
@@ -276,7 +276,7 @@ function bodySource(tree: Tree, inner: string): Source {
     case 'Call': return [args[0], '(', args.slice(1), inner, ')']
     case 'Index': return [args[0], '[', args.slice(1), inner, ']']
     case 'Field': return [args[0], '.', args[1]]
-    case 'Splat': return [args[0], '...']
+    case 'Splat': return args.length ? [args[0], '...'] : '...'
     case 'Swap': return ['&', args[0]]
     case 'Operator':
     case 'Syntax':

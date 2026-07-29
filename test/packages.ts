@@ -65,7 +65,7 @@ const files: Record<string, string> = {
   `
 }
 
-function project(): string {
+function project(files: Record<string, string>): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'raven-package-'))
   for (const [name, source] of Object.entries(files)) {
     const file = path.join(dir, name)
@@ -94,7 +94,7 @@ test('loader resolves Windows paths', () => {
 })
 
 test('cli loads packages into main', () => {
-  const dir = project()
+  const dir = project(files)
   try {
     const out = raven(dir, ['--package', 'maths=maths/maths.rv', 'main.rv'])
     assert.deepStrictEqual(out.split('\n'), [
@@ -115,8 +115,55 @@ test('cli loads packages into main', () => {
 
 const cliPath = path.join(process.cwd(), 'dist/cli/index.js')
 
+// `api.rv` forwards names it never binds itself; `main.rv` takes the lot.
+const reexports: Record<string, string> = {
+  'main.rv': `
+    import { ... } from "./api.rv"
+
+    println(double(3))
+    println(half(10))
+  `,
+  'api.rv': `
+    export { ... } from "./scale.rv"
+    export { half } from "./measure.rv"
+  `,
+  'scale.rv': `
+    export { double }
+
+    fn double(x) { x * 2 }
+  `,
+  'measure.rv': `
+    export { half, quarter }
+
+    fn half(x) { x / 2 }
+    fn quarter(x) { x / 4 }
+  `
+}
+
+function output(dir: string, main: string): string {
+  fs.writeFileSync(path.join(dir, 'main.rv'), main)
+  const out = spawnSync(process.execPath, ['--enable-source-maps', cliPath, 'main.rv'], {
+    cwd: dir, encoding: 'utf8'
+  })
+  return out.stdout + out.stderr
+}
+
+test('cli re-exports in bulk', () => {
+  const dir = project(reexports)
+  try {
+    assert.deepStrictEqual(raven(dir, ['main.rv']).split('\n'), ['6', '5.0'])
+    // `export ... from` forwards only the names it lists ...
+    assert.match(output(dir, 'import { quarter } from "./api.rv"'), /does not export quarter/)
+    // ... and doesn't bind them in the re-exporting module.
+    fs.appendFileSync(path.join(dir, 'api.rv'), '\nprintln(double(1))\n')
+    assert.match(output(dir, 'import { ... } from "./api.rv"'), /double is not defined/)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('circular imports are rejected', () => {
-  const dir = project()
+  const dir = project(files)
   try {
     fs.writeFileSync(path.join(dir, 'maths/util/measure.rv'), `
       import { quadruple } from "../maths.rv"

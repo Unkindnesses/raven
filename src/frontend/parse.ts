@@ -368,10 +368,15 @@ function token(r: Reader): ast.Tree | undefined {
   return new ast.Token(x, r.text(from))
 }
 
+function ellipsis(r: Reader): ast.Tree | undefined {
+  if (exact(r, '...') === undefined) return
+  return ast.Splat()
+}
+
 // Combine all simple expressions with little backtracking
 function item(r: Reader): ast.Tree | undefined {
   const pos = r.cursor()
-  const ex = r.parse(template, tripleString, token, group, list, block)
+  const ex = r.parse(template, tripleString, ellipsis, token, group, list, block)
   if (ex === undefined) return
   return ex.withmeta({ file: path(), loc: pos })
 }
