@@ -162,7 +162,7 @@ function indentTraverse(tree: ast.Traverse, depth: number): ast.Tree {
     if (start === undefined || index < start) return indentTraverse(child, depth)
     if (index === start && node.head !== 'File') {
       lineStart = operatorStart !== undefined || /^[^#]*\n/.test(child.trivia.leading)
-      if (operatorStart === undefined && !child.trivia.leading.includes('\n')) itemDepth = child.loc.column - 1
+      if (operatorStart === undefined && !child.trivia.leading.includes('\n')) itemDepth = child.start.column - 1
     }
     child = child.replace(ast.leading(child.node, indentTrivia(child.trivia.leading, lineStart, itemDepth)))
     const out = indentTraverse(child, itemDepth)

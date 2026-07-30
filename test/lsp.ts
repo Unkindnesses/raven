@@ -1,6 +1,7 @@
 import * as assert from 'assert'
 import * as path from 'node:path'
 import { ChildProcess, spawn } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
 import * as jsonrpc from 'vscode-jsonrpc/node'
 import { test } from 'vitest'
 
@@ -23,7 +24,12 @@ async function waitForClose(child: ChildProcess, timeout = 2000): Promise<number
   })
 }
 
-test('lsp formats open documents', async () => {
+interface Server {
+  connection: jsonrpc.MessageConnection
+  stop: () => Promise<void>
+}
+
+function startServer(): Server {
   const child = spawn(process.execPath, ['--enable-source-maps', cliPath, 'lsp'], {
     stdio: ['pipe', 'pipe', 'pipe']
   })
@@ -37,11 +43,26 @@ test('lsp formats open documents', async () => {
   )
   connection.listen()
 
+  const stop = async () => {
+    await connection.sendRequest('shutdown')
+    await connection.sendNotification('exit')
+    connection.end()
+    const code = await waitForClose(child)
+    connection.dispose()
+    assert.strictEqual(code, 0, stderr)
+  }
+  return { connection, stop }
+}
+
+test('lsp formats open documents', async () => {
+  const { connection, stop } = startServer()
+
   const initialize = await connection.sendRequest<{ capabilities: Record<string, unknown> }>('initialize', {
     capabilities: {}
   })
   assert.deepStrictEqual(initialize.capabilities, {
     documentFormattingProvider: true,
+    documentLinkProvider: { resolveProvider: false },
     textDocumentSync: { openClose: true, change: 1 }
   })
 
@@ -81,12 +102,38 @@ test('lsp formats open documents', async () => {
   })
   assert.deepStrictEqual(invalidEdits, [])
 
-  await connection.sendRequest('shutdown')
-  await connection.sendNotification('exit')
-  connection.end()
+  await stop()
+})
 
-  const code = await waitForClose(child)
-  connection.dispose()
+test('lsp links relative imports', async () => {
+  const { connection, stop } = startServer()
+  const fileUri = (file: string) => pathToFileURL(file).toString()
+  const project = path.resolve('project')
 
-  assert.strictEqual(code, 0, stderr)
+  await connection.sendRequest('initialize', { capabilities: {} })
+  await connection.sendNotification('initialized', {})
+  await connection.sendNotification('textDocument/didOpen', {
+    textDocument: {
+      uri: fileUri(path.join(project, 'test.rv')),
+      languageId: 'raven',
+      version: 1,
+      text: 'import { x } from "./foo.rv"\nexport { ... } from "../lib/bar.rv"\nimport { y } from "common"\n'
+    }
+  })
+
+  const links = await connection.sendRequest('textDocument/documentLink', {
+    textDocument: { uri: fileUri(path.join(project, 'test.rv')) }
+  })
+  assert.deepStrictEqual(links, [
+    {
+      range: { start: { line: 0, character: 19 }, end: { line: 0, character: 27 } },
+      target: fileUri(path.join(project, 'foo.rv'))
+    },
+    {
+      range: { start: { line: 1, character: 21 }, end: { line: 1, character: 34 } },
+      target: fileUri(path.join(project, '../lib/bar.rv'))
+    }
+  ])
+
+  await stop()
 })

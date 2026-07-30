@@ -134,25 +134,33 @@ function childOffset(tree: Expr, index: number): number {
 }
 
 class Traverse {
-  constructor(private readonly tree: Tree, private readonly start: Cursor = { line: 1, column: 1 }) { }
+  constructor(private readonly tree: Tree, private readonly cur: Cursor = { line: 1, column: 1 }) { }
 
   get node(): Tree { return this.tree }
-  get loc(): Cursor { return move(this.start, textExtent(this.tree.trivia.leading)) }
+  get start(): Cursor { return move(this.cur, textExtent(this.tree.trivia.leading)) }
+  get end(): Cursor { return move(this.start, sourceExtent(bodySource(this.tree, this.tree.trivia.inner))) }
   get trivia(): Trivia { return this.tree.trivia }
+  get extent(): Extent { return this.tree.extent }
 
-  replace(tree: Tree): Traverse { return new Traverse(tree, this.start) }
+  replace(tree: Tree): Traverse { return new Traverse(tree, this.cur) }
 
-  map(f: (tree: Traverse, index: number) => Tree): Tree {
-    if (this.tree instanceof Token) return this.tree
+  private mapArgs<T extends { extent: Extent }>(f: (tree: Traverse, index: number) => T): T[] {
+    if (this.tree instanceof Token) return []
     const tree = this.tree
-    let loc = this.loc
-    const args = tree.args.map((arg, index) => {
+    let loc = this.start
+    return tree.args.map((arg, index) => {
       loc = move(loc, [0, childOffset(tree, index)])
       const out = f(new Traverse(arg, loc), index)
       loc = move(loc, out.extent)
       return out
     })
-    return new Expr(tree.head, args, tree.meta, tree.trivia)
+  }
+
+  get args(): Traverse[] { return this.mapArgs(child => child) }
+
+  map(f: (tree: Traverse, index: number) => Tree): Tree {
+    if (this.tree instanceof Token) return this.tree
+    return new Expr(this.tree.head, this.mapArgs(f), this.tree.meta, this.tree.trivia)
   }
 }
 

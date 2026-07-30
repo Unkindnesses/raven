@@ -235,7 +235,7 @@ test('traversal locations account for replaced siblings', () => {
   )
   const locations: ast.Cursor[] = []
   const out = new ast.Traverse(tree).map((child, index) => {
-    locations.push(child.loc)
+    locations.push(child.start)
     return index === 0 ? new ast.Token(ast.symbol('long')) : child.node
   })
 
