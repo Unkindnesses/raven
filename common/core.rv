@@ -85,7 +85,6 @@ export {
   show, print, println, replshow, string, concat
   length, get, set, field, method, append, empty?, rest
   iterate, next, condition
-  matchTrait, castTrait, match, _match, isa?, constructorPattern
   abort, js, jsref, Int32, Int64, String
 }
 
@@ -130,13 +129,6 @@ iterate = tag"common.iterate"
 next = tag"common.next"
 condition = tag"common.condition"
 
-matchTrait = tag"common.matchTrait"
-castTrait = tag"common.castTrait"
-match = tag"common.match"
-_match = tag"common._match"
-isa? = tag"common.isa?"
-constructorPattern = tag"common.constructorPattern"
-
 abort = tag"common.abort"
 js = tag"common.js"
 jsref = tag"common.jsref"
@@ -174,17 +166,6 @@ fn a != b { !(a == b) }
 @extend
 fn (x |> f) { f(x) }
 
-@extend
-fn matchTrait(_, _) {}
-
-@extend
-fn matchTrait($Tag, t: pack($Tag, _)) { Some(t) }
-
-# matchTrait is a shallow check, looking only at the tag. castTrait also checks
-# the contents, which lets us narrow Any types.
-@extend
-fn castTrait(T, x) { matchTrait(T, x) }
-
 fn showPack(x) {
   print("pack(")
   show(tag(x))
@@ -217,6 +198,17 @@ fn replshow(x) {
   show(x)
   println()
 }
+
+matchTrait = tag"common.patterns.matchTrait"
+castTrait = tag"common.patterns.castTrait"
+
+@extend
+fn matchTrait(_, _) {}
+
+# matchTrait is a shallow check, looking only at the tag. castTrait also checks
+# the contents, which lets us narrow Any types.
+@extend
+fn castTrait(T, x) { matchTrait(T, x) }
 
 bundle Optional { Some(x), Nil() }
 

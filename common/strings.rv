@@ -176,6 +176,12 @@ fn show(x: Tag) {
   print(`"`)
 }
 
+@extend
+fn show(x: Closure) { print("λ(...)") }
+
+@extend
+fn show(x: Func) { print("Func(...)") }
+
 # Regex
 
 bundle Regex(r: JSObject)

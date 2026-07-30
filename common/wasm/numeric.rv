@@ -1,5 +1,6 @@
 import { ... } from "../core.rv"
 import { ... } from "../numbers.rv"
+import { matchTrait } from "../patterns.rv"
 import { Bool } from "../integer.rv"
 
 export {

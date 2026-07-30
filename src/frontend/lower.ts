@@ -59,20 +59,20 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
         ast.Block(ast.Call(tag('common.core.pack'), T, ...argNames))))
     body.push(
       ast.Syntax(s('fn'),
-        ast.Call(tag('common.matchTrait'), T,
+        ast.Call(tag('common.patterns.matchTrait'), T,
           ast.Operator(s('_val'), s(':'), ast.Call(tag('common.core.pack'), T, ...argNames))),
         ast.Block(ast.Call(s('Some'), s('_val')))))
     body.push(
-      ast.Syntax(s('fn'), ast.Call(tag('common.constructorPattern'), T, ...argNames),
+      ast.Syntax(s('fn'), ast.Call(tag('common.patterns.constructorPattern'), T, ...argNames),
         ast.Block(
           ast.Call(tag('common.patterns.Pack'),
             ast.Call(tag('common.patterns.Literal'), T), ...argNames))))
     if (hasSplat) continue
     let pat = ast.Call(tag('common.patterns.Pack'), ast.Call(tag('common.patterns.Literal'), T), ...args.map(patternArgExpr))
     body.push(
-      ast.Syntax(s('fn'), ast.Call(tag('common.castTrait'), T, s('_val')),
+      ast.Syntax(s('fn'), ast.Call(tag('common.patterns.castTrait'), T, s('_val')),
         ast.Block(
-          ast.Operator(s('_match'), s('='), ast.Call(tag('common._match'), s('_val'), pat, s('true'))),
+          ast.Operator(s('_match'), s('='), ast.Call(tag('common.patterns._match'), s('_val'), pat, s('true'))),
           ast.Syntax(s('if'), ast.Operator(s('!'), ast.Call(tag('common.core.nil?'), s('_match'))),
             ast.Block(
               ast.Call(tag('common.core.Some'),
@@ -100,7 +100,7 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
     body.push(ast.Operator(superSpec, symbol('='), superTag))
     body.push(
       ast.Syntax(s('fn'),
-        ast.Call(tag('common.matchTrait'), superTag,
+        ast.Call(tag('common.patterns.matchTrait'), superTag,
           ast.Operator(s('_val'), symbol(':'),
             names.slice(1).reduce((a, b) => ast.Operator(a, symbol('|'), b), token(names[0])))),
         ast.Block(ast.Call(tag('common.core.Some'), s('_val')))))
@@ -434,7 +434,7 @@ function callpattern(key: MethodKey, methods: MethodIR, ex: ast.Tree): [Signatur
 }
 
 function _lowermatch(cx: Lowering, val: Val<LIR>, pattern: Val<LIR>, args: string[], pat: ast.Tree): Val<LIR> {
-  const m = rcall(cx.code, tag('common.match'), [val, pattern])
+  const m = rcall(cx.code, tag('common.patterns.match'), [val, pattern])
   const isnil = _push(cx.code, xcall(isnil_method, m))
   cx.code.branch(cx.code._blocks.length + 1, [], { when: isnil })
   cx.code.branch(cx.code._blocks.length + 2)
@@ -951,7 +951,7 @@ function lowerIf(cx: Lowering, ex: IfStmt, value = true): Val<LIR> {
       const [patternExpr, _, valueExpr] = ast.asExpr(cond.ex).args
       const val = lower(cx, valueExpr)
       const [pattern, args] = lowerpattern(cx, patternExpr)
-      let match = rcall(cx.code, tag('common.match'), [val, pattern])
+      let match = rcall(cx.code, tag('common.patterns.match'), [val, pattern])
       const isnil = _push(cx.code, xcall(isnil_method, match))
       const c = cx.code.block()
       const t = cx.code.newBlock()

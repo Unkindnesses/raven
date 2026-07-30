@@ -1,5 +1,6 @@
 import { ... } from "./core.rv"
 import { ... } from "./numbers.rv"
+import { matchTrait } from "./patterns.rv"
 import { Bool, Int, UInt, UInt64, bits } from "./integer.rv"
 import { JSObject, typeof } from "./wasm/js.rv"
 

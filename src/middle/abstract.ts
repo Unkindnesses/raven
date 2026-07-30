@@ -435,7 +435,7 @@ class Inferred implements Caching {
 }
 
 function traitSig(T: Type): [Tag, Type, Type] {
-  return [tag('common.castTrait'), tag('common.castTrait'), pack(tag('common.list.List'), T, Any)]
+  return [tag('common.patterns.castTrait'), tag('common.patterns.castTrait'), pack(tag('common.list.List'), T, Any)]
 }
 
 function traitResult(ret: Anno<Type>): Anno<Type> {

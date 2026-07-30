@@ -1,5 +1,6 @@
 import { ... } from "../core.rv"
 import { ... } from "../numbers.rv"
+import { matchTrait } from "../patterns.rv"
 import { Bool, Int, UInt, oftype, bits } from "../integer.rv"
 import { Ptr, Counted, Function } from "./memory.rv"
 import { malloc!, retain!, release!, blockUnique } from "./malloc.rv"

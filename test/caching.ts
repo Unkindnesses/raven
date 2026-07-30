@@ -84,7 +84,7 @@ test('compiler', async () => {
 
 test('match method', async () => {
   const compiler = await Compiler.create(load)
-  const sig = callsig(tag('common.matchTrait'), types.list(tag('common.Int64'), types.int64()))
+  const sig = callsig(tag('common.patterns.matchTrait'), types.list(tag('common.Int64'), types.int64()))
 
   assert.ok(!compiler.pipe.inferred.results.iscached(key(sig)))
   const matchResult = compiler.pipe.inferred.get(sig)

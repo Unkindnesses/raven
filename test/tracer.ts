@@ -89,11 +89,11 @@ test('trace match shortcut', () => {
   const bind = (name: string) => node('Bind', tag(name), node('Hole'))
   const pat = node('Pack', node('Literal', tag('common.list.List')), bind('a'), bind('b')) // [a, b]
 
-  const [hit, hitCount] = traceCount(tag('common.match'), list(int64(), String()), pat)
+  const [hit, hitCount] = traceCount(tag('common.patterns.match'), list(int64(), String()), pat)
   assert.deepEqual(hit[1], list(R(P(tag('a'), int64()), P(tag('b'), String()))))
   assert.equal(hitCount, 1)
 
-  const [miss, missCount] = traceCount(tag('common.match'), list(int64()), pat)
+  const [miss, missCount] = traceCount(tag('common.patterns.match'), list(int64()), pat)
   assert.deepEqual(miss[1], list(nil))
   assert.equal(missCount, 1)
 })

@@ -51,17 +51,17 @@ test('infer int32', async () => {
 })
 
 test('castTrait narrows any', () => {
-  let ret = result(compiler, tag('common.castTrait'), list(tag('common.core.Float64'), Any))
+  let ret = result(compiler, tag('common.patterns.castTrait'), list(tag('common.core.Float64'), Any))
   assert.deepEqual(ret, list(optional(float64())))
-  ret = result(compiler, tag('common.castTrait'), list(tag('common.Int64'), Any))
+  ret = result(compiler, tag('common.patterns.castTrait'), list(tag('common.Int64'), Any))
   assert.deepEqual(ret, list(optional(int64())))
-  ret = result(compiler, tag('common.castTrait'), list(tag('common.strings.String'), Any))
+  ret = result(compiler, tag('common.patterns.castTrait'), list(tag('common.strings.String'), Any))
   assert.deepEqual(ret, list(optional(String())))
-  ret = result(compiler, tag('common.castTrait'), list(tag('common.core.Nil'), Any))
+  ret = result(compiler, tag('common.patterns.castTrait'), list(tag('common.core.Nil'), Any))
   assert.deepEqual(ret, list(optional(nil)))
-  ret = result(compiler, tag('common.castTrait'), list(tag('common.core.Ref'), Any))
+  ret = result(compiler, tag('common.patterns.castTrait'), list(tag('common.core.Ref'), Any))
   assert.deepEqual(ret, list(optional(Ref)))
-  ret = result(compiler, tag('common.castTrait'), list(tag('common.wasm.memory.Ptr'), Any))
+  ret = result(compiler, tag('common.patterns.castTrait'), list(tag('common.wasm.memory.Ptr'), Any))
   assert.deepEqual(ret, list(optional(Ptr())))
 })
 

@@ -1,6 +1,6 @@
 import { ... } from "./core.rv"
 import { ... } from "./numbers.rv"
-import { Params } from "./patterns.rv"
+import { Params, matchTrait } from "./patterns.rv"
 import { range } from "./iterate.rv"
 
 export {

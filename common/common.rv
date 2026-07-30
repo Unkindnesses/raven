@@ -12,9 +12,9 @@ export {
   show, print, println
 } from "./core.rv"
 
-export { ... } from "./numbers.rv"
 export { ... } from "./record.rv"
 export { ... } from "./patterns.rv"
+export { ... } from "./numbers.rv"
 export { ... } from "./iterate.rv"
 export { ... } from "./list.rv"
 export { ... } from "./integer.rv"

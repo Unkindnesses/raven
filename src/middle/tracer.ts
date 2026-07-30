@@ -334,7 +334,7 @@ class Tracer {
   traceFunc(code: TraceIR, func: Tag, f: ir.Val<MIR>, args: ir.Val<MIR>): ir.Val<MIR> | undefined {
     const F = asType(code.type(f))
     const Ts = asType(code.type(args))
-    if (types.tag('common.match').isEqual(F)) {
+    if (types.tag('common.patterns.match').isEqual(F)) {
       const result = static_match(this.interp, code, Ts, args)
       if (result !== undefined) return result
     }

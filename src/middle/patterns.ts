@@ -185,7 +185,7 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
       return null
 
     case 'constructor': {
-      const result = mod.eval(types.tag('common.constructorPattern'), types.list(...types.parts(pat.value)))
+      const result = mod.eval(types.tag('common.patterns.constructorPattern'), types.list(...types.parts(pat.value)))
       if (!result || !types.isValue(result)) return undefined
       return partial_match(mod, pattern(types.part(result, 1)), val, path)
     }
@@ -217,7 +217,7 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
 
 // TODO assumes the value is unchanged by the match
 function trivial_isa(int: Interpreter, val: types.Type, T: types.Type): boolean | undefined {
-  const r = int.eval(types.tag('common.matchTrait'), types.list(T, val))
+  const r = int.eval(types.tag('common.patterns.matchTrait'), types.list(T, val))
   if (r === undefined) return undefined
   const tag = types.tagOf(types.part(r, 1))
   if (types.tag('common.core.Some').isEqual(tag)) return true
@@ -328,8 +328,8 @@ function dispatcher(inf: Inference, func: types.Tag, F: types.Type, Ts: types.Ty
     if (m === undefined) {
       const P = ir.asType(code.type(pat))
       arms = arms.filter(T =>
-        issubset(types.list(types.nil), some(infercall(inf, sig, types.tag('common.match'), types.tag('common.match'), types.list(T, P)))))
-      let m = call(types.tag('common.match'), full, pat)
+        issubset(types.list(types.nil), some(infercall(inf, sig, types.tag('common.patterns.match'), types.tag('common.patterns.match'), types.list(T, P)))))
+      let m = call(types.tag('common.patterns.match'), full, pat)
       if (code.type(m) === ir.unreachable) { code.block().unreachable(); return [code, ret] }
       m = call(part_method, m, types.Type(1n))
       const cond = call(isnil_method, m)
