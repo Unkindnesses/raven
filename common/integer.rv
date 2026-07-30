@@ -8,6 +8,12 @@ export {
   true, false, bits, oftype, typemin, typemax, bitsize
 }
 
+eq = tag"common.bootstrap.eq"
+not = tag"common.bootstrap.!"
+add = tag"common.bootstrap.+"
+sub = tag"common.bootstrap.-"
+lt = tag"common.bootstrap.<"
+
 @extend
 fn matchTrait($Bits, x: pack($Bits, _)) { Some(x) }
 
@@ -50,6 +56,9 @@ fn Bool(a) | Bool(b) { Bool(bitor(a, b)) }
 
 @extend
 fn !(Bool(x)) { Bool(biteqz(x)) }
+
+@extend
+fn not(Bool(x)) { Bool(biteqz(x)) }
 
 @extend
 fn show(x: Bool) {

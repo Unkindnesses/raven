@@ -81,7 +81,6 @@ store = tag".store"
 
 export {
   ==, !=, !, +, -, *, /, ^, >, <, >=, <=, &, |
-  add, sub, eq, lt
   show, print, println, replshow, string, concat
   length, get, set, field, method, append, empty?, rest
   iterate, next, condition
@@ -103,11 +102,6 @@ export {
 & = tag"common.&"
 | = tag"common.|"
 |> = tag"common.|>"
-
-add = tag"common.add"
-sub = tag"common.sub"
-eq = tag"common.eq"
-lt = tag"common.lt"
 
 show = tag"common.show"
 print = tag"common.print"

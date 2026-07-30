@@ -1,4 +1,5 @@
 import { ... } from "./core.rv"
+import { ... } from "./bootstrap.rv"
 import { record, upsertkey, merge } from "./record.rv"
 
 export {
@@ -70,7 +71,7 @@ fn _match(val, pack($Bind, name, p), deep) {
 }
 
 fn _match(xs, p: Pack, deep) {
-  eq(nparts(xs), sub(nparts(p), 1)) || return
+  eq(nparts(xs), nparts(p) - 1) || return
   m = _match(tag(xs), part(p, 1), deep)
   nil?(m) && return
   m = notnil(m)
@@ -78,9 +79,9 @@ fn _match(xs, p: Pack, deep) {
   xs = tagcast(xs, tag)
   result = [pack(tag), part(m, 2)]
   i = 1
-  while lt(i, nparts(p)) {
+  while i < nparts(p) {
     if !nil?(result) {
-      m = _match(part(xs, i), part(p, add(i, 1)), deep)
+      m = _match(part(xs, i), part(p, i + 1), deep)
       if nil?(m) {
         result = nil
       } else {
@@ -97,7 +98,7 @@ fn _match(xs, p: Pack, deep) {
       # if the above is certain to fail, make sure the whole match is
       result = nil
     }
-    i = add(i, 1)
+    i = i + 1
   }
   return result
 }
