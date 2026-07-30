@@ -2,12 +2,12 @@ import { unreachable, expand, Anno, Block, Expr, Branch, Pipe, expr, prune, asTy
 import { LoopIR, looped, Path, block, nextpath, nextpathTo, blockargs, loop, unloop } from './loop.js'
 import { MatchMethods, dispatcher } from './patterns.js'
 import {
-  Tag, Type, repr, union, issubset as iss, isValue, pack, Closure,
+  Type, repr, union, issubset as iss, isValue, pack, Closure,
   tag, tagOf, parts, String as RString, Ref, nil, Any, disjuncts
 } from '../frontend/types.js'
 import { wasmPartials } from '../backend/wasm.js'
 import {
-  MIR, IRValue, Binding, Method, Definitions, StringRef, JS, Invoke, Closure as XClosure,
+  MIR, IRValue, Binding, Dispatch, Method, Definitions, StringRef, JS, Invoke, Closure as XClosure,
   Global, SetGlobal, Wasm, callargs
 } from '../frontend/modules.js'
 import { Lowered } from '../frontend/lower.js'
@@ -36,8 +36,8 @@ function maybe_union(x: Anno<Type>, y: Anno<Type>): Anno<Type> {
   return union(x, y)
 }
 
-type Func = Tag | Method
-type Sig = [Tag, Type, Type] | [Method, ...Type[]]
+type Func = Dispatch | Method
+type Sig = [Dispatch, Type, Type] | [Method, ...Type[]]
 type AIR = LoopIR<IRValue, Type>
 
 function prepare_ir(ir: MIR): AIR {
@@ -221,7 +221,7 @@ function settype(inf: Inference, fr: Frame, ret: Anno<Type>): void {
   for (const s of fr.edges) inf.queue.push(s)
 }
 
-function update_dispatcher(inf: Inference, fr: Frame, func: Tag, F: Type, Ts: Type) {
+function update_dispatcher(inf: Inference, fr: Frame, func: Dispatch, F: Type, Ts: Type) {
   const [[ir, ret], deps] = trackdeps(() => dispatcher(inf, func, F, Ts))
   inf.deps.set(fr.key, deps)
   fr.ir = looped(expand(ir))
@@ -434,14 +434,14 @@ class Inferred implements Caching {
   }
 }
 
-function traitSig(T: Type): [Tag, Type, Type] {
-  return [tag('common.patterns.castTrait'), tag('common.patterns.castTrait'), pack(tag('common.list.List'), T, Any)]
+function traitSig(T: Type): [Dispatch, Type, Type] {
+  const f = tag('common.patterns.castTrait')
+  return [new Dispatch(f), f, pack(tag('common.list.List'), T, Any)]
 }
 
 function traitResult(ret: Anno<Type>): Anno<Type> {
   if (ret === unreachable) return unreachable
-  const T = only(parts(ret))
-  for (const option of disjuncts(T))
+  for (const option of disjuncts(ret))
     if (tag('common.core.Some').isEqual(tagOf(option))) return only(parts(option))
   return unreachable
 }

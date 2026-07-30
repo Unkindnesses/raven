@@ -24,7 +24,7 @@
 
 import * as types from '../frontend/types.js'
 import * as ir from '../utils/ir.js'
-import { MIR, IRValue, Method, Definitions } from '../frontend/modules.js'
+import { MIR, IRValue, Dispatch, Method, Definitions } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
 import { Lowered, xlist, xpart, xcall, xtuple } from '../frontend/lower.js'
 import { Pattern, pattern } from '../frontend/patterns.js'
@@ -51,7 +51,7 @@ type MatchResult = Match | null | undefined // null is known failure, undefined 
 
 interface Interpreter {
   eval(func: types.Tag, ...args: types.Type[]): types.Type | undefined
-  trace(func: Func, ...args: types.Type[]): [MIR, ir.Anno<types.Type>] | undefined
+  trace(func: Dispatch | Method, ...args: types.Type[]): [MIR, ir.Anno<types.Type>] | undefined
 }
 
 interface Methods {
@@ -187,7 +187,7 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
     case 'constructor': {
       const result = mod.eval(types.tag('common.patterns.constructorPattern'), types.list(...types.parts(pat.value)))
       if (!result || !types.isValue(result)) return undefined
-      return partial_match(mod, pattern(types.part(result, 1)), val, path)
+      return partial_match(mod, pattern(result), val, path)
     }
 
     case 'pack':
@@ -219,7 +219,7 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
 function trivial_isa(int: Interpreter, val: types.Type, T: types.Type): boolean | undefined {
   const r = int.eval(types.tag('common.patterns.matchTrait'), types.list(T, val))
   if (r === undefined) return undefined
-  const tag = types.tagOf(types.part(r, 1))
+  const tag = types.tagOf(r)
   if (types.tag('common.core.Some').isEqual(tag)) return true
   if (types.tag('common.core.Nil').isEqual(tag)) return false
   return undefined
@@ -304,11 +304,11 @@ function icall(inf: Inference, code: MIR, sig: Sig, f: IRValue | Method, ...args
   return code.push(code.stmt(ex, { type: T }))
 }
 
-function dispatcherDef(func: types.Tag) {
+function dispatcherDef(func: Dispatch) {
   return Def(`${func.path} (dispatcher)`)
 }
 
-function dispatcher(inf: Inference, func: types.Tag, F: types.Type, Ts: types.Type): [MIR, ir.Anno<types.Type>] {
+function dispatcher(inf: Inference, func: Dispatch, F: types.Type, Ts: types.Type): [MIR, ir.Anno<types.Type>] {
   const code = MIR(dispatcherDef(func))
   let f: ir.Val<MIR> = code.argument(F)
   const args = code.argument(Ts)
@@ -322,41 +322,41 @@ function dispatcher(inf: Inference, func: types.Tag, F: types.Type, Ts: types.Ty
   let arms = dispatch_arms(fullType)
   const sig: Sig = [func, F, Ts]
   const call = (f: IRValue | Method, ...as: (IRValue | number)[]) => icall(inf, code, sig, f, ...as)
-  for (const [meth, m] of inf.meths.get([F.kind === 'closure' ? F.method : func, fullType])) {
+  const adapt = (meth: Method, result: ir.Val<MIR>): ir.Val<MIR> => {
+    if (func.swap === meth.swaps || code.type(result) === ir.unreachable) return result
+    return func.swap
+      ? code.push(code.stmt(xlist(result), { type: types.list(ir.asType(code.type(result))) }))
+      : call(part_method, result, types.Type(1n))
+  }
+  for (const [meth, m] of inf.meths.get([F.kind === 'closure' ? F.method : func.func, fullType])) {
     const pat = call(meth.signature)
     if (code.type(pat) === ir.unreachable) { code.block().unreachable(); return [code, ret] }
     if (m === undefined) {
       const P = ir.asType(code.type(pat))
+      const match = types.tag('common.patterns.match')
       arms = arms.filter(T =>
-        issubset(types.list(types.nil), some(infercall(inf, sig, types.tag('common.patterns.match'), types.tag('common.patterns.match'), types.list(T, P)))))
-      let m = call(types.tag('common.patterns.match'), full, pat)
+        issubset(types.nil, some(infercall(inf, sig, new Dispatch(match), match, types.list(T, P)))))
+      let m = call(match, full, pat)
       if (code.type(m) === ir.unreachable) { code.block().unreachable(); return [code, ret] }
-      m = call(part_method, m, types.Type(1n))
       const cond = call(isnil_method, m)
       code.branch(code.blockCount + 2, [], { when: cond })
       code.branch(code.blockCount + 1)
       code.newBlock()
       m = call(notnil_method, m)
       if (code.type(m) !== ir.unreachable) {
-        const as: ir.Val<MIR>[] = []
-        for (const arg of meth.sig.args)
-          as.push(call(part_method, call(types.tag('common.record.getkey'), m, types.tag(arg)), types.Type(1n)))
-        let result = call(meth, ...as)
-        if (meth.sig.swap.size === 0 && code.type(result) !== ir.unreachable)
-          result = code.push(code.stmt(xlist(result), { type: types.list(ir.asType(code.type(result))) }))
+        const as = meth.sig.args.map(arg => call(types.tag('common.record.getkey'), m, types.tag(arg)))
+        const result = adapt(meth, call(meth, ...as))
         code.return(result)
         ret = maybe_union(ret, code.type(result))
       }
       code.newBlock()
     } else { // certain to match
       const as = meth.sig.args.map(x => indexer(code, fullType, full, some(m.get(x))[1]))
-      let result = call(meth, ...as)
+      const result = adapt(meth, call(meth, ...as))
       if (code.type(result) === ir.unreachable) {
         code.block().unreachable()
         return [code, ret]
       }
-      if (meth.sig.swap.size === 0)
-        result = code.push(code.stmt(xlist(result), { type: types.list(ir.asType(code.type(result))) }))
       code.return(result)
       ret = maybe_union(ret, code.type(result))
       return [code, ret]
@@ -366,7 +366,7 @@ function dispatcher(inf: Inference, func: types.Tag, F: types.Type, Ts: types.Ty
       return [code, ret]
     }
   }
-  if (types.tag('common.abort').isEqual(func) && types.issubset(Ts, types.list(types.String())))
+  if (types.tag('common.abort').isEqual(func.func) && types.issubset(Ts, types.list(types.String())))
     throw new Error("Compiler fault: couldn't guarantee abort method matches")
   if (options().jspanic)
     call(types.tag('common.abort'), string(code, `No matching method: ${repr(F)}: ${types.repr(Ts)}`))

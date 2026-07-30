@@ -7,7 +7,7 @@ import { unreachable, Anno, Pipe, expr, Val, Branch, Expr, asType } from '../uti
 import { isEqual } from '../utils/isEqual.js'
 import { wlayout } from '../middle/expand.js'
 import { Cache, Caching, DualCache, reset as resetCaches, pipe, reuse } from '../utils/cache.js'
-import { Binding, Definitions, MIR, Method, StringRef, JS, Func, Global, SetGlobal, Wasm as WasmCall, callargs, Value as MValue, asValue } from '../frontend/modules.js'
+import { Binding, Definitions, Dispatch, MIR, Method, StringRef, JS, Func, Global, SetGlobal, Wasm as WasmCall, callargs, Value as MValue, asValue } from '../frontend/modules.js'
 import { Def } from '../dwarf/index.js'
 import { Sig } from '../middle/abstract.js'
 import { Accessor } from '../utils/fixpoint.js'
@@ -193,8 +193,8 @@ function lowerwasm_globals(ir: WIR, globals: Cache<Binding, string[]>): WIR {
 
 type WSig = [[string, string], wasm.ValueType[], wasm.ValueType[]]
 
-function wname(f: types.Tag | Method | [string, string]): string {
-  if (f instanceof types.Tag) return f.path
+function wname(f: Dispatch | Method | [string, string]): string {
+  if (f instanceof Dispatch) return f.path
   if (f instanceof Method) return `${f.name.path}:method`
   if (Array.isArray(f)) return `${f[0]}:${f[1]}`
   throw new Error('unreachable')

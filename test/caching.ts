@@ -1,7 +1,7 @@
 import { test } from 'vitest'
 import * as assert from 'assert'
 import { Compiler, load } from '../src/cli/compile.js'
-import { Binding } from '../src/frontend/modules.js'
+import { Binding, Dispatch } from '../src/frontend/modules.js'
 import * as types from '../src/frontend/types.js'
 import { tag } from '../src/frontend/types.js'
 import { source } from '../src/middle/load.js'
@@ -10,7 +10,7 @@ import { asArray } from '../src/utils/map.js'
 import { key, Sig } from '../src/middle/abstract.js'
 
 function callsig(f: types.Tag, args: types.Type): Sig {
-  return [f, f, args]
+  return [new Dispatch(f), f, args]
 }
 
 test('globals', async () => {
@@ -57,7 +57,7 @@ test('inference', async () => {
   const compiler = await Compiler.create(load, source('', 'n = 1, fn foo(x) { x+n }, foo(5)'))
   const inf = compiler.pipe.inferred
   let [, fooType] = asArray(inf.get(callsig(tag('foo'), types.list(types.int64(5)))))
-  assert.deepEqual(fooType, types.list(types.int64(6)))
+  assert.deepEqual(fooType, types.int64(6))
 
   inf.get(callsig(tag('common.+'), types.list(types.int64(), types.int64())))
   const plusId = inf.results.id(key(callsig(tag('common.+'), types.list(types.int64(), types.int64()))))
@@ -65,7 +65,7 @@ test('inference', async () => {
   await compiler.reload(source('', 'n = 2, fn foo(x) { x+n }, foo(5)'));
 
   [, fooType] = asArray(inf.get(callsig(tag('foo'), types.list(types.int64(5)))))
-  assert.deepEqual(fooType, types.list(types.int64(7)))
+  assert.deepEqual(fooType, types.int64(7))
   assert.equal(plusId, inf.results.id(key(callsig(tag('common.+'), types.list(types.int64(), types.int64())))))
 })
 

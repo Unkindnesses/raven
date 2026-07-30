@@ -454,8 +454,7 @@ type BitsType = Type & { kind: 'bits' }
 // TODO use Const rather than BitsType in the output?
 function mask(code: Fragment<MIR>, T: BitsType, x: Val<MIR>): Val<MIR> {
   const m = bits(sizeof(T) * 8, (1n << BigInt(T.size)) - 1n)
-  x = code.push(code.stmt(xwasm(`${only(wlayout(T))}.and`, x, m), { type: only(layout(T)) }))
-  return x
+  return code.push(code.stmt(xwasm(`${only(wlayout(T))}.and`, x, m), { type: T }))
 }
 
 function extend(code: Fragment<MIR>, T: BitsType, x: Val<MIR>): Val<MIR> {

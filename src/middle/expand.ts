@@ -668,8 +668,6 @@ function casts(code: MIR, ret: Anno<Type>): MIR {
         if (!isEqual(S, ret)) {
           const casted = cast(pr, S, ret, val)
           pr.set(v, Branch.return(casted))
-        } else if (typeof val !== 'number') {
-          pr.set(v, Branch.return(S))
         }
       } else {
         const args: Val<MIR>[] = []

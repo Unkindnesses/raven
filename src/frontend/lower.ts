@@ -7,10 +7,10 @@ import { Type, Tag, tag, pack, bits, nil, atomValue } from "./types.js"
 import { ValueType, AbsHeapType, i32, i64, f32, f64, externref } from "../wasm/wasm.js"
 import {
   Module, Binding, MIR, xstring, xjs, MethodKey, Method, Signature, MethodSource, MethodIR,
-  xglobal, xset, SetGlobal, Invoke, Wasm, Modules, xclosure
+  xglobal, xset, SetGlobal, Call, Invoke, Wasm, Modules, xclosure
 } from "./modules.js"
 import { Def } from "../dwarf/index.js"
-import { asBigInt, some } from "../utils/map.js"
+import { asBigInt, only, some } from "../utils/map.js"
 import { isnil_method, notnil_method, part_method, packcat_method } from "../middle/primitives.js"
 import { Cache, Caching } from "../utils/cache.js"
 import * as patterns from "./patterns.js"
@@ -288,7 +288,7 @@ function source(m: ast.Meta): ir.Source {
 
 function xcall<T>(head: Method | T | number, ...args: (T | number)[]) {
   if (head instanceof Method) return new Invoke<T>(head, args)
-  return ir.expr<T>("call", head, ...args)
+  return new Call<T>(head, only(args))
 }
 function xtuple<T>(...args: (T | number)[]) {
   return ir.expr("tuple", ...args)
@@ -305,8 +305,7 @@ function xpart<T>(x: T | number, i: T | number) {
 
 function rcall(code: LIR, f: Val<LIR>, args: Val<LIR>[], { src, bp }: { src?: ast.Meta, bp?: boolean } = {}): Val<LIR> {
   const arglist = _push(code, xlist(...args), { src })
-  const result = _push(code, xcall(f, arglist), { src, bp })
-  return _push(code, xpart(result, Type(1n)), { src })
+  return _push(code, xcall(f, arglist), { src, bp })
 }
 
 interface Scope {
@@ -530,8 +529,7 @@ function lowerOperator(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {
     // General operator call
     const func = lower(cx, operator)
     const arglist = _push(cx.code, xlist(...args.map(x => lower(cx, x))))
-    const result = _push(cx.code, xcall(func, arglist), { src: ex.meta, bp: true })
-    return _push(cx.code, xpart(result, Type(1n)), { src: ex.meta })
+    return _push(cx.code, xcall(func, arglist), { src: ex.meta, bp: true })
   }
 }
 
@@ -578,7 +576,8 @@ function lowerCall(cx: Lowering, ex: ast.Expr): Val<LIR> {
   // Regular function call
   const [args, swaps] = argtuple(cx, ex.args.slice(1), ex.meta)
   const func = lower(cx, ex.args[0])
-  const result = _push(cx.code, xcall(func, args), { src: ex.meta, bp: true })
+  const result = _push(cx.code, new Call(func, args, swaps.size > 0), { src: ex.meta, bp: true })
+  if (swaps.size === 0) return result
   const val = _push(cx.code, xpart(result, Type(1n)), { src: ex.meta })
   for (const [name, i] of swaps) {
     _push(cx.code, ir.expr('set', cx.sc.var(name), _push(cx.code, xpart(result, Type(BigInt(i + 1))))))

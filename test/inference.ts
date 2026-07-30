@@ -4,7 +4,7 @@ import { Compiler, load } from '../src/cli/compile.js'
 import { tag, list, pack, vpack, int64, int32, bits, float64, onion, recursive, recurrence, nil, Any, Ref, Ptr, Tag, String, Type } from '../src/frontend/types.js'
 import { key, Sig } from '../src/middle/abstract.js'
 import { source } from '../src/middle/load.js'
-import { Binding } from '../src/frontend/modules.js'
+import { Binding, Dispatch } from '../src/frontend/modules.js'
 import { only } from '../src/utils/map.js'
 import { unreachable } from '../src/utils/ir.js'
 
@@ -15,7 +15,7 @@ beforeAll(async () => {
 })
 
 function result(comp: Compiler, f: Tag, args: Type) {
-  let [, ret] = comp.pipe.inferred.get([f, f, args])
+  let [, ret] = comp.pipe.inferred.get([new Dispatch(f), f, args])
   return ret
 }
 
@@ -25,12 +25,12 @@ const optional = (x: Type) => onion(nil, some(x))
 test('infer identity', async () => {
   await compiler.reload(source('', 'fn id(x) { x }'))
   let ret = result(compiler, tag('id'), list(int64()))
-  assert.deepEqual(ret, list(int64()))
+  assert.deepEqual(ret, int64())
 })
 
 test('infer Nil', () => {
   let ret = result(compiler, tag('common.core.Nil'), list())
-  assert.deepEqual(ret, list(nil))
+  assert.deepEqual(ret, nil)
 })
 
 test('nil const', () => {
@@ -41,28 +41,28 @@ test('nil const', () => {
 test('infer bool', async () => {
   await compiler.reload(source('', 'fn id() { Bool(bits"1") }'))
   let ret = result(compiler, tag('id'), list())
-  assert.deepEqual(ret, list(pack(tag('common.integer.Bool'), bits(1, 1))))
+  assert.deepEqual(ret, pack(tag('common.integer.Bool'), bits(1, 1)))
 })
 
 test('infer int32', async () => {
   await compiler.reload(source('', 'fn id() { Int32(64*1024) }'))
   let ret = result(compiler, tag('id'), list())
-  assert.deepEqual(ret, list(int32(64 * 1024)))
+  assert.deepEqual(ret, int32(64 * 1024))
 })
 
 test('castTrait narrows any', () => {
   let ret = result(compiler, tag('common.patterns.castTrait'), list(tag('common.core.Float64'), Any))
-  assert.deepEqual(ret, list(optional(float64())))
+  assert.deepEqual(ret, optional(float64()))
   ret = result(compiler, tag('common.patterns.castTrait'), list(tag('common.Int64'), Any))
-  assert.deepEqual(ret, list(optional(int64())))
+  assert.deepEqual(ret, optional(int64()))
   ret = result(compiler, tag('common.patterns.castTrait'), list(tag('common.strings.String'), Any))
-  assert.deepEqual(ret, list(optional(String())))
+  assert.deepEqual(ret, optional(String()))
   ret = result(compiler, tag('common.patterns.castTrait'), list(tag('common.core.Nil'), Any))
-  assert.deepEqual(ret, list(optional(nil)))
+  assert.deepEqual(ret, optional(nil))
   ret = result(compiler, tag('common.patterns.castTrait'), list(tag('common.core.Ref'), Any))
-  assert.deepEqual(ret, list(optional(Ref)))
+  assert.deepEqual(ret, optional(Ref))
   ret = result(compiler, tag('common.patterns.castTrait'), list(tag('common.wasm.memory.Ptr'), Any))
-  assert.deepEqual(ret, list(optional(Ptr())))
+  assert.deepEqual(ret, optional(Ptr()))
 })
 
 test('trait types', () => {
@@ -85,7 +85,7 @@ test('infer pow', async () => {
     }
   `))
   let ret = result(compiler, tag('pow'), list(2n, 3n))
-  assert.deepEqual(ret, list(8n))
+  assert.deepEqual(ret, int64(8))
 })
 
 test('infer fib recursive', async () => {
@@ -99,7 +99,7 @@ test('infer fib recursive', async () => {
     }
   `))
   let ret = result(compiler, tag('fib'), list(20n))
-  assert.deepEqual(ret, list(int64()))
+  assert.deepEqual(ret, int64())
 })
 
 test('expansion resolves recursion redirects', async () => {
@@ -117,7 +117,7 @@ test('expansion resolves recursion redirects', async () => {
   const [, ret] = compiler.pipe.inferred.get(sig)
   assert.deepEqual(ret, int64())
 
-  const dispatcherSig: Sig = [tag('fib'), tag('fib'), list(int64(20))]
+  const dispatcherSig: Sig = [new Dispatch(tag('fib')), tag('fib'), list(int64(20))]
   const [inferred] = compiler.pipe.inferred.get(dispatcherSig)
   assert.ok(Array.from(inferred).some(([_, st]) => st.expr.head === 'cast'))
   const expanded = compiler.pipe.expanded.get(dispatcherSig)
@@ -135,7 +135,7 @@ test('infer widens growing return type', async () => {
     }
   `))
   const ret = result(compiler, tag('countdown'), list(40n))
-  assert.deepEqual(ret, list(recursive(onion(nil, some(recurrence)))))
+  assert.deepEqual(ret, recursive(onion(nil, some(recurrence))))
 })
 
 test('infer widens mutual recursion', async () => {
@@ -144,7 +144,7 @@ test('infer widens mutual recursion', async () => {
     fn odd(n) { Some(even(n-1)) }
   `))
   const ret = result(compiler, tag('even'), list(40n))
-  assert.deepEqual(ret, list(recursive(onion(nil, some(recurrence)))))
+  assert.deepEqual(ret, recursive(onion(nil, some(recurrence))))
 })
 
 test('infer widens growing argument type', async () => {
@@ -154,7 +154,7 @@ test('infer widens growing argument type', async () => {
     }
   `))
   const ret = result(compiler, tag('build'), list(list(), 40n))
-  assert.deepEqual(ret, list(vpack(tag('common.list.List'), int64())))
+  assert.deepEqual(ret, vpack(tag('common.list.List'), int64()))
 })
 
 test('infer non-terminating recursion', async () => {
@@ -177,7 +177,7 @@ test('infer fib sequence', async () => {
     }
   `))
   let ret = result(compiler, tag('fibSequence'), list(5n))
-  assert.deepEqual(ret, list(list(1n, 1n, 2n, 3n, 5n)))
+  assert.deepEqual(ret, list(1n, 1n, 2n, 3n, 5n))
 })
 
 test('infer traces straight-line code', async () => {
@@ -206,7 +206,7 @@ test('infer merge keeps known record structure', async () => {
 
   let ret = result(compiler, tag('mergeRecords'), list())
   const record = pack(tag('common.record.Record'), P(tag('a'), int64(1)), P(tag('b'), int64(2)), P(tag('d'), int64(3)))
-  assert.deepEqual(ret, list(onion(nil, record)))
+  assert.deepEqual(ret, onion(nil, record))
 
   await compiler.reload(source('', `
     fn mergeRecords() {
@@ -217,5 +217,5 @@ test('infer merge keeps known record structure', async () => {
   `))
 
   ret = result(compiler, tag('mergeRecords'), list())
-  assert.deepEqual(ret, list(record))
+  assert.deepEqual(ret, record)
 })

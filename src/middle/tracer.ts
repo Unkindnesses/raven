@@ -1,7 +1,7 @@
 import * as types from '../frontend/types.js'
 import { Tag, Type } from '../frontend/types.js'
 import {
-  Method, Definitions, IRValue, Wasm, Invoke, Closure, Global, MIR, SetGlobal,
+  Method, Definitions, IRValue, Wasm, Call, Dispatch, Invoke, Closure, Global, MIR, SetGlobal,
   StringRef, JS, Value
 } from '../frontend/modules.js'
 import { Lowered, xpack } from '../frontend/lower.js'
@@ -22,7 +22,7 @@ import { pattern } from '../frontend/patterns.js'
 
 export { Tracer, Traced }
 
-type Func = Tag | Method
+type Func = Dispatch | Method
 type Trace = [MIR, ir.Anno<Type>] | undefined
 
 const TRACE_LIMIT = 1_000
@@ -203,8 +203,15 @@ function static_match(int: Interpreter, code: ir.Fragment<MIR>, Ts: types.Type, 
   const [V, P] = [types.part(Ts, 1), types.part(Ts, 2)]
   const m = partial_match(int, pattern(P), V)
   if (m === undefined) return
-  return packv(code, types.tag('common.list.List'),
-    m === null ? types.nil : bindings(code, V, indexer(code, Ts, args, [1]), m))
+  return m === null ? types.nil : bindings(code, V, indexer(code, Ts, args, [1]), m)
+}
+
+function swapresult(code: ir.Fragment<MIR>, want: boolean, have: boolean, result: ir.Val<MIR>): ir.Val<MIR> {
+  if (want === have) return result
+  const T = asType(code.type(result))
+  return want
+    ? push(code, xlist(result), types.list(T))
+    : push(code, xcall(part_method, result, types.Type(1n)), types.part(T, 1))
 }
 
 class Tracer {
@@ -215,7 +222,7 @@ class Tracer {
 
   trace(f: Func, ...args: Type[]): Trace {
     this.count = 0
-    const meta = f instanceof Tag ? dispatcherDef(f) : this.lowered.ir(f).meta
+    const meta = f instanceof Method ? this.lowered.ir(f).meta : dispatcherDef(f)
     const code = new TraceIR(meta)
     const argv = args.map(a => code.argument(a))
     const ret = this.traceCall(code, f, argv)
@@ -239,10 +246,10 @@ class Tracer {
     let bl = 1
     while (true) {
       for (const [v, st] of ir.block(bl)) {
-        if (st.expr.head === 'call') {
-          const op = code.type(st.expr.body[0])
+        if (st.expr instanceof Call) {
+          const op = code.type(st.expr.f)
           if (!(op instanceof Tag)) return // TODO support closures
-          const result = this.traceCall(code, op, st.expr.body, st.src)
+          const result = this.traceCall(code, new Dispatch(op, st.expr.swap), st.expr.body, st.src)
           if (result === undefined) return
           code.replace(v, result)
         } else if (st.expr instanceof Invoke) {
@@ -331,27 +338,22 @@ class Tracer {
     }
   }
 
-  traceFunc(code: TraceIR, func: Tag, f: ir.Val<MIR>, args: ir.Val<MIR>): ir.Val<MIR> | undefined {
+  traceFunc(code: TraceIR, func: Dispatch, f: ir.Val<MIR>, args: ir.Val<MIR>): ir.Val<MIR> | undefined {
     const F = asType(code.type(f))
     const Ts = asType(code.type(args))
     if (types.tag('common.patterns.match').isEqual(F)) {
       const result = static_match(this.interp, code, Ts, args)
-      if (result !== undefined) return result
+      if (result !== undefined) return swapresult(code, func.swap, false, result)
     }
     const fullTs = types.list(F, Ts)
     const full = code.push(code.stmt(xlist<IRValue>(f, args), { type: fullTs }))
-    for (const [meth, m] of this.methods.get([func, fullTs])) {
+    for (const [meth, m] of this.methods.get([func.func, fullTs])) {
       if (m === undefined) return
       if (this.traceMethod(code, meth.signature, []) === undefined) return // trace side effects
       const as = meth.sig.args.map((a, i) => indexer(code, fullTs, full, m.get(a)![1]))
-      let result = this.traceMethod(code, meth, as)
+      const result = this.traceMethod(code, meth, as)
       if (result === undefined) return
-      const T = asType(code.type(result))
-      if (meth.sig.swap.size === 0)
-        result = types.isValue(T)
-          ? types.list(T)
-          : code.push(code.stmt(xlist(result), { type: types.list(T) }))
-      return result
+      return swapresult(code, func.swap, meth.swaps, result)
     }
   }
 }
@@ -376,7 +378,7 @@ class Traced implements Caching, Interpreter {
   }
 
   eval(func: Tag, ...args: Type[]): Type | undefined {
-    const result = this.results.get([func, func, ...args])
+    const result = this.results.get([new Dispatch(func), func, ...args])
     if (result === undefined || result[1] === ir.unreachable) return
     return asType(result[1])
   }

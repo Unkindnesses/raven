@@ -13,7 +13,7 @@ export {
   Module, MethodKey, Method, Signature, MethodSource, MethodIR, Binding, asBinding, asValue, Modules,
   Definitions, Value, MIR, IRValue, showIRValue,
   StringRef, xstring, JS, xjs, Global, SetGlobal, xglobal, xset,
-  Invoke, Closure, xclosure, Func, xfunc, Wasm, xwasm, calltarget, callargs
+  Call, Dispatch, Invoke, Closure, xclosure, Func, xfunc, Wasm, xwasm, calltarget, callargs
 }
 
 class Binding {
@@ -115,6 +115,18 @@ class SetGlobal<T> extends ir.Expr<T> {
 
 function xset<T>(b: Binding, v: T): SetGlobal<T> { return new SetGlobal<T>(b, v) }
 
+class Call<T> extends ir.Expr<T> {
+  constructor(f: T | number, args: T | number, readonly swap = false) { super('call', [f, args]) }
+  get f() { return this.body[0] }
+  get args() { return this.body[1] }
+  map(f: (x: T | number) => T | number): Call<T> {
+    return new Call(f(this.f), f(this.args), this.swap)
+  }
+  show(pr: (x: T | number) => string): string {
+    return `call${this.swap ? '&' : ''} ${pr(this.f)}, ${pr(this.args)}`
+  }
+}
+
 class Invoke<T> extends ir.Expr<T> {
   constructor(readonly method: Method, readonly args: (T | number)[]) { super('invoke', args) }
   map(f: (x: T | number) => T | number): Invoke<T> { return new Invoke(this.method, this.args.map(f)) }
@@ -193,10 +205,22 @@ function calltarget(T: Type): Tag {
   return types.asTag(types.tagOf(T))
 }
 
-function callargs(code: ir.Fragment<MIR>, ex: ir.Expr<IRValue>): [Tag | Method, ir.Val<MIR>[]] {
-  return ex instanceof Invoke ?
-    [ex.method, ex.body] :
-    [calltarget(ir.asType(code.type(ex.body[0]))), ex.body]
+function callargs(code: ir.Fragment<MIR>, ex: ir.Expr<IRValue>): [Dispatch | Method, ir.Val<MIR>[]] {
+  if (ex instanceof Invoke) return [ex.method, ex.body]
+  if (ex instanceof Call) return [new Dispatch(calltarget(ir.asType(code.type(ex.f))), ex.swap), ex.body]
+  throw new Error(`Expected a call, got ${ex.head}`)
+}
+
+// A method that forwards to other methods.
+
+class Dispatch {
+  constructor(readonly func: Tag, readonly swap = false) { }
+  get path() { return `${this.func.path}${this.swap ? '&' : ''}` }
+  get [hash]() { return this.path }
+  toString() { return this.path }
+  isEqual(other: unknown): other is Dispatch {
+    return other instanceof Dispatch && this.func.isEqual(other.func) && this.swap === other.swap
+  }
 }
 
 interface Signature {
@@ -231,6 +255,7 @@ class Method {
   ) { }
   get id() { return this.key.id }
   get name() { return this.key.name }
+  get swaps() { return this.sig.swap.size > 0 }
   get [hash]() { return `${this.key[hash]}${this.lambda}${this.isSig}${this.params.map(x => types.repr(x)).join()}` }
   toString() { return `Method(${this.name})` }
   isEqual(other: unknown): other is Method {
