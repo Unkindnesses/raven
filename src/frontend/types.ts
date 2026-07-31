@@ -16,14 +16,12 @@ export {
 
 class Tag {
   readonly kind = 'tag' as const
-  readonly parts: readonly string[]
   readonly path: string
   constructor(...parts: (Tag | string | Symbol)[]) {
     this.path = parts
       .map(p => p instanceof Tag ? p.path : p.toString())
       .filter(Boolean)
       .join('.')
-    this.parts = this.path.split(/[./]/).filter(Boolean)
   }
   get [hash](): string { return this.path }
   toString(): string { return 'tag\"' + this.path + '\"' }

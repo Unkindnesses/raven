@@ -197,7 +197,7 @@ async function loadfile(cx: LoadState, src: SourceString | string): Promise<void
 }
 
 function prelude(comp: Modules, mod: Module): void {
-  if (mod.name.parts[0] === 'common') return
+  if (mod.name.path === 'common' || mod.name.path.startsWith('common.')) return
   const common = comp.module(tag("common"))
   mod.import(common, [...common.exports.keys()])
 }

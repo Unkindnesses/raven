@@ -90,7 +90,7 @@ test('loader resolves Windows paths', () => {
   })
   const scale = loader.resolve(String.raw`C:\project\main.rv`, './maths/scale.rv')
   assert.strictEqual(scale, 'C:/project/maths/scale.rv')
-  assert.deepStrictEqual(loader.modtag(scale).parts, ['maths', 'scale'])
+  assert.strictEqual(loader.modtag(scale).path, 'maths.scale')
 })
 
 test('cli loads packages into main', () => {
