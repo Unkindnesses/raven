@@ -141,9 +141,9 @@ class Compiler {
       }
       await withEmit(emitIR, async () => { await reload(this.pipe.sources, src, this.load) })
       reset(this.pipe)
-      if (options().memcheck && em.funcs.some(fn => fn.name.startsWith('common.wasm.malloc.malloc!'))) {
+      if (options().memcheck && em.funcs.some(fn => fn.name.startsWith('common.wasm.malloc/malloc!'))) {
         em.main.push(...em.destructors)
-        const checks = this.pipe.defs.methods(tag('common.wasm.malloc.checkAllocations'))
+        const checks = this.pipe.defs.methods(tag('common.wasm.malloc/checkAllocations'))
         this.pipe.emit(em, only(checks))
       }
       if (em.imports.some(imp => imp.mod === 'support' && imp.name === 'async'))

@@ -79,8 +79,8 @@ function exportedFunctions(compiler: Compiler): [string, types.Tag][] {
 // TODO better to have a generic means for converting to JS functions. Exported
 // globals can implicitly convert to JS, and we don't need to wrap.
 function libWrapperMethod(name: string, f: types.Tag) {
-  const args = ast.Call(types.tag('common.iterate.collect'), ast.Call(types.tag('common.wasm.js.JSObject'), ast.symbol('args')))
-  const body = ast.Call(types.tag('common.js'), ast.Call(f, ast.Splat(args)))
+  const args = ast.Call(types.tag('common.iterate/collect'), ast.Call(types.tag('common.wasm.js/JSObject'), ast.symbol('args')))
+  const body = ast.Call(types.tag('common/js'), ast.Call(f, ast.Splat(args)))
   return { body, meta: Def(name) }
 }
 

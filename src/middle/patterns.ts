@@ -185,7 +185,7 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
       return null
 
     case 'constructor': {
-      const result = mod.eval(types.tag('common.patterns.constructorPattern'), types.list(...types.parts(pat.value)))
+      const result = mod.eval(types.tag('common.patterns/constructorPattern'), types.list(...types.parts(pat.value)))
       if (!result || !types.isValue(result)) return undefined
       return partial_match(mod, pattern(result), val, path)
     }
@@ -217,11 +217,11 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
 
 // TODO assumes the value is unchanged by the match
 function trivial_isa(int: Interpreter, val: types.Type, T: types.Type): boolean | undefined {
-  const r = int.eval(types.tag('common.patterns.matchTrait'), types.list(T, val))
+  const r = int.eval(types.tag('common.patterns/matchTrait'), types.list(T, val))
   if (r === undefined) return undefined
   const tag = types.tagOf(r)
-  if (types.tag('common.core.Some').isEqual(tag)) return true
-  if (types.tag('common.core.Nil').isEqual(tag)) return false
+  if (types.tag('common.core/Some').isEqual(tag)) return true
+  if (types.tag('common.core/Nil').isEqual(tag)) return false
   return undefined
 }
 
@@ -333,7 +333,7 @@ function dispatcher(inf: Inference, func: Dispatch, F: types.Type, Ts: types.Typ
     if (code.type(pat) === ir.unreachable) { code.block().unreachable(); return [code, ret] }
     if (m === undefined) {
       const P = ir.asType(code.type(pat))
-      const match = types.tag('common.patterns.match')
+      const match = types.tag('common.patterns/match')
       arms = arms.filter(T =>
         issubset(types.nil, some(infercall(inf, sig, new Dispatch(match), match, types.list(T, P)))))
       let m = call(match, full, pat)
@@ -344,7 +344,7 @@ function dispatcher(inf: Inference, func: Dispatch, F: types.Type, Ts: types.Typ
       code.newBlock()
       m = call(notnil_method, m)
       if (code.type(m) !== ir.unreachable) {
-        const as = meth.sig.args.map(arg => call(types.tag('common.record.getkey'), m, types.tag(arg)))
+        const as = meth.sig.args.map(arg => call(types.tag('common.record/getkey'), m, types.tag(arg)))
         const result = adapt(meth, call(meth, ...as))
         code.return(result)
         ret = maybe_union(ret, code.type(result))
@@ -366,10 +366,10 @@ function dispatcher(inf: Inference, func: Dispatch, F: types.Type, Ts: types.Typ
       return [code, ret]
     }
   }
-  if (types.tag('common.abort').isEqual(func.func) && types.issubset(Ts, types.list(types.String())))
+  if (types.tag('common/abort').isEqual(func.func) && types.issubset(Ts, types.list(types.String())))
     throw new Error("Compiler fault: couldn't guarantee abort method matches")
   if (options().jspanic)
-    call(types.tag('common.abort'), string(code, `No matching method: ${repr(F)}: ${types.repr(Ts)}`))
+    call(types.tag('common/abort'), string(code, `No matching method: ${repr(F)}: ${types.repr(Ts)}`))
   code.block().unreachable()
   return [code, ret]
 }

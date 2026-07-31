@@ -87,5 +87,5 @@ fn set(&c: Cell(T, Counted(ptr)), [i: Int64], x) {
 
 @extend
 fn length(Cell(_, Counted(ptr))) {
-  tag"common.core.length"(ptr)
+  tag"common.core/length"(ptr)
 }

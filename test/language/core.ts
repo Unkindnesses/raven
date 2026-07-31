@@ -82,7 +82,7 @@ test('arity mismatch errors', async () => {
     }
 
     foo(1, 2, 3)
-  `, { error: true, output: 'No matching method: tag"foo"' })
+  `, { error: true, output: 'No matching method: tag"/foo"' })
 })
 
 test('op precedence', async () => {
@@ -117,13 +117,13 @@ test('prefix arithmetic negation operator', async () => {
 
 test('pattern literal interpolation', async () => {
   await rv(`
-    Answer = tag".Answer"
+    Answer = tag"/Answer"
 
     fn answer(_) { false }
     fn answer($Answer) { true }
 
     test answer(Answer)
-    test !answer(tag".Other")
+    test !answer(tag"/Other")
 
     expected = widen(42)
     matches = if let $expected = widen(42) { true } else { false }

@@ -284,7 +284,7 @@ function update(inf: Inference, k: string): void {
           break
         } else {
           const condT = br.isconditional() ? asType(bl.type(br.when)) : Type(true)
-          if (!tag('common.integer.Bool').isEqual(tagOf(condT))) throw new Error('branch condition must be Bool')
+          if (!tag('common.integer/Bool').isEqual(tagOf(condT))) throw new Error('branch condition must be Bool')
           if (isEqual(condT, Type(false))) continue
           let [p, rr] = nextpathTo(fr.ir, path, br.target)
           if (rr && !p.lt(path)) throw new Error('unimplemented')
@@ -435,14 +435,14 @@ class Inferred implements Caching {
 }
 
 function traitSig(T: Type): [Dispatch, Type, Type] {
-  const f = tag('common.patterns.castTrait')
-  return [new Dispatch(f), f, pack(tag('common.list.List'), T, Any)]
+  const f = tag('common.patterns/castTrait')
+  return [new Dispatch(f), f, pack(tag('common.list/List'), T, Any)]
 }
 
 function traitResult(ret: Anno<Type>): Anno<Type> {
   if (ret === unreachable) return unreachable
   for (const option of disjuncts(ret))
-    if (tag('common.core.Some').isEqual(tagOf(option))) return only(parts(option))
+    if (tag('common.core/Some').isEqual(tagOf(option))) return only(parts(option))
   return unreachable
 }
 

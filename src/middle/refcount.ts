@@ -44,7 +44,7 @@ import { Ref, xref } from '../wasm/ir.js'
 export { isreftype, CountMode, retain_method, release_method, refcounts, releaseFunction_method }
 
 function iscountedtype(x: Type): boolean {
-  return x.kind === 'pack' && tag('common.wasm.memory.Counted').isEqual(tagOf(x))
+  return x.kind === 'pack' && tag('common.wasm.memory/Counted').isEqual(tagOf(x))
 }
 
 function isreftype(x: ir.Anno<Type>): x is Type {
@@ -70,9 +70,9 @@ function isglobal(code: MIR, v: number): boolean {
 type CountMode = 'retain' | 'release'
 
 // Used as a key for generated methods
-const retain_method = primitive('common.core.retain', '[args...]')
-const release_method = primitive('common.core.release', '[args...]')
-const releaseFunction_method = primitive('common.core.releaseFunction', '[ptr]')
+const retain_method = primitive('common.core/retain', '[args...]')
+const release_method = primitive('common.core/release', '[args...]')
+const releaseFunction_method = primitive('common.core/releaseFunction', '[ptr]')
 
 function i32(code: ir.Fragment<MIR>, x: bigint | number | boolean): ir.Val<MIR> {
   return code.push(code.stmt(ir.expr('tuple', Value.bits(32, x)), { type: types.int32() }))
@@ -94,14 +94,14 @@ function release(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, heap = false):
 }
 
 function countptr(code: ir.Fragment<MIR>, ptr: ir.Val<MIR>, mode: CountMode): void {
-  const f = mode === 'retain' ? tag('common.wasm.malloc.retain!') : tag('common.wasm.malloc.release!')
+  const f = mode === 'retain' ? tag('common.wasm.malloc/retain!') : tag('common.wasm.malloc/release!')
   const t = ir.asType(code.type(ptr))
-  if (!tag('common.wasm.memory.Ptr').isEqual(tagOf(t))) throw new Error('countptr: expected Ptr')
+  if (!tag('common.wasm.memory/Ptr').isEqual(tagOf(t))) throw new Error('countptr: expected Ptr')
   call(code, f, [ptr], types.nil)
 }
 
 function counted_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mode: CountMode): void {
-  const f = mode === 'retain' ? tag('common.wasm.malloc.retain!') : tag('common.wasm.malloc.release!')
+  const f = mode === 'retain' ? tag('common.wasm.malloc/retain!') : tag('common.wasm.malloc/release!')
   call(code, f, [indexer(code, T, types.int64(1), x, types.int64(1))], types.nil)
 }
 
@@ -124,12 +124,12 @@ function function_count_inline(code: ir.Fragment<MIR>, x: ir.Val<MIR>, mode: Cou
     const before = code.block()
     const body = code.newBlock()
     const after = code.newBlock()
-    const unique = call(before, tag('common.wasm.malloc.blockUnique'), [ptr], types.int32())
+    const unique = call(before, tag('common.wasm.malloc/blockUnique'), [ptr], types.int32())
     before.branch(body, [], { when: unique })
     before.branch(after)
-    const releasePtr = call(body, tag('common.+'), [ptr, i32(body, 4)], types.Ptr())
+    const releasePtr = call(body, tag('common/+'), [ptr, i32(body, 4)], types.Ptr())
     const release = load(body, types.bits(32), releasePtr, { count: false })
-    const dataPtr = call(body, tag('common.+'), [ptr, i32(body, 8)], types.Ptr())
+    const dataPtr = call(body, tag('common/+'), [ptr, i32(body, 8)], types.Ptr())
     const data = body.push(body.stmt(xref(dataPtr, 1), { type: types.int32() }))
     body.push(body.stmt(ir.expr('call_indirect', release, data), { type: types.nil }))
     body.branch(after)
@@ -166,20 +166,20 @@ function vpack_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>, mod
     const body = code.newBlock()
     const after = code.newBlock()
 
-    const unique = call(test, tag('common.wasm.malloc.blockUnique'), [ptr], types.int32())
+    const unique = call(test, tag('common.wasm.malloc/blockUnique'), [ptr], types.int32())
     test.branch(header, [len, ptr], { when: unique })
     test.branch(after)
 
     len = header.argument(types.int32())
     pos = header.argument(types.Ptr())
-    const done = call(header, tag('common.=='), [len, i32(header, 0)], types.int32())
+    const done = call(header, tag('common/=='), [len, i32(header, 0)], types.int32())
     header.branch(after, [], { when: done })
     header.branch(body)
 
     const el = load(body, elT, pos, { count: false, heap: true })
     release(body, elT, el, true)
-    const len2 = call(body, tag('common.-'), [len, i32(body, 1)], types.int32())
-    const pos2 = call(body, tag('common.+'), [pos, i32(body, sizeof(elT))], types.Ptr())
+    const len2 = call(body, tag('common/-'), [len, i32(body, 1)], types.int32())
+    const pos2 = call(body, tag('common/+'), [pos, i32(body, sizeof(elT))], types.Ptr())
     body.branch(header, [len2, pos2])
   }
   countptr(code, ptr, mode)
@@ -200,7 +200,7 @@ function recursive_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>,
     const before = code.block()
     const body = code.newBlock()
     const after = code.newBlock()
-    const unique = call(before, tag('common.wasm.malloc.blockUnique'), [ptr], types.int32())
+    const unique = call(before, tag('common.wasm.malloc/blockUnique'), [ptr], types.int32())
     before.branch(body, [], { when: unique })
     before.branch(after)
     const U = types.unroll(T)
@@ -212,7 +212,7 @@ function recursive_count_inline(code: ir.Fragment<MIR>, T: Type, x: ir.Val<MIR>,
 }
 
 function count_ir(T: Type, L: Type, mode: CountMode, heap = false): MIR {
-  const code = MIR(Def(`common.core.${mode}`))
+  const code = MIR(Def(`common.core/${mode}`))
   const x = code.argument(L)
   count_inline(code, T, x, mode, heap)
   code.return(types.nil)
@@ -220,7 +220,7 @@ function count_ir(T: Type, L: Type, mode: CountMode, heap = false): MIR {
 }
 
 function release_function_ir(T: Type): MIR {
-  const code = MIR(Def('common.core.releaseFunction'))
+  const code = MIR(Def('common.core/releaseFunction'))
   const ptr = code.argument(types.int32())
   if (isreftype(T)) {
     const value = load(code, T, ptr, { count: false, heap: true })
@@ -318,14 +318,14 @@ function elide_counts(code: MIR): MIR {
       if (!(st.expr instanceof Invoke)) continue
       const callee = st.expr.method
       const arg = st.expr.body[0]
-      if (ismethod(callee, tag('common.core.retain'))) {
+      if (ismethod(callee, tag('common.core/retain'))) {
         // TODO aliases for args
         if (typeof arg !== 'number' || !vs.has(arg)) continue
         const key = vs.get(arg)!
         const rs = retains.get(key) ?? []
         retains.set(key, rs)
         rs.push(v)
-      } else if (ismethod(callee, tag('common.core.release'))) {
+      } else if (ismethod(callee, tag('common.core/release'))) {
         if (typeof arg !== 'number' || !vs.has(arg)) continue
         const key = vs.get(arg)!
         const rs = retains.get(key) ?? []

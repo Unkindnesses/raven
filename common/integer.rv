@@ -8,17 +8,17 @@ export {
   true, false, bits, oftype, typemin, typemax, bitsize
 }
 
-eq = tag"common.bootstrap.eq"
-not = tag"common.bootstrap.!"
-add = tag"common.bootstrap.+"
-sub = tag"common.bootstrap.-"
-lt = tag"common.bootstrap.<"
+eq = tag"common.bootstrap/eq"
+not = tag"common.bootstrap/!"
+add = tag"common.bootstrap/+"
+sub = tag"common.bootstrap/-"
+lt = tag"common.bootstrap/<"
 
 @extend
 fn matchTrait($Bits, x: pack($Bits, _)) { Some(x) }
 
 # TODO lower symbols to literals
-fn tag"common.core.Bits"[N] { Params(Bits, N) }
+fn tag"common.core/Bits"[N] { Params(Bits, N) }
 
 @extend
 fn (a: Bits) == (b: Bits) { Bool(biteq(a, b)) }
@@ -76,7 +76,7 @@ fn condition(x: Bool) { x }
 # TODO `bundle Int[N](x: Bits[N])`
 bundle Int(x: Bits)
 
-fn tag"common.integer.Int"[N] { Params(Int, N) }
+fn tag"common.integer/Int"[N] { Params(Int, N) }
 
 @extend
 fn matchTrait(Params($Int, N), Int(b)) {
@@ -246,7 +246,7 @@ fn show(x: Int64) { print(x) }
 
 bundle UInt(x: Bits)
 
-fn tag"common.integer.UInt"[N] { Params(UInt, N) }
+fn tag"common.integer/UInt"[N] { Params(UInt, N) }
 
 @extend
 fn matchTrait(Params($UInt, N), UInt(b)) {

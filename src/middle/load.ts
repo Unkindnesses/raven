@@ -19,7 +19,7 @@ function wrapPrint(ex: ast.Tree): ast.Tree {
     const head = ex.args[0].unwrap()
     if (head instanceof ast.Symbol && declarations.includes(head.toString())) return ex
   }
-  return ast.Call(ast.Template(ast.symbol('tag'), 'common.replshow'), ex)
+  return ast.Call(ast.Template(ast.symbol('tag'), 'common/replshow'), ex)
 }
 
 function resolve_static(sources: Modules, mod: Tag, x: ast.Symbol): Type {
@@ -112,7 +112,7 @@ function load_clear(cx: LoadState, x: ast.Expr): void {
 
 function load_expr(cx: LoadState, x: ast.Tree): void {
   const meta = Def('(global)', x.meta && source(x.meta))
-  const key = new MethodKey(cx.mod.name, tag('common.core.main'))
+  const key = new MethodKey(cx.mod.name, tag('common.core/main'))
   const [methods, defs] = lower_toplevel(cx.mod, key, x, meta)
   for (const def of defs) if (!cx.mod.has(def)) cx.mod.set(def, unreachable)
   const method = cx.mod.methods.method(key, { args: [], swap: new Map() }, methods)
@@ -136,7 +136,7 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
   sig = sig.ungroup()
   if (ast.isExpr(sig, 'Index')) {
     const [x, ...idxs] = sig.args
-    sig = ast.Call(tag('common.get'), x, ast.List(...idxs))
+    sig = ast.Call(tag('common/get'), x, ast.List(...idxs))
   }
   if (!ast.isExpr(sig, 'Call') && !ast.isExpr(sig, 'Operator'))
     throw new Error(`Expected function signature, got ${ast.repr(sig)}`)
@@ -153,7 +153,7 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
     fnTag =
       variable instanceof Tag ? variable :
         extend ? asTag(cx.resolve_static(ast.asSymbol(variable))) :
-          new Tag(cx.mod.name, ast.asSymbol(variable).toString())
+          modtag(cx.mod.name, `/${ast.asSymbol(variable).toString()}`)
     if (!extend && variable instanceof ast.Symbol)
       cx.mod.set(variable.toString(), fnTag)
     sig = ast.List(fnTag, ...params)

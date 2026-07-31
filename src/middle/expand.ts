@@ -217,7 +217,7 @@ function sizeof(T: Type): number {
 // ====
 
 function partir_union(x: Type & { kind: 'union' }, i: Type): MIR {
-  const code = MIR(Def('common.core.part'))
+  const code = MIR(Def('common.core/part'))
   const retT = partial_part(x, i)
   const vx = code.argument(x)
   const vi = code.argument(i)
@@ -237,16 +237,16 @@ function partir_union(x: Type & { kind: 'union' }, i: Type): MIR {
 // TODO: should make sure this comes out as a switch / branch table.
 function partir(x: Type, i: Type): MIR {
   if (x.kind === 'union') return partir_union(x, i)
-  if (!types.tag('common.integer.Int').isEqual(types.tagOf(i))) throw new Error('partir: expected Int index')
+  if (!types.tag('common.integer/Int').isEqual(types.tagOf(i))) throw new Error('partir: expected Int index')
   const T = partial_part(x, i)
-  const code = MIR(Def('common.core.part'))
+  const code = MIR(Def('common.core/part'))
   const vx = code.argument(x)
   const vi = code.argument(i)
   const xlayout = layout(x)
   const part = (k: number): Val<MIR> =>
     code.push(code.stmt(xref(vx as Val<MIR>, k), { type: xlayout[k - 1] }))
   for (let idx = 1; idx <= types.nparts(x); idx++) {
-    const cond = call(code, types.tag('common.=='), [i64(code, idx), vi], types.bool())
+    const cond = call(code, types.tag('common/=='), [i64(code, idx), vi], types.bool())
     const before = code.block()
     const body = code.newBlock()
     // TODO: recurse to `indexer` here, let casting happen later
@@ -271,13 +271,13 @@ function vpack_indexer(pr: Fragment<MIR>, Ts: Type, I: Type, x: Val<MIR>, i: Val
   if (idx !== undefined)
     i = i32(pr, (idx - 1) * sizeof(T))
   else {
-    i = call(pr, types.tag('common.Int32'), [i], types.int32())
-    i = call(pr, types.tag('common.-'), [i, i32(pr, 1)], types.int32())
-    i = call(pr, types.tag('common.*'), [i, i32(pr, sizeof(T))], types.int32())
+    i = call(pr, types.tag('common/Int32'), [i], types.int32())
+    i = call(pr, types.tag('common/-'), [i, i32(pr, 1)], types.int32())
+    i = call(pr, types.tag('common/*'), [i, i32(pr, sizeof(T))], types.int32())
   }
   // TODO bounds check
   let p = pr.push(pr.stmt(xref(x, 2), { type: types.int32() }))
-  p = call(pr, types.tag('common.+'), [p, i], types.int32())
+  p = call(pr, types.tag('common/+'), [p, i], types.int32())
   return load(pr, T, p, { count: false })
 }
 
@@ -312,7 +312,7 @@ function indexer(pr: Fragment<MIR>, T: Type, I: Type, x: Val<MIR>, i: Val<MIR>):
 
 // TODO memcpy when possible
 function copyir(S: Type, D: Type): MIR {
-  let code = MIR(Def('common.core.copy'))
+  let code = MIR(Def('common.core/copy'))
   let src = code.argument(types.int32())
   let dst = code.argument(types.int32())
   let len = code.argument(types.int32())
@@ -326,16 +326,16 @@ function copyir(S: Type, D: Type): MIR {
   src = header.argument(types.int32())
   dst = header.argument(types.int32())
   len = header.argument(types.int32())
-  const done = call(header, types.tag('common.=='), [len, i32(header, 0)], types.int32())
+  const done = call(header, types.tag('common/=='), [len, i32(header, 0)], types.int32())
   header.branch(after, [], { when: done })
   header.branch(body)
 
   let x = load(body, S, src)
   x = cast(body, S, D, x)
   store(body, D, dst, x)
-  const src2 = call(body, types.tag('common.+'), [src, i32(body, sizeof(S))], types.int32())
-  const dst2 = call(body, types.tag('common.+'), [dst, i32(body, sizeof(D))], types.int32())
-  const len2 = call(body, types.tag('common.-'), [len, i32(body, 1)], types.int32())
+  const src2 = call(body, types.tag('common/+'), [src, i32(body, sizeof(S))], types.int32())
+  const dst2 = call(body, types.tag('common/+'), [dst, i32(body, sizeof(D))], types.int32())
+  const len2 = call(body, types.tag('common/-'), [len, i32(body, 1)], types.int32())
   body.branch(header, [src2, dst2, len2])
   code.return(dst)
   return code
@@ -351,7 +351,7 @@ function packir(Ts: Type): MIR {
   const U = types.unroll(T)
   if (!(U.kind === 'vpack') || !(types.tagOf(T).kind === 'tag')) throw new Error('nope')
   const E = some(types.partial_eltype(U))
-  const code = MIR(Def('common.core.packcat'))
+  const code = MIR(Def('common.core/packcat'))
   const xs = code.argument(Ts)
   const ps: Val<MIR>[] = []
   for (let i = 1; i <= types.nparts(Ts); i++)
@@ -365,14 +365,14 @@ function packir(Ts: Type): MIR {
   }
   let size = ls.shift()!
   for (const l of ls)
-    size = call(code, types.tag('common.+'), [size, l], types.int64())
-  size = call(code, types.tag('common.Int32'), [size], types.int32())
+    size = call(code, types.tag('common/+'), [size, l], types.int64())
+  size = call(code, types.tag('common/Int32'), [size], types.int32())
   if (T.kind === 'vpack' && sizeof(E) === 0) {
     code.return(code.push(code.stmt(xtuple(size), { type: T })))
     return code
   }
-  const bytes = call(code, types.tag('common.*'), [size, i32(code, sizeof(E))], types.int32())
-  const ptr = call(code, types.tag('common.wasm.malloc.malloc!'), [bytes], types.int32())
+  const bytes = call(code, types.tag('common/*'), [size, i32(code, sizeof(E))], types.int32())
+  const ptr = call(code, types.tag('common.wasm.malloc/malloc!'), [bytes], types.int32())
   let pos: Val<MIR> = ptr
   for (let i = 1; i <= types.nparts(Ts); i++) {
     let P = types.part(Ts, i)
@@ -385,7 +385,7 @@ function packir(Ts: Type): MIR {
         let x = indexer(code, P, types.int64(j), ps[i - 1], types.int64(j))
         x = cast(code, types.part(P, j), E, x)
         store(code, E, pos, x)
-        pos = call(code, types.tag('common.+'), [pos, i32(code, sizeof(E))], types.int32())
+        pos = call(code, types.tag('common/+'), [pos, i32(code, sizeof(E))], types.int32())
       }
     } else if (P.kind === 'vpack') {
       let len = code.push(code.stmt(xref(ps[i - 1], 1), { type: types.int32() }))
@@ -416,7 +416,7 @@ function set_pack(code: Fragment<MIR>, xs: Val<MIR>, i: Val<MIR>, x: Val<MIR>): 
 }
 
 function set_vpack(T: Type & { kind: 'vpack' }, I: Type, X: Type): MIR {
-  let code = MIR(Def('common.core.set'))
+  let code = MIR(Def('common.core/set'))
   let xs = code.argument(T) as Val<MIR>
   let i = code.argument(I) as Val<MIR>
   let x = code.argument(X) as Val<MIR>
@@ -427,18 +427,18 @@ function set_vpack(T: Type & { kind: 'vpack' }, I: Type, X: Type): MIR {
   }
   let size = code.push(code.stmt(xref(xs, 1), { type: types.int32() }))
   let src = code.push(code.stmt(xref(xs, 2), { type: types.int32() }))
-  let bytes = call(code, types.tag('common.*'), [size, i32(code, sizeof(E))], types.int32())
-  let ptr = call(code, types.tag('common.wasm.malloc.malloc!'), [bytes], types.int32())
+  let bytes = call(code, types.tag('common/*'), [size, i32(code, sizeof(E))], types.int32())
+  let ptr = call(code, types.tag('common.wasm.malloc/malloc!'), [bytes], types.int32())
   let result = code.push(code.stmt(xtuple(size, ptr), { type: T }))
 
-  i = getIntValue(I) ? i32(code, getIntValue(I)!) : call(code, types.tag('common.Int32'), [i], types.int32())
-  let len = call(code, types.tag('common.-'), [i, i32(code, 1)], types.int32())
+  i = getIntValue(I) ? i32(code, getIntValue(I)!) : call(code, types.tag('common/Int32'), [i], types.int32())
+  let len = call(code, types.tag('common/-'), [i, i32(code, 1)], types.int32())
   let pos = copy(code, types.partial_eltype(T), E, src, ptr, len)
   x = cast(code, X, E, x)
   store(code, E, pos, x)
-  pos = call(code, types.tag('common.+'), [pos, i32(code, sizeof(E))], types.int32())
-  src = call(code, types.tag('common.+'), [src, call(code, types.tag('common.*'), [i, i32(code, sizeof(E))], types.int32())], types.int32())
-  len = call(code, types.tag('common.-'), [size, i], types.int32())
+  pos = call(code, types.tag('common/+'), [pos, i32(code, sizeof(E))], types.int32())
+  src = call(code, types.tag('common/+'), [src, call(code, types.tag('common/*'), [i, i32(code, sizeof(E))], types.int32())], types.int32())
+  len = call(code, types.tag('common/-'), [size, i], types.int32())
   pos = copy(code, types.partial_eltype(T), E, src, pos, len)
 
   code.push(code.stmt(expr('release', xs)))
@@ -484,16 +484,16 @@ function lowerdata(inf: Inferred, code: MIR): MIR {
 const refTable = 'jsrefs'
 const refNext = 'jsrefs.next'
 
-const refHandle_method = primitive('common.core.refHandle', '[x]')
-const refFromHandle_method = primitive('common.core.refFromHandle', '[h]')
-const refRelease_method = primitive('common.core.refRelease', '[h]')
+const refHandle_method = primitive('common.core/refHandle', '[x]')
+const refFromHandle_method = primitive('common.core/refFromHandle', '[h]')
+const refRelease_method = primitive('common.core/refRelease', '[h]')
 
 function refNull(code: Fragment<MIR>): Val<MIR> {
   return code.push(code.stmt(xwasm(wasm.RefNull(wasm.externref.type)), { type: types.Ref }))
 }
 
 outlinePrimitives.set(refHandle_method.id, (): MIR => {
-  const code = MIR(Def('common.core.refHandle'))
+  const code = MIR(Def('common.core/refHandle'))
   const ref = code.argument(types.Ref)
   const idx = code.push(code.stmt(xwasm(wasm.GetGlobal(refNext)), { type: types.bits(32) }))
   const next = code.push(code.stmt(xwasm('i32.add', idx, bits(32, 1)), { type: types.bits(32) }))
@@ -505,7 +505,7 @@ outlinePrimitives.set(refHandle_method.id, (): MIR => {
 })
 
 outlinePrimitives.set(refFromHandle_method.id, (): MIR => {
-  const code = MIR(Def('common.core.refFromHandle'))
+  const code = MIR(Def('common.core/refFromHandle'))
   const idx: Val<MIR> = code.argument(types.bits(32))
   const out = code.push(code.stmt(xwasm<Val<MIR>>(wasm.TableOp('get', refTable), idx), { type: types.Ref }))
   code.return(out)
@@ -513,7 +513,7 @@ outlinePrimitives.set(refFromHandle_method.id, (): MIR => {
 })
 
 outlinePrimitives.set(refRelease_method.id, (): MIR => {
-  const code = MIR(Def('common.core.refRelease'))
+  const code = MIR(Def('common.core/refRelease'))
   const idx = code.argument(types.bits(32))
   code.push(code.stmt(xwasm(wasm.TableOp('set', refTable), idx, refNull(code)), { type: types.nil }))
   code.return(types.nil)
@@ -567,7 +567,7 @@ function load(pr: Fragment<MIR>, T: Type, ptr: Val<MIR>, { count = true, heap = 
 }
 
 function box(pr: Fragment<MIR>, T: Type, x: Val<MIR>): Val<MIR> {
-  const ptr = call(pr, types.tag('common.wasm.malloc.malloc!'), [i32(pr, sizeof(T))], types.int32())
+  const ptr = call(pr, types.tag('common.wasm.malloc/malloc!'), [i32(pr, sizeof(T))], types.int32())
   store(pr, T, ptr, x)
   return ptr
 }
@@ -615,13 +615,13 @@ function cast(pr: Fragment<MIR>, from: Anno<Type>, to: Anno<Type>, x: Val<MIR>):
     const n = types.nparts(from)
     if (sizeof(E) === 0)
       return pr.push(pr.stmt(xtuple(i32(pr, n)), { type: to }))
-    let ptr = call(pr, types.tag('common.wasm.malloc.malloc!'), [i32(pr, sizeof(E) * n)], types.int32())
+    let ptr = call(pr, types.tag('common.wasm.malloc/malloc!'), [i32(pr, sizeof(E) * n)], types.int32())
     let pos: Val<MIR> = ptr
     for (let i = 1; i <= n; i++) {
       let el = indexer(pr, from, types.int64(i), x, types.int64(i))
       el = cast(pr, types.part(from, i), E, el)
       store(pr, E, pos, el)
-      if (i < n) pos = call(pr, types.tag('common.+'), [pos, i32(pr, sizeof(E))], types.int32())
+      if (i < n) pos = call(pr, types.tag('common/+'), [pos, i32(pr, sizeof(E))], types.int32())
     }
     return pr.push(pr.stmt(xtuple(i32(pr, n), ptr), { type: to }))
   }

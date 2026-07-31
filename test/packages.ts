@@ -104,9 +104,9 @@ test('cli loads packages into main', () => {
       // Entry points take the package tag; siblings and folders extend it. The
       // module is the same however it's imported, so `Measure` is shared
       // between `maths` and main.
-      'maths.Scaled',
-      'maths.scale.Scale',
-      'maths.util.measure.Measure'
+      'maths/Scaled',
+      'maths.scale/Scale',
+      'maths.util.measure/Measure'
     ])
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })

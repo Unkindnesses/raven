@@ -70,7 +70,7 @@ for (const [op, f] of bitcmpFuncs) {
 // TODO: bit ops should be handled by the backend.
 
 function isInt(x: Type, size?: number): x is { kind: 'pack'; parts: [Type, Type & { kind: 'bits' }] } {
-  return x.kind === 'pack' && tag('common.integer.Int').isEqual(tagOf(x)) &&
+  return x.kind === 'pack' && tag('common.integer/Int').isEqual(tagOf(x)) &&
     x.parts[1].kind === 'bits' && (size === undefined || x.parts[1].size === size)
 }
 
@@ -119,16 +119,16 @@ function partial_set(xs: Type, i: Type, x: Type): Anno<Type> {
 function partial_nparts(x: Type): Type {
   if (x.kind === 'union') return x.options.map(partial_nparts).reduce(types.union)
   if (x.kind === 'recursive') return partial_nparts(types.unroll(x))
-  if (x.kind === 'vpack') return types.pack(tag('common.integer.Int'), bits(64))
-  if (x.kind === 'any') return types.pack(tag('common.integer.Int'), bits(64))
-  return types.pack(tag('common.integer.Int'), bits(64, types.nparts(x)))
+  if (x.kind === 'vpack') return types.pack(tag('common.integer/Int'), bits(64))
+  if (x.kind === 'any') return types.pack(tag('common.integer/Int'), bits(64))
+  return types.pack(tag('common.integer/Int'), bits(64, types.nparts(x)))
 }
 
 function partial_widen(x: Type): Type {
   if (types.isAtom(x)) return types.abstract(x)
   if (x.kind === 'pack') {
     const tg = types.tagOf(x)
-    if (tag('common.integer.Int').isEqual(tg) || tag('common.integer.Bool').isEqual(tg))
+    if (tag('common.integer/Int').isEqual(tg) || tag('common.integer/Bool').isEqual(tg))
       return types.pack(tg, types.abstract(types.part(x, 1)))
   }
   throw new Error('unimplemented')
@@ -147,7 +147,7 @@ function partial_shortcutEquals(a: Type, b: Type): Type {
   if (types.isValue(a) && types.isValue(b)) return Type(isEqual(a, b))
   if (a.kind === 'any' || b.kind === 'any') return types.bool()
   const intersection = new Set([...symbolValues(a)].filter(x => symbolValues(b).has(x)))
-  if (intersection.size > 0) return types.pack(tag('common.integer.Bool'), bits(1))
+  if (intersection.size > 0) return types.pack(tag('common.integer/Bool'), bits(1))
   return Type(false)
 }
 
@@ -187,8 +187,8 @@ function partial_biteqz(x: Type): Type {
 // to deal with unions.
 function partial_isnil(x: Type): Type {
   if (isEqual(x, types.nil)) return Type(true)
-  if (x.kind === 'any') return types.pack(tag('common.integer.Bool'), bits(1))
-  if (types.issubset(types.nil, x)) return types.pack(tag('common.integer.Bool'), bits(1))
+  if (x.kind === 'any') return types.pack(tag('common.integer/Bool'), bits(1))
+  if (types.issubset(types.nil, x)) return types.pack(tag('common.integer/Bool'), bits(1))
   return Type(false)
 }
 
@@ -201,10 +201,10 @@ function partial_notnil(x: Type): Anno<Type> {
 }
 
 const corePrimitive = new HashMap<Type, Type>([
-  [tag('common.core.Float32'), types.float32()],
-  [tag('common.core.Float64'), types.float64()],
-  [tag('common.core.Ref'), types.Ref],
-  [tag('common.core.Func'), types.Func]
+  [tag('common.core/Float32'), types.float32()],
+  [tag('common.core/Float64'), types.float64()],
+  [tag('common.core/Ref'), types.Ref],
+  [tag('common.core/Func'), types.Func]
 ])
 
 function partial_tagcast(x: Type, t: Type): Anno<Type> {
@@ -224,7 +224,7 @@ function partial_tagstring(x: Type): Type {
 
 function rvtype(x: Type): Type {
   if (!types.isValue(x)) throw new Error('Expected value')
-  if (tag('common.list.List').isEqual(tagOf(x)))
+  if (tag('common.list/List').isEqual(tagOf(x)))
     return types.pack(tagOf(x), ...types.parts(x).map(rvtype))
   const T = traitType(x)
   if (T === unreachable || types.occursin(types.Any, T)) throw new Error(`Invalid type ${types.repr(x)}`)
@@ -239,21 +239,21 @@ function partial_invoke(f: Type, I: Type, O: Type, ...xs: Type[]): Type {
   return rvtype(O)
 }
 
-const pack_method = primitive('common.core.pack', '[args...]', (args: Type) => types.pack(...types.parts(args)))
-const part_method = primitive('common.core.part', '[data, i]', partial_part)
-const nparts_method = primitive('common.core.nparts', '[x]', partial_nparts)
-const packcat_method = primitive('common.core.packcat', '[args...]', (args: Type) => { const parts = types.parts(args); return parts.length === 0 ? unreachable : parts.reduce((x, y) => types.packcat(x, y)) })
-const set_method = primitive('common.core.set', '[xs, i, x]', partial_set)
-const widen_method = primitive('common.core.widen', '[x]', partial_widen)
-const shortcutEquals_method = primitive('common.core.shortcutEquals', '[a, b]', partial_shortcutEquals)
+const pack_method = primitive('common.core/pack', '[args...]', (args: Type) => types.pack(...types.parts(args)))
+const part_method = primitive('common.core/part', '[data, i]', partial_part)
+const nparts_method = primitive('common.core/nparts', '[x]', partial_nparts)
+const packcat_method = primitive('common.core/packcat', '[args...]', (args: Type) => { const parts = types.parts(args); return parts.length === 0 ? unreachable : parts.reduce((x, y) => types.packcat(x, y)) })
+const set_method = primitive('common.core/set', '[xs, i, x]', partial_set)
+const widen_method = primitive('common.core/widen', '[x]', partial_widen)
+const shortcutEquals_method = primitive('common.core/shortcutEquals', '[a, b]', partial_shortcutEquals)
 
-const bitsize_method = primitive('common.core.bitsize', '[x]', partial_bitsize)
-const bitcast_method = primitive('common.core.bitcast', '[x, y]', partial_bitcast)
-const bitcast_s_method = primitive('common.core.bitcast_s', '[x, y]', partial_bitcast_s)
+const bitsize_method = primitive('common.core/bitsize', '[x]', partial_bitsize)
+const bitcast_method = primitive('common.core/bitcast', '[x, y]', partial_bitcast)
+const bitcast_s_method = primitive('common.core/bitcast_s', '[x, y]', partial_bitcast_s)
 
 const bitop_methods = new Map<string, Method>()
 for (const [op, f] of bitops) {
-  bitop_methods.set(op, primitive(`common.core.bit${op}`, '[x, y]', (x: Type, y: Type): Anno<Type> => {
+  bitop_methods.set(op, primitive(`common.core/bit${op}`, '[x, y]', (x: Type, y: Type): Anno<Type> => {
     if (types.isValue(x) && types.isValue(y) && x.kind === 'bits' && y.kind === 'bits')
       return types.Type(f(new types.Bits(x.size, x.value!), new types.Bits(y.size, y.value!)))
     return partial_bitop(x, y)
@@ -262,31 +262,31 @@ for (const [op, f] of bitops) {
 
 const bitcmp_methods = new Map<string, Method>()
 for (const [op, f] of bitcmps) {
-  bitcmp_methods.set(op, primitive(`common.core.bit${op}`, '[x, y]', (x: Type, y: Type): Anno<Type> => {
+  bitcmp_methods.set(op, primitive(`common.core/bit${op}`, '[x, y]', (x: Type, y: Type): Anno<Type> => {
     if (types.isValue(x) && types.isValue(y) && x.kind === 'bits' && y.kind === 'bits')
       return types.Type(f(new types.Bits(x.size, x.value!), new types.Bits(y.size, y.value!)))
     return partial_bitcmp(x, y)
   }))
 }
 
-const biteqz_method = primitive('common.core.biteqz', '[x]', partial_biteqz)
+const biteqz_method = primitive('common.core/biteqz', '[x]', partial_biteqz)
 
-const isnil_method = primitive('common.core.nil?', '[x]', partial_isnil)
-const notnil_method = primitive('common.core.notnil', '[x]', partial_notnil)
-const tagcast_method = primitive('common.core.tagcast', '[x, t]', partial_tagcast)
-const tagstring_method = primitive('common.core.tagstring', '[x]', partial_tagstring)
+const isnil_method = primitive('common.core/nil?', '[x]', partial_isnil)
+const notnil_method = primitive('common.core/notnil', '[x]', partial_notnil)
+const tagcast_method = primitive('common.core/tagcast', '[x, t]', partial_tagcast)
+const tagstring_method = primitive('common.core/tagstring', '[x]', partial_tagstring)
 
-const function_method = primitive('common.core.function', '[f, I, O]', partial_function)
-const invoke_method = primitive('common.core.invoke', '[f, I, O, xs...]', partial_invoke)
-const invokeFunction_method = primitive('common.core.invokeFunction', '[f, xs]')
+const function_method = primitive('common.core/function', '[f, I, O]', partial_function)
+const invoke_method = primitive('common.core/invoke', '[f, I, O, xs...]', partial_invoke)
+const invokeFunction_method = primitive('common.core/invokeFunction', '[f, xs]')
 
-const alloc_method = primitive('common.core.alloc', '[T, n]', (T: Type, n: Type) => types.Ptr())
-const load_method = primitive('common.core.load', '[T, ptr, i]', (T: Type, ptr: Type, i: Type) => rvtype(T))
-const store_method = primitive('common.core.store', '[T, ptr, i, x]', (T: Type, ptr: Type, i: Type, x: Type) => types.nil)
-const length_method = primitive('common.core.length', '[ptr]', (ptr: Type) => types.int64())
+const alloc_method = primitive('common.core/alloc', '[T, n]', (T: Type, n: Type) => types.Ptr())
+const load_method = primitive('common.core/load', '[T, ptr, i]', (T: Type, ptr: Type, i: Type) => rvtype(T))
+const store_method = primitive('common.core/store', '[T, ptr, i, x]', (T: Type, ptr: Type, i: Type, x: Type) => types.nil)
+const length_method = primitive('common.core/length', '[ptr]', (ptr: Type) => types.int64())
 
-const allocs_method = primitive('common.core.allocs', '[n]', (n: Type) => isInt(n, 32) ? types.int32() : unreachable)
-const frees_method = primitive('common.core.frees', '[n]', (n: Type) => isInt(n, 32) ? types.int32() : unreachable)
+const allocs_method = primitive('common.core/allocs', '[n]', (n: Type) => isInt(n, 32) ? types.int32() : unreachable)
+const frees_method = primitive('common.core/frees', '[n]', (n: Type) => isInt(n, 32) ? types.int32() : unreachable)
 
 function primitives(): Method[] {
   return [
@@ -364,7 +364,7 @@ inlinePrimitives.set(part_method.id, (code, st) => {
 
 outlinePrimitives.set(part_method.id, partir)
 
-const copy_method = primitive('common.core.copy', '[src, dst, len]', (...xs) => { throw new Error('unimplemented') })
+const copy_method = primitive('common.core/copy', '[src, dst, len]', (...xs) => { throw new Error('unimplemented') })
 outlinePrimitives.set(copy_method.id, copyir)
 
 inlinePrimitives.set(packcat_method.id, (code, st) => {
@@ -399,7 +399,7 @@ function nparts(code: Fragment<MIR>, T: Type, x: Val<MIR>): Val<MIR> {
   if (T.kind === 'vpack') {
     const sz = code.push(code.stmt(xref(x, 1), { type: types.int32() }))
     code.push(code.stmt(expr('release', x)))
-    return call(code, types.tag('common.Int64'), [sz], types.int64())
+    return call(code, types.tag('common/Int64'), [sz], types.int64())
   } else {
     code.push(code.stmt(expr('release', x)))
     return types.int64(types.nparts(T))
@@ -421,7 +421,7 @@ inlinePrimitives.set(nparts_method.id, (code, st) => {
 
 outlinePrimitives.set(nparts_method.id, (x: Type): MIR => {
   if (x.kind !== 'union') throw new Error('expected union type')
-  const code = MIR(Def('common.core.nparts'))
+  const code = MIR(Def('common.core/nparts'))
   const retT = partial_nparts(x)
   const vx = code.argument(x)
   union_cases(code, x, vx, (T, val) => {
@@ -442,7 +442,7 @@ inlinePrimitives.set(widen_method.id, (code, st) => {
   const x = st.expr.body[0]
   const T = asType(code.type(x))
   if (types.isAtom(T) && types.isValue(T)) return constValue(T) ?? T
-  if ((tag('common.integer.Int').isEqual(tagOf(T)) || tag('common.integer.Bool').isEqual(tagOf(T))) && types.isValue(T))
+  if ((tag('common.integer/Int').isEqual(tagOf(T)) || tag('common.integer/Bool').isEqual(tagOf(T))) && types.isValue(T))
     return code.push(code.stmt(xtuple(some(constValue(types.part(T, 1)))), { type: asType(st.type) }))
   return x
 })
@@ -607,7 +607,7 @@ inlinePrimitives.set(tagstring_method.id, (code, st) => {
 
 outlinePrimitives.set(tagstring_method.id, (T: Type): MIR => {
   if (T.kind !== 'union') throw new Error('expected union type')
-  const code = MIR(Def('common.core.tagstring'))
+  const code = MIR(Def('common.core/tagstring'))
   const x = code.argument(T)
   union_cases(code, T, x, S => string(code, types.asTag(S).path))
   return code
@@ -619,7 +619,7 @@ inlinePrimitives.set(function_method.id, (code, st) => {
   const [F, I, O] = st.expr.body.slice(0, 3).map(x => asType(code.type(x)))
   if (![I, O].every(types.isValue)) throw new Error('nope')
   const id = code.push(code.stmt(xfunc(invokeFunction_method.param(F, rvtype(O)), types.int32(), rvtype(I)), { type: types.bits(32) }))
-  const ptr = call(code, types.tag('common.wasm.malloc.malloc!'), [i32(code, 8 + sizeof(F))], types.int32())
+  const ptr = call(code, types.tag('common.wasm.malloc/malloc!'), [i32(code, 8 + sizeof(F))], types.int32())
   code.push(code.stmt(xwasm('i32.store', ptr, id), { type: types.nil }))
   const release = code.push(code.stmt(xwasm('i32.add', ptr, Value.bits(32, 4)), { type: types.int32() }))
   const drop = code.push(code.stmt(xfunc(releaseFunction_method.param(F), types.int32()), { type: types.bits(32) }))
@@ -643,7 +643,7 @@ inlinePrimitives.set(invoke_method.id, (code, st) => {
 })
 
 outlinePrimitives.set(invokeFunction_method.id, (F: Type, O: Type, _: Type, I: Type): MIR => {
-  const code = MIR(Def('common.core.invokeFunction'))
+  const code = MIR(Def('common.core/invokeFunction'))
   const ptr = code.argument(types.int32())
   const args = code.argument(I)
   code.return(code.push(code.stmt(xcall(load(code, F, ptr), args), { type: O })))
@@ -651,25 +651,25 @@ outlinePrimitives.set(invokeFunction_method.id, (F: Type, O: Type, _: Type, I: T
 })
 
 function ptrOffset(code: Fragment<MIR>, ptr: Val<MIR>, i: Val<MIR>, I: Type, T: Type): Val<MIR> {
-  ptr = call(code, types.tag('common.+'), [ptr, i32(code, 4)], types.Ptr())
-  ptr = call(code, types.tag('common.wasm.memory.addr'), [ptr], types.int32())
+  ptr = call(code, types.tag('common/+'), [ptr, i32(code, 4)], types.Ptr())
+  ptr = call(code, types.tag('common.wasm.memory/addr'), [ptr], types.int32())
   const idx = getIntValue(I) === undefined
-    ? call(code, types.tag('common.-'), [call(code, types.tag('common.Int32'), [i], types.int32()), i32(code, 1)], types.int32())
+    ? call(code, types.tag('common/-'), [call(code, types.tag('common/Int32'), [i], types.int32()), i32(code, 1)], types.int32())
     : i32(code, some(getIntValue(I)) - 1)
   const size = sizeof(T)
   if (size === 0) return ptr
-  const off = size === 1 ? idx : call(code, types.tag('common.*'), [idx, i32(code, size)], types.int32())
-  return call(code, types.tag('common.+'), [ptr, off], types.int32())
+  const off = size === 1 ? idx : call(code, types.tag('common/*'), [idx, i32(code, size)], types.int32())
+  return call(code, types.tag('common/+'), [ptr, off], types.int32())
 }
 
 inlinePrimitives.set(alloc_method.id, (code, st) => {
   const T = rvtype(asType(code.type(st.expr.body[0])))
   const n = st.expr.body[1]
   const count = getIntValue(asType(code.type(n))) === undefined
-    ? call(code, types.tag('common.Int32'), [n], types.int32())
+    ? call(code, types.tag('common/Int32'), [n], types.int32())
     : i32(code, some(getIntValue(asType(code.type(n)))))
-  const bytes = sizeof(T) === 1 ? count : call(code, types.tag('common.*'), [count, i32(code, sizeof(T))], types.int32())
-  const ptr = call(code, types.tag('common.wasm.malloc.malloc!'), [call(code, types.tag('common.+'), [bytes, i32(code, 4)], types.int32())], types.Ptr())
+  const bytes = sizeof(T) === 1 ? count : call(code, types.tag('common/*'), [count, i32(code, sizeof(T))], types.int32())
+  const ptr = call(code, types.tag('common.wasm.malloc/malloc!'), [call(code, types.tag('common/+'), [bytes, i32(code, 4)], types.int32())], types.Ptr())
   store(code, types.int32(), ptr, count)
   return ptr
 })
@@ -691,7 +691,7 @@ inlinePrimitives.set(store_method.id, (code, st) => {
 inlinePrimitives.set(length_method.id, (code, st) => {
   const ptr = st.expr.body[0]
   const len = load(code, types.int32(), ptr)
-  return call(code, types.tag('common.Int64'), [len], types.int64())
+  return call(code, types.tag('common/Int64'), [len], types.int64())
 })
 
 function counter(code: Fragment<MIR>, st: InvokeSt, global: string): Val<MIR> {

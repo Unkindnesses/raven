@@ -7,17 +7,17 @@ export {
   match, matchTrait, castTrait, isa?
 }
 
-castTrait = tag".castTrait"
+castTrait = tag"/castTrait"
 
 fn matchTrait($Tag, t: pack($Tag, _)) { Some(t) }
 fn matchTrait($Closure, x: pack($Closure, _)) { Some(x) }
 fn matchTrait($Func, x: pack($Func, _)) { Some(x) }
 
-Any = tag".Any"
+Any = tag"/Any"
 
 fn matchTrait($Any, x) { Some(x) }
 
-NotNil = tag".NotNil"
+NotNil = tag"/NotNil"
 
 fn matchTrait($NotNil, x) {
   if !nil?(x) { Some(notnil(x)) }

@@ -195,7 +195,7 @@ fn primitive?(x: JSObject) {
   typeof(x) == "string" || typeof(x) == "number" || typeof(x) == "boolean"
 }
 
-Primitive = tag".Primitive"
+Primitive = tag"/Primitive"
 
 @extend
 fn matchTrait($Primitive, x: JSObject) {

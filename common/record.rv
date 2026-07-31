@@ -40,7 +40,7 @@ fn getkey(r: Record, k: Tag) {
 fn setkey(&r: Record, k: Tag, v) {
   i = keyindex(r, k)
   if nil?(i) { abort(concat("No such key: ", string(k))) }
-  r = tag"common.core.set"(r, notnil(i), Pair(k, v))
+  r = tag"common.core/set"(r, notnil(i), Pair(k, v))
 }
 
 fn upsertkey(&r: Record, k: Tag, v) {
@@ -48,7 +48,7 @@ fn upsertkey(&r: Record, k: Tag, v) {
   if nil?(i) {
     r = packcat(r, pack(Record, Pair(k, v)))
   } else {
-    r = tag"common.core.set"(r, notnil(i), Pair(k, v))
+    r = tag"common.core/set"(r, notnil(i), Pair(k, v))
   }
 }
 

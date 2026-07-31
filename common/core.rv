@@ -2,13 +2,13 @@
 
 export { Tag, Bits, Float32, Float64, Ref, Func, Closure }
 
-Tag = tag".Tag"
-Bits = tag".Bits"
-Float32 = tag".Float32"
-Float64 = tag".Float64"
-Ref = tag".Ref"
-Func = tag".Func"
-Closure = tag".Closure"
+Tag = tag"/Tag"
+Bits = tag"/Bits"
+Float32 = tag"/Float32"
+Float64 = tag"/Float64"
+Ref = tag"/Ref"
+Func = tag"/Func"
+Closure = tag"/Closure"
 
 # These functions have built-in methods attached.
 # TODO: could add a `fn { foo }` syntax to declare a function with no methods.
@@ -22,60 +22,60 @@ export {
   alloc, load, store
 }
 
-pack = tag".pack"
-part = tag".part"
-nparts = tag".nparts"
-packcat = tag".packcat"
-# set = tag".set"
-widen = tag".widen"
-shortcutEquals = tag".shortcutEquals"
+pack = tag"/pack"
+part = tag"/part"
+nparts = tag"/nparts"
+packcat = tag"/packcat"
+# set = tag"/set"
+widen = tag"/widen"
+shortcutEquals = tag"/shortcutEquals"
 
-bitsize = tag".bitsize"
-bitcast = tag".bitcast"
-bitcast_s = tag".bitcast_s"
+bitsize = tag"/bitsize"
+bitcast = tag"/bitcast"
+bitcast_s = tag"/bitcast_s"
 
 # TODO rename to `core.shl` etc
-bitshl = tag".bitshl"
-bitshr_u = tag".bitshr_u"
-bitshr_s = tag".bitshr_s"
-bitand = tag".bitand"
-bitor = tag".bitor"
-bitxor = tag".bitxor"
-bitadd = tag".bitadd"
-bitsub = tag".bitsub"
-bitmul = tag".bitmul"
-bitdiv_u = tag".bitdiv_u"
-bitdiv_s = tag".bitdiv_s"
-bitrem_u = tag".bitrem_u"
-bitrem_s = tag".bitrem_s"
+bitshl = tag"/bitshl"
+bitshr_u = tag"/bitshr_u"
+bitshr_s = tag"/bitshr_s"
+bitand = tag"/bitand"
+bitor = tag"/bitor"
+bitxor = tag"/bitxor"
+bitadd = tag"/bitadd"
+bitsub = tag"/bitsub"
+bitmul = tag"/bitmul"
+bitdiv_u = tag"/bitdiv_u"
+bitdiv_s = tag"/bitdiv_s"
+bitrem_u = tag"/bitrem_u"
+bitrem_s = tag"/bitrem_s"
 
-biteq = tag".biteq"
-biteqz = tag".biteqz"
-bitne = tag".bitne"
-bitgt_u = tag".bitgt_u"
-bitge_u = tag".bitge_u"
-bitlt_u = tag".bitlt_u"
-bitle_u = tag".bitle_u"
-bitgt_s = tag".bitgt_s"
-bitge_s = tag".bitge_s"
-bitlt_s = tag".bitlt_s"
-bitle_s = tag".bitle_s"
+biteq = tag"/biteq"
+biteqz = tag"/biteqz"
+bitne = tag"/bitne"
+bitgt_u = tag"/bitgt_u"
+bitge_u = tag"/bitge_u"
+bitlt_u = tag"/bitlt_u"
+bitle_u = tag"/bitle_u"
+bitgt_s = tag"/bitgt_s"
+bitge_s = tag"/bitge_s"
+bitlt_s = tag"/bitlt_s"
+bitle_s = tag"/bitle_s"
 
-nil? = tag".nil?"
-notnil = tag".notnil"
-tagcast = tag".tagcast"
-tagstring = tag".tagstring"
+nil? = tag"/nil?"
+notnil = tag"/notnil"
+tagcast = tag"/tagcast"
+tagstring = tag"/tagstring"
 
-function = tag".function"
-invoke = tag".invoke"
+function = tag"/function"
+invoke = tag"/invoke"
 
-allocs = tag".allocs"
-frees = tag".frees"
+allocs = tag"/allocs"
+frees = tag"/frees"
 
-alloc = tag".alloc"
-load = tag".load"
-store = tag".store"
-# length = tag".length"
+alloc = tag"/alloc"
+load = tag"/load"
+store = tag"/store"
+# length = tag"/length"
 
 # Forward declarations, to avoid circularity.
 
@@ -87,50 +87,50 @@ export {
   abort, js, jsref, Int32, Int64, String
 }
 
-== = tag"common.=="
-!= = tag"common.!="
-! = tag"common.!"
-+ = tag"common.+"
-- = tag"common.-"
-* = tag"common.*"
-/ = tag"common./"
-^ = tag"common.^"
-> = tag"common.>"
-< = tag"common.<"
->= = tag"common.>="
-<= = tag"common.<="
-& = tag"common.&"
-| = tag"common.|"
-|> = tag"common.|>"
+== = tag"common/=="
+!= = tag"common/!="
+! = tag"common/!"
++ = tag"common/+"
+- = tag"common/-"
+* = tag"common/*"
+/ = tag"common//"
+^ = tag"common/^"
+> = tag"common/>"
+< = tag"common/<"
+>= = tag"common/>="
+<= = tag"common/<="
+& = tag"common/&"
+| = tag"common/|"
+|> = tag"common/|>"
 
-show = tag"common.show"
-print = tag"common.print"
-println = tag"common.println"
-replshow = tag"common.replshow"
-string = tag"common.string"
-concat = tag"common.concat"
+show = tag"common/show"
+print = tag"common/print"
+println = tag"common/println"
+replshow = tag"common/replshow"
+string = tag"common/string"
+concat = tag"common/concat"
 
-length = tag"common.length"
-get = tag"common.get"
-set = tag"common.set"
-field = tag"common.field"
-method = tag"common.method"
-append = tag"common.append"
-empty? = tag"common.empty?"
-rest = tag"common.rest"
+length = tag"common/length"
+get = tag"common/get"
+set = tag"common/set"
+field = tag"common/field"
+method = tag"common/method"
+append = tag"common/append"
+empty? = tag"common/empty?"
+rest = tag"common/rest"
 
-iterate = tag"common.iterate"
-next = tag"common.next"
-condition = tag"common.condition"
+iterate = tag"common/iterate"
+next = tag"common/next"
+condition = tag"common/condition"
 
-abort = tag"common.abort"
-js = tag"common.js"
-jsref = tag"common.jsref"
+abort = tag"common/abort"
+js = tag"common/js"
+jsref = tag"common/jsref"
 
-Int32 = tag"common.Int32"
-Int64 = tag"common.Int64"
+Int32 = tag"common/Int32"
+Int64 = tag"common/Int64"
 
-String = tag"common.strings.String"
+String = tag"common.strings/String"
 
 # Core definitions and fallbacks.
 
@@ -139,8 +139,8 @@ export {
   true, false
 }
 
-true = pack(tag"common.integer.Bool", bits"1")
-false = pack(tag"common.integer.Bool", bits"0")
+true = pack(tag"common.integer/Bool", bits"1")
+false = pack(tag"common.integer/Bool", bits"0")
 
 fn tag(x) { part(x, 0) }
 
@@ -193,8 +193,8 @@ fn replshow(x) {
   println()
 }
 
-matchTrait = tag"common.patterns.matchTrait"
-castTrait = tag"common.patterns.castTrait"
+matchTrait = tag"common.patterns/matchTrait"
+castTrait = tag"common.patterns/castTrait"
 
 @extend
 fn matchTrait(_, _) {}

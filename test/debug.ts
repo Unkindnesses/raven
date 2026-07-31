@@ -106,7 +106,7 @@ test('Verify', async () => {
 })
 
 test('Line info', async () => {
-  const ip = only(callsites(wasm, 'debug_pow:1')) - code_offset(wasm)
+  const ip = only(callsites(wasm, '/debug_pow:1')) - code_offset(wasm)
   const table = linetable(wasm)
   const info = some(lineinfo(table, ip))
   assert.ok(info.file.endsWith('test/fixtures/pow.rv'))
@@ -123,7 +123,7 @@ fn foo(x) {
 foo(1)
 `, {
     error: true,
-    output: /^Error: something's wrong!\n    at foo \(.+\/test\.rv:3:8\)\n    at .+\/test\.rv:6:4\n?$/,
+    output: /^Error: something's wrong!\n    at \/foo \(.+\/test\.rv:3:8\)\n    at .+\/test\.rv:6:4\n?$/,
     options: { inline: false },
   })
 })
@@ -137,6 +137,6 @@ fn foo(x) {
 foo(1)
 `, {
     error: true,
-    output: /^Error: something's wrong!\n    at foo \(.+\/test\.rv:3:8\)\n    at .+\/test\.rv:6:4\n?$/
+    output: /^Error: something's wrong!\n    at \/foo \(.+\/test\.rv:3:8\)\n    at .+\/test\.rv:6:4\n?$/
   })
 })

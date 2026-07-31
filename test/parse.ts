@@ -307,7 +307,7 @@ test('round-trip common', () => {
 
 // Lowering
 
-function lower(def: string) {
+function lower(def: string, mod = tag('')) {
   const ex = first(def)
   if (!ast.isSyntax(ex, 'fn'))
     throw new Error('Expected function definition starting with "fn"')
@@ -315,7 +315,7 @@ function lower(def: string) {
   const fn = tag(asSymbol(signature.args[0].unwrap()).toString())
   const body = ex.args[2]
   return lowerfn(
-    new MethodKey(tag(''), fn),
+    new MethodKey(mod, fn),
     { sig: ast.List(fn, ...signature.args.slice(1)), body, meta: Def('test') },
   )[0][0]
 }
@@ -324,7 +324,7 @@ test('lower simple function', () => {
   const ir = lower('fn foo(x) { x + 1 }')
   assert.equal(ir.toString(), `Function test at undefined
 1: (%1)
-  %2 = pack tag"common.list.List", %1, 1
+  %2 = pack tag"common.list/List", %1, 1
   %3 = global tag"".+
   %4 = call %3, %2 # test:1:14 🔴
   %5 = return %4`)
@@ -334,20 +334,20 @@ test('lower control flow', () => {
   const ir = lower('fn test(x) { if x > 0 { x + 1 } else { x - 1 } }')
   assert.equal(ir.toString(), `Function test at undefined
 1: (%1)
-  %2 = pack tag"common.list.List", %1, 0
+  %2 = pack tag"common.list/List", %1, 0
   %3 = global tag"".>
   %4 = call %3, %2 # test:1:18 🔴
-  %5 = pack tag"common.list.List", %4
-  %6 = call tag"common.condition", %5
+  %5 = pack tag"common.list/List", %4
+  %6 = call tag"common/condition", %5
   %7 = br 2 if %6
   %8 = br 3
 2:
-  %9 = pack tag"common.list.List", %1, 1
+  %9 = pack tag"common.list/List", %1, 1
   %10 = global tag"".+
   %11 = call %10, %9 # test:1:26 🔴
   %12 = br 4 (%11)
 3:
-  %13 = pack tag"common.list.List", %1, 1
+  %13 = pack tag"common.list/List", %1, 1
   %14 = global tag"".-
   %15 = call %14, %13 # test:1:41 🔴
   %16 = br 4 (%15)
@@ -359,19 +359,19 @@ test('lower if let', () => {
   const ir = lower('fn option(x) { if let Some(y) = x { y } else { 0 } }')
   assert.equal(ir.toString(), `Function test at undefined
 1: (%1)
-  %2 = pack tag"common.patterns.Hole"
-  %3 = pack tag"common.patterns.Bind", tag"y", %2
+  %2 = pack tag"common.patterns/Hole"
+  %3 = pack tag"common.patterns/Bind", tag"y", %2
   %4 = global tag"".Some
-  %5 = pack tag"common.patterns.Constructor", %4, %3
-  %6 = pack tag"common.list.List", %1, %5
-  %7 = call tag"common.patterns.match", %6
-  %8 = call Method(tag"common.core.nil?"), %7
+  %5 = pack tag"common.patterns/Constructor", %4, %3
+  %6 = pack tag"common.list/List", %1, %5
+  %7 = call tag"common.patterns/match", %6
+  %8 = call Method(tag"common.core/nil?"), %7
   %9 = br 3 if %8
   %10 = br 2
 2:
-  %11 = call Method(tag"common.core.notnil"), %7
-  %12 = pack tag"common.list.List", %11, tag"y"
-  %13 = call tag"common.record.getkey", %12
+  %11 = call Method(tag"common.core/notnil"), %7
+  %12 = pack tag"common.list/List", %11, tag"y"
+  %13 = call tag"common.record/getkey", %12
   %14 = br 4 (%13)
 3:
   %15 = br 4 (0)
@@ -385,20 +385,20 @@ test('lower while loop', () => {
 1: (%1)
   %2 = br 2 (%1)
 2: (%3)
-  %4 = pack tag"common.list.List", %3, 0
+  %4 = pack tag"common.list/List", %3, 0
   %5 = global tag"".>
   %6 = call %5, %4 # test:1:21 🔴
-  %7 = pack tag"common.list.List", %6 # test:1:14
-  %8 = call tag"common.condition", %7 # test:1:14
+  %7 = pack tag"common.list/List", %6 # test:1:14
+  %8 = call tag"common/condition", %7 # test:1:14
   %9 = br 3 if %8 # test:1:14
   %10 = br 4 # test:1:14
 3:
-  %11 = pack tag"common.list.List", %3, 1
+  %11 = pack tag"common.list/List", %3, 1
   %12 = global tag"".-
   %13 = call %12, %11 # test:1:33 🔴
   %14 = br 2 (%13)
 4:
-  %15 = return pack(tag"common.core.Nil")`)
+  %15 = return pack(tag"common.core/Nil")`)
 })
 
 test('lower toplevel expression', () => {
@@ -406,50 +406,50 @@ test('lower toplevel expression', () => {
   const mod = sources.module(tag('test'))
   mod.set('x', Type(42))
   const expr = first('{ x = x+1, y = y+1 }')
-  const key = new MethodKey(mod.name, tag('common.core.main'))
-  const [methods, _] = lower_toplevel(mod, key, expr, Def('common.core.main'))
+  const key = new MethodKey(mod.name, tag('common.core/main'))
+  const [methods, _] = lower_toplevel(mod, key, expr, Def('common.core/main'))
   const ir = methods[0][0]
-  assert.equal(ir.toString(), `Function common.core.main at undefined
+  assert.equal(ir.toString(), `Function common.core/main at undefined
 1:
   %1 = global tag"test".x
-  %2 = pack tag"common.list.List", %1, 1
+  %2 = pack tag"common.list/List", %1, 1
   %3 = global tag"test".+
   %4 = call %3, %2 # test:1:8 🔴
   %5 = global tag"test".y
-  %6 = pack tag"common.list.List", %5, 1
+  %6 = pack tag"common.list/List", %5, 1
   %7 = global tag"test".+
   %8 = call %7, %6 # test:1:17 🔴
   %9 = set tag"test".x, %4
-  %10 = return pack(tag"common.core.Nil")`)
+  %10 = return pack(tag"common.core/Nil")`)
 })
 
 test('lower function with swap pattern', () => {
   const ir = lower('fn swap(&x, &y) { [x, y] = [y, x], return }')
   assert.equal(ir.toString(), `Function test at undefined
 1: (%1, %2)
-  %3 = pack tag"common.list.List", %2, %1 # test:1:28
-  %4 = pack tag"common.patterns.Hole"
-  %5 = pack tag"common.patterns.Bind", tag"x", %4
-  %6 = pack tag"common.patterns.Hole"
-  %7 = pack tag"common.patterns.Bind", tag"y", %6
-  %8 = pack tag"common.patterns.Literal", tag"common.list.List"
-  %9 = pack tag"common.patterns.Pack", %8, %5, %7
-  %10 = pack tag"common.list.List", %3, %9
-  %11 = call tag"common.patterns.match", %10
-  %12 = call Method(tag"common.core.nil?"), %11
+  %3 = pack tag"common.list/List", %2, %1 # test:1:28
+  %4 = pack tag"common.patterns/Hole"
+  %5 = pack tag"common.patterns/Bind", tag"x", %4
+  %6 = pack tag"common.patterns/Hole"
+  %7 = pack tag"common.patterns/Bind", tag"y", %6
+  %8 = pack tag"common.patterns/Literal", tag"common.list/List"
+  %9 = pack tag"common.patterns/Pack", %8, %5, %7
+  %10 = pack tag"common.list/List", %3, %9
+  %11 = call tag"common.patterns/match", %10
+  %12 = call Method(tag"common.core/nil?"), %11
   %13 = br 2 if %12
   %14 = br 3
 2:
   %15 = "match failed: [x, y]"
-  %16 = pack tag"common.list.List", %15
-  %17 = call tag"common.abort", %16
+  %16 = pack tag"common.list/List", %15
+  %17 = call tag"common/abort", %16
 3:
-  %18 = call Method(tag"common.core.notnil"), %11
-  %19 = pack tag"common.list.List", %18, tag"x"
-  %20 = call tag"common.record.getkey", %19
-  %21 = pack tag"common.list.List", %18, tag"y"
-  %22 = call tag"common.record.getkey", %21
-  %23 = pack tag"common.list.List", pack(tag"common.core.Nil"), pack(tag"common.core.Nil"), %20, %22
+  %18 = call Method(tag"common.core/notnil"), %11
+  %19 = pack tag"common.list/List", %18, tag"x"
+  %20 = call tag"common.record/getkey", %19
+  %21 = pack tag"common.list/List", %18, tag"y"
+  %22 = call tag"common.record/getkey", %21
+  %23 = pack tag"common.list/List", pack(tag"common.core/Nil"), pack(tag"common.core/Nil"), %20, %22
   %24 = return %23`)
 })
 
@@ -457,7 +457,7 @@ test('lower list construction', () => {
   const ir = lower('fn test(x, y) { [x, y, 1] }')
   assert.equal(ir.toString(), `Function test at undefined
 1: (%1, %2)
-  %3 = pack tag"common.list.List", %1, %2, 1 # test:1:17
+  %3 = pack tag"common.list/List", %1, %2, 1 # test:1:17
   %4 = return %3`)
 })
 
@@ -465,9 +465,9 @@ test('lower array indexing', () => {
   const ir = lower('fn test(arr, i) { arr[i] }')
   assert.equal(ir.toString(), `Function test at undefined
 1: (%1, %2)
-  %3 = pack tag"common.list.List", %2
-  %4 = pack tag"common.list.List", %1, %3 # test:1:22
-  %5 = call tag"common.get", %4 # test:1:22 🔴
+  %3 = pack tag"common.list/List", %2
+  %4 = pack tag"common.list/List", %1, %3 # test:1:22
+  %5 = call tag"common/get", %4 # test:1:22 🔴
   %6 = return %5`)
 })
 
@@ -476,6 +476,13 @@ test('lower template tag', () => {
   assert.equal(ir.toString(), `Function test at undefined
 1:
   %1 = return tag"hello.world"`)
+})
+
+test('lower module-relative tag', () => {
+  const ir = lower('fn test() { tag"/value" }', tag('hello.world'))
+  assert.equal(ir.toString(), `Function test at undefined
+1:
+  %1 = return tag"hello.world/value"`)
 })
 
 test('lower template bits', () => {
@@ -489,41 +496,41 @@ test('lower for loop', () => {
   const ir = lower('fn iter(xs) { for x = xs { println(x) }, return }')
   assert.equal(ir.toString(), `Function test at undefined
 1: (%1)
-  %2 = pack tag"common.list.List", %1
-  %3 = call tag"common.iterate", %2
+  %2 = pack tag"common.list/List", %1
+  %3 = call tag"common/iterate", %2
   %4 = br 2 (%3)
 2: (%5)
   %6 = global tag"".true
-  %7 = pack tag"common.list.List", %6
-  %8 = call tag"common.condition", %7
+  %7 = pack tag"common.list/List", %6
+  %8 = call tag"common/condition", %7
   %9 = br 3 if %8
   %10 = br 6
 3:
-  %11 = pack tag"common.list.List", %5
-  %12 = call& tag"common.next", %11
-  %13 = call Method(tag"common.core.part"), %12, 1
-  %14 = call Method(tag"common.core.part"), %12, 3
-  %15 = pack tag"common.list.List", %13
+  %11 = pack tag"common.list/List", %5
+  %12 = call& tag"common/next", %11
+  %13 = call Method(tag"common.core/part"), %12, 1
+  %14 = call Method(tag"common.core/part"), %12, 3
+  %15 = pack tag"common.list/List", %13
   %16 = global tag"".nil?
   %17 = call %16, %15
-  %18 = pack tag"common.list.List", %17
-  %19 = call tag"common.condition", %18
+  %18 = pack tag"common.list/List", %17
+  %19 = call tag"common/condition", %18
   %20 = br 4 if %19
   %21 = br 5
 4:
   %22 = br 6
 5:
-  %23 = pack tag"common.list.List", tag"common.core.Nil"
+  %23 = pack tag"common.list/List", tag"common.core/Nil"
   %24 = global tag"".pack
   %25 = call %24, %23
-  %26 = pack tag"common.list.List", %13
-  %27 = call tag"common.core.notnil", %26
-  %28 = pack tag"common.list.List", %27, 1
-  %29 = call tag"common.core.part", %28
-  %30 = pack tag"common.list.List", %29 # test:1:35
+  %26 = pack tag"common.list/List", %13
+  %27 = call tag"common.core/notnil", %26
+  %28 = pack tag"common.list/List", %27, 1
+  %29 = call tag"common.core/part", %28
+  %30 = pack tag"common.list/List", %29 # test:1:35
   %31 = global tag"".println
   %32 = call %31, %30 # test:1:35 🔴
   %33 = br 2 (%14)
 6:
-  %34 = return pack(tag"common.core.Nil")`)
+  %34 = return pack(tag"common.core/Nil")`)
 })

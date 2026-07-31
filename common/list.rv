@@ -28,7 +28,7 @@ fn (xs: List) == (ys: List) {
 
 @extend
 fn set(&xs: List, [i: Int64], x) {
-  xs = tag"common.core.set"(xs, i, x)
+  xs = tag"common.core/set"(xs, i, x)
 }
 
 @extend

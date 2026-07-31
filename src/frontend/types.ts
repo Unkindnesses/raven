@@ -19,10 +19,11 @@ class Tag {
   readonly parts: readonly string[]
   readonly path: string
   constructor(...parts: (Tag | string | Symbol)[]) {
-    const flatten = (p: Tag | string | Symbol): readonly string[] =>
-      p instanceof Tag ? p.parts : p.toString().split('.').filter(Boolean)
-    this.parts = parts.flatMap(flatten)
-    this.path = this.parts.join('.')
+    this.path = parts
+      .map(p => p instanceof Tag ? p.path : p.toString())
+      .filter(Boolean)
+      .join('.')
+    this.parts = this.path.split(/[./]/).filter(Boolean)
   }
   get [hash](): string { return this.path }
   toString(): string { return 'tag\"' + this.path + '\"' }
@@ -93,7 +94,7 @@ function _repr(x: Type): string {
       return `λ(${x.method[hash]}, ${x.parts.map(repr).join(', ')})`
     case 'pack': {
       if (x.parts.length === 2 &&
-        x.parts[0].kind === 'tag' && x.parts[0].path === 'common.integer.Int' &&
+        x.parts[0].kind === 'tag' && x.parts[0].path === 'common.integer/Int' &&
         x.parts[1].kind === 'bits') {
         const bits = x.parts[1]
         if (bits.value === undefined) return `int ${bits.size}`
@@ -101,7 +102,7 @@ function _repr(x: Type): string {
         if (bits.size === 64) return value.toString()
         return `int ${bits.size} ${value}`
       }
-      if (tag('common.list.List').isEqual(tagOf(x)))
+      if (tag('common.list/List').isEqual(tagOf(x)))
         return `[${parts(x).map(repr).join(', ')}]`
       return `pack(${x.parts.map(repr).join(', ')})`
     }
@@ -188,7 +189,7 @@ function Type(x: TypeLike): Type {
 function hexValue(x: Hex): Type {
   const value = BigInt('0x' + x.digits)
   const size = Math.pow(2, Math.ceil(Math.log2(x.digits.length * 4)))
-  return pack(tag('common.integer.UInt'), bits(Math.max(size, 8), value))
+  return pack(tag('common.integer/UInt'), bits(Math.max(size, 8), value))
 }
 
 function atomValue(x: Atom): Type {
@@ -201,13 +202,13 @@ function pack(...xs: TypeLike[]): Type {
   const parts = xs.map(Type)
   if (parts.length === 2) {
     const [t, data] = parts
-    if (tag('common.core.Float32').isEqual(t) && data.kind === 'bits' && data.size === 32)
+    if (tag('common.core/Float32').isEqual(t) && data.kind === 'bits' && data.size === 32)
       return bitsToFloat(data)
-    if (tag('common.core.Float64').isEqual(t) && data.kind === 'bits' && data.size === 64)
+    if (tag('common.core/Float64').isEqual(t) && data.kind === 'bits' && data.size === 64)
       return bitsToFloat(data)
-    if (tag('common.core.Ref').isEqual(t) && data.kind === 'ref') return data
-    if (tag('common.core.Func').isEqual(t) && data.kind === 'func') return data
-    if (tag('common.core.Closure').isEqual(t) && data.kind === 'closure') return data
+    if (tag('common.core/Ref').isEqual(t) && data.kind === 'ref') return data
+    if (tag('common.core/Func').isEqual(t) && data.kind === 'func') return data
+    if (tag('common.core/Closure').isEqual(t) && data.kind === 'closure') return data
   }
   return { kind: 'pack', parts }
 }
@@ -238,30 +239,30 @@ function onion(...xs: TypeLike[]): Type {
   return { kind: 'union', options }
 }
 
-const nil = pack(tag('common.core.Nil'))
+const nil = pack(tag('common.core/Nil'))
 
 function bool(value?: boolean): Type {
-  return pack(tag('common.integer.Bool'), bits(1, value))
+  return pack(tag('common.integer/Bool'), bits(1, value))
 }
 
 function int32(value?: bigint | number): Type {
-  return pack(tag('common.integer.Int'), bits(32, value))
+  return pack(tag('common.integer/Int'), bits(32, value))
 }
 
 function int64(value?: bigint | number): Type {
-  return pack(tag('common.integer.Int'), bits(64, value))
+  return pack(tag('common.integer/Int'), bits(64, value))
 }
 
 function Ptr(): Type {
-  return pack(tag('common.wasm.memory.Ptr'), int32())
+  return pack(tag('common.wasm.memory/Ptr'), int32())
 }
 
 function String(): Type {
-  return pack(tag('common.strings.String'), Ref)
+  return pack(tag('common.strings/String'), Ref)
 }
 
 function list(...args: TypeLike[]): Type {
-  return pack(tag('common.list.List'), ...args)
+  return pack(tag('common.list/List'), ...args)
 }
 
 function asBits(x: Type): Bits {
@@ -300,13 +301,13 @@ function abstract(x: Type): Type {
 }
 
 function tagOf(x: Type): Type {
-  if (x.kind === 'tag') return Type(tag('common.core.Tag'))
-  if (x.kind === 'bits') return Type(tag('common.core.Bits'))
-  if (x.kind === 'float32') return Type(tag('common.core.Float32'))
-  if (x.kind === 'float64') return Type(tag('common.core.Float64'))
-  if (x.kind === 'ref') return Type(tag('common.core.Ref'))
-  if (x.kind === 'func') return Type(tag('common.core.Func'))
-  if (x.kind === 'closure') return Type(tag('common.core.Closure'))
+  if (x.kind === 'tag') return Type(tag('common.core/Tag'))
+  if (x.kind === 'bits') return Type(tag('common.core/Bits'))
+  if (x.kind === 'float32') return Type(tag('common.core/Float32'))
+  if (x.kind === 'float64') return Type(tag('common.core/Float64'))
+  if (x.kind === 'ref') return Type(tag('common.core/Ref'))
+  if (x.kind === 'func') return Type(tag('common.core/Func'))
+  if (x.kind === 'closure') return Type(tag('common.core/Closure'))
   if (x.kind === 'pack') return x.parts[0]
   if (x.kind === 'vpack') return x.tag
   if (x.kind === 'recursive') return tagOf(x.inner)

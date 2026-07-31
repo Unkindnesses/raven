@@ -33,10 +33,10 @@ function namify(x: ast.Tree, suffix = ""): ast.Expr | ast.Symbol {
 
 function patternArgExpr(x: ast.Tree): ast.Tree {
   if (x instanceof ast.Token && x.unwrap() instanceof Symbol)
-    return ast.Call(tag('common.patterns.Bind'), tag(x.unwrap().toString()), ast.Call(tag('common.patterns.Hole')))
+    return ast.Call(tag('common.patterns/Bind'), tag(x.unwrap().toString()), ast.Call(tag('common.patterns/Hole')))
   if (ast.isExpr(x, 'Operator')) {
     const name = asSymbol(x.args[0].unwrap())
-    return ast.Call(tag('common.patterns.Bind'), tag(name.toString()), ast.Call(tag('common.patterns.Trait'), x.args[2]))
+    return ast.Call(tag('common.patterns/Bind'), tag(name.toString()), ast.Call(tag('common.patterns/Trait'), x.args[2]))
   }
   throw new Error(`Unsupported bundle pattern argument ${ast.repr(x)}`)
 }
@@ -50,41 +50,41 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
     if (!(ast.isExpr(spec, 'Call'))) throw new Error(`bundlemacro: spec must be a call, got ${ast.repr(spec)}`)
     const name = asSymbol(spec.args[0].unwrap())
     names.push(name)
-    const T = ast.Template(ast.symbol("tag"), `.${name}`)
+    const T = ast.Template(ast.symbol("tag"), `/${name}`)
     const args = spec.args.slice(1)
     const hasSplat = args.some(a => ast.isExpr(a, 'Splat'))
     const argNames = args.map(a => namify(a))
     body.push(
       ast.Syntax(s('fn'), spec,
-        ast.Block(ast.Call(tag('common.core.pack'), T, ...argNames))))
+        ast.Block(ast.Call(tag('common.core/pack'), T, ...argNames))))
     body.push(
       ast.Syntax(s('fn'),
-        ast.Call(tag('common.patterns.matchTrait'), T,
-          ast.Operator(s('_val'), s(':'), ast.Call(tag('common.core.pack'), T, ...argNames))),
+        ast.Call(tag('common.patterns/matchTrait'), T,
+          ast.Operator(s('_val'), s(':'), ast.Call(tag('common.core/pack'), T, ...argNames))),
         ast.Block(ast.Call(s('Some'), s('_val')))))
     body.push(
-      ast.Syntax(s('fn'), ast.Call(tag('common.patterns.constructorPattern'), T, ...argNames),
+      ast.Syntax(s('fn'), ast.Call(tag('common.patterns/constructorPattern'), T, ...argNames),
         ast.Block(
-          ast.Call(tag('common.patterns.Pack'),
-            ast.Call(tag('common.patterns.Literal'), T), ...argNames))))
+          ast.Call(tag('common.patterns/Pack'),
+            ast.Call(tag('common.patterns/Literal'), T), ...argNames))))
     if (hasSplat) continue
-    let pat = ast.Call(tag('common.patterns.Pack'), ast.Call(tag('common.patterns.Literal'), T), ...args.map(patternArgExpr))
+    let pat = ast.Call(tag('common.patterns/Pack'), ast.Call(tag('common.patterns/Literal'), T), ...args.map(patternArgExpr))
     body.push(
-      ast.Syntax(s('fn'), ast.Call(tag('common.patterns.castTrait'), T, s('_val')),
+      ast.Syntax(s('fn'), ast.Call(tag('common.patterns/castTrait'), T, s('_val')),
         ast.Block(
-          ast.Operator(s('_match'), s('='), ast.Call(tag('common.patterns._match'), s('_val'), pat, s('true'))),
-          ast.Syntax(s('if'), ast.Operator(s('!'), ast.Call(tag('common.core.nil?'), s('_match'))),
+          ast.Operator(s('_match'), s('='), ast.Call(tag('common.patterns/_match'), s('_val'), pat, s('true'))),
+          ast.Syntax(s('if'), ast.Operator(s('!'), ast.Call(tag('common.core/nil?'), s('_match'))),
             ast.Block(
-              ast.Call(tag('common.core.Some'),
-                ast.Call(tag('common.core.part'), ast.Call(tag('common.core.notnil'), s('_match')), 1n)))))))
+              ast.Call(tag('common.core/Some'),
+                ast.Call(tag('common.core/part'), ast.Call(tag('common.core/notnil'), s('_match')), 1n)))))))
     body.push(
-      ast.Syntax(s('fn'), ast.Call(tag('common.show'), ast.Call(name, ...argNames)),
+      ast.Syntax(s('fn'), ast.Call(tag('common/show'), ast.Call(name, ...argNames)),
         ast.Block(
           ast.Call(s('print'), `${name}(`),
           ...argNames.map((n, i) =>
             i === argNames.length - 1
-              ? ast.Call(tag('common.show'), n)
-              : ast.Group(ast.Call(tag('common.show'), n), ast.Call(s('print'), ', '))),
+              ? ast.Call(tag('common/show'), n)
+              : ast.Group(ast.Call(tag('common/show'), n), ast.Call(s('print'), ', '))),
           ast.Call(s('print'), ')'))))
     const lhs = args.map(a => namify(a, '_1'))
     const rhs = args.map(a => namify(a, '_2'))
@@ -92,18 +92,18 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
     const eqBody = comps.length === 0 ? s('true') : comps.reduce((a, b) => ast.Operator(a, s('&&'), b))
     body.push(
       ast.Syntax(s('fn'),
-        ast.Call(tag('common.=='), ast.Call(name, ...lhs), ast.Call(name, ...rhs)),
+        ast.Call(tag('common/=='), ast.Call(name, ...lhs), ast.Call(name, ...rhs)),
         ast.Block(eqBody)))
   }
   if (superSpec) {
-    const superTag = ast.Template(symbol('tag'), `.${asSymbol(superSpec.unwrap())}`)
+    const superTag = ast.Template(symbol('tag'), `/${asSymbol(superSpec.unwrap())}`)
     body.push(ast.Operator(superSpec, symbol('='), superTag))
     body.push(
       ast.Syntax(s('fn'),
-        ast.Call(tag('common.patterns.matchTrait'), superTag,
+        ast.Call(tag('common.patterns/matchTrait'), superTag,
           ast.Operator(s('_val'), symbol(':'),
             names.slice(1).reduce((a, b) => ast.Operator(a, symbol('|'), b), token(names[0])))),
-        ast.Block(ast.Call(tag('common.core.Some'), s('_val')))))
+        ast.Block(ast.Call(tag('common.core/Some'), s('_val')))))
   }
   return ast.Group(...body)
 }
@@ -134,12 +134,12 @@ function formacro(ex: ast.Expr): ast.Expr {
   const [x, xs, body] = [assign.args[0], assign.args[2], forExpr.args[2]]
   const [itr, val] = [gensym("itr"), gensym("val")]
   return ast.Block(
-    ast.Operator(itr, s("="), ast.Call(tag("common.iterate"), xs)),
+    ast.Operator(itr, s("="), ast.Call(tag("common/iterate"), xs)),
     withAttrs(ast.Syntax(s("while"), s("true"), ast.Block(
-      ast.Operator(val, s("="), ast.Call(tag("common.next"), ast.Swap(itr))),
+      ast.Operator(val, s("="), ast.Call(tag("common/next"), ast.Swap(itr))),
       ast.Syntax(s("if"), ast.Call(symbol("nil?"), val), ast.Block(s("break"))),
       ast.Syntax(s("let"),
-        ast.Operator(x, s("="), ast.Call(tag("common.core.part"), ast.Call(tag("common.core.notnil"), val), 1n)),
+        ast.Operator(x, s("="), ast.Call(tag("common.core/part"), ast.Call(tag("common.core/notnil"), val), 1n)),
         ast.asExpr(body, 'Block')))), as))
 }
 
@@ -154,7 +154,7 @@ function matchmacro(ex: ast.Expr): ast.Expr {
       throw new Error('matchmacro: clause must be a let')
     body.push(token(s('let')), ast.Operator(clause.args[1], s('='), val), ast.asExpr(clause.args[2], 'Block'))
   }
-  body.push(token(s('else')), ast.Block(ast.Call(tag('common.abort'), "Match clause failed")))
+  body.push(token(s('else')), ast.Block(ast.Call(tag('common/abort'), "Match clause failed")))
   return ast.Syntax(...body)
 }
 
@@ -212,9 +212,9 @@ function allocsmacro(ex: ast.Expr): ast.Expr {
   const arg = ex.args[1]
   const before = gensym("before")
   return ast.Group(
-    ast.Operator(before, s('='), ast.Call(tag('common.core.allocs'), ast.Call(s('Int32'), 0n))),
+    ast.Operator(before, s('='), ast.Call(tag('common.core/allocs'), ast.Call(s('Int32'), 0n))),
     arg,
-    ast.Operator(ast.Call(tag('common.core.allocs'), ast.Call(s('Int32'), 0n)), s('-'), before)
+    ast.Operator(ast.Call(tag('common.core/allocs'), ast.Call(s('Int32'), 0n)), s('-'), before)
   )
 }
 
@@ -297,7 +297,7 @@ function xpack<T>(...args: (T | number)[]) {
   return ir.expr("pack", ...args)
 }
 function xlist<T>(...args: (T | number)[]) {
-  return xpack<T | Tag>(tag("common.list.List"), ...args)
+  return xpack<T | Tag>(tag("common.list/List"), ...args)
 }
 function xpart<T>(x: T | number, i: T | number) {
   return xcall(part_method, x, i)
@@ -403,7 +403,7 @@ function string(code: LIR, x: string) {
 }
 
 function patternNode(code: LIR, name: string, ...parts: Val<LIR>[]): Val<LIR> {
-  return _push(code, xpack(tag(`common.patterns.${name}`), ...parts))
+  return _push(code, xpack(tag(`common.patterns/${name}`), ...parts))
 }
 
 function patternBuilder(cx: Lowering): patterns.Builder {
@@ -433,16 +433,16 @@ function callpattern(key: MethodKey, methods: MethodIR, ex: ast.Tree): [Signatur
 }
 
 function _lowermatch(cx: Lowering, val: Val<LIR>, pattern: Val<LIR>, args: string[], pat: ast.Tree): Val<LIR> {
-  const m = rcall(cx.code, tag('common.patterns.match'), [val, pattern])
+  const m = rcall(cx.code, tag('common.patterns/match'), [val, pattern])
   const isnil = _push(cx.code, xcall(isnil_method, m))
   cx.code.branch(cx.code._blocks.length + 1, [], { when: isnil })
   cx.code.branch(cx.code._blocks.length + 2)
   cx.code.newBlock()
-  rcall(cx.code, tag('common.abort'), [string(cx.code, `match failed: ${ast.repr(pat)}`)])
+  rcall(cx.code, tag('common/abort'), [string(cx.code, `match failed: ${ast.repr(pat)}`)])
   cx.code.newBlock()
   const matched = _push(cx.code, xcall(notnil_method, m))
   for (const arg of args) {
-    _push(cx.code, ir.expr('set', cx.sc.var(arg), rcall(cx.code, tag('common.record.getkey'), [matched, tag(arg)])))
+    _push(cx.code, ir.expr('set', cx.sc.var(arg), rcall(cx.code, tag('common.record/getkey'), [matched, tag(arg)])))
   }
   return matched
 }
@@ -512,7 +512,7 @@ function lowerOperator(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {
     // Index assignment: xs[i, ...] = x
     const [xs, ...idxs] = ast.asExpr(args[0]).args
     const x = args[1]
-    return lower(cx, ast.Call(tag('common.set'), ast.Swap(xs), ast.List(...idxs), x).withmeta(ex.meta))
+    return lower(cx, ast.Call(tag('common/set'), ast.Swap(xs), ast.List(...idxs), x).withmeta(ex.meta))
   } else if (op === '=') {
     // Pattern assignment: pat = val
     const pat = args[0]
@@ -559,7 +559,7 @@ function argtuple(cx: Lowering, args: readonly ast.Tree[], src?: ast.Meta): [Val
     }
   }
   const result = parts.length === 0
-    ? _push(cx.code, xpack(tag('common.list.List')))
+    ? _push(cx.code, xpack(tag('common.list/List')))
     : parts.length === 1
       ? parts[0]
       : _push(cx.code, xcall(packcat_method, _push(cx.code, xlist(...parts))))
@@ -567,10 +567,10 @@ function argtuple(cx: Lowering, args: readonly ast.Tree[], src?: ast.Meta): [Val
 }
 
 function lowerCall(cx: Lowering, ex: ast.Expr): Val<LIR> {
-  // Handle Field calls: obj.method(...) -> common.method(obj, tag, ...)
+  // Handle Field calls: obj.method(...) -> common/method(obj, tag, ...)
   if (ast.isExpr(ex.args[0], 'Field')) {
     const [obj, methodName] = ex.args[0].args
-    const callExpr = ast.Call(tag('common.method'), obj, tag(asSymbol(methodName.unwrap()).toString()), ...ex.args.slice(1))
+    const callExpr = ast.Call(tag('common/method'), obj, tag(asSymbol(methodName.unwrap()).toString()), ...ex.args.slice(1))
     return lower(cx, callExpr.withmeta(ex.meta))
   }
   // Regular function call
@@ -587,13 +587,13 @@ function lowerCall(cx: Lowering, ex: ast.Expr): Val<LIR> {
 
 function lowerIndex(cx: Lowering, ex: ast.Expr): Val<LIR> {
   const [x, ...idxs] = ex.args
-  const callExpr = ast.Call(tag('common.get'), x, ast.List(...idxs))
+  const callExpr = ast.Call(tag('common/get'), x, ast.List(...idxs))
   return lower(cx, callExpr.withmeta(ex.meta))
 }
 
 function lowerField(cx: Lowering, ex: ast.Expr): Val<LIR> {
   const [obj, fieldName] = ex.args
-  const callExpr = ast.Call(tag('common.field'), obj, tag(asSymbol(fieldName.unwrap()).toString()))
+  const callExpr = ast.Call(tag('common/field'), obj, tag(asSymbol(fieldName.unwrap()).toString()))
   return lower(cx, callExpr.withmeta(ex.meta))
 }
 
@@ -605,7 +605,7 @@ function lowerList(cx: Lowering, ex: ast.Expr): Val<LIR> {
 
 
 function modtag(mod: Tag, name: string): Tag {
-  return new Tag(name.startsWith('.') ? mod : '', name)
+  return tag(name.startsWith('/') ? `${mod.path}${name}` : name)
 }
 
 function lowerTemplate(cx: Lowering, ex: ast.Expr): Val<LIR> {
@@ -619,15 +619,15 @@ function lowerTemplate(cx: Lowering, ex: ast.Expr): Val<LIR> {
     return bits(bitString.length, value)
   } else if (template === 'c') {
     const val = some(asString(ex.args[1]).codePointAt(0))
-    return pack(tag('common.strings.Char'), pack(tag('common.integer.UInt'), bits(21, BigInt(val))))
+    return pack(tag('common.strings/Char'), pack(tag('common.integer/UInt'), bits(21, BigInt(val))))
   } else if (template === 'r') {
     const pattern = asString(ex.args[1])
-    return rcall(cx.code, tag('common.strings.Regex'), [string(cx.code, pattern)], { src: ex.meta })
+    return rcall(cx.code, tag('common.strings/Regex'), [string(cx.code, pattern)], { src: ex.meta })
   } else if (template === 'js') {
     const [js, params] = jsinline(ex)
-    const args = params.map(name => rcall(cx.code, tag('common.jsref'), [cx.sc.get(name)], { src: ex.meta }))
+    const args = params.map(name => rcall(cx.code, tag('common/jsref'), [cx.sc.get(name)], { src: ex.meta }))
     const ref = _push(cx.code, xjs(js, params, args), { type: types.Ref, src: ex.meta })
-    return rcall(cx.code, tag('common.wasm.js.JSObject'), [ref], { src: ex.meta })
+    return rcall(cx.code, tag('common.wasm.js/JSObject'), [ref], { src: ex.meta })
   }
   throw new Error(`Unimplemented template type: ${template}`)
 }
@@ -697,10 +697,10 @@ function lowerSyntax(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {
     return bits(size, 0n)
   } else if (syntax === 'int') {
     const size = Number(asBigInt(ex.args[1].unwrap()))
-    return pack(tag('common.integer.Int'), bits(size, 0n))
+    return pack(tag('common.integer/Int'), bits(size, 0n))
   } else if (syntax === 'uint') {
     const size = Number(asBigInt(ex.args[1].unwrap()))
-    return pack(tag('common.integer.UInt'), bits(size, 0n))
+    return pack(tag('common.integer/UInt'), bits(size, 0n))
   } else if (syntax === 'return') {
     const result = lower(cx, ex.args[1])
     swapreturn(cx.code, result, cx.swaps, { src: ex.meta, bp: true })
@@ -739,7 +739,7 @@ function lambdaParts(ex: ast.Expr): [readonly ast.Tree[], ast.Tree] | undefined 
 
 function lambdaPattern(cx: Lowering, params: readonly ast.Tree[], captures: ir.Slot[]): [Signature, MIR] {
   const closure = ast.Call(
-    tag('common.core.pack'), symbol('_'), ...captures.map(s => symbol(s.name)))
+    tag('common.core/pack'), symbol('_'), ...captures.map(s => symbol(s.name)))
   const self = ast.Operator(symbol('_'), symbol(':'), closure)
   return callpattern(cx.key, cx.methods, ast.List(self, ...params))
 }
@@ -763,13 +763,13 @@ function lowerSelect(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {
   if (ex.args.length !== 2) throw new Error('select expects a single block')
   const cases = ast.asExpr(ex.args[1], 'Block').args.map(parseSelectCase)
   if (cases.length === 0) throw new Error('select requires at least one case')
-  const index = lower(cx, ast.Call(tag('common.channel.select'), ...cases.map(selectDescriptor)).withmeta(ex.meta))
+  const index = lower(cx, ast.Call(tag('common.channel/select'), ...cases.map(selectDescriptor)).withmeta(ex.meta))
   const targets: ir.Block<LIR>[] = []
   const values: Val<LIR>[] = []
 
   const lowerBody = (c: SelectCase): Val<LIR> => {
     const branch = cx.scope()
-    const selected = lower(branch, ast.Call(tag('common.channel.selectAccept'), c.call.args[0], ...c.call.args.slice(1)))
+    const selected = lower(branch, ast.Call(tag('common.channel/selectAccept'), c.call.args[0], ...c.call.args.slice(1)))
     if (c.pattern) {
       const pat = c.pattern.ungroup()
       if (pat instanceof ast.Token && pat.unwrap() instanceof Symbol)
@@ -781,7 +781,7 @@ function lowerSelect(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {
   }
 
   for (let i = 0; i < cases.length; i++) {
-    const cond = rcall(cx.code, tag('common.=='), [index, Type(BigInt(i + 1))], { src: ex.meta })
+    const cond = rcall(cx.code, tag('common/=='), [index, Type(BigInt(i + 1))], { src: ex.meta })
     const condBlock = cx.code.block()
     const bodyStart = cx.code.newBlock()
     const bodyValue = lowerBody(cases[i])
@@ -792,7 +792,7 @@ function lowerSelect(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {
     condBlock.branch(next)
   }
 
-  rcall(cx.code, tag('common.abort'), [string(cx.code, 'select failed')], { src: ex.meta })
+  rcall(cx.code, tag('common/abort'), [string(cx.code, 'select failed')], { src: ex.meta })
   const after = cx.code.newBlock()
   for (let i = 0; i < targets.length; i++)
     if (targets[i].canbranch())
@@ -827,7 +827,7 @@ function parseIf(ex: ast.Expr): IfStmt {
   }
   if (cond[cond.length - 1] !== true) {
     cond.push(true)
-    body.push(ast.Call(symbol("pack"), tag("common.core.Nil")))
+    body.push(ast.Call(symbol("pack"), tag("common.core/Nil")))
   }
   return { cond, body }
 }
@@ -870,12 +870,12 @@ function lowerWhile(cx: Lowering, _ex: ast.Expr, value = true): Val<LIR> {
   let out = value ? header.argument(ir.unreachable) : nil as Val<LIR>
   let ret = out
   const cond = lower(cx, ex.args[1])
-  const condResult = rcall(cx.code, tag('common.condition'), [cond], { src: ex.meta })
+  const condResult = rcall(cx.code, tag('common/condition'), [cond], { src: ex.meta })
   const condBlock = cx.code.block()
   const bodyStart = cx.code.newBlock()
   cx.sc.loops.push({ kind: 'loop', label })
   const val = lower(cx, ast.asExpr(ex.args[2], 'Block'), value)
-  if (value) out = rcall(cx.code, tag('common.append'), [out, val])
+  if (value) out = rcall(cx.code, tag('common/append'), [out, val])
   const bodyEnd = cx.code.block()
   const after = cx.code.newBlock()
   rewriteJumps(cx, [header.id + 1, value ? [out] : []], [after.id + 1, []])
@@ -950,13 +950,13 @@ function lowerIf(cx: Lowering, ex: IfStmt, value = true): Val<LIR> {
       const [patternExpr, _, valueExpr] = ast.asExpr(cond.ex).args
       const val = lower(cx, valueExpr)
       const [pattern, args] = lowerpattern(cx, patternExpr)
-      let match = rcall(cx.code, tag('common.patterns.match'), [val, pattern])
+      let match = rcall(cx.code, tag('common.patterns/match'), [val, pattern])
       const isnil = _push(cx.code, xcall(isnil_method, match))
       const c = cx.code.block()
       const t = cx.code.newBlock()
       match = _push(cx.code, xcall(notnil_method, match))
       for (const arg of args) {
-        _push(cx.code, ir.expr('set', cx.sc.var(arg), rcall(cx.code, tag('common.record.getkey'), [match, tag(arg)])))
+        _push(cx.code, ir.expr('set', cx.sc.var(arg), rcall(cx.code, tag('common.record/getkey'), [match, tag(arg)])))
       }
       body(bodyExpr)
       ts.push(cx.code.block())
@@ -965,7 +965,7 @@ function lowerIf(cx: Lowering, ex: IfStmt, value = true): Val<LIR> {
       c.branch(t, [])
     } else {
       const condVal = lower(cx, cond as ast.Tree)
-      const condResult = rcall(cx.code, tag('common.condition'), [condVal])
+      const condResult = rcall(cx.code, tag('common/condition'), [condVal])
       const c = cx.code.block()
       const t = cx.code.newBlock()
       body(bodyExpr)

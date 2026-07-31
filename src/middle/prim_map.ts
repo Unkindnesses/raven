@@ -38,7 +38,7 @@ function primitive(name: string, pattern: string, func?: (...args: Type[]) => An
   const ex = ast.asExpr(parse.expr(pattern), 'List')
   const sig = ast.List(tag(name), ...ex.args)
   const method = new MethodKey(tag('common.core'), tag(name))
-  const body = ast.Call(tag('common.abort'), 'Primitive not implemented')
+  const body = ast.Call(tag('common/abort'), 'Primitive not implemented')
   sources.set(method.id, { body, sig, meta: Def(name) })
   partialPrimitives.set(method.id, func)
   return new Method(method, patterns.signature(sig))

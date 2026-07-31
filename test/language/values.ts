@@ -100,7 +100,7 @@ test('regex match', async () => {
 
 test('print bits', async () => {
   await rv(`
-    bitcast = tag"common.core.bitcast"
+    bitcast = tag"common.core/bitcast"
     show bits(Int32(10))
   `, { output: 'bits"00000000000000000000000000001010"' })
 })
@@ -108,7 +108,7 @@ test('print bits', async () => {
 test('float parts', async () => {
   await rv(`
     showPack widen(Float32(0.1))
-  `, { output: 'widen(Float32(0.1)) = pack(tag"common.core.Float32", bits"00111101110011001100110011001101")' })
+  `, { output: 'widen(Float32(0.1)) = pack(tag"common.core/Float32", bits"00111101110011001100110011001101")' })
 })
 
 test('float pack', async () => {

@@ -176,11 +176,11 @@ class TraceIR implements ir.Fragment<MIR> {
 function keyindex(Ts: Type[]): Type | undefined {
   if (Ts.length !== 2) return
   const [record, key] = Ts
-  if (!(key instanceof Tag) || record.kind !== 'pack' || !types.tag('common.record.Record').isEqual(types.tagOf(record))) return
+  if (!(key instanceof Tag) || record.kind !== 'pack' || !types.tag('common.record/Record').isEqual(types.tagOf(record))) return
   const fields = types.parts(record)
   for (let i = 0; i < fields.length; i++) {
     const field = fields[i]
-    if (field.kind !== 'pack' || !types.tag('common.record.Pair').isEqual(types.tagOf(field))) return
+    if (field.kind !== 'pack' || !types.tag('common.record/Pair').isEqual(types.tagOf(field))) return
     const k = types.part(field, 1)
     if (!(k instanceof Tag)) return
     if (k.isEqual(key)) return types.int64(i + 1)
@@ -194,8 +194,8 @@ function packv(code: ir.Fragment<MIR>, ...xs: ir.Val<MIR>[]): ir.Val<MIR> {
 
 function bindings(code: ir.Fragment<MIR>, V: types.Type, val: ir.Val<MIR>, m: Match): ir.Val<MIR> {
   const fields = [...m].map(([name, [, path]]) =>
-    packv(code, types.tag('common.record.Pair'), types.tag(name), indexer(code, V, val, path)))
-  return packv(code, types.tag('common.record.Record'), ...fields)
+    packv(code, types.tag('common.record/Pair'), types.tag(name), indexer(code, V, val, path)))
+  return packv(code, types.tag('common.record/Record'), ...fields)
 }
 
 function static_match(int: Interpreter, code: ir.Fragment<MIR>, Ts: types.Type, args: ir.Val<MIR>): ir.Val<MIR> | undefined {
@@ -315,7 +315,7 @@ class Tracer {
 
   traceMethod(code: TraceIR, meth: Method, args: ir.Val<MIR>[], src?: Stack): ir.Val<MIR> | undefined {
     const Ts = args.map(a => asType(code.type(a)))
-    if (meth.name.isEqual(types.tag('common.record.keyindex'))) {
+    if (meth.name.isEqual(types.tag('common.record/keyindex'))) {
       const result = keyindex(Ts)
       if (result !== undefined) return result
     }
@@ -341,7 +341,7 @@ class Tracer {
   traceFunc(code: TraceIR, func: Dispatch, f: ir.Val<MIR>, args: ir.Val<MIR>): ir.Val<MIR> | undefined {
     const F = asType(code.type(f))
     const Ts = asType(code.type(args))
-    if (types.tag('common.patterns.match').isEqual(F)) {
+    if (types.tag('common.patterns/match').isEqual(F)) {
       const result = static_match(this.interp, code, Ts, args)
       if (result !== undefined) return swapresult(code, func.swap, false, result)
     }

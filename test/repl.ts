@@ -135,7 +135,7 @@ test('import a file from the working directory', async () => {
       await repl.init()
       assert.strictEqual(await repl.eval('import { greet, Greeting } from "./greeting.rv"'), '')
       assert.strictEqual((await repl.eval('greet()')).trim(), '"hello from the repl"')
-      assert.strictEqual((await repl.eval('string(tag(Greeting()))')).trim(), '"greeting.Greeting"')
+      assert.strictEqual((await repl.eval('string(tag(Greeting()))')).trim(), '"greeting/Greeting"')
       await repl.eval('import { twice } from "./util/twice.rv"')
       assert.strictEqual((await repl.eval('twice(21)')).trim(), '42')
     } finally {

@@ -63,7 +63,7 @@ test('browser compile', async () => {
   await page.waitForFunction(() => (window as any).testResult !== undefined)
   const result = await page.evaluate(() => window.testResult)
   await browser.close()
-  assert.ok(result.success)
+  assert.ok(result.success, result.error)
 })
 
 test('browser js libs', async () => {
@@ -77,4 +77,3 @@ test('browser js libs', async () => {
   assert.ok(result.success, result.error)
   assert.strictEqual(result.value, 42)
 })
-
