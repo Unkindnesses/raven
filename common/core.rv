@@ -144,6 +144,9 @@ false = pack(tag"common.integer/Bool", bits"0")
 
 fn tag(x) { part(x, 0) }
 
+@extend
+fn method(x, f, args...) { field(x, f)(args...) }
+
 @doc """
     identity(x) == x
 

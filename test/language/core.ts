@@ -351,8 +351,8 @@ test('let shadowing', async () => {
 
 test('match literal', async () => {
   await rv(`
-    test !nil?(match(widen(1), Literal(1)))
-    test nil?(match(widen(2), Literal(1)))
+    test !nil?(match(widen(1), Pattern.Literal(1)))
+    test nil?(match(widen(2), Pattern.Literal(1)))
   `)
 })
 

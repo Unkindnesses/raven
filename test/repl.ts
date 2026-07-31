@@ -120,7 +120,7 @@ test('import a file from the working directory', async () => {
     'greeting.rv': `
       export { greet, Greeting }
 
-      bundle Greeting { Greeting() }
+      bundle Greeting()
 
       fn greet() { "hello from the repl" }
     `,

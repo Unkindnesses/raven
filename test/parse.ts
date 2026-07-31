@@ -359,10 +359,10 @@ test('lower if let', () => {
   const ir = lower('fn option(x) { if let Some(y) = x { y } else { 0 } }')
   assert.equal(ir.toString(), `Function test at undefined
 1: (%1)
-  %2 = pack tag"common.patterns/Hole"
-  %3 = pack tag"common.patterns/Bind", tag"y", %2
+  %2 = pack tag"common.patterns/Pattern.Hole"
+  %3 = pack tag"common.patterns/Pattern.Bind", tag"y", %2
   %4 = global tag"".Some
-  %5 = pack tag"common.patterns/Constructor", %4, %3
+  %5 = pack tag"common.patterns/Pattern.Constructor", %4, %3
   %6 = pack tag"common.list/List", %1, %5
   %7 = call tag"common.patterns/match", %6
   %8 = call Method(tag"common.core/nil?"), %7
@@ -398,7 +398,7 @@ test('lower while loop', () => {
   %13 = call %12, %11 # test:1:33 🔴
   %14 = br 2 (%13)
 4:
-  %15 = return pack(tag"common.core/Nil")`)
+  %15 = return pack(tag"common.core/Optional.Nil")`)
 })
 
 test('lower toplevel expression', () => {
@@ -420,7 +420,7 @@ test('lower toplevel expression', () => {
   %7 = global tag"test".+
   %8 = call %7, %6 # test:1:17 🔴
   %9 = set tag"test".x, %4
-  %10 = return pack(tag"common.core/Nil")`)
+  %10 = return pack(tag"common.core/Optional.Nil")`)
 })
 
 test('lower function with swap pattern', () => {
@@ -428,12 +428,12 @@ test('lower function with swap pattern', () => {
   assert.equal(ir.toString(), `Function test at undefined
 1: (%1, %2)
   %3 = pack tag"common.list/List", %2, %1 # test:1:28
-  %4 = pack tag"common.patterns/Hole"
-  %5 = pack tag"common.patterns/Bind", tag"x", %4
-  %6 = pack tag"common.patterns/Hole"
-  %7 = pack tag"common.patterns/Bind", tag"y", %6
-  %8 = pack tag"common.patterns/Literal", tag"common.list/List"
-  %9 = pack tag"common.patterns/Pack", %8, %5, %7
+  %4 = pack tag"common.patterns/Pattern.Hole"
+  %5 = pack tag"common.patterns/Pattern.Bind", tag"x", %4
+  %6 = pack tag"common.patterns/Pattern.Hole"
+  %7 = pack tag"common.patterns/Pattern.Bind", tag"y", %6
+  %8 = pack tag"common.patterns/Pattern.Literal", tag"common.list/List"
+  %9 = pack tag"common.patterns/Pattern.Pack", %8, %5, %7
   %10 = pack tag"common.list/List", %3, %9
   %11 = call tag"common.patterns/match", %10
   %12 = call Method(tag"common.core/nil?"), %11
@@ -449,7 +449,7 @@ test('lower function with swap pattern', () => {
   %20 = call tag"common.record/getkey", %19
   %21 = pack tag"common.list/List", %18, tag"y"
   %22 = call tag"common.record/getkey", %21
-  %23 = pack tag"common.list/List", pack(tag"common.core/Nil"), pack(tag"common.core/Nil"), %20, %22
+  %23 = pack tag"common.list/List", pack(tag"common.core/Optional.Nil"), pack(tag"common.core/Optional.Nil"), %20, %22
   %24 = return %23`)
 })
 
@@ -520,7 +520,7 @@ test('lower for loop', () => {
 4:
   %22 = br 6
 5:
-  %23 = pack tag"common.list/List", tag"common.core/Nil"
+  %23 = pack tag"common.list/List", tag"common.core/Optional.Nil"
   %24 = global tag"".pack
   %25 = call %24, %23
   %26 = pack tag"common.list/List", %13
@@ -532,5 +532,5 @@ test('lower for loop', () => {
   %32 = call %31, %30 # test:1:35 🔴
   %33 = br 2 (%14)
 6:
-  %34 = return pack(tag"common.core/Nil")`)
+  %34 = return pack(tag"common.core/Optional.Nil")`)
 })

@@ -442,7 +442,7 @@ function traitSig(T: Type): [Dispatch, Type, Type] {
 function traitResult(ret: Anno<Type>): Anno<Type> {
   if (ret === unreachable) return unreachable
   for (const option of disjuncts(ret))
-    if (tag('common.core/Some').isEqual(tagOf(option))) return only(parts(option))
+    if (tag('common.core/Optional.Some').isEqual(tagOf(option))) return only(parts(option))
   return unreachable
 }
 

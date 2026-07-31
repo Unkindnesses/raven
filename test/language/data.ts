@@ -199,14 +199,14 @@ test('recursive type', async () => {
 
     {
       xs = foo(widen(0))
-      test string(tag(xs)) == "common.sequence/Empty"
+      test string(tag(xs)) == "common.sequence/Sequence.Empty"
       test nparts(xs) == 0
       test empty?(xs)
       test length(xs) == 0
       test allocationCount() == 0
 
       xs = foo(widen(5))
-      test string(tag(xs)) == "common.sequence/Prepend"
+      test string(tag(xs)) == "common.sequence/Sequence.Prepend"
       test nparts(xs) == 2
       test part(xs, 2) == 5
       test part(part(xs, 1), 2) == 4
@@ -383,7 +383,7 @@ test('bundle eval', async () => {
 
     fn eval(Literal(value)) { value }
 
-    test Literal(1) == Literal(1)
+    test Literal(1) == Expr.Literal(1)
     test eval(Add(Literal(1), Literal(2))) == 3
   `)
 })

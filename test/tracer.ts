@@ -33,8 +33,8 @@ test('trace identity', () => {
 })
 
 test('trace Nil', () => {
-  let [, ret] = trace(tag('common.core/Nil'))
-  assert.deepEqual(ret, pack(tag('common.core/Nil')))
+  let [, ret] = trace(tag('common.core/Optional.Nil'))
+  assert.deepEqual(ret, pack(tag('common.core/Optional.Nil')))
 })
 
 test('trace Float64', () => {
@@ -86,7 +86,7 @@ test('trace keyindex shortcut', () => {
 })
 
 test('trace match shortcut', () => {
-  const node = (name: string, ...parts: Type[]) => pack(tag(`common.patterns/${name}`), ...parts)
+  const node = (name: string, ...parts: Type[]) => pack(tag(`common.patterns/Pattern.${name}`), ...parts)
   const bind = (name: string) => node('Bind', tag(name), node('Hole'))
   const pat = node('Pack', node('Literal', tag('common.list/List')), bind('a'), bind('b')) // [a, b]
 

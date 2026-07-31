@@ -33,10 +33,10 @@ function namify(x: ast.Tree, suffix = ""): ast.Expr | ast.Symbol {
 
 function patternArgExpr(x: ast.Tree): ast.Tree {
   if (x instanceof ast.Token && x.unwrap() instanceof Symbol)
-    return ast.Call(tag('common.patterns/Bind'), tag(x.unwrap().toString()), ast.Call(tag('common.patterns/Hole')))
+    return ast.Call(tag('common.patterns/Pattern.Bind'), tag(x.unwrap().toString()), ast.Call(tag('common.patterns/Pattern.Hole')))
   if (ast.isExpr(x, 'Operator')) {
     const name = asSymbol(x.args[0].unwrap())
-    return ast.Call(tag('common.patterns/Bind'), tag(name.toString()), ast.Call(tag('common.patterns/Trait'), x.args[2]))
+    return ast.Call(tag('common.patterns/Pattern.Bind'), tag(name.toString()), ast.Call(tag('common.patterns/Pattern.Trait'), x.args[2]))
   }
   throw new Error(`Unsupported bundle pattern argument ${ast.repr(x)}`)
 }
@@ -44,18 +44,26 @@ function patternArgExpr(x: ast.Tree): ast.Tree {
 function bundlemacro(ex: ast.Expr): ast.Expr {
   const [superSpec, spec] = ex.args.length === 2 ? [undefined, ex.args[1]] : [ex.args[1], ex.args[2]]
   const specs = ast.isExpr(spec, 'Block') ? spec.args : [spec]
+  const superName = superSpec && asSymbol(superSpec.unwrap())
+  const superTag = superName && ast.Template(s('tag'), `/${superName}`)
+  const ns = superName ? `${superName}.` : ''
   const body: ast.Tree[] = []
   const names: ast.Symbol[] = []
   for (const spec of specs) {
     if (!(ast.isExpr(spec, 'Call'))) throw new Error(`bundlemacro: spec must be a call, got ${ast.repr(spec)}`)
     const name = asSymbol(spec.args[0].unwrap())
     names.push(name)
-    const T = ast.Template(ast.symbol("tag"), `/${name}`)
+    const T = ast.Template(ast.symbol("tag"), `/${ns}${name}`)
     const args = spec.args.slice(1)
     const hasSplat = args.some(a => ast.isExpr(a, 'Splat'))
     const argNames = args.map(a => namify(a))
+    body.push(ast.Operator(token(name), s('='), T))
+    if (superTag)
+      body.push(
+        ast.Syntax(s('fn'), ast.Call(tag('common/field'), superTag, ast.Template(s('tag'), `${name}`)),
+          ast.Block(T)))
     body.push(
-      ast.Syntax(s('fn'), spec,
+      ast.Syntax(s('fn'), ast.Call(T, ...args),
         ast.Block(ast.Call(tag('common.core/pack'), T, ...argNames))))
     body.push(
       ast.Syntax(s('fn'),
@@ -65,17 +73,17 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
     body.push(
       ast.Syntax(s('fn'), ast.Call(tag('common.patterns/constructorPattern'), T, ...argNames),
         ast.Block(
-          ast.Call(tag('common.patterns/Pack'),
-            ast.Call(tag('common.patterns/Literal'), T), ...argNames))))
+          ast.Call(tag('common.patterns/Pattern.Pack'),
+            ast.Call(tag('common.patterns/Pattern.Literal'), T), ...argNames))))
     if (hasSplat) continue
-    let pat = ast.Call(tag('common.patterns/Pack'), ast.Call(tag('common.patterns/Literal'), T), ...args.map(patternArgExpr))
+    let pat = ast.Call(tag('common.patterns/Pattern.Pack'), ast.Call(tag('common.patterns/Pattern.Literal'), T), ...args.map(patternArgExpr))
     body.push(
       ast.Syntax(s('fn'), ast.Call(tag('common.patterns/castTrait'), T, s('_val')),
         ast.Block(
           ast.Operator(s('_match'), s('='), ast.Call(tag('common.patterns/_match'), s('_val'), pat, s('true'))),
           ast.Syntax(s('if'), ast.Operator(s('!'), ast.Call(tag('common.core/nil?'), s('_match'))),
             ast.Block(
-              ast.Call(tag('common.core/Some'),
+              ast.Call(tag('common.core/Optional.Some'),
                 ast.Call(tag('common.core/part'), ast.Call(tag('common.core/notnil'), s('_match')), 1n)))))))
     body.push(
       ast.Syntax(s('fn'), ast.Call(tag('common/show'), ast.Call(name, ...argNames)),
@@ -95,15 +103,14 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
         ast.Call(tag('common/=='), ast.Call(name, ...lhs), ast.Call(name, ...rhs)),
         ast.Block(eqBody)))
   }
-  if (superSpec) {
-    const superTag = ast.Template(symbol('tag'), `/${asSymbol(superSpec.unwrap())}`)
+  if (superTag) {
     body.push(ast.Operator(superSpec, symbol('='), superTag))
     body.push(
       ast.Syntax(s('fn'),
         ast.Call(tag('common.patterns/matchTrait'), superTag,
           ast.Operator(s('_val'), symbol(':'),
             names.slice(1).reduce((a, b) => ast.Operator(a, symbol('|'), b), token(names[0])))),
-        ast.Block(ast.Call(tag('common.core/Some'), s('_val')))))
+        ast.Block(ast.Call(tag('common.core/Optional.Some'), s('_val')))))
   }
   return ast.Group(...body)
 }
@@ -403,7 +410,8 @@ function string(code: LIR, x: string) {
 }
 
 function patternNode(code: LIR, name: string, ...parts: Val<LIR>[]): Val<LIR> {
-  return _push(code, xpack(tag(`common.patterns/${name}`), ...parts))
+  const path = name === 'Params' ? 'common.patterns/Params' : `common.patterns/Pattern.${name}`
+  return _push(code, xpack(tag(path), ...parts))
 }
 
 function patternBuilder(cx: Lowering): patterns.Builder {
@@ -827,7 +835,7 @@ function parseIf(ex: ast.Expr): IfStmt {
   }
   if (cond[cond.length - 1] !== true) {
     cond.push(true)
-    body.push(ast.Call(symbol("pack"), tag("common.core/Nil")))
+    body.push(ast.Call(symbol("pack"), tag("common.core/Optional.Nil")))
   }
   return { cond, body }
 }

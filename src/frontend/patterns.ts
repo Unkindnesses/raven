@@ -19,16 +19,16 @@ type Pattern =
 
 function pattern(x: Type): Pattern {
   const t = types.asTag(types.tagOf(x)).path
-  if (t === 'common.patterns/Hole') return { kind: 'hole' }
-  if (t === 'common.patterns/Literal') return { kind: 'literal', value: types.part(x, 1) }
-  if (t === 'common.patterns/Bind')
+  if (t === 'common.patterns/Pattern.Hole') return { kind: 'hole' }
+  if (t === 'common.patterns/Pattern.Literal') return { kind: 'literal', value: types.part(x, 1) }
+  if (t === 'common.patterns/Pattern.Bind')
     return { kind: 'bind', name: types.asTag(types.part(x, 1)).path, pattern: pattern(types.part(x, 2)) }
-  if (t === 'common.patterns/Repeat') return { kind: 'repeat', pattern: pattern(types.part(x, 1)) }
-  if (t === 'common.patterns/Pack') return { kind: 'pack', parts: types.parts(x).map(pattern) }
-  if (t === 'common.patterns/Or') return { kind: 'or', patterns: types.parts(x).map(pattern) }
-  if (t === 'common.patterns/And') return { kind: 'and', patterns: types.parts(x).map(pattern) }
-  if (t === 'common.patterns/Trait') return { kind: 'trait', trait: types.part(x, 1) }
-  if (t === 'common.patterns/Constructor') return { kind: 'constructor', value: x }
+  if (t === 'common.patterns/Pattern.Repeat') return { kind: 'repeat', pattern: pattern(types.part(x, 1)) }
+  if (t === 'common.patterns/Pattern.Pack') return { kind: 'pack', parts: types.parts(x).map(pattern) }
+  if (t === 'common.patterns/Pattern.Or') return { kind: 'or', patterns: types.parts(x).map(pattern) }
+  if (t === 'common.patterns/Pattern.And') return { kind: 'and', patterns: types.parts(x).map(pattern) }
+  if (t === 'common.patterns/Pattern.Trait') return { kind: 'trait', trait: types.part(x, 1) }
+  if (t === 'common.patterns/Pattern.Constructor') return { kind: 'constructor', value: x }
   throw new Error(`unsupported pattern ${t}`)
 }
 
@@ -71,6 +71,7 @@ function lowerIsa(cx: Lowering, ex: ast.Tree): Val<LIR> {
   ex = ex.ungroup()
   if (ex.unwrap() instanceof ast.Symbol) return cx.node('Trait', cx.expr(ex))
   if (ex instanceof ast.Token) return lowerExpr(cx, ex)
+  if (ex.head === 'Field' && ex.args[0].unwrap() instanceof ast.Symbol) return cx.node('Trait', cx.expr(ex))
   if (ex.head === 'Index') return cx.node('Trait', cx.node('Params', ...ex.args.map(x => cx.expr(x))))
   if (ex.head === 'Operator' && ast.symbol('|').isEqual(ex.args[1].unwrap()))
     return cx.node('Or', lowerIsa(cx, ex.args[0]), lowerIsa(cx, ex.args[2]))

@@ -53,14 +53,18 @@ function src(path: string, source: string): SourceString {
   return { path, source }
 }
 
+function tagtemplate(cx: LoadState, x: ast.Tree): Tag | undefined {
+  if (ast.isExpr(x, 'Template') && ast.symbol('tag').isEqual(x.args[0].unwrap()))
+    return modtag(cx.mod.name, ast.asString(x.args[1]))
+}
+
 function simpleconst(cx: LoadState, x: ast.Tree): Anno<Type> | Binding | undefined {
   const unwrapped = x.unwrap()
   if (unwrapped instanceof ast.Symbol) return cx.mod.get(unwrapped.toString()) // TODO error if missing
   if (typeof unwrapped !== 'string' && ast.isAtom(unwrapped))
     return atomValue(unwrapped)
-  if (ast.isExpr(x, 'Template') &&
-    ast.symbol('tag').isEqual(x.args[0].unwrap()))
-    return Type(modtag(cx.mod.name, x.args[1].unwrap() as string))
+  const T = tagtemplate(cx, x)
+  if (T) return Type(T)
   return
 }
 
@@ -142,8 +146,9 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
     throw new Error(`Expected function signature, got ${ast.repr(sig)}`)
   const [callee, ...params] = ast.callargs(sig)
   const variable = callee.unwrap()
+  const named = variable instanceof Tag ? variable : tagtemplate(cx, callee)
   const callable = ast.isExpr(sig, 'Call') &&
-    !(variable instanceof Tag) &&
+    named === undefined &&
     !(variable instanceof ast.Symbol)
   let fnTag: Tag
   if (callable) {
@@ -151,9 +156,9 @@ function load_fn(cx: LoadState, ex: ast.Tree): void {
     sig = ast.List(...sig.args)
   } else {
     fnTag =
-      variable instanceof Tag ? variable :
-        extend ? asTag(cx.resolve_static(ast.asSymbol(variable))) :
-          modtag(cx.mod.name, `/${ast.asSymbol(variable).toString()}`)
+      named ??
+      (extend ? asTag(cx.resolve_static(ast.asSymbol(variable))) :
+        modtag(cx.mod.name, `/${ast.asSymbol(variable).toString()}`))
     if (!extend && variable instanceof ast.Symbol)
       cx.mod.set(variable.toString(), fnTag)
     sig = ast.List(fnTag, ...params)

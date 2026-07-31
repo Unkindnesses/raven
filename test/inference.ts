@@ -19,7 +19,7 @@ function result(comp: Compiler, f: Tag, args: Type) {
   return ret
 }
 
-const some = (x: Type) => pack(tag('common.core/Some'), x)
+const some = (x: Type) => pack(tag('common.core/Optional.Some'), x)
 const optional = (x: Type) => onion(nil, some(x))
 
 test('infer identity', async () => {
@@ -29,7 +29,7 @@ test('infer identity', async () => {
 })
 
 test('infer Nil', () => {
-  let ret = result(compiler, tag('common.core/Nil'), list())
+  let ret = result(compiler, tag('common.core/Optional.Nil'), list())
   assert.deepEqual(ret, nil)
 })
 
@@ -57,7 +57,7 @@ test('castTrait narrows any', () => {
   assert.deepEqual(ret, optional(int64()))
   ret = result(compiler, tag('common.patterns/castTrait'), list(tag('common.strings/String'), Any))
   assert.deepEqual(ret, optional(String()))
-  ret = result(compiler, tag('common.patterns/castTrait'), list(tag('common.core/Nil'), Any))
+  ret = result(compiler, tag('common.patterns/castTrait'), list(tag('common.core/Optional.Nil'), Any))
   assert.deepEqual(ret, optional(nil))
   ret = result(compiler, tag('common.patterns/castTrait'), list(tag('common.core/Ref'), Any))
   assert.deepEqual(ret, optional(Ref))

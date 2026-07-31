@@ -220,8 +220,8 @@ function trivial_isa(int: Interpreter, val: types.Type, T: types.Type): boolean 
   const r = int.eval(types.tag('common.patterns/matchTrait'), types.list(T, val))
   if (r === undefined) return undefined
   const tag = types.tagOf(r)
-  if (types.tag('common.core/Some').isEqual(tag)) return true
-  if (types.tag('common.core/Nil').isEqual(tag)) return false
+  if (types.tag('common.core/Optional.Some').isEqual(tag)) return true
+  if (types.tag('common.core/Optional.Nil').isEqual(tag)) return false
   return undefined
 }
 

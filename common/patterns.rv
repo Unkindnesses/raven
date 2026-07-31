@@ -3,7 +3,7 @@ import { ... } from "./bootstrap.rv"
 import { record, upsertkey, merge } from "./record.rv"
 
 export {
-  Any, NotNil, Params, Hole, Literal, Trait, Pack, Bind, Constructor, And
+  Any, NotNil, Params, Pattern
   match, matchTrait, castTrait, isa?
 }
 

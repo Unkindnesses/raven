@@ -12,11 +12,11 @@ beforeAll(async () => {
 test('interpret core pack literal params', () => {
   const int = compiler.pipe.interp
 
-  const args = types.list(types.tag('common.patterns/Literal'), types.tag('common.patterns/Params'))
+  const args = types.list(types.tag('common.patterns/Pattern.Literal'), types.tag('common.patterns/Params'))
   const result = int.eval(types.tag('common.core/pack'), args)
 
   assert.ok(result)
-  assert.deepEqual(result, types.pack(types.tag('common.patterns/Literal'), types.tag('common.patterns/Params')))
+  assert.deepEqual(result, types.pack(types.tag('common.patterns/Pattern.Literal'), types.tag('common.patterns/Params')))
 })
 
 test('interpret matchTrait without Bool trait match', () => {

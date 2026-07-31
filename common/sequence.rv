@@ -3,7 +3,7 @@ import { ... } from "./numbers.rv"
 import { isa? } from "./patterns.rv"
 
 export {
-  Sequence, Prepend, Empty, seq, first, rest, prepend, empty?, length, seqRange, repeat, sum
+  Sequence, seq, first, rest, prepend, empty?, length, seqRange, repeat, sum
 }
 
 bundle Sequence { Prepend(xs, x), Empty() }

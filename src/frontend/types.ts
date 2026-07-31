@@ -237,7 +237,7 @@ function onion(...xs: TypeLike[]): Type {
   return { kind: 'union', options }
 }
 
-const nil = pack(tag('common.core/Nil'))
+const nil = pack(tag('common.core/Optional.Nil'))
 
 function bool(value?: boolean): Type {
   return pack(tag('common.integer/Bool'), bits(1, value))

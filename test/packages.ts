@@ -45,21 +45,21 @@ const files: Record<string, string> = {
 
     export { quadruple, half, Measure, Scaled }
 
-    bundle Scaled { Scaled(x) }
+    bundle Scaled(x)
 
     fn quadruple(x) { double(double(x)) }
   `,
   'maths/scale.rv': `
     export { double, Scale }
 
-    bundle Scale { Scale() }
+    bundle Scale()
 
     fn double(x) { x * 2 }
   `,
   'maths/util/measure.rv': `
     export { half, Measure }
 
-    bundle Measure { Measure() }
+    bundle Measure()
 
     fn half(x) { x / 2 }
   `
@@ -170,7 +170,7 @@ test('circular imports are rejected', () => {
 
       export { half, Measure }
 
-      bundle Measure { Measure() }
+      bundle Measure()
 
       fn half(x) { x / 2 }
     `)
