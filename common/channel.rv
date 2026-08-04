@@ -1,6 +1,5 @@
 import { ... } from "./core.rv"
 import { ... } from "./numbers.rv"
-import { range } from "./iterate.rv"
 import { Cell } from "./wasm/memory.rv"
 import { JSObject, JSFuture, await, resolve! } from "./wasm/js.rv"
 
@@ -153,7 +152,7 @@ fn selectAccept($await, promise: JSObject) {
 
 fn select(cases...) {
   future = JSFuture()
-  for i = range(1, length(cases)) {
+  for i = (1..length(cases)) {
     [f, args] = cases[i]
     selectPrepare(f, future, i, args...)
   }

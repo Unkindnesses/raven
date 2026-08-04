@@ -8,7 +8,7 @@ export {
   Tag, Ref, Closure, Some, Nil, Ok, Err
   pack, part, nparts, widen, tag, identity, showPack
   nil, nil?, notnil, Ok, Err, unwrap
-  ==, !=, !, +, -, *, /, ^, >, <, >=, <=, &, |
+  ==, !=, !, +, -, *, /, ^, >, <, >=, <=, &, |, ..
   show, print, println
 } from "./core.rv"
 

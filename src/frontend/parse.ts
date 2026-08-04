@@ -178,7 +178,7 @@ function digits(r: Reader, pattern: RegExp): string {
 
 function num(r: Reader): number | bigint | undefined {
   const whole = digits(r, /\d/)
-  if (r.parse(r => exact(r, '.'))) {
+  if (!r.peek(r => exact(r, '..')) && r.parse(r => exact(r, '.'))) {
     const frac = digits(r, /\d/)
     if (whole === '' && frac === '') return
     return parseFloat(`${whole}.${frac}`)
@@ -215,7 +215,7 @@ function symbol(r: Reader): ast.Symbol | undefined {
 
 const operators = [
   "=", "==", "!=", "+", "-", "*", "/", "^", ">", "<", ">=", "<=", ":", "&",
-  "|", "|>", "&&", "||"
+  "|", "|>", "&&", "||", ".."
 ]
 const opChars = [...new Set(operators.join(''))].join('')
 
@@ -402,7 +402,7 @@ function postfix(r: Reader): ast.Tree | undefined {
       ex = ast.inner(ex, args[1])
       continue
     }
-    if (r.peek(r => exact(r, '...'))) { break }
+    if (r.peek(r => exact(r, '..'))) { break }
     if (r.parse(r => exact(r, '.'))) {
       const field = r.some(r => item(r))
       ex = ast.Field(ex, field).withmeta({ file: path(), loc: cur })

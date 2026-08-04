@@ -129,6 +129,15 @@ test('normalize binary operators', () => {
   assert.equal(ast.print(formatted), 'x * y\nx + y\nx = -y\nx: y\nx + # keep\n  y\n')
 })
 
+test('normalize the range operator without spaces', () => {
+  const source = 'x .. y\n1..2\na  ..\tb\n'
+  const tree = parse('test.rv', source)
+  const formatted = operators(tree)
+
+  assert.equal(ast.print(tree), source)
+  assert.equal(ast.print(formatted), 'x..y\n1..2\na..b\n')
+})
+
 test('normalize trailing brackets', () => {
   const source = 'f(\na)\ng(b\n)\n[\nc]\n[d\n]\n'
   const tree = parse('test.rv', source)

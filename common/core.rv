@@ -84,7 +84,7 @@ reverse = tag"/reverse"
 # Forward declarations, to avoid circularity.
 
 export {
-  ==, !=, !, +, -, *, /, ^, >, <, >=, <=, &, |
+  ==, !=, !, +, -, *, /, ^, >, <, >=, <=, &, |, ..
   show, print, println, replshow, string, concat
   length, get, set, field, method, append, empty?, rest
   iterate, next, condition
@@ -106,6 +106,7 @@ export {
 & = tag"common/&"
 | = tag"common/|"
 |> = tag"common/|>"
+.. = tag"common/.."
 
 show = tag"common/show"
 print = tag"common/print"

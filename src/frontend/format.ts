@@ -110,11 +110,14 @@ function operators(tree: ast.Tree): ast.Tree {
   const out = tree.map(operators)
   if (!ast.isExpr(out, 'Operator') || out.args.length !== 3) return out
   const operator = out.args[1]
-  const before = ast.symbol(':').isEqual(operator.unwrap()) ? '' : ' '
+  const op = operator.unwrap()
+  const [before, after] =
+    ast.symbol('..').isEqual(op) ? ['', ''] :
+      ast.symbol(':').isEqual(op) ? ['', ' '] : [' ', ' ']
   return out.map((arg, i) => {
     if (i === 0) return ast.trailing(arg, before)
     if (!operator.trivia.trailing.includes('\n')) {
-      if (i === 1) return ast.trailing(arg, ' ')
+      if (i === 1) return ast.trailing(arg, after)
       return ast.leading(arg, '')
     }
     return arg

@@ -1,7 +1,6 @@
 import { ... } from "./core.rv"
 import { ... } from "./numbers.rv"
 import { Params, matchTrait } from "./patterns.rv"
-import { range } from "./iterate.rv"
 
 export {
   Bits, Bool, Int, Int64, Int32, UInt, UInt64, UInt32, UInt16, UInt8
@@ -32,7 +31,7 @@ fn matchTrait(Params($Bits, N), x: Bits) {
 fn show(x: Bits) {
   print(`bits"`)
   N = bitsize(x)
-  for i = range(1, N) {
+  for i = (1..N) {
     print(Int64(bitand(bitshr_u(x, bitcast(x, bits(N - i))), bitcast(x, bits(1)))))
   }
   print(`"`)

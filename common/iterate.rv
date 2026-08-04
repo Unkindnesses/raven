@@ -44,12 +44,22 @@ bundle Range(start, stop)
 fn range(start, stop) { Range(start, stop) }
 
 @extend
+fn (start..stop) { Range(start, stop) }
+
+@extend
 fn length(Range(start, stop)) { (stop - start) + 1 }
 
 fn Range(start, stop)[i] { (i - 1) + start }
 
 @extend
 fn iterate(xs: Range) { IndexIterator(xs) }
+
+@extend
+fn show(Range(start, stop)) {
+  show(start)
+  print("..")
+  show(stop)
+}
 
 bundle Mapping(itr, func)
 

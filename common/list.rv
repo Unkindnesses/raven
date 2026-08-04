@@ -1,5 +1,5 @@
 import { ... } from "./core.rv"
-import { IndexIterator, range } from "./iterate.rv"
+import { IndexIterator } from "./iterate.rv"
 
 export { List, length, set, append, pop, empty? }
 
@@ -20,7 +20,7 @@ fn (xs: List)[i] {
 @extend
 fn (xs: List) == (ys: List) {
   if length(xs) != length(ys) { return false }
-  for i = range(1, length(xs)) {
+  for i = (1..length(xs)) {
     if xs[i] != ys[i] { return false }
   }
   return true
@@ -45,7 +45,7 @@ fn append(&xs: List, x) {
 fn pop(&xs: List) {
   last = xs[length(xs)]
   ys = []
-  for i = range(1, length(xs) - 1) { append(&ys, xs[i]) }
+  for i = (1..(length(xs) - 1)) { append(&ys, xs[i]) }
   xs = ys
   return last
 }
@@ -57,7 +57,7 @@ fn iterate(xs: List) { IndexIterator(xs) }
 fn rest(xs: List) {
   if empty?(xs) { abort("List is empty") }
   result = []
-  for i = range(2, length(xs)) {
+  for i = (2..length(xs)) {
     append(&result, xs[i])
   }
   return result
@@ -66,7 +66,7 @@ fn rest(xs: List) {
 @extend
 fn show(x: List) {
   print("[")
-  for i = range(1, nparts(x)) {
+  for i = (1..nparts(x)) {
     if i != 1 {
       print(", ")
     }

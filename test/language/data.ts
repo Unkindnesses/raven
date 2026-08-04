@@ -248,7 +248,7 @@ test('collect range', async () => {
 
 test('for expression collects values', async () => {
   await rv(`
-    ys = (for x = range(1, 5) { x })
+    ys = (for x = (1..5) { x })
     test ys == [1, 2, 3, 4, 5]
   `)
 })

@@ -143,6 +143,7 @@ test('precedence table transitivity', () => {
 
 test('non-associative operators are parse errors', () => {
   assert.throws(() => expr('1 == 2 == 3'), /ambiguous/)
+  assert.throws(() => expr('1..2..3'), /ambiguous/)
 })
 
 test('numeric literal separators', () => {
@@ -165,6 +166,23 @@ test('comparison binds tighter than logical and', () => {
 test('prefix negation binds tighter than infix operators', () => {
   assert.equal(String(expr('-x * y')), '((-x) * y)')
   assert.equal(String(expr('-(x + y)')), '(-((x + y)))')
+})
+
+test('range operator', () => {
+  assert.equal(String(expr('1..2')), '(1 .. 2)')
+  assert.equal(String(expr('1 .. 2')), '(1 .. 2)')
+  assert.equal(String(expr('x..y')), '(x .. y)')
+})
+
+test('range does not consume the decimal point of a float', () => {
+  assert.equal(String(expr('1.5..2.5')), '(1.5 .. 2.5)')
+  assert.equal(ast.asToken(expr('1.5')).unwrap(), 1.5)
+})
+
+test('range is distinguished from field access and splats', () => {
+  assert.equal(String(expr('x.y')), 'x.y')
+  assert.equal(String(expr('xs...')), 'xs...')
+  assert.equal(String(expr('f(xs...)')), 'f(xs...)')
 })
 
 // Round-trip
