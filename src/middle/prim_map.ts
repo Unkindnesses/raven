@@ -9,7 +9,8 @@ import { Def } from '../dwarf/index.js'
 export {
   InvokeSt, Lowering, Transform,
   partialPrimitives, inlinePrimitives, outlinePrimitives, transformPrimitives,
-  partialPrimitive, inlinePrimitive, outlinePrimitive, transformPrimitive, primitive, sources
+  partialPrimitive, inlinePrimitive, outlinePrimitive, transformPrimitive,
+  primitive, closurePrimitive, sources
 }
 
 type InvokeSt = Statement<IRValue, Type> & { expr: Invoke<IRValue> }
@@ -47,12 +48,25 @@ function transformPrimitive(method: Method) {
   return transformPrimitives.get(method.id)
 }
 
-function primitive(name: string, pattern: string, func?: (...args: Type[]) => Anno<Type>): Method {
-  const ex = ast.asExpr(parse.expr(pattern), 'List')
-  const sig = ast.List(tag(name), ...ex.args)
+function define(name: string, sig: ast.Tree): Method {
   const method = new MethodKey(tag('common.core'), tag(name))
   const body = ast.Call(tag('common/abort'), 'Primitive not implemented')
   sources.set(method.id, { body, sig, meta: Def(name) })
-  if (func) partialPrimitives.set(method.id, func)
   return new Method(method, patterns.signature(sig))
+}
+
+function args(pattern: string): readonly ast.Tree[] {
+  return ast.asExpr(parse.expr(pattern), 'List').args
+}
+
+function primitive(name: string, pattern: string, func?: (...args: Type[]) => Anno<Type>): Method {
+  const method = define(name, ast.List(tag(name), ...args(pattern)))
+  if (func) partialPrimitives.set(method.id, func)
+  return method
+}
+
+function closurePrimitive(name: string, pattern: string): Method {
+  const self = ast.Operator(ast.symbol('_'), ast.symbol(':'),
+    ast.Call(tag('common.core/pack'), ast.symbol('_'), ast.symbol('state')))
+  return define(name, ast.List(self, ...args(pattern)))
 }

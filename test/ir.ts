@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import * as assert from 'assert'
-import { CFG, components, expand, prune, expr, renumber, Val } from '../src/utils/ir.js'
+import { CFG, components, expand, merge_returns, prune, expr, renumber, Val } from '../src/utils/ir.js'
 import { looped, unloop } from '../src/middle/loop.js'
 import { MIR } from '../src/frontend/modules.js'
 import { Def } from '../src/dwarf/index.js'
@@ -66,6 +66,44 @@ test('expand/prune', () => {
 2:
   %3 = use %1
   %4 = unreachable`)
+})
+
+test('merge returns', () => {
+  const ir = MIR(Def('test'))
+  const b1 = ir.block()
+  const cond = ir.argument()
+  const b2 = ir.newBlock()
+  const b3 = ir.newBlock()
+  b1.branch(b2, [], { when: cond })
+  b1.branch(b3)
+  const x = b2.push(ir.stmt(expr('left')))
+  b2.return(x)
+  const y = b3.push(ir.stmt(expr('right')))
+  b3.return(y)
+
+  merge_returns(ir)
+
+  assert.equal(ir.toString(), `Function test at undefined
+1: (%1)
+  %2 = br 2 if %1
+  %3 = br 3
+2:
+  %4 = left
+  %5 = br 4 (%4)
+3:
+  %6 = right
+  %7 = br 4 (%6)
+4: (%8)
+  %9 = return %8`)
+})
+
+test('merge returns leaves a sole final return unchanged', () => {
+  const ir = MIR(Def('test'))
+  ir.return(ir.argument())
+  const original = ir.toString()
+
+  assert.equal(merge_returns(ir), ir)
+  assert.equal(ir.toString(), original)
 })
 
 test('looped/unloop', () => {

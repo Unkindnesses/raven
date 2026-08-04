@@ -7,8 +7,8 @@ import { Method, MIR, Module, Value, xfunc, xstring } from '../frontend/modules.
 import { Def } from '../dwarf/index.js'
 import { xtuple, xcall } from '../frontend/lower.js'
 import { xwasm } from '../frontend/modules.js'
-import { inlinePrimitives, InvokeSt, outlinePrimitives, transformPrimitives, inlinePrimitive, outlinePrimitive, primitive, sources } from './prim_map.js'
-import { autodiff } from './autodiff.js'
+import { inlinePrimitives, InvokeSt, outlinePrimitives, transformPrimitives, inlinePrimitive, outlinePrimitive, primitive, closurePrimitive, sources } from './prim_map.js'
+import { autodiff, autograd, pullback } from './autodiff.js'
 import { releaseFunction_method } from './refcount.js'
 import { abort, call, layout, wlayout, sizeof, unbox, union_downcast, union_cases, cast, partir, packir, set_pack, indexer, setir, copyir, i32, store, load } from './expand.js'
 import { isreftype } from './refcount.js'
@@ -16,7 +16,7 @@ import { maybe_union, traitType } from './abstract.js'
 import { GetGlobal, SetGlobal } from '../wasm/wasm.js'
 import { xref } from '../wasm/ir.js'
 
-export { core, symbolValues, string, inlinePrimitives, outlinePrimitives, inlinePrimitive, outlinePrimitive, invoke_method, invokeFunction_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, tagcast_method, copy_method, load_method, store_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue, forward_method }
+export { core, symbolValues, string, inlinePrimitives, outlinePrimitives, inlinePrimitive, outlinePrimitive, invoke_method, invokeFunction_method, pack_method, packcat_method, part_method, isnil_method, notnil_method, tagcast_method, copy_method, load_method, store_method, partial_isnil, partial_part, partial_set, getIntValue, nparts, primitive, constValue, set_method, forward_method, reverse_method, pullback_method }
 
 const bitopFuncs = new Map<string, (x: bigint, y: bigint) => bigint>([
   ['shl', (x, y) => x << y],
@@ -284,6 +284,12 @@ const invokeFunction_method = primitive('common.core/invokeFunction', '[f, xs]')
 const forward_method = primitive('common.core/forward', '[f, args, dargs]')
 transformPrimitives.set(forward_method.id, autodiff)
 
+const reverse_method = primitive('common.core/reverse', '[f, xs...]')
+transformPrimitives.set(reverse_method.id, autograd)
+
+const pullback_method = closurePrimitive('common.core/pullback', '[d]')
+transformPrimitives.set(pullback_method.id, pullback)
+
 const alloc_method = primitive('common.core/alloc', '[T, n]', (T: Type, n: Type) => types.Ptr())
 const load_method = primitive('common.core/load', '[T, ptr, i]', (T: Type, ptr: Type, i: Type) => rvtype(T))
 const store_method = primitive('common.core/store', '[T, ptr, i, x]', (T: Type, ptr: Type, i: Type, x: Type) => types.nil)
@@ -314,6 +320,8 @@ function primitives(): Method[] {
     function_method,
     invoke_method,
     forward_method,
+    reverse_method,
+    pullback_method,
     alloc_method,
     load_method,
     store_method,

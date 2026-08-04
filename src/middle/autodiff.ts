@@ -1,18 +1,21 @@
+import * as types from '../frontend/types.js'
 import { Type, tag } from '../frontend/types.js'
 import {
-  Branch, Expr, Fragment, Statement, StmtOpts, Val,
+  Block, Branch, Expr, Fragment, Pipe, Statement, StmtOpts, Val, expand,
+  merge_returns, predecessors,
 } from '../utils/ir.js'
-import { IRValue, Call, Invoke, MIR, Method, Dispatch, calltarget } from '../frontend/modules.js'
+import { IRValue, Call, Invoke, MIR, Method, Dispatch, calltarget, xclosure } from '../frontend/modules.js'
 import { xlist, xpart } from '../frontend/lower.js'
 import { Def } from '../dwarf/index.js'
 import { Lowering } from './prim_map.js'
 import {
-  forward_method, notnil_method, pack_method, packcat_method, part_method, tagcast_method,
+  forward_method, notnil_method, pack_method, packcat_method, part_method,
+  pullback_method, reverse_method, set_method, tagcast_method,
 } from './primitives.js'
-import { some } from '../utils/map.js'
+import { asNumber, only, some } from '../utils/map.js'
 import { isEqual } from '../utils/isEqual.js'
 
-export { autodiff }
+export { autodiff, autograd, pullback }
 
 type Stmt = Statement<IRValue, Type>
 
@@ -21,7 +24,7 @@ function push(code: Fragment<MIR>, ex: Expr<IRValue>, meta?: StmtOpts<Type>): Va
 }
 
 function call(code: Fragment<MIR>, f: Val<MIR>, args: Val<MIR>[], swap = false, meta?: StmtOpts<Type>): Val<MIR> {
-  const xs = push(code, xlist<IRValue>(...args))
+  const xs = push(code, xlist(...args))
   return push(code, new Call(f, xs, swap), meta)
 }
 
@@ -184,7 +187,7 @@ class Diff {
           } else if (ex.isreturn()) {
             const x = this.primal(ex.args[0])
             const dx = this.tangent(ex.args[0])
-            const result = push(ir, xlist<IRValue>(x, dx))
+            const result = push(ir, xlist(x, dx))
             ir.return(result, st)
           } else {
             const args = this.source.block(ex.target).args
@@ -222,4 +225,306 @@ function diffCall(code: Lowering, Ts: Type[], swaps: boolean): MIR {
 function autodiff(code: Lowering, diff: Method, ...Ts: Type[]): MIR {
   const method = diff.wrapped
   return method ? diffMethod(code, method, Ts) : diffCall(code, Ts, isEqual(diff.params[0], Type(true)))
+}
+
+// Reverse
+
+type Sig = [Method | undefined, Type[], boolean]
+
+type RuleContext = {
+  ir: Fragment<MIR>
+  alpha: (x: Val<MIR>) => Val<MIR>
+  src: Stmt['src']
+}
+
+type Rule = (cx: RuleContext, d: Val<MIR>, args: Val<MIR>[]) => (Val<MIR> | undefined)[]
+
+let reversePrimitives: Map<bigint, Rule> | undefined
+
+function zero(ir: Fragment<MIR>, x: Val<MIR>): Val<MIR> {
+  return call(ir, tag('common.autodiff/tangent'), [x], false)
+}
+
+function primitiveRules(): Map<bigint, Rule> {
+  const rs = new Map<bigint, Rule>()
+  rs.set(part_method.id, ({ ir, alpha, src }, d, [xs, i]) => {
+    const dxs = invoke(ir, set_method, [zero(ir, alpha(xs)), alpha(i), d], { src })
+    return [dxs, undefined]
+  })
+  rs.set(notnil_method.id, (_, d) => [d])
+  rs.set(tagcast_method.id, (_, d) => [d, undefined])
+  return rs
+}
+
+function reversePrimitive(method: Method): Rule | undefined {
+  reversePrimitives ??= primitiveRules()
+  return method.isSig ? undefined : reversePrimitives.get(method.id)
+}
+
+type Primal = {
+  ir: MIR
+  pr: MIR
+  values: Map<number, Val<MIR>>
+  pullbacks: Map<number, Val<MIR>>
+  branches: Map<number, number>
+  needed: Set<number>
+}
+
+function primal(ir: MIR, needed: Set<number>) {
+  const pr = new Pipe(ir)
+  const pullbacks = new Map<number, Val<MIR>>()
+  for (const [v, st] of pr) {
+    const ex = st.expr
+    if (!needed.has(v)) continue
+    if (ex instanceof Invoke) {
+      if (reversePrimitive(ex.method)) continue
+      pr.delete(v)
+      const result = invoke(pr, reverse_method.wrap(ex.method), ex.body, st)
+      pr.replace(v, push(pr, xpart(result, Type(1n))))
+      pullbacks.set(v, pr.substitute(push(pr, xpart(result, Type(2n)))))
+    } else if (ex instanceof Call) {
+      const [f, xs] = ex.body
+      pr.delete(v)
+      const result = ex.swap
+        ? invoke(pr, reverse_method.param(Type(true)), [f, xs], st)
+        : push(pr, new Call(tag('common.core/reverse'),
+          invoke(pr, packcat_method, [push(pr, xlist(push(pr, xlist(f)), xs))])), st)
+      pr.replace(v, push(pr, xpart(result, Type(1n))))
+      pullbacks.set(v, pr.substitute(push(pr, xpart(result, Type(2n)))))
+    }
+  }
+  return [pr.finish(), pr.map, pullbacks] as const
+}
+
+// TODO byte branch ids
+function record_branches(ir: MIR): Map<number, number> {
+  const branches = new Map<number, number>()
+  for (const bl of ir.blocks()) {
+    const preds = predecessors(bl)
+    if (preds.length < 2) continue
+    branches.set(bl.id + 1, bl.argument())
+    preds.forEach((p, i) => {
+      for (const br of p.branches())
+        if (br.target === bl.id + 1) br.args.push(types.int64(i + 1))
+    })
+  }
+  return branches
+}
+
+function Primal(ir: MIR): Primal {
+  ir = expand(merge_returns(ir))
+  const needed = differentiable(ir, ir.block(1).args)
+  const [pr, values, pullbacks] = primal(ir, needed)
+  const branches = record_branches(pr)
+  return { ir, pr, values, pullbacks, branches, needed }
+}
+
+class Alpha extends Expr<IRValue> {
+  constructor(readonly value: number) { super('alpha') }
+  map(_: (x: Val<MIR>) => Val<MIR>): Alpha { return this }
+  show(_: (x: Val<MIR>) => string): string { return `alpha %${this.value}` }
+}
+
+function sig(ir: MIR, needed: Set<number>): number[][] {
+  return Array.from(ir.blocks(), bl =>
+    [...new Set(bl.branches().flatMap(br => br.args)
+      .filter((x): x is number => typeof x === 'number' && needed.has(x)))])
+}
+
+function nilable(bl: Block<MIR>, x: number): boolean {
+  return bl.branches().some(br => !br.args.includes(x))
+}
+
+type Adjoint = {
+  primal: MIR
+  adjoint: MIR
+  order: number[]
+}
+
+function xaccum(ir: Fragment<MIR>, xs: Val<MIR>[]): Val<MIR> {
+  return xs.length == 0 ? types.nil :
+    xs.length === 1 ? xs[0] :
+      call(ir, tag('common.autodiff/accum'), xs, false)
+}
+
+function branchTo(from: Block<MIR>, to: Block<MIR>): Branch<IRValue> {
+  return only(from.branches().filter(br => br.target === to.id + 1))
+}
+
+function blockorder(ir: MIR): number[] {
+  const seen = new Set<number>()
+  const order: number[] = []
+  const visit = (b: number) => {
+    if (seen.has(b)) return
+    seen.add(b)
+    for (const p of predecessors(ir.block(b))) visit(p.id + 1)
+    order.push(b)
+  }
+  visit(ir.block().id + 1)
+  return order.reverse()
+}
+
+function adjointcfg(pr: Primal) {
+  const ir = MIR(Def(`${pr.ir.meta.name} (pullback)`))
+  const order = blockorder(pr.ir)
+  const sigs = sig(pr.ir, pr.needed)
+  for (const [i, b] of order.entries()) {
+    const bl = pr.ir.block(b)
+    const rb = i === 0 ? ir.block(1) : ir.newBlock()
+    const preds = predecessors(bl)
+    const conds = preds.slice(0, -1).map((_, j) =>
+      call(rb, tag('common/=='), [push(rb, new Alpha(asNumber(some(pr.branches.get(b))))), types.int64(j + 1)]))
+    preds.forEach((p, j) => rb.branch(order.indexOf(p.id + 1) + 1, [], { when: conds[j] }))
+    if (b !== 1 && preds.length === 0) rb.unreachable()
+    if (i === 0) rb.argument()
+    else for (const _ of sigs[b - 1]) rb.argument()
+  }
+  return [ir, order, sigs] as const
+}
+
+function adjoint(pr: Primal, method: boolean): Adjoint {
+  const [ir, order, sigs] = adjointcfg(pr)
+  for (const b of order) {
+    const bl = pr.ir.block(b)
+    const rb = ir.block(order.indexOf(b) + 1)
+    const alpha = (x: Val<MIR>): Val<MIR> =>
+      typeof x !== 'number' ? x : push(rb, new Alpha(asNumber(pr.values.get(x))))
+    const adjoints = new Map<number, Val<MIR>[]>()
+    const accum = (x: Val<MIR>, d: Val<MIR>) => {
+      if (typeof x === 'number') adjoints.set(x, [...(adjoints.get(x) ?? []), d])
+    }
+    const grad = (x: number) => {
+      adjoints.set(x, [xaccum(rb, adjoints.get(x) ?? [zero(rb, alpha(x))])])
+      return adjoints.get(x)![0]
+    }
+    // Backprop through (successor) branch arguments
+    sigs[b - 1].forEach((x, i) => {
+      if (nilable(bl, x)) accum(x, zero(rb, alpha(x)))
+      accum(x, rb.args[i])
+    })
+    // Backprop through statements
+    for (const [v, st] of [...bl].reverse()) {
+      if (st.expr instanceof Branch || !pr.needed.has(v)) continue
+      const ex = st.expr
+      if (ex.head === 'pack') {
+        ex.body.forEach((x, i) => typeof x === 'number' && accum(x, push(rb, xpart(grad(v), Type(BigInt(i))))))
+      } else if (ex instanceof Invoke) {
+        if (reversePrimitive(ex.method)) {
+          const cx: RuleContext = { ir: rb, alpha, src: st.src }
+          reversePrimitive(ex.method)!(cx, grad(v), ex.body).forEach((dx, i) => {
+            if (dx !== undefined) accum(ex.body[i], dx)
+          })
+        } else {
+          const pb = push(rb, new Alpha(asNumber(pr.pullbacks.get(v))))
+          const ds = call(rb, pb, [grad(v)], false, st)
+          ex.body.forEach((x, i) => accum(x, push(rb, xpart(ds, Type(BigInt(i + 1))))))
+        }
+      } else if (ex instanceof Call) {
+        const pb = push(rb, new Alpha(asNumber(pr.pullbacks.get(v))))
+        const ds = call(rb, pb, [grad(v)], false, st)
+        accum(ex.body[1], ds)
+      } else throw new Error(`reverse does not support ${ex.head}`)
+    }
+    if (b === 1) {
+      // Backprop function arguments
+      rb.return(method ? push(rb, xlist(...bl.args.map(a => grad(a)))) : grad(bl.args[1]))
+    } else {
+      // Backprop through (predecessor) branch arguments
+      for (const [v, st] of rb) {
+        const br = st.expr
+        if (!(br instanceof Branch) || br.target === 0) continue
+        const pred = order[br.target - 1]
+        const inputs = branchTo(pr.ir.block(pred), bl).args
+        const args = sigs[pred - 1].map(x =>
+          xaccum(rb, inputs.flatMap((a, i) => a === x ? [grad(bl.args[i])] : [])))
+        ir.set(v, new Branch(br.target, args, br.when))
+      }
+    }
+  }
+  return { primal: pr.pr, adjoint: ir, order }
+}
+
+// Emit
+
+function alphaUses(ir: MIR | Block<MIR>): Set<number> {
+  return new Set([...ir].flatMap(([, st]) => st.expr instanceof Alpha ? [st.expr.value] : []))
+}
+
+function pullbackMethod([meth, Ts, swaps]: Sig): Method {
+  return pullback_method.wrap(meth).param(Type(swaps), ...Ts)
+}
+
+function forwardStacks(adj: Adjoint, sig: Sig): [MIR, number[]] {
+  const pr = new Pipe(adj.primal)
+  const alphas = [...alphaUses(adj.adjoint)]
+  for (const bl of pr.blocks()) {
+    const stacks = alphas.map(() => bl.id === 1 ? push(pr, xlist()) : bl.argument())
+    const body = [...bl]
+    const i = adj.order.indexOf(bl.id)
+    if (i >= 0) for (const alpha of alphaUses(adj.adjoint.block(i + 1))) {
+      const i = alphas.indexOf(alpha)
+      stacks[i] = call(pr, tag('common/append'), [stacks[i], alpha])
+    }
+    for (const [v, st] of body) {
+      const ex = st.expr
+      if (ex instanceof Branch && ex.isreturn()) {
+        const state = push(pr, xlist(...stacks))
+        const back = push(pr, xclosure(pullbackMethod(sig), state))
+        const result = push(pr, xlist(ex.args[0], back))
+        pr.set(v, Branch.return(result))
+      } else if (ex instanceof Branch && ex.target > 0)
+        pr.set(v, new Branch(ex.target, [...ex.args, ...stacks], ex.when))
+    }
+  }
+  return [pr.finish(), alphas]
+}
+
+function reverseStacks(adj: Adjoint, alphas: number[]): MIR {
+  const pr = new Pipe(adj.adjoint)
+  const state = pr.argument()
+  for (const bl of pr.blocks()) {
+    const stacks = alphas.map((_, i) => bl.id === 1 ?
+      push(pr, xpart(state, Type(BigInt(i + 1)))) :
+      bl.argument())
+    const loaded = new Map<number, Val<MIR>>()
+    for (const alpha of alphaUses(adj.adjoint.block(bl.id))) {
+      const i = alphas.indexOf(alpha)
+      const result = call(pr, tag('common.list/pop'), [stacks[i]], true)
+      loaded.set(alpha, push(pr, xpart(result, Type(1n))))
+      stacks[i] = push(pr, xpart(result, Type(3n)))
+    }
+    for (const [v, st] of bl) {
+      const ex = st.expr
+      if (ex instanceof Alpha) {
+        pr.replace(v, some(loaded.get(ex.value)))
+      } else if (ex instanceof Branch && ex.target > 0)
+        pr.set(v, new Branch(ex.target, [...ex.args, ...stacks], ex.when))
+    }
+  }
+  return pr.finish()
+}
+
+function stacks(adj: Adjoint, sig: Sig): { primal: MIR, back: MIR } {
+  const [primal, saved] = forwardStacks(adj, sig)
+  return { primal, back: reverseStacks(adj, saved) }
+}
+
+function reverse(code: Lowering, [meth, Ts, swaps]: Sig): { primal: MIR, back: MIR } {
+  if (!meth && Ts.length !== 2) throw new Error('reverse expects a function and its arguments')
+  const source = meth
+    ? code.ir(meth, ...Ts)
+    : code.ir(new Dispatch(calltarget(Ts[0]), swaps), ...Ts)
+  const pr = Primal(source)
+  return stacks(adjoint(pr, !!meth), [meth, Ts, swaps])
+}
+
+function autograd(code: Lowering, diff: Method, ...Ts: Type[]): MIR {
+  const sig: Sig = [diff.wrapped, Ts, isEqual(diff.params[0], Type(true))]
+  const { primal, back } = reverse(code, sig)
+  code.define(pullbackMethod(sig), back)
+  return primal
+}
+
+function pullback(_: Lowering, diff: Method, ...__: Type[]): MIR {
+  throw new Error(`Pullback method was not generated: ${diff}`)
 }

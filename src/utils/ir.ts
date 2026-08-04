@@ -9,6 +9,7 @@ export {
   Statement, StmtOpts, IR, Block, Pipe, Branch, CFG, Component, components, entry, rename,
   getIndent, withIndent, Val, Fragment, asIR,
   liveness_after, liveness,
+  merge_returns,
   predecessors, fuseblocks, expand, prune, ssa, renumber, showVar
 }
 
@@ -96,6 +97,7 @@ type Val<I extends IR<any, any>> = T<I> | number
 
 interface Fragment<I extends IR<any, any>> {
   type(v: Val<I>): Anno<A<I>>
+  argument(type?: Anno<A<I>>, opts?: { value?: Val<I> }): Val<I>
   stmt(expr: Expr<T<I>>, opts?: StmtOpts<A<I>>): Statement<T<I>, A<I>>
   push(stmt: Statement<T<I>, A<I>>): Val<I>
 }
@@ -168,8 +170,8 @@ class IR<T, A> implements Fragment<IR<T, A>> {
     this._blocks.push({ stmts: [], args: [] })
     return this.block()
   }
-  argument(type: Anno<A> = unreachable): number {
-    return this.block(1).argument(type)
+  argument(type: Anno<A> = unreachable, opts: { value?: T | number } = {}): number {
+    return this.block(1).argument(type, opts)
   }
   push(x: Statement<T, A>): T | number {
     return this.block().push(x)
@@ -348,6 +350,18 @@ function showIR<T, A>(ir: IR<T, A>, meta = true): string {
 }
 
 // IR Passes
+
+function merge_returns<T, A>(ir: IR<T, A>): IR<T, A> {
+  const returns = [...ir].filter(([, st]) => st.expr instanceof Branch && st.expr.isreturn())
+  if (returns.length === 1 && ir.blockOf(returns[0][0]).id === ir.block().id) return ir
+  const target = ir.newBlock()
+  target.return(target.argument())
+  for (const [v, st] of returns) {
+    const ret = st.expr as Branch<T>
+    ir.set(v, new Branch(target.id + 1, [ret.args[0]]))
+  }
+  return ir
+}
 
 function zip<T, U>(a: T[], b: U[]): [T, U][] {
   return a.map((x, i) => [x, b[i]])
@@ -584,6 +598,12 @@ class PipeBlock<I extends IR<any, any>> {
     }
   }
 
+  argument(type: Anno<A<I>> = unreachable, opts: { value?: Val<I> } = {}): Val<I> {
+    const v = this.pipe.var()
+    this.pipe.map.set(v, this.pipe.to.block().argument(type, { value: opts.value === undefined ? undefined : this.pipe.substitute(opts.value) }))
+    return v
+  }
+
   *[Symbol.iterator](): Generator<[number, Statement<T<I>, A<I>>]> {
     for (const [v, stmt] of this.pipe.from.block(this.id)) {
       this.pipe.map.set(v, this.pipe.to.push(this.pipe.substituteStmt(stmt)))
@@ -604,6 +624,12 @@ class Pipe<I extends IR<any, any>> implements Fragment<I> {
   }
 
   var(): number { return this.id -= 1 }
+
+  argument(type: Anno<A<I>> = unreachable, { value }: { value?: Val<I> } = {}): Val<I> {
+    const v = this.var()
+    this.map.set(v, this.to.argument(type, { value: value === undefined ? undefined : this.substitute(value) }))
+    return v
+  }
 
   substitute(x: T<I> | number): T<I> | number {
     return typeof x === 'number' ? some(this.map.get(x)) : x

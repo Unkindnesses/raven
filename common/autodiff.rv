@@ -1,20 +1,44 @@
 import { ... } from "./core.rv"
 import { List } from "./list.rv"
 import { Number, zero, one, sqrt, exp, log, sin, cos } from "./numbers.rv"
-import { match } from "./patterns.rv"
+import { match, NotNil } from "./patterns.rv"
 import { getkey } from "./record.rv"
 
-export { diff, forward, tangent }
+export { diff, grad, forward, reverse, tangent, accum }
 
 fn diff(f, x: Number) { forward(f, [x], [one(x)])[2] }
+
+fn grad(f, xs...) {
+  [y, back] = reverse(f, xs...)
+  return back(one(y))
+}
 
 fn tangent(x) { nil }
 fn tangent(x: Tag) { x }
 fn tangent(xs: List) { for x = xs { tangent(x) } }
 fn tangent(x: Number) { zero(x) }
 
+fn accum(dx, dy, dz...) { accum(dx, accum(dy, dz...)) }
+
+fn accum(dx: NotNil, dy: NotNil) { dx + dy }
+fn accum(x: Nil, y) { y }
+fn accum(x, y: Nil) { x }
+fn accum(x: Tag, _: Tag) { x }
+fn accum(xs: List, ys: List) {
+  i = 0
+  for x = xs {
+    i = i + 1
+    accum(x, ys[i])
+  }
+}
+
 @extend
 fn forward($match, [x, pattern], [dx, dpattern]) {
+  abort("can't diff run-time match yet")
+}
+
+@extend
+fn reverse($match, x, pattern) {
   abort("can't diff run-time match yet")
 }
 
@@ -24,8 +48,18 @@ fn forward($+, [x, y], [dx, dy]) {
 }
 
 @extend
+fn reverse($+, x, y) {
+  return [x + y, fn (d) { [d, d] }]
+}
+
+@extend
 fn forward($-, [x], [dx]) {
   return [-x, -dx]
+}
+
+@extend
+fn reverse($-, x) {
+  return [-x, fn (d) { [-d] }]
 }
 
 @extend
@@ -34,13 +68,28 @@ fn forward($-, [x, y], [dx, dy]) {
 }
 
 @extend
+fn reverse($-, x, y) {
+  return [x - y, fn (d) { [d, -d] }]
+}
+
+@extend
 fn forward($*, [x, y], [dx, dy]) {
   return [x * y, dx * y + x * dy]
 }
 
 @extend
+fn reverse($*, x, y) {
+  return [x * y, fn (d) { [d * y, x * d] }]
+}
+
+@extend
 fn forward($/, [x, y], [dx, dy]) {
   return [x / y, (dx * y - x * dy) / (y * y)]
+}
+
+@extend
+fn reverse($/, x, y) {
+  return [x / y, fn (d) { [d / y, -(d * x) / (y * y)] }]
 }
 
 @extend
@@ -50,9 +99,21 @@ fn forward($sqrt, [x], [dx]) {
 }
 
 @extend
+fn reverse($sqrt, x) {
+  y = sqrt(x)
+  return [y, fn (d) { [d / (y + y)] }]
+}
+
+@extend
 fn forward($exp, [x], [dx]) {
   y = exp(x)
   return [y, y * dx]
+}
+
+@extend
+fn reverse($exp, x) {
+  y = exp(x)
+  return [y, fn (d) { [y * d] }]
 }
 
 @extend
@@ -61,11 +122,26 @@ fn forward($log, [x], [dx]) {
 }
 
 @extend
+fn reverse($log, x) {
+  return [log(x), fn (d) { [d / x] }]
+}
+
+@extend
 fn forward($sin, [x], [dx]) {
   return [sin(x), cos(x) * dx]
 }
 
 @extend
+fn reverse($sin, x) {
+  return [sin(x), fn (d) { [cos(x) * d] }]
+}
+
+@extend
 fn forward($cos, [x], [dx]) {
   return [cos(x), -sin(x) * dx]
+}
+
+@extend
+fn reverse($cos, x) {
+  return [cos(x), fn (d) { [-sin(x) * d] }]
 }

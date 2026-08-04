@@ -270,7 +270,7 @@ class Method {
   param(...Ts: Type[]) {
     return new Method(this.key, this.sig, this.lambda, this.isSig, Ts, this.wrapped)
   }
-  wrap(method: Method) {
+  wrap(method?: Method) {
     return new Method(this.key, this.sig, this.lambda, this.isSig, this.params, method)
   }
 }

@@ -632,7 +632,7 @@ function cast(pr: Fragment<MIR>, from: Anno<Type>, to: Anno<Type>, x: Val<MIR>):
     const parts: Val<MIR>[] = [bits(32, i)]
     for (let j = 1; j <= to.options.length; j++) {
       const regs = wlayout(to.options[j - 1]).length
-      if (j === i && typeof y === 'number') parts.push(y)
+      if (j === i && regs > 0) parts.push(y)
       else for (let k = 1; k <= regs; k++)
         parts.push(zero(pr, wlayout(to.options[j - 1])[k - 1]))
     }
