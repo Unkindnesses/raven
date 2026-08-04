@@ -1,6 +1,6 @@
 import { test } from 'vitest'
 import * as assert from 'assert'
-import { CFG, components, expand, prune, expr, unreachable, renumber, Val } from '../src/utils/ir.js'
+import { CFG, components, expand, prune, expr, renumber, Val } from '../src/utils/ir.js'
 import { looped, unloop } from '../src/middle/loop.js'
 import { MIR } from '../src/frontend/modules.js'
 import { Def } from '../src/dwarf/index.js'
@@ -71,10 +71,10 @@ test('expand/prune', () => {
 test('looped/unloop', () => {
   const ir = MIR(Def('test'))
   const b1 = ir.block()
-  const input = ir.argument(unreachable)
+  const input = ir.argument()
   b1.branch(2, [input])
   const b2 = ir.newBlock()
-  const x = b2.argument(unreachable)
+  const x = b2.argument()
   const cond = b2.push(ir.stmt(expr('check', x as Val<MIR>)))
   b2.branch(3, [], { when: cond })
   b2.branch(4)
@@ -120,4 +120,3 @@ test('looped/unloop', () => {
   const restored = renumber(simplified)
   assert.equal(restored.toString(), original)
 })
-

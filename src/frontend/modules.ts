@@ -256,7 +256,7 @@ class Method {
   ) { }
   get id() { return this.key.id }
   get name() { return this.key.name }
-  get swaps(): boolean { return this.wrapped?.swaps ?? this.sig.swap.size > 0 }
+  get swaps(): boolean { return this.sig.swap.size > 0 }
   get [hash](): string {
     return `${this.key[hash]}${this.lambda}${this.isSig}${this.params.map(x => types.repr(x)).join()}${this.wrapped?.[hash] ?? ''}`
   }

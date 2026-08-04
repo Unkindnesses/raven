@@ -1,0 +1,71 @@
+import { ... } from "./core.rv"
+import { List } from "./list.rv"
+import { Number, zero, one, sqrt, exp, log, sin, cos } from "./numbers.rv"
+import { match } from "./patterns.rv"
+import { getkey } from "./record.rv"
+
+export { diff, forward, tangent }
+
+fn diff(f, x: Number) { forward(f, [x], [one(x)])[2] }
+
+fn tangent(x) { nil }
+fn tangent(x: Tag) { x }
+fn tangent(xs: List) { for x = xs { tangent(x) } }
+fn tangent(x: Number) { zero(x) }
+
+@extend
+fn forward($match, [x, pattern], [dx, dpattern]) {
+  abort("can't diff run-time match yet")
+}
+
+@extend
+fn forward($+, [x, y], [dx, dy]) {
+  return [x + y, dx + dy]
+}
+
+@extend
+fn forward($-, [x], [dx]) {
+  return [-x, -dx]
+}
+
+@extend
+fn forward($-, [x, y], [dx, dy]) {
+  return [x - y, dx - dy]
+}
+
+@extend
+fn forward($*, [x, y], [dx, dy]) {
+  return [x * y, dx * y + x * dy]
+}
+
+@extend
+fn forward($/, [x, y], [dx, dy]) {
+  return [x / y, (dx * y - x * dy) / (y * y)]
+}
+
+@extend
+fn forward($sqrt, [x], [dx]) {
+  y = sqrt(x)
+  return [y, dx / (y + y)]
+}
+
+@extend
+fn forward($exp, [x], [dx]) {
+  y = exp(x)
+  return [y, y * dx]
+}
+
+@extend
+fn forward($log, [x], [dx]) {
+  return [log(x), dx / x]
+}
+
+@extend
+fn forward($sin, [x], [dx]) {
+  return [sin(x), cos(x) * dx]
+}
+
+@extend
+fn forward($cos, [x], [dx]) {
+  return [cos(x), -sin(x) * dx]
+}

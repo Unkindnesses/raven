@@ -416,6 +416,7 @@ function redirectCalls(inf: Inference, code: MIR): MIR {
   for (const [v, st] of pr) {
     if (!(st.expr instanceof Invoke)) continue
     if (partialPrimitive(st.expr.method)) continue
+    if (st.expr.body.some(x => pr.type(x) === unreachable)) continue
     const S = st.expr.body.map(x => asType(pr.type(x)))
     const from: Sig = [st.expr.method, ...S]
     const [_, ...T] = resolve(inf, from)

@@ -81,6 +81,8 @@ interface Statement<T, A> {
 }
 
 type StmtOpts<A> = { type?: Anno<A>, src?: Source | [Def, Source | undefined][], bp?: boolean }
+type ControlOpts<A> = Pick<StmtOpts<A>, 'src' | 'bp'>
+type BranchOpts<T, A> = ControlOpts<A> & { when?: T | number }
 
 interface BasicBlock<T, A> {
   readonly stmts: [number, Statement<T, A>][]
@@ -166,17 +168,16 @@ class IR<T, A> implements Fragment<IR<T, A>> {
     this._blocks.push({ stmts: [], args: [] })
     return this.block()
   }
-  argument(type: Anno<A>): number {
+  argument(type: Anno<A> = unreachable): number {
     return this.block(1).argument(type)
   }
   push(x: Statement<T, A>): T | number {
     return this.block().push(x)
   }
-  branch(target: number | Block<IR<T, A>>, args: (T | number)[] = [],
-    { when, src, bp }: { when?: T | number, src?: Source, bp?: boolean } = {}): number {
-    return this.block().branch(target, args, { when, src, bp })
+  branch(target: number | Block<IR<T, A>>, args: (T | number)[] = [], opts: BranchOpts<T, A> = {}): number {
+    return this.block().branch(target, args, opts)
   }
-  return(arg: T | number, opts: { src?: Source, bp?: boolean } = {}) { this.block().return(arg, opts) }
+  return(arg: T | number, opts: ControlOpts<A> = {}) { this.block().return(arg, opts) }
   delete(v: number) {
     this._defs[v - 1] = [-1, -1]
   }
@@ -264,7 +265,7 @@ class Block<I extends IR<any, any>> implements Fragment<I> {
 
   canbranch() { return this.branches().length === 0 || this.branches().slice(-1)[0].isconditional() }
 
-  argument(type: Anno<A<I>>, { value }: { value?: T<I> | number } = {}): number {
+  argument(type: Anno<A<I>> = unreachable, { value }: { value?: T<I> | number } = {}): number {
     this.ir._defs.push([this.id, -(this.args.length + 1)])
     const arg = this.ir._defs.length
     this.bb.args.push([arg, type])
@@ -276,13 +277,12 @@ class Block<I extends IR<any, any>> implements Fragment<I> {
     return arg
   }
 
-  branch(target: number | Block<I>, args: Val<I>[] = [],
-    { when, src, bp }: { when?: Val<I>, src?: Source, bp?: boolean } = {}): number {
+  branch(target: number | Block<I>, args: Val<I>[] = [], { when, ...opts }: BranchOpts<T<I>, A<I>> = {}): number {
     const targetId = typeof target === 'number' ? target : target.id + 1
-    return this.push(this.stmt(new Branch(targetId, args, when), { src, bp }))
+    return this.push(this.stmt(new Branch(targetId, args, when), opts))
   }
-  return(arg: T<I> | number, opts: { src?: Source, bp?: boolean } = {}) { this.branch(0, [arg], opts) }
-  unreachable(opts: { src?: Source, bp?: boolean } = {}) { this.branch(0, [], opts) }
+  return(arg: T<I> | number, opts: ControlOpts<A<I>> = {}) { this.branch(0, [arg], opts) }
+  unreachable(opts: ControlOpts<A<I>> = {}) { this.branch(0, [], opts) }
 
   *[Symbol.iterator](): Generator<[number, Statement<T<I>, A<I>>]> {
     for (const [v, stmt] of this.bb.stmts) if (this.ir.has(v)) yield [v, stmt]
@@ -535,7 +535,7 @@ function ssa<T, A>(ir: IR<T, A>): IR<T, A> {
     const blockId = block.id + 1
     if (defs.get(blockId)!.has(slot)) return some(defs.get(blockId)!.get(slot))
     if (blockId === 1) throw new Error(`undefined ${slot.name}`)
-    const arg = block.argument(unreachable)
+    const arg = block.argument()
     defs.get(blockId)!.set(slot, arg)
     for (const pred of predecessors(block)) {
       const predId = pred.id + 1
