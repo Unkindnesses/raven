@@ -17,7 +17,7 @@ import { some } from '../utils/map.js'
 import { Caching, CycleCache } from '../utils/cache.js'
 import { Accessor } from '../utils/fixpoint.js'
 import { xcall, xlist } from '../frontend/lower.js'
-import { partialPrimitive } from './prim_map.js'
+import { partialPrimitive, transformPrimitive } from './prim_map.js'
 import { pattern } from '../frontend/patterns.js'
 
 export { Tracer, Traced }
@@ -321,6 +321,7 @@ class Tracer {
     }
     // We can't evaluate `rvtype` here.
     if ([invoke_method, load_method].some(m => m.isEqual(meth))) return
+    if (transformPrimitive(meth)) return
     const partial = partialPrimitive(meth)
     if (partial) {
       const result = partial(...Ts)

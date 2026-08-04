@@ -19,7 +19,7 @@ import { isEqual } from '../utils/isEqual.js'
 import { Instruction } from '../wasm/wasm.js'
 import { Traced } from './tracer.js'
 import { binding } from '../utils/options.js'
-import { partialPrimitive } from './prim_map.js'
+import { Lowering, Transform, partialPrimitive, transformPrimitive } from './prim_map.js'
 
 const recursionLimit = 10
 
@@ -46,6 +46,14 @@ function prepare_ir(ir: MIR, args: Type[]): AIR {
   const b = l.body[0].block(1)
   for (let i = 0; i < args.length; i++) b.bb.args[i][1] = args[i]
   return l
+}
+
+function striptypes(code: MIR): MIR {
+  for (const [v, st] of code)
+    if (!(st.expr instanceof Wasm)) code.setType(v, unreachable)
+  for (const bl of code.blocks())
+    for (const arg of bl.bb.args) arg[1] = unreachable
+  return code
 }
 
 class Stack {
@@ -92,7 +100,8 @@ class Inference {
   redirects = new Map<string, Sig>()
   globals = new Map<string, GlobalFrame>()
   queue = new WorkQueue<string>()
-  constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly meths: MatchMethods, readonly traced: Traced) { }
+  constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly meths: MatchMethods,
+    readonly traced?: Traced, readonly transforms?: Inferred) { }
   reuse(ch: this): this {
     this.deps = new Map(Array.from(ch.deps, ([k, deps]) => [k, new Set(deps)]))
     this.frames = new Map(Array.from(ch.frames, ([k, fr]) => [k, fr.ghost()]))
@@ -143,21 +152,26 @@ function frame(inf: Inference, stack: Stack, sig: Sig): Frame {
   if (existing) return existing
   const [f, ...Ts] = sig
   const k = key(sig)
-  const [trace, deps] = trackdeps(() => inf.traced.trace(f, ...Ts))
-  if (trace) {
-    const [ir, ret] = trace
+  const [result, deps] = trackdeps(() => {
+    if (f instanceof Method && transformPrimitive(f))
+      return inf.transforms?.get([f, ...Ts] as Sig)
+    return inf.traced?.trace(f, ...Ts)
+  })
+  if (result) {
+    const [ir, ret] = result
     const fr = Frame.create(stack, ir, f, ...Ts)
     fr.rettype = ret
     inf.deps.set(k, deps)
     inf.frames.set(k, fr)
     return fr
   }
-  if (f instanceof Method) {
+  if (f instanceof Method && !transformPrimitive(f)) {
     const [ir, ideps] = trackdeps(() => inf.lowered.ir(f))
     for (const dep of ideps) deps.add(dep)
     inf.frames.set(k, Frame.create(stack, ir, f, ...Ts))
   } else {
-    inf.frames.set(k, new Frame(sig, stack, looped(MIR(Def(f.path)))))
+    const tag = f instanceof Method ? f.name : f
+    inf.frames.set(k, new Frame(sig, stack, looped(MIR(Def(tag.path)))))
   }
   inf.deps.set(k, deps)
   update(inf, k)
@@ -239,6 +253,30 @@ function settype(inf: Inference, fr: Frame, ret: Anno<Type>): void {
   for (const s of fr.edges) inf.queue.push(s)
 }
 
+function framecode(inf: Inference, fr: Frame, sig: Sig): MIR {
+  const callee = call(inf, fr.stack.push(fr.sig), sig)
+  fr.deps.add(callee.key)
+  callee.edges.add(fr.key)
+  return prune(unloop(callee.ir))
+}
+
+function lowering(inf: Inference, fr: Frame): Lowering {
+  const code: Lowering = {
+    ir(f: Func, ...Ts: Type[]): MIR {
+      if (!(f instanceof Method)) return striptypes(framecode(inf, fr, [f, ...Ts] as Sig))
+      const transform = transformPrimitive(f)
+      return transform ? transform(code, f, ...Ts) : inf.lowered.ir(f).clone()
+    }
+  }
+  return code
+}
+
+function update_transform(inf: Inference, fr: Frame, f: Method, Ts: Type[], transform: Transform) {
+  const [code, deps] = trackdeps(() => transform(lowering(inf, fr), f, ...Ts))
+  inf.deps.set(fr.key, deps)
+  fr.ir = prepare_ir(code, Ts)
+}
+
 function update_dispatcher(inf: Inference, fr: Frame, func: Dispatch, F: Type, Ts: Type) {
   const [[ir, ret], deps] = trackdeps(() => dispatcher(inf, func, F, Ts))
   inf.deps.set(fr.key, deps)
@@ -250,7 +288,10 @@ function update(inf: Inference, k: string): void {
   const fr = inf.frames.get(k)
   if (!fr) return
   cleardeps(inf, k)
-  if (!(fr.sig[0] instanceof Method)) return update_dispatcher(inf, fr, fr.sig[0], fr.sig[1], fr.sig[2])
+  const [f, ...Ts] = fr.sig
+  if (!(f instanceof Method)) return update_dispatcher(inf, fr, f, Ts[0], Ts[1])
+  const transform = transformPrimitive(f)
+  if (transform) update_transform(inf, fr, f, Ts, transform)
   let ret: Anno<Type> = unreachable
   let path: Path | null = new Path()
   const reachable = new HashSet<Path>([path])
@@ -405,8 +446,8 @@ class Inferred implements Caching {
   results: CacheMap<string, [MIR, Anno<Type>]>
   time = 0n
 
-  constructor(defs: Definitions, lowered: Lowered, meths: MatchMethods, traced: Traced) {
-    this.inf = new Inference(defs, lowered, meths, traced)
+  constructor(defs: Definitions, lowered: Lowered, meths: MatchMethods, traced?: Traced, transforms?: Inferred) {
+    this.inf = new Inference(defs, lowered, meths, traced, transforms)
     this.results = new CacheMap()
   }
 

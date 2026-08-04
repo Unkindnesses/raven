@@ -24,6 +24,7 @@ class Pipeline implements Caching {
   readonly defs: mods.Definitions
   readonly lowered: Lowered
   readonly methods: MatchMethods
+  readonly transforms: Inferred
   readonly interp: Traced
   readonly inferred: Inferred
   readonly expanded: ReturnType<typeof Expanded>
@@ -37,7 +38,8 @@ class Pipeline implements Caching {
     this.lowered = new Lowered(this.sources)
     this.methods = new MatchMethods(this.defs, this.lowered)
     this.interp = Traced.create(this.defs, this.lowered, this.methods)
-    this.inferred = new Inferred(this.defs, this.lowered, this.methods, this.interp)
+    this.transforms = new Inferred(this.defs, this.lowered, this.methods)
+    this.inferred = new Inferred(this.defs, this.lowered, this.methods, this.interp, this.transforms)
     this.expanded = Expanded(this.inferred)
     this.inlined = Inlined(this.expanded)
     this.counted = refcounts(this.inlined)
@@ -45,7 +47,7 @@ class Pipeline implements Caching {
   }
 
   get subcaches(): Caching[] {
-    return [this.sources, this.defs, this.lowered, this.methods, this.interp, this.inferred, this.expanded, this.inlined, this.counted, this.wasm]
+    return [this.sources, this.defs, this.lowered, this.methods, this.interp, this.transforms, this.inferred, this.expanded, this.inlined, this.counted, this.wasm]
   }
 
   fork(): Pipeline {

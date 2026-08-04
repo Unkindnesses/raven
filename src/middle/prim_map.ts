@@ -1,5 +1,5 @@
 import { tag, Type } from '../frontend/types.js'
-import { IRValue, Invoke, MIR, MethodKey, Method, MethodSource } from '../frontend/modules.js'
+import { IRValue, Invoke, MIR, MethodKey, Method, MethodSource, Dispatch } from '../frontend/modules.js'
 import { Anno, Fragment, Statement, Val } from '../utils/ir.js'
 import * as parse from '../frontend/parse.js'
 import * as ast from '../frontend/ast.js'
@@ -7,16 +7,24 @@ import * as patterns from '../frontend/patterns.js'
 import { Def } from '../dwarf/index.js'
 
 export {
-  InvokeSt, partialPrimitives, inlinePrimitives, outlinePrimitives,
-  partialPrimitive, inlinePrimitive, outlinePrimitive, primitive, sources
+  InvokeSt, Lowering, Transform,
+  partialPrimitives, inlinePrimitives, outlinePrimitives, transformPrimitives,
+  partialPrimitive, inlinePrimitive, outlinePrimitive, transformPrimitive, primitive, sources
 }
 
 type InvokeSt = Statement<IRValue, Type> & { expr: Invoke<IRValue> }
+
+interface Lowering {
+  ir(f: Dispatch | Method, ...Ts: Type[]): MIR
+}
+
+type Transform = (code: Lowering, f: Method, ...Ts: Type[]) => MIR
 
 const sources = new Map<bigint, MethodSource>()
 const partialPrimitives = new Map<bigint, (...args: Type[]) => Anno<Type>>()
 const inlinePrimitives = new Map<bigint, (code: Fragment<MIR>, st: InvokeSt) => Val<MIR>>()
 const outlinePrimitives = new Map<bigint, (...Ts: Type[]) => MIR>()
+const transformPrimitives = new Map<bigint, Transform>()
 
 function partialPrimitive(method: Method) {
   if (method.isSig) return
@@ -33,13 +41,17 @@ function outlinePrimitive(method: Method) {
   return outlinePrimitives.get(method.id)
 }
 
+function transformPrimitive(method: Method) {
+  if (method.isSig) return
+  return transformPrimitives.get(method.id)
+}
+
 function primitive(name: string, pattern: string, func?: (...args: Type[]) => Anno<Type>): Method {
-  func ??= (...args) => { throw new Error(`no partial for ${name}`) }
   const ex = ast.asExpr(parse.expr(pattern), 'List')
   const sig = ast.List(tag(name), ...ex.args)
   const method = new MethodKey(tag('common.core'), tag(name))
   const body = ast.Call(tag('common/abort'), 'Primitive not implemented')
   sources.set(method.id, { body, sig, meta: Def(name) })
-  partialPrimitives.set(method.id, func)
+  if (func) partialPrimitives.set(method.id, func)
   return new Method(method, patterns.signature(sig))
 }
