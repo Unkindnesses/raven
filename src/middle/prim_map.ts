@@ -15,6 +15,7 @@ export {
 type InvokeSt = Statement<IRValue, Type> & { expr: Invoke<IRValue> }
 
 interface Lowering {
+  define(f: Method, ir: MIR): void
   ir(f: Dispatch | Method, ...Ts: Type[]): MIR
 }
 

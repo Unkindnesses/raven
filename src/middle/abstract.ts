@@ -99,6 +99,7 @@ class Inference {
   frames = new Map<string, Frame>()
   redirects = new Map<string, Sig>()
   globals = new Map<string, GlobalFrame>()
+  generated = new Map<string, { owner: string, ir: MIR }>()
   queue = new WorkQueue<string>()
   constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly meths: MatchMethods,
     readonly traced?: Traced, readonly transforms?: Inferred) { }
@@ -260,10 +261,30 @@ function framecode(inf: Inference, fr: Frame, sig: Sig): MIR {
   return prune(unloop(callee.ir))
 }
 
+function generated(inf: Inference, fr: Frame, f: Method): MIR | undefined {
+  const body = inf.generated.get(f[hash])
+  if (!body) return
+  const owner = inf.frames.get(body.owner)
+  if (!owner) {
+    inf.generated.delete(f[hash])
+    return
+  }
+  fr.deps.add(owner.key)
+  owner.edges.add(fr.key)
+  return body.ir.clone()
+}
+
+function define(inf: Inference, fr: Frame, f: Method, ir: MIR): void {
+  inf.generated.set(f[hash], { owner: fr.key, ir })
+}
+
 function lowering(inf: Inference, fr: Frame): Lowering {
   const code: Lowering = {
+    define(f: Method, ir: MIR): void { define(inf, fr, f, ir) },
     ir(f: Func, ...Ts: Type[]): MIR {
       if (!(f instanceof Method)) return striptypes(framecode(inf, fr, [f, ...Ts] as Sig))
+      const body = generated(inf, fr, f)
+      if (body) return body
       const transform = transformPrimitive(f)
       return transform ? transform(code, f, ...Ts) : inf.lowered.ir(f).clone()
     }
@@ -272,7 +293,7 @@ function lowering(inf: Inference, fr: Frame): Lowering {
 }
 
 function update_transform(inf: Inference, fr: Frame, f: Method, Ts: Type[], transform: Transform) {
-  const [code, deps] = trackdeps(() => transform(lowering(inf, fr), f, ...Ts))
+  const [code, deps] = trackdeps(() => generated(inf, fr, f) ?? transform(lowering(inf, fr), f, ...Ts))
   inf.deps.set(fr.key, deps)
   fr.ir = prepare_ir(code, Ts)
 }
@@ -375,6 +396,8 @@ function update(inf: Inference, k: string): void {
 function remove(inf: Inference, k: string) {
   const fr = inf.frames.get(k) ?? inf.globals.get(k)
   if (fr instanceof Frame) cleardeps(inf, k)
+  for (const [method, body] of inf.generated)
+    if (body.owner === k) inf.generated.delete(method)
   inf.frames.delete(k)
   inf.globals.delete(k)
   inf.redirects.delete(k)
