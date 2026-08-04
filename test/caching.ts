@@ -82,6 +82,21 @@ test('compiler', async () => {
   assert.deepEqual(before, after)
 })
 
+test('fork reuses inference', async () => {
+  const compiler = await Compiler.create(load)
+  const inf = compiler.pipe.inferred
+  const sig = callsig(tag('common/+'), types.list(types.int64(), types.int64()))
+  inf.get(sig)
+
+  const ids = new Map(Array.from(inf.results.keys(), k => [k, inf.results.id(k)]))
+  const fork = compiler.pipe.fork().inferred
+
+  assert.equal(fork.size, inf.size)
+  for (const [k, id] of ids) assert.equal(fork.results.id(k), id)
+  for (const [k, frame] of inf.inf.frames)
+    assert.notEqual(fork.inf.frames.get(k), frame)
+})
+
 test('match method', async () => {
   const compiler = await Compiler.create(load)
   const sig = callsig(tag('common.patterns/matchTrait'), types.list(tag('common/Int64'), types.int64()))

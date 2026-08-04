@@ -40,8 +40,12 @@ type Func = Dispatch | Method
 type Sig = [Dispatch, Type, Type] | [Method, ...Type[]]
 type AIR = LoopIR<IRValue, Type>
 
-function prepare_ir(ir: MIR): AIR {
-  return looped(expand(ir.clone()))
+function prepare_ir(ir: MIR, args: Type[]): AIR {
+  const l = looped(expand(ir.clone()))
+  if (l.ir.block(1).args.length !== args.length) throw new Error('argument length mismatch')
+  const b = l.body[0].block(1)
+  for (let i = 0; i < args.length; i++) b.bb.args[i][1] = args[i]
+  return l
 }
 
 class Stack {
@@ -59,6 +63,7 @@ class GlobalFrame {
     public type: Anno<Type>,
     readonly deps = new Set<never>(),
     readonly edges = new Set<string>()) { }
+  clone(): GlobalFrame { return new GlobalFrame(this.type, new Set(this.deps), new Set(this.edges)) }
 }
 
 class Frame {
@@ -66,13 +71,18 @@ class Frame {
   deps = new Set<string>()
   edges = new Set<string>()
   rettype: Anno<Type> = unreachable
-  constructor(readonly sig: Sig, readonly stack: Stack, public ir: AIR) { this.key = key(sig) }
+  constructor(readonly sig: Sig, readonly stack: Stack, private _ir?: AIR) { this.key = key(sig) }
+  get ir(): AIR { return some(this._ir, `Missing IR for inference frame ${this.key}`) }
+  set ir(ir: AIR) { this._ir = ir }
   static create(stack: Stack, ir: MIR, f: Func, ...args: Type[]): Frame {
-    const l = prepare_ir(ir.clone())
-    if (l.ir.block(1).args.length !== args.length) throw new Error('argument length mismatch')
-    const b = l.body[0].block(1)
-    for (let i = 0; i < args.length; i++) b.bb.args[i][1] = args[i]
-    return new Frame([f, ...args] as Sig, stack, l)
+    return new Frame([f, ...args] as Sig, stack, prepare_ir(ir, args))
+  }
+  ghost(): Frame {
+    const out = new Frame(this.sig, this.stack)
+    out.deps = new Set(this.deps)
+    out.edges = new Set(this.edges)
+    out.rettype = this.rettype
+    return out
   }
 }
 
@@ -83,6 +93,14 @@ class Inference {
   globals = new Map<string, GlobalFrame>()
   queue = new WorkQueue<string>()
   constructor(readonly defs: Definitions, readonly lowered: Lowered, readonly meths: MatchMethods, readonly traced: Traced) { }
+  reuse(ch: this): this {
+    this.deps = new Map(Array.from(ch.deps, ([k, deps]) => [k, new Set(deps)]))
+    this.frames = new Map(Array.from(ch.frames, ([k, fr]) => [k, fr.ghost()]))
+    this.redirects = new Map(ch.redirects)
+    this.globals = new Map(Array.from(ch.globals, ([k, fr]) => [k, fr.clone()]))
+    this.queue = new WorkQueue<string>()
+    return this
+  }
 }
 
 function resolve(inf: Inference, T: Sig): Sig {
@@ -384,7 +402,7 @@ function forward(inf: Inference, sig: Sig): [MIR, Anno<Type>] {
 
 class Inferred implements Caching {
   readonly inf: Inference
-  readonly results: CacheMap<string, [MIR, Anno<Type>]>
+  results: CacheMap<string, [MIR, Anno<Type>]>
   time = 0n
 
   constructor(defs: Definitions, lowered: Lowered, meths: MatchMethods, traced: Traced) {
@@ -420,6 +438,13 @@ class Inferred implements Caching {
   }
 
   fingerprint(): Set<bigint> { return fingerprint(this.results) }
+
+  reuse(ch: this): this {
+    this.inf.reuse(ch.inf)
+    this.results = ch.results.clone()
+    return this
+  }
+
   reset(deps: Set<bigint>) {
     for (const [x, d] of this.inf.deps) {
       const sub = Array.from(d).every(id => deps.has(id))
