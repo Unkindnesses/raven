@@ -37,15 +37,19 @@ class StreamCompiler {
   private readonly emitter: wasm.StreamEmitter
   private ready = false
 
-  private constructor(private readonly load: Loader) {
+  private constructor(private readonly load: Loader, private readonly print: boolean) {
     this.pipe = new Pipeline()
     this.emitter = new wasm.StreamEmitter(this.pipe.wasm.tables)
   }
 
-  static async create(load: Loader): Promise<StreamCompiler> {
-    const compiler = new StreamCompiler(load)
+  static async create(load: Loader, print: boolean): Promise<StreamCompiler> {
+    const compiler = new StreamCompiler(load, print)
     await compiler.pipe.loadcommon(compiler.emitter, load)
     return compiler
+  }
+
+  reset(): void {
+    this.ready = false
   }
 
   async compile(src: string): Promise<Uint8Array[]> {
@@ -60,7 +64,7 @@ class StreamCompiler {
       const module = defs.module(tag(''))
       const cx = new LoadState(defs, module, load)
       const exprs = [...parse('repl', src).args]
-      if (exprs.length) exprs[exprs.length - 1] = wrapPrint(exprs[exprs.length - 1])
+      if (this.print && exprs.length) exprs[exprs.length - 1] = wrapPrint(exprs[exprs.length - 1])
       for (const expr of exprs) await vload(cx, expr)
     })
     reset(this.pipe)
@@ -91,8 +95,9 @@ class StreamCompiler {
 
 interface Compiler {
   compile(src: string): Promise<Uint8Array[]>
+  reset(): void
 }
 
-async function compiler(): Promise<Compiler> {
-  return StreamCompiler.create(load)
+async function compiler({ print = true }: { print?: boolean } = {}): Promise<Compiler> {
+  return StreamCompiler.create(load, print)
 }
