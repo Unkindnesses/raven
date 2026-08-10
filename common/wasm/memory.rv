@@ -1,9 +1,9 @@
 import { ... } from "../core.rv"
 import { matchTrait } from "../patterns.rv"
-import { Int, bits } from "../integer.rv"
+import { bits } from "../integer.rv"
 
 export {
-  Ptr, Function, Cell, Counted, addr, pointer, invoke, length
+  Ptr, Function, Counted, addr, invoke
   memoryPages, memoryGrow!, i32load, i32store!
 }
 
@@ -66,26 +66,4 @@ bundle Function(f: Func, I, O)
 fn (f: Function)(xs...) {
   Function(f, I, O) = f
   invoke(f, I, O, xs...)
-}
-
-# Mutable state
-
-bundle Cell(T, ptr: Counted)
-
-fn Cell(T, n: Int) {
-  Cell(T, Counted(alloc(T, Int32(n))))
-}
-
-fn (c: Cell(T, Counted(ptr)))[i] {
-  load(T, ptr, i)
-}
-
-@extend
-fn set(&c: Cell(T, Counted(ptr)), [i: Int64], x) {
-  store(T, ptr, i, x)
-}
-
-@extend
-fn length(Cell(_, Counted(ptr))) {
-  tag"common.core/length"(ptr)
 }

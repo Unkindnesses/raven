@@ -1,0 +1,38 @@
+import { ... } from "../core.rv"
+import { range } from "../iterate.rv"
+import { Int, Int32 } from "../integer.rv"
+import { Counted } from "./memory.rv"
+import { blockUnique } from "./malloc.rv"
+
+export { Cell, pointer, length, copy }
+
+bundle Cell(T, ptr: Counted)
+
+fn Cell(T, n: Int) {
+  Cell(T, Counted(alloc(T, Int32(n))))
+}
+
+fn (c: Cell(T, Counted(ptr)))[i] {
+  load(T, ptr, i)
+}
+
+fn pointer(Cell(_, Counted(ptr))) { ptr }
+
+@extend
+fn set(&c: Cell(T, Counted(ptr)), [i: Int64], x) {
+  store(T, ptr, i, x)
+}
+
+@extend
+fn length(Cell(_, Counted(ptr))) {
+  tag"common.core/length"(ptr)
+}
+
+fn copy(c: Cell(T, Counted(src))) {
+  if blockUnique(src) { return c }
+  dst = Cell(T, length(c))
+  for i = range(1, length(c)) {
+    dst[i] = c[i]
+  }
+  return dst
+}

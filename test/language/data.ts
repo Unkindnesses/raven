@@ -25,6 +25,39 @@ test('sum sequence', async () => {
   `)
 })
 
+test('cell copy', async () => {
+  await rv(`
+    {
+      buf = Cell(Float64, 3)
+      buf[1] = 2.0
+      buf[2] = 3.0
+      buf[3] = 5.0
+
+      cpy = copy(buf)
+      buf[2] = 7.0
+
+      test length(cpy) == 3
+      test cpy[1] == 2.0
+      test cpy[2] == 3.0
+      test cpy[3] == 5.0
+    }
+  `)
+})
+
+test('unique cell copy', async () => {
+  await rv(`
+    {
+      buf = Cell(Float64, 1)
+      buf[1] = 11.0
+      ptr = pointer(buf)
+      cpy = copy(buf)
+
+      test pointer(cpy) == ptr
+      test cpy[1] == 11.0
+    }
+  `)
+})
+
 test('dynamic part', async () => {
   await rv(`
     xs = [4, widen(5)]
