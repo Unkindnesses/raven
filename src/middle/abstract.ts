@@ -1,6 +1,6 @@
 import { unreachable, expand, Anno, Block, Expr, Branch, Pipe, expr, prune, asType } from '../utils/ir.js'
 import { LoopIR, looped, Path, block, nextpath, nextpathTo, blockargs, loop, unloop } from './loop.js'
-import { MatchMethods, dispatcher } from './patterns.js'
+import { MatchMethods, dispatcher } from './match.js'
 import {
   Type, repr, union, issubset as iss, isValue, pack, Closure,
   tag, tagOf, parts, String as RString, Ref, nil, Any, disjuncts
