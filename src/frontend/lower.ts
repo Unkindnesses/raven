@@ -20,6 +20,7 @@ export {
   lowerpattern, callpattern, modtag,
   globals, assigned_globals, xpack, xlist, xpart, xcall, xtuple, attrs
 }
+
 // Built-in macros
 
 const s = symbol
@@ -260,6 +261,11 @@ function expand(ex: ast.Tree): ast.Tree {
 type IRValue = Type | ir.Slot | Binding
 type LIR = ir.IR<IRValue, Type>
 
+// Hacky, but it's useful to put lowered values back into the AST
+class IRVal extends ast.Token {
+  constructor(readonly val: Val<LIR>) { super(symbol('<IR val>')) }
+}
+
 function showIRValue(x: IRValue): string {
   if (x instanceof ir.Slot) return x.toString()
   if (x instanceof Binding) return `${x.mod}.${x.name}`
@@ -461,6 +467,7 @@ function lowermatch(cx: Lowering, val: Val<LIR>, pat: ast.Tree): Val<LIR> {
 }
 
 function lower(cx: Lowering, x: ast.Tree | readonly ast.Tree[], value = true): Val<LIR> {
+  if (x instanceof IRVal) return x.val as Val<LIR>
   if (!(x instanceof ast.Token || x instanceof ast.Expr)) {
     if (x.length === 0) return nil
     x.slice(0, -1).forEach(item => lower(cx, item, false))
@@ -527,12 +534,9 @@ function lowerOperator(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {
     const val = lower(cx, args[1])
     return lowermatch(cx, val, pat)
   } else if (op === '&&' || op === '||') {
-    const condVar = gensym('cond')
-    const clauses = op === '&&' ? [args[1], condVar] : [condVar, args[1]]
-    const letStmt = ast.Block(
-      ast.Operator(condVar, symbol('='), args[0]),
-      ast.Syntax(symbol('if'), condVar, clauses[0], symbol('else'), clauses[1]))
-    return lower(cx, letStmt, value)
+    const cond = new IRVal(lower(cx, args[0]))
+    const clauses = op === '&&' ? [args[1], cond] : [cond, args[1]]
+    return lower(cx, ast.Syntax(symbol('if'), cond, clauses[0], symbol('else'), clauses[1]), value)
   } else {
     // General operator call
     const func = lower(cx, operator)
