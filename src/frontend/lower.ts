@@ -886,7 +886,7 @@ function lowerWhile(cx: Lowering, _ex: ast.Expr, value = true): Val<LIR> {
   if (value) out = rcall(cx.code, tag('common/append'), [out, val])
   const bodyEnd = cx.code.block()
   const after = cx.code.newBlock()
-  rewriteJumps(cx, [header.id + 1, value ? [out] : []], [after.id + 1, []])
+  rewriteJumps(cx, [header.id + 1, value ? [ret] : []], [after.id + 1, []])
   condBlock.branch(bodyStart, [], { when: condResult, src: ex.meta && source(ex.meta) })
   condBlock.branch(after, [], { src: ex.args[0].meta && source(ex.args[0].meta) })
   if (bodyEnd.canbranch()) bodyEnd.branch(header, value ? [out] : [])

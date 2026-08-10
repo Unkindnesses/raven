@@ -209,6 +209,16 @@ test('loop continue', async () => {
   `)
 })
 
+test('comprehension continue', async () => {
+  await rv(`
+    xs = for i = (1..5) {
+      if rem(i, 2) == 0 { continue }
+      i * i
+    }
+    test xs == [1, 9, 25]
+  `)
+})
+
 test('labeled loop control', async () => {
   await rv(`
     sum = 0
