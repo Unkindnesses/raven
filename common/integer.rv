@@ -17,7 +17,7 @@ lt = tag"common.bootstrap/<"
 fn matchTrait($Bits, x: pack($Bits, _)) { Some(x) }
 
 # TODO lower symbols to literals
-fn tag"common.core/Bits"[N] { Params(Bits, N) }
+fn $Bits[N] { Params(Bits, N) }
 
 @extend
 fn (a: Bits) == (b: Bits) { Bool(biteq(a, b)) }
@@ -75,7 +75,7 @@ fn condition(x: Bool) { x }
 # TODO `bundle Int[N](x: Bits[N])`
 bundle Int(x: Bits)
 
-fn tag"common.integer/Int"[N] { Params(Int, N) }
+fn $Int[N] { Params(Int, N) }
 
 @extend
 fn matchTrait(Params($Int, N), Int(b)) {
@@ -245,7 +245,7 @@ fn show(x: Int64) { print(x) }
 
 bundle UInt(x: Bits)
 
-fn tag"common.integer/UInt"[N] { Params(UInt, N) }
+fn $UInt[N] { Params(UInt, N) }
 
 @extend
 fn matchTrait(Params($UInt, N), UInt(b)) {

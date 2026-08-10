@@ -381,12 +381,21 @@ function item(r: Reader): ast.Tree | undefined {
   return ex.withmeta({ file: path(), loc: pos })
 }
 
+function interpolation(r: Reader): ast.Tree | undefined {
+  if (r.char !== '$') return
+  const loc = r.cursor()
+  r.read()
+  const ex = item(r)
+  if (ex === undefined) return new ast.Token(ast.symbol('$'))
+  return ast.Operator(ast.symbol('$'), ex).withmeta({ file: path(), loc })
+}
+
 // The following parsers fall back to simpler ones, to avoid excessive
 // backtracking / re-parsing. So they don't need to be called in sequence.
 
 // Does calls and fields, so we can handle eg `foo.bar(a).baz`
 function postfix(r: Reader): ast.Tree | undefined {
-  let ex = item(r)
+  let ex = r.parse(interpolation, item)
   if (ex === undefined) return
   while (true) {
     const cur = r.cursor()
@@ -417,7 +426,7 @@ function prefix(r: Reader): ast.Tree | undefined {
   if (r.eof()) return
   if (r.peek(r => exact(r, '!='))) return postfix(r)
   const loc = r.cursor()
-  if (r.char === '!' || r.char === '-' || r.char === '$') {
+  if (r.char === '!' || r.char === '-') {
     const op = r.read()
     let ex = prefix(r)
     if (ex === undefined) return new ast.Token(ast.symbol(op))
