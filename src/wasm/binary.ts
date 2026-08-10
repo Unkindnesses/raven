@@ -67,9 +67,10 @@ class BinaryContext {
 
   write(x: number | string | Uint8Array | number[]): void {
     if (typeof x === 'number') this.buffer.push(x)
-    else if (typeof x === 'string') this.buffer.push(...new TextEncoder().encode(x))
-    else if (x instanceof Uint8Array) this.buffer.push(...x)
-    else if (Array.isArray(x)) this.buffer.push(...x)
+    else {
+      const bytes = typeof x === 'string' ? new TextEncoder().encode(x) : x
+      for (const byte of bytes) this.buffer.push(byte)
+    }
   }
 
   leb128(x: number | bigint): void { dwarf.leb128U(x, this.buffer) }

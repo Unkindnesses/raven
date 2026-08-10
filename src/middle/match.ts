@@ -158,10 +158,11 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
       return new Map()
 
     case 'literal': // TODO use assoc
-      if (types.isValue(val) && types.isValue(pat.value)) {
-        return isEqual(pat.value, val) ? new Map() : null
+      if (types.isdisjoint(pat.value, val)) return null
+      else if (types.isValue(val) && types.isValue(pat.value)) {
+        return new Map()
       } else {
-        return undefined // could reject more cases here
+        return undefined
       }
 
     case 'bind':

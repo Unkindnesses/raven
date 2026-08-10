@@ -122,7 +122,7 @@ function withSize(out: number[], f: (buf: number[]) => void) {
   const buf: number[] = []
   f(buf)
   writeU32(out, buf.length)
-  out.push(...buf)
+  for (const byte of buf) out.push(byte)
 }
 
 function putStringZ(out: number[], s: string) {
