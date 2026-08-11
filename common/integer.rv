@@ -76,10 +76,7 @@ fn $Int[T] { Params(Int, T) }
 
 @extend
 fn matchTrait(Params($Int, T), Int(b)) {
-  # TODO b: T = ...
-  if let Some(b) = matchTrait(T, b) {
-    Some(Int(b))
-  }
+  if let (b: T) = b { Some(Int(b)) }
 }
 
 fn bits(Int(x)) { x }
@@ -246,9 +243,7 @@ fn $UInt[T] { Params(UInt, T) }
 
 @extend
 fn matchTrait(Params($UInt, T), UInt(b)) {
-  if let Some(b) = matchTrait(T, b) {
-    Some(UInt(b))
-  }
+  if let (b: T) = b { Some(UInt(b)) }
 }
 
 @extend
