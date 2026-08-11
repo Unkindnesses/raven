@@ -59,7 +59,6 @@ interface Methods {
 }
 
 function _assoc(as: Match, name: string, [val, path]: [types.Type, Path]): MatchResult {
-  if (as === null || as === undefined) return as
   if (!as.has(name)) {
     const result = new Map<string, [types.Type, Path]>(as)
     result.set(name, [val, path])
@@ -71,16 +70,6 @@ function _assoc(as: Match, name: string, [val, path]: [types.Type, Path]): Match
   } else {
     return undefined // could reject more cases here
   }
-}
-
-function _merge(as: Match | undefined, bs: Match | undefined): MatchResult {
-  if (as === undefined || bs === undefined) return undefined
-  let m: MatchResult = as
-  for (const [k, v] of bs) {
-    m = _assoc(m, k, v)
-    if (m === null || m === undefined) return m
-  }
-  return m
 }
 
 function ishole(x: Pattern): boolean {
@@ -97,17 +86,20 @@ function slurpName(x: Pattern): string | undefined {
   if (x.kind === 'repeat' && x.pattern.kind === 'bind') return x.pattern.name
 }
 
+function bound(env: Match | undefined, bs: Match): boolean {
+  return bs.size > (env?.size ?? 0)
+}
+
 // TODO match results don't have to be identical, if
 // bindings and paths are right we can merge types.
-function partial_match_union(mod: Interpreter, pat: Pattern, val: types.Type & { kind: 'union' }, path: Path): MatchResult {
-  const ms = val.options.map(x => partial_match(mod, pat, x, path))
+function partial_match_union(mod: Interpreter, env: Match | undefined, pat: Pattern, val: types.Type & { kind: 'union' }, path: Path): MatchResult {
+  const ms = val.options.map(x => _partial_match(mod, env, pat, x, path))
   if (ms.some(x => x === undefined)) return undefined
   if (ms.every((m, i) => isEqual(m, ms[0]))) return ms[0]
   return undefined
 }
 
-function partial_match_pack(mod: Interpreter, pat: Pattern & { kind: 'pack' }, val: types.Type, path: Path): MatchResult {
-  let bs: Match | undefined = new Map()
+function partial_match_pack(mod: Interpreter, bs: Match | undefined, pat: Pattern & { kind: 'pack' }, val: types.Type, path: Path): MatchResult {
   let i = 0
   while (true) {
     if (i > types.nparts(val)) break
@@ -121,12 +113,10 @@ function partial_match_pack(mod: Interpreter, pat: Pattern & { kind: 'pack' }, v
       return _assoc(bs, name, [types.list(...remaining), [...path, range]])
     }
     if (pat.parts[i].kind === 'repeat') return undefined
-    const b = partial_match(mod, pat.parts[i], types.part(val, i), [...path, i])
+    const b = _partial_match(mod, bs, pat.parts[i], types.part(val, i), [...path, i])
     // continue on `missing`, since we might narrow to `nothing` later
     if (b === null) return null
-    const cs = _merge(bs, b)
-    if (cs === null) return null
-    bs = cs
+    bs = b
     i += 1
   }
   if (pat.parts.length - 1 === i && isslurp(pat.parts[i])) {
@@ -139,46 +129,46 @@ function partial_match_pack(mod: Interpreter, pat: Pattern & { kind: 'pack' }, v
   return bs
 }
 
-function partial_match_vpack(mod: Interpreter, pat: Pattern & { kind: 'pack' }, val: types.Type & { kind: 'vpack' }, path: Path): MatchResult {
-  const bs = partial_match(mod, pat.parts[0], types.tagOf(val), [...path, 0])
+function partial_match_vpack(mod: Interpreter, env: Match | undefined, pat: Pattern & { kind: 'pack' }, val: types.Type & { kind: 'vpack' }, path: Path): MatchResult {
+  const bs = _partial_match(mod, env, pat.parts[0], types.tagOf(val), [...path, 0])
   if (bs === null || bs === undefined) return bs
-  if (bs.size > 0) return undefined
+  if (bound(env, bs)) return undefined
   if (pat.parts.length !== 2 || pat.parts[1].kind !== 'repeat') return undefined
   const innerPat = pat.parts[1].pattern
   const [b, r] = innerPat.kind === 'bind' ? [innerPat.name, innerPat.pattern] : [undefined, innerPat]
-  const bs2 = partial_match(mod, r, types.partial_eltype(val), path)
+  const bs2 = _partial_match(mod, bs, r, types.partial_eltype(val), path)
   if (bs2 === null || bs2 === undefined) return bs2
-  if (bs2.size > 0) return undefined
+  if (bound(bs, bs2)) return undefined
   return b === undefined ? bs : _assoc(bs, b, [val, path])
 }
 
-function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Path = []): MatchResult {
+function _partial_match(mod: Interpreter, env: Match | undefined, pat: Pattern, val: types.Type, path: Path): MatchResult {
   switch (pat.kind) {
     case 'hole':
-      return new Map()
+      return env
 
     case 'literal': // TODO use assoc
       if (types.isdisjoint(pat.value, val)) return null
       else if (types.isValue(val) && types.isValue(pat.value)) {
-        return new Map()
+        return env
       } else {
         return undefined
       }
 
     case 'bind':
-      const bs = partial_match(mod, pat.pattern, val, path)
+      const bs = _partial_match(mod, env, pat.pattern, val, path)
       if (bs === null || bs === undefined) return bs
       return _assoc(bs, pat.name, [val, path])
 
     case 'trait':
       const r = trivial_isa(mod, val, pat.trait)
-      return r === true ? new Map() : r === false ? null : undefined
+      return r === true ? env : r === false ? null : undefined
 
     case 'or':
-      if (val.kind === 'recursive') return partial_match(mod, pat, types.unroll(val), path)
-      if (val.kind === 'union') return partial_match_union(mod, pat, val, path)
+      if (val.kind === 'recursive') return _partial_match(mod, env, pat, types.unroll(val), path)
+      if (val.kind === 'union') return partial_match_union(mod, env, pat, val, path)
       for (const p of pat.patterns) {
-        const m = partial_match(mod, p, val, path)
+        const m = _partial_match(mod, env, p, val, path)
         if (m === null) continue
         if (m === undefined) return undefined
         return m
@@ -188,18 +178,18 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
     case 'constructor': {
       const result = mod.eval(types.tag('common.patterns/constructorPattern'), types.list(...types.parts(pat.value)))
       if (!result || !types.isValue(result)) return undefined
-      return partial_match(mod, pattern(result), val, path)
+      return _partial_match(mod, env, pattern(result), val, path)
     }
 
     case 'pack':
       if (types.isAtom(val) || val.kind === 'closure' || val.kind === 'pack') {
-        return partial_match_pack(mod, pat, val, path)
+        return partial_match_pack(mod, env, pat, val, path)
       } else if (val.kind === 'vpack') {
-        return partial_match_vpack(mod, pat, val, path)
+        return partial_match_vpack(mod, env, pat, val, path)
       } else if (val.kind === 'union') {
-        return partial_match_union(mod, pat, val, path)
+        return partial_match_union(mod, env, pat, val, path)
       } else if (val.kind === 'recursive') {
-        return partial_match(mod, pat, types.unroll(val), path)
+        return _partial_match(mod, env, pat, types.unroll(val), path)
       } else if (val.kind === 'any') {
         return undefined
       } else {
@@ -214,6 +204,10 @@ function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Pa
       pat satisfies never
       throw new Error('unreachable')
   }
+}
+
+function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Path = []): MatchResult {
+  return _partial_match(mod, new Map(), pat, val, path)
 }
 
 // TODO assumes the value is unchanged by the match

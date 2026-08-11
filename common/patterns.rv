@@ -45,23 +45,29 @@ fn constructorPattern($pack, args...) {
   Pack(args...)
 }
 
-fn _match(val, pack($Hole), deep) {
+# TODO unify env and bindings
+fn scope(env, bs) {
+  merged = merge(env, bs)
+  if nil?(merged) { env } else { notnil(merged) }
+}
+
+fn _match(env, val, pack($Hole), deep) {
   return [val, record()]
 }
 
-fn _match(val, pack($Literal, pat), deep) {
+fn _match(env, val, pack($Literal, pat), deep) {
   (val == pat) || return
   return [pat, record()]
 }
 
-fn _match(val, pack($Trait, T), deep) {
+fn _match(env, val, pack($Trait, T), deep) {
   m = if deep { castTrait(T, val) } else { matchTrait(T, val) }
   nil?(m) && return
   return [part(notnil(m), 1), record()]
 }
 
-fn _match(val, pack($Bind, name, p), deep) {
-  m = _match(val, p, deep)
+fn _match(env, val, pack($Bind, name, p), deep) {
+  m = _match(env, val, p, deep)
   nil?(m) && return
   m = notnil(m)
   val = part(m, 1)
@@ -70,9 +76,9 @@ fn _match(val, pack($Bind, name, p), deep) {
   return [val, bs]
 }
 
-fn _match(xs, p: Pack, deep) {
+fn _match(env, xs, p: Pack, deep) {
   eq(nparts(xs), nparts(p) - 1) || return
-  m = _match(tag(xs), part(p, 1), deep)
+  m = _match(env, tag(xs), part(p, 1), deep)
   nil?(m) && return
   m = notnil(m)
   tag = part(m, 1)
@@ -81,12 +87,12 @@ fn _match(xs, p: Pack, deep) {
   i = 1
   while i < nparts(p) {
     if !nil?(result) {
-      m = _match(part(xs, i), part(p, i + 1), deep)
+      r = notnil(result)
+      m = _match(scope(env, part(r, 2)), part(xs, i), part(p, i + 1), deep)
       if nil?(m) {
         result = nil
       } else {
         m = notnil(m)
-        r = notnil(result)
         bs = merge(part(r, 2), part(m, 2))
         if nil?(bs) {
           result = nil
@@ -103,9 +109,11 @@ fn _match(xs, p: Pack, deep) {
   return result
 }
 
-fn _match(val, pack($Constructor, name, args...), deep) {
-  _match(val, constructorPattern(name, args...), deep)
+fn _match(env, val, pack($Constructor, name, args...), deep) {
+  _match(env, val, constructorPattern(name, args...), deep)
 }
+
+fn _match(val, pat, deep) { _match(record(), val, pat, deep) }
 
 fn match(val, pat) {
   result = _match(val, pat, false)
