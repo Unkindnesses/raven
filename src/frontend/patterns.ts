@@ -3,6 +3,7 @@ import * as types from './types.js'
 import { Type } from './types.js'
 import { LIR } from './lower.js'
 import { Val } from '../utils/ir.js'
+import { asBigInt } from '../utils/map.js'
 
 export { Pattern, Builder, pattern, signature, swaps as processSwaps, lowerPattern }
 
@@ -73,6 +74,8 @@ function lowerIsa(cx: Lowering, ex: ast.Tree): Val<LIR> {
   if (ex instanceof ast.Token) return lowerExpr(cx, ex)
   if (ex.head === 'Field' && ex.args[0].unwrap() instanceof ast.Symbol) return cx.node('Trait', cx.expr(ex))
   if (ex.head === 'Index') return cx.node('Trait', cx.node('Params', ...ex.args.map(x => cx.expr(x))))
+  if (ast.isSyntax(ex, 'bits'))
+    return cx.node('Trait', types.bits(Number(asBigInt(ex.args[1].unwrap())), 0n))
   if (ex.head === 'Operator' && ast.symbol('|').isEqual(ex.args[1].unwrap()))
     return cx.node('Or', lowerIsa(cx, ex.args[0]), lowerIsa(cx, ex.args[2]))
   if (ex.head === 'Operator' && ast.symbol('&').isEqual(ex.args[1].unwrap()))

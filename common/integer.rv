@@ -16,15 +16,12 @@ lt = tag"common.bootstrap/<"
 @extend
 fn matchTrait($Bits, x: pack($Bits, _)) { Some(x) }
 
-# TODO lower symbols to literals
-fn $Bits[N] { Params(Bits, N) }
-
 @extend
 fn (a: Bits) == (b: Bits) { Bool(biteq(a, b)) }
 
 @extend
-fn matchTrait(Params($Bits, N), x: Bits) {
-  if bitsize(x) == N { Some(tagcast(x, N)) }
+fn matchTrait(T: pack($Bits, _), x: Bits) {
+  if bitsize(x) == bitsize(T) { Some(tagcast(x, T)) }
 }
 
 @extend
@@ -39,7 +36,7 @@ fn show(x: Bits) {
 
 # Bool
 
-bundle Bool(x: Bits[1])
+bundle Bool(x: bits 1)
 
 fn Bool(x: Bits) { pack(Bool, bitcast(bits 1, x)) }
 
@@ -72,15 +69,15 @@ fn condition(x: Bool) { x }
 
 # Int
 
-# TODO `bundle Int[N](x: Bits[N])`
+# TODO `bundle Int[T](x: T)`
 bundle Int(x: Bits)
 
-fn $Int[N] { Params(Int, N) }
+fn $Int[T] { Params(Int, T) }
 
 @extend
-fn matchTrait(Params($Int, N), Int(b)) {
-  # TODO b: Bits[N] = ...
-  if let Some(b) = matchTrait(Bits[N], b) {
+fn matchTrait(Params($Int, T), Int(b)) {
+  # TODO b: T = ...
+  if let Some(b) = matchTrait(T, b) {
     Some(Int(b))
   }
 }
@@ -220,10 +217,10 @@ fn show(x: Int) {
 # Special sizes
 
 @extend
-fn matchTrait($Int32, x: Int[32]) { Some(x) }
+fn matchTrait($Int32, x: Int[bits 32]) { Some(x) }
 
 @extend
-fn matchTrait($Int64, x: Int[64]) { Some(x) }
+fn matchTrait($Int64, x: Int[bits 64]) { Some(x) }
 
 @extend
 fn Int32(x) { oftype(int 32, x) }
@@ -245,11 +242,11 @@ fn show(x: Int64) { print(x) }
 
 bundle UInt(x: Bits)
 
-fn $UInt[N] { Params(UInt, N) }
+fn $UInt[T] { Params(UInt, T) }
 
 @extend
-fn matchTrait(Params($UInt, N), UInt(b)) {
-  if let Some(b) = matchTrait(Bits[N], b) {
+fn matchTrait(Params($UInt, T), UInt(b)) {
+  if let Some(b) = matchTrait(T, b) {
     Some(UInt(b))
   }
 }
@@ -367,16 +364,16 @@ fn show(x: UInt) {
 # Special sizes
 
 @extend
-fn matchTrait($UInt8, x: UInt[8]) { Some(x) }
+fn matchTrait($UInt8, x: UInt[bits 8]) { Some(x) }
 
 @extend
-fn matchTrait($UInt16, x: UInt[16]) { Some(x) }
+fn matchTrait($UInt16, x: UInt[bits 16]) { Some(x) }
 
 @extend
-fn matchTrait($UInt32, x: UInt[32]) { Some(x) }
+fn matchTrait($UInt32, x: UInt[bits 32]) { Some(x) }
 
 @extend
-fn matchTrait($UInt64, x: UInt[64]) { Some(x) }
+fn matchTrait($UInt64, x: UInt[bits 64]) { Some(x) }
 
 fn UInt8(x) { oftype(uint 8, x) }
 fn UInt16(x) { oftype(uint 16, x) }

@@ -209,8 +209,7 @@ const corePrimitive = new HashMap<Type, Type>([
 ])
 
 function partial_tagcast(x: Type, t: Type): Anno<Type> {
-  const n = getIntValue(t)
-  if (n !== undefined) return types.bits(n)
+  if (t.kind === 'bits') return types.bits(t.size)
   if (!(t instanceof types.Tag)) throw new Error('t must be a tag')
   x = types.unroll(x)
   if (x.kind === 'any') return corePrimitive.get(t) ?? types.vpack(t, types.Any)
@@ -599,6 +598,10 @@ inlinePrimitives.set(tagcast_method.id, (code, st) => {
   const tg = asType(code.type(st.expr.body[1]), 'tag')
   if (isEqual(T, V)) return x
   if (V === unreachable) return abort(code, 'tagcast')
+  if (T.kind === 'bits' && V.kind === 'bits') {
+    if (T.size !== V.size) throw new Error('tagcast bits size mismatch')
+    return x
+  }
   if (T.kind === 'recursive') {
     T = types.unroll(T)
     x = unbox(code, T, x)
