@@ -70,46 +70,46 @@ function addBinding(cx: Lowering, name: string): void {
 
 function lowerIsa(cx: Lowering, ex: ast.Tree): Val<LIR> {
   ex = ex.ungroup()
-  if (ex.unwrap() instanceof ast.Symbol) return cx.node('Trait', cx.expr(ex))
+  if (ex.unwrap() instanceof ast.Symbol) return cx.node('Pattern.Trait', cx.expr(ex))
   if (ex instanceof ast.Token) return lowerExpr(cx, ex)
-  if (ex.head === 'Field' && ex.args[0].unwrap() instanceof ast.Symbol) return cx.node('Trait', cx.expr(ex))
-  if (ex.head === 'Index') return cx.node('Trait', cx.node('Params', ...ex.args.map(x => cx.expr(x))))
+  if (ex.head === 'Field' && ex.args[0].unwrap() instanceof ast.Symbol) return cx.node('Pattern.Trait', cx.expr(ex))
+  if (ex.head === 'Index') return cx.node('Pattern.Trait', cx.node('Params', ...ex.args.map(x => cx.expr(x))))
   if (ast.isSyntax(ex, 'bits'))
-    return cx.node('Trait', types.bits(Number(asBigInt(ex.args[1].unwrap())), 0n))
+    return cx.node('Pattern.Trait', types.bits(Number(asBigInt(ex.args[1].unwrap())), 0n))
   if (ex.head === 'Operator' && ast.symbol('|').isEqual(ex.args[1].unwrap()))
-    return cx.node('Or', lowerIsa(cx, ex.args[0]), lowerIsa(cx, ex.args[2]))
+    return cx.node('Pattern.Or', lowerIsa(cx, ex.args[0]), lowerIsa(cx, ex.args[2]))
   if (ex.head === 'Operator' && ast.symbol('&').isEqual(ex.args[1].unwrap()))
-    return cx.node('And', lowerIsa(cx, ex.args[0]), lowerIsa(cx, ex.args[2]))
+    return cx.node('Pattern.And', lowerIsa(cx, ex.args[0]), lowerIsa(cx, ex.args[2]))
   return lowerExpr(cx, ex)
 }
 
 function lowerExpr(cx: Lowering, ex: ast.Tree): Val<LIR> {
   const x = ex.ungroup().unwrap()
   if (x instanceof ast.Symbol) {
-    if (x.toString() === '_') return cx.node('Hole')
+    if (x.toString() === '_') return cx.node('Pattern.Hole')
     addBinding(cx, x.toString())
-    return cx.node('Bind', types.tag(x.toString()), cx.node('Hole'))
+    return cx.node('Pattern.Bind', types.tag(x.toString()), cx.node('Pattern.Hole'))
   }
   if (typeof x === 'string') throw new Error(`Unsupported string literal ${x}`)
-  if (ast.isAtom(x)) return cx.node('Literal', types.atomValue(x))
+  if (ast.isAtom(x)) return cx.node('Pattern.Literal', types.atomValue(x))
   if (x.head === 'Operator' && x.args.length === 2 &&
     ast.symbol('$').isEqual(x.args[0].unwrap()))
-    return cx.node('Literal', cx.expr(x.args[1]))
-  if (x.head === 'Template') return cx.node('Literal', cx.expr(x))
+    return cx.node('Pattern.Literal', cx.expr(x.args[1]))
+  if (x.head === 'Template') return cx.node('Pattern.Literal', cx.expr(x))
   if (x.head === 'List') {
     const parts = x.args.map(x => lowerExpr(cx, x))
-    return cx.node('Pack', cx.node('Literal', types.tag('common.list/List')), ...parts)
+    return cx.node('Pattern.Pack', cx.node('Pattern.Literal', types.tag('common.list/List')), ...parts)
   }
   if (x.head === 'Operator' && ast.symbol(':').isEqual(x.args[1].unwrap())) {
     const name = ast.asSymbol(x.args[0].unwrap()).toString()
     const inner = lowerIsa(cx, x.args[2])
     if (name === '_') return inner
     addBinding(cx, name)
-    return cx.node('Bind', types.tag(name), inner)
+    return cx.node('Pattern.Bind', types.tag(name), inner)
   }
-  if (x.head === 'Splat') return cx.node('Repeat', lowerExpr(cx, x.args[0]))
+  if (x.head === 'Splat') return cx.node('Pattern.Repeat', lowerExpr(cx, x.args[0]))
   if (x.head === 'Call')
-    return cx.node('Constructor', cx.expr(x.args[0]), ...x.args.slice(1).map(x => lowerExpr(cx, x)))
+    return cx.node('Pattern.Constructor', cx.expr(x.args[0]), ...x.args.slice(1).map(x => lowerExpr(cx, x)))
   throw new Error(`Invalid pattern syntax ${x}`)
 }
 

@@ -416,8 +416,7 @@ function string(code: LIR, x: string) {
 }
 
 function patternNode(code: LIR, name: string, ...parts: Val<LIR>[]): Val<LIR> {
-  const path = name === 'Params' ? 'common.patterns/Params' : `common.patterns/Pattern.${name}`
-  return _push(code, xpack(tag(path), ...parts))
+  return _push(code, xpack(tag(`common.patterns/${name}`), ...parts))
 }
 
 function patternBuilder(cx: Lowering): patterns.Builder {
