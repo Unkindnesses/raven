@@ -90,6 +90,31 @@ function bound(env: Match | undefined, bs: Match): boolean {
   return bs.size > (env?.size ?? 0)
 }
 
+function lookup(env: Match | undefined, name: string): types.Type | undefined {
+  const b = env?.get(name)
+  return b !== undefined && types.isValue(b[0]) ? b[0] : undefined
+}
+
+function resolve(mod: Interpreter, env: Match | undefined, pat: Pattern): types.Type | undefined {
+  if (pat.kind !== 'trait') return undefined
+  const T = pat.trait.kind === 'const' ? pat.trait.value : lookup(env, pat.trait.name)
+  if (T === undefined || pat.args.length === 0) return T
+  const args = pat.args.map(x => resolve(mod, env, x))
+  if (args.some(x => x === undefined)) return undefined
+  const r = mod.eval(types.tag('common/get'), types.list(T, types.list(...args.map(x => some(x)))))
+  return r !== undefined && types.isValue(r) ? r : undefined
+}
+
+// TODO assumes the value is unchanged by the match
+function trivial_isa(int: Interpreter, val: types.Type, T: types.Type): boolean | undefined {
+  const r = int.eval(types.tag('common.patterns/matchTrait'), types.list(T, val))
+  if (r === undefined) return undefined
+  const tag = types.tagOf(r)
+  if (types.tag('common.core/Optional.Some').isEqual(tag)) return true
+  if (types.tag('common.core/Optional.Nil').isEqual(tag)) return false
+  return undefined
+}
+
 // TODO match results don't have to be identical, if
 // bindings and paths are right we can merge types.
 function partial_match_union(mod: Interpreter, env: Match | undefined, pat: Pattern, val: types.Type & { kind: 'union' }, path: Path): MatchResult {
@@ -161,7 +186,9 @@ function _partial_match(mod: Interpreter, env: Match | undefined, pat: Pattern, 
       return _assoc(bs, pat.name, [val, path])
 
     case 'trait':
-      const r = trivial_isa(mod, val, pat.trait)
+      const T = resolve(mod, env, pat)
+      if (T === undefined) return undefined
+      const r = trivial_isa(mod, val, T)
       return r === true ? env : r === false ? null : undefined
 
     case 'or':
@@ -208,16 +235,6 @@ function _partial_match(mod: Interpreter, env: Match | undefined, pat: Pattern, 
 
 function partial_match(mod: Interpreter, pat: Pattern, val: types.Type, path: Path = []): MatchResult {
   return _partial_match(mod, new Map(), pat, val, path)
-}
-
-// TODO assumes the value is unchanged by the match
-function trivial_isa(int: Interpreter, val: types.Type, T: types.Type): boolean | undefined {
-  const r = int.eval(types.tag('common.patterns/matchTrait'), types.list(T, val))
-  if (r === undefined) return undefined
-  const tag = types.tagOf(r)
-  if (types.tag('common.core/Optional.Some').isEqual(tag)) return true
-  if (types.tag('common.core/Optional.Nil').isEqual(tag)) return false
-  return undefined
 }
 
 // Filtered methods

@@ -75,9 +75,7 @@ bundle Int(x: Bits)
 fn $Int[T] { Params(Int, T) }
 
 @extend
-fn matchTrait(Params($Int, T), Int(b)) {
-  if let (b: T) = b { Some(Int(b)) }
-}
+fn matchTrait(Params($Int, T), x: Int(_: T)) { Some(x) }
 
 fn bits(Int(x)) { x }
 
@@ -242,9 +240,7 @@ bundle UInt(x: Bits)
 fn $UInt[T] { Params(UInt, T) }
 
 @extend
-fn matchTrait(Params($UInt, T), UInt(b)) {
-  if let (b: T) = b { Some(UInt(b)) }
-}
+fn matchTrait(Params($UInt, T), x: UInt(_: T)) { Some(x) }
 
 @extend
 fn matchTrait($Integer, x: (Int | UInt)) { Some(x) }

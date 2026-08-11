@@ -5,18 +5,29 @@ import { LIR } from './lower.js'
 import { Val } from '../utils/ir.js'
 import { asBigInt } from '../utils/map.js'
 
-export { Pattern, Builder, pattern, signature, swaps as processSwaps, lowerPattern }
+export { Pattern, Term, Builder, pattern, term, signature, swaps as processSwaps, lowerPattern }
+
+type Term =
+  | { kind: 'const', value: Type }
+  | { kind: 'var', name: string }
 
 type Pattern =
   | { kind: 'hole' }
   | { kind: 'literal', value: Type }
   | { kind: 'bind', name: string, pattern: Pattern }
   | { kind: 'repeat', pattern: Pattern }
-  | { kind: 'trait', trait: Type }
+  | { kind: 'trait', trait: Term, args: Pattern[] }
   | { kind: 'pack', parts: Pattern[] }
   | { kind: 'or', patterns: Pattern[] }
   | { kind: 'and', patterns: Pattern[] }
   | { kind: 'constructor', value: Type }
+
+function term(x: Type): Term {
+  const t = types.asTag(types.tagOf(x)).path
+  if (t === 'common.patterns/Term.Const') return { kind: 'const', value: types.part(x, 1) }
+  if (t === 'common.patterns/Term.Var') return { kind: 'var', name: types.asTag(types.part(x, 1)).path }
+  throw new Error(`unsupported term ${t}`)
+}
 
 function pattern(x: Type): Pattern {
   const t = types.asTag(types.tagOf(x)).path
@@ -28,7 +39,10 @@ function pattern(x: Type): Pattern {
   if (t === 'common.patterns/Pattern.Pack') return { kind: 'pack', parts: types.parts(x).map(pattern) }
   if (t === 'common.patterns/Pattern.Or') return { kind: 'or', patterns: types.parts(x).map(pattern) }
   if (t === 'common.patterns/Pattern.And') return { kind: 'and', patterns: types.parts(x).map(pattern) }
-  if (t === 'common.patterns/Pattern.Trait') return { kind: 'trait', trait: types.part(x, 1) }
+  if (t === 'common.patterns/Pattern.Trait') {
+    const [T, ...args] = types.parts(x)
+    return { kind: 'trait', trait: term(T), args: args.map(pattern) }
+  }
   if (t === 'common.patterns/Pattern.Constructor') return { kind: 'constructor', value: x }
   throw new Error(`unsupported pattern ${t}`)
 }
@@ -68,14 +82,22 @@ function addBinding(cx: Lowering, name: string): void {
   if (name !== '_' && !cx.args.includes(name)) cx.args.push(name)
 }
 
+function lowerTerm(cx: Lowering, ex: ast.Tree): Val<LIR> {
+  const x = ex.ungroup().unwrap()
+  if (x instanceof ast.Symbol && cx.args.includes(x.toString()))
+    return cx.node('Term.Var', types.tag(x.toString()))
+  return cx.node('Term.Const', cx.expr(ex))
+}
+
 function lowerIsa(cx: Lowering, ex: ast.Tree): Val<LIR> {
   ex = ex.ungroup()
-  if (ex.unwrap() instanceof ast.Symbol) return cx.node('Pattern.Trait', cx.expr(ex))
+  if (ex.unwrap() instanceof ast.Symbol) return cx.node('Pattern.Trait', lowerTerm(cx, ex))
   if (ex instanceof ast.Token) return lowerExpr(cx, ex)
-  if (ex.head === 'Field' && ex.args[0].unwrap() instanceof ast.Symbol) return cx.node('Pattern.Trait', cx.expr(ex))
-  if (ex.head === 'Index') return cx.node('Pattern.Trait', cx.node('Params', ...ex.args.map(x => cx.expr(x))))
+  if (ex.head === 'Field' && ex.args[0].unwrap() instanceof ast.Symbol) return cx.node('Pattern.Trait', lowerTerm(cx, ex))
+  if (ex.head === 'Index')
+    return cx.node('Pattern.Trait', lowerTerm(cx, ex.args[0]), ...ex.args.slice(1).map(x => lowerIsa(cx, x)))
   if (ast.isSyntax(ex, 'bits'))
-    return cx.node('Pattern.Trait', types.bits(Number(asBigInt(ex.args[1].unwrap())), 0n))
+    return cx.node('Pattern.Trait', cx.node('Term.Const', types.bits(Number(asBigInt(ex.args[1].unwrap())), 0n)))
   if (ex.head === 'Operator' && ast.symbol('|').isEqual(ex.args[1].unwrap()))
     return cx.node('Pattern.Or', lowerIsa(cx, ex.args[0]), lowerIsa(cx, ex.args[2]))
   if (ex.head === 'Operator' && ast.symbol('&').isEqual(ex.args[1].unwrap()))

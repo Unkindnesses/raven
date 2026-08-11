@@ -37,7 +37,8 @@ function patternArgExpr(x: ast.Tree): ast.Tree {
     return ast.Call(tag('common.patterns/Pattern.Bind'), tag(x.unwrap().toString()), ast.Call(tag('common.patterns/Pattern.Hole')))
   if (ast.isExpr(x, 'Operator')) {
     const name = asSymbol(x.args[0].unwrap())
-    return ast.Call(tag('common.patterns/Pattern.Bind'), tag(name.toString()), ast.Call(tag('common.patterns/Pattern.Trait'), x.args[2]))
+    return ast.Call(tag('common.patterns/Pattern.Bind'), tag(name.toString()),
+      ast.Call(tag('common.patterns/Pattern.Trait'), ast.Call(tag('common.patterns/Term.Const'), x.args[2])))
   }
   throw new Error(`Unsupported bundle pattern argument ${ast.repr(x)}`)
 }
