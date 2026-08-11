@@ -378,8 +378,10 @@ class Traced implements Caching, Interpreter {
     return this.results.get([func, ...args])
   }
 
-  eval(func: Tag, ...args: Type[]): Type | undefined {
-    const result = this.results.get([new Dispatch(func), func, ...args])
+  eval(func: Tag | Method, ...args: Type[]): Type | undefined {
+    const result = func instanceof Method
+      ? this.trace(func, ...args)
+      : this.trace(new Dispatch(func), func, ...args)
     if (result === undefined || result[1] === ir.unreachable) return
     return asType(result[1])
   }

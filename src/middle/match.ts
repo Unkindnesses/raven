@@ -50,8 +50,7 @@ type Match = Map<string, [types.Type, Path]>
 type MatchResult = Match | null | undefined // null is known failure, undefined is unknown
 
 interface Interpreter {
-  eval(func: types.Tag, ...args: types.Type[]): types.Type | undefined
-  trace(func: Dispatch | Method, ...args: types.Type[]): [MIR, ir.Anno<types.Type>] | undefined
+  eval(func: Func, ...args: types.Type[]): types.Type | undefined
 }
 
 interface Methods {
@@ -243,8 +242,8 @@ function matchMethods(defs: Definitions, interp: Interpreter, [f, Ts]: [Func, ty
   const result: [Method, Match | undefined][] = []
   const methods = f instanceof Method ? [f] : defs.methods(f)
   for (const meth of methods.slice().reverse()) {
-    const P = interp.trace(meth.signature)?.[1]
-    const m = P !== undefined && P !== ir.unreachable && types.isValue(P)
+    const P = interp.eval(meth.signature)
+    const m = P !== undefined && types.isValue(P)
       ? partial_match(interp, pattern(P), Ts)
       : undefined
     if (m === null) continue
