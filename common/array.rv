@@ -1,11 +1,12 @@
 import { ... } from "./core.rv"
 import { Any, Params, matchTrait, type } from "./patterns.rv"
-import { Number, zero, div, rem } from "./numbers.rv"
+import { Number, zero, one, div, rem } from "./numbers.rv"
 import { IndexIterator, Range, reduce } from "./iterate.rv"
 import { List, length } from "./list.rv"
 import { Cell, copy } from "./wasm/cell.rv"
+import { sum } from "./sequence.rv"
 
-export { Array, Vector, Matrix, array, shape, ndims, fill, reshape, size, broadcast }
+export { Array, Vector, Matrix, array, shape, ndims, fill, reshape, size, broadcast, sum, prod }
 
 bundle Array(elem: Number, dims: List, data: Cell)
 
@@ -58,6 +59,11 @@ fn fill(el: Number, dims: List) {
 
 @extend
 fn iterate(Array(_, _, data)) { IndexIterator(data) }
+
+@extend
+fn sum(a: Array) { reduce(a, zero(elem(a)), +) }
+
+fn prod(a: Array) { reduce(a, one(elem(a)), *) }
 
 @extend
 fn (a: Array) == (b: Array) {

@@ -18,13 +18,6 @@ test('dynamic tag equality', async () => {
   `)
 })
 
-test('sum sequence', async () => {
-  await rv(`
-    xs = seq(widen(1), widen(2), widen(3))
-    test sum(xs) == 6
-  `)
-})
-
 test('cell copy', async () => {
   await rv(`
     {

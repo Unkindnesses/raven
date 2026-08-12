@@ -21,6 +21,8 @@ test('array matrices', async () => {
     test shape(m) == [2, 3]
     test length(m) == 6
     test m[end, end] == 6
+    test sum(m) == 21
+    test prod(m) == 720
 
     test m[2, ..] == array[4, 5, 6]
     test m[.., 2] == array[2, 5]
