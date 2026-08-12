@@ -45,6 +45,9 @@ fn Bool(x: Bool) { x }
 fn bits(Bool(x)) { x }
 
 @extend
+fn matchTrait($Integer, x: Bool) { Some(x) }
+
+@extend
 fn Bool(a) & Bool(b) { Bool(bitand(a, b)) }
 
 @extend
@@ -55,6 +58,27 @@ fn !(Bool(x)) { Bool(biteqz(x)) }
 
 @extend
 fn not(Bool(x)) { Bool(biteqz(x)) }
+
+@extend
+fn zero(_: Bool) { false }
+
+@extend
+fn one(_: Bool) { true }
+
+@extend
+fn zero?(x: Bool) { !x }
+
+@extend
+fn promote(a: Bool, b: Bool) { [a, b] }
+
+@extend
+fn coerce(a: Int, b: Bool) { [a, oftype(a, b)] }
+
+@extend
+fn coerce(a: UInt, b: Bool) { [a, oftype(a, b)] }
+
+@extend
+fn Float64(x: Bool) { Float64(Int64(x)) }
 
 @extend
 fn show(x: Bool) {
