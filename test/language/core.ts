@@ -396,26 +396,6 @@ test('runtime signature pattern', async () => {
   `)
 })
 
-test('signature pattern residual effects', async () => {
-  await rv(`
-    bundle Wrapped { Wrap(x) }
-    bundle Other { OtherValue() }
-    state = js\`return { calls: 0 }\`
-
-    fn patternConstructor() {
-      js\`return \\state.calls += 1\`
-      Wrap
-    }
-
-    fn extract(_) { 0 }
-    fn extract(patternConstructor()(x)) { x }
-
-    test extract(Wrap(42)) == 42
-    test extract(OtherValue()) == 0
-    test Int64(js\`return \\state.calls\`) == 1 # TODO keep side effects from failing sigs
-  `)
-})
-
 test('tag union', async () => {
   await rv(`
     fn eitherSym(x) {

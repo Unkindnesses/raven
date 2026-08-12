@@ -100,8 +100,7 @@ function resolve(mod: Interpreter, env: Match | undefined, pat: Pattern): types.
   if (T === undefined || pat.args.length === 0) return T
   const args = pat.args.map(x => resolve(mod, env, x))
   if (args.some(x => x === undefined)) return undefined
-  const r = mod.eval(types.tag('common/get'), types.list(T, types.list(...args.map(x => some(x)))))
-  return r !== undefined && types.isValue(r) ? r : undefined
+  return types.pack(types.tag('common.patterns/Params'), T, ...args.map(x => some(x)))
 }
 
 // TODO assumes the value is unchanged by the match
@@ -202,9 +201,10 @@ function _partial_match(mod: Interpreter, env: Match | undefined, pat: Pattern, 
       return null
 
     case 'constructor': {
-      const result = mod.eval(types.tag('common.patterns/constructorPattern'), types.list(...types.parts(pat.value)))
-      if (!result || !types.isValue(result)) return undefined
-      return _partial_match(mod, env, pattern(result), val, path)
+      const bs = _partial_match(mod, env, pat.trait, val, path)
+      if (bs === null) return null
+      const pack: Pattern = { kind: 'pack', parts: [{ kind: 'hole' }, ...pat.args] }
+      return _partial_match(mod, bs, pack, val, path)
     }
 
     case 'pack':

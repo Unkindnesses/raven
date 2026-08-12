@@ -46,15 +46,11 @@ bundle Pattern {
   And(p, q)
 }
 
-fn constructorPattern($pack, args...) {
-  Pack(args...)
-}
-
 fn resolve(env, pack($Const, T)) { T }
 fn resolve(env, pack($Var, name)) { getkey(env, name) }
 
 fn resolve(env, pack($Trait, T)) { resolve(env, T) }
-fn resolve(env, pack($Trait, T, A)) { get(resolve(env, T), [resolve(env, A)]) }
+fn resolve(env, pack($Trait, T, A)) { Params(resolve(env, T), resolve(env, A)) }
 
 # TODO unify env and bindings
 fn scope(env, bs) {
@@ -121,8 +117,18 @@ fn _match(env, xs, p: Pack, deep) {
   return result
 }
 
-fn _match(env, val, pack($Constructor, name, args...), deep) {
-  _match(env, val, constructorPattern(name, args...), deep)
+fn _match(env, val, pack($Constructor, trait, args...), deep) {
+  m = _match(env, val, trait, deep)
+  nil?(m) && return
+  m = notnil(m)
+  val = part(m, 1)
+  bs = part(m, 2)
+  result = _match(scope(env, bs), val, Pack(Hole(), args...), deep)
+  nil?(result) && return
+  result = notnil(result)
+  bs = merge(bs, part(result, 2))
+  nil?(bs) && return
+  return [part(result, 1), notnil(bs)]
 }
 
 fn _match(val, pat, deep) { _match(record(), val, pat, deep) }

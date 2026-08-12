@@ -20,7 +20,7 @@ type Pattern =
   | { kind: 'pack', parts: Pattern[] }
   | { kind: 'or', patterns: Pattern[] }
   | { kind: 'and', patterns: Pattern[] }
-  | { kind: 'constructor', value: Type }
+  | { kind: 'constructor', trait: Pattern, args: Pattern[] }
 
 function term(x: Type): Term {
   const t = types.asTag(types.tagOf(x)).path
@@ -43,7 +43,10 @@ function pattern(x: Type): Pattern {
     const [T, ...args] = types.parts(x)
     return { kind: 'trait', trait: term(T), args: args.map(pattern) }
   }
-  if (t === 'common.patterns/Pattern.Constructor') return { kind: 'constructor', value: x }
+  if (t === 'common.patterns/Pattern.Constructor') {
+    const [trait, ...args] = types.parts(x)
+    return { kind: 'constructor', trait: pattern(trait), args: args.map(pattern) }
+  }
   throw new Error(`unsupported pattern ${t}`)
 }
 
@@ -130,8 +133,11 @@ function lowerExpr(cx: Lowering, ex: ast.Tree): Val<LIR> {
     return cx.node('Pattern.Bind', types.tag(name), inner)
   }
   if (x.head === 'Splat') return cx.node('Pattern.Repeat', lowerExpr(cx, x.args[0]))
+  if (x.head === 'Call' && (ast.symbol('pack').isEqual(x.args[0].unwrap()) ||
+    types.tag('common.core/pack').isEqual(x.args[0].unwrap())))
+    return cx.node('Pattern.Pack', ...x.args.slice(1).map(x => lowerExpr(cx, x)))
   if (x.head === 'Call')
-    return cx.node('Pattern.Constructor', cx.expr(x.args[0]), ...x.args.slice(1).map(x => lowerExpr(cx, x)))
+    return cx.node('Pattern.Constructor', lowerIsa(cx, x.args[0]), ...x.args.slice(1).map(x => lowerExpr(cx, x)))
   throw new Error(`Invalid pattern syntax ${x}`)
 }
 

@@ -377,24 +377,26 @@ test('lower if let', () => {
   const ir = lower('fn option(x) { if let Some(y) = x { y } else { 0 } }')
   assert.equal(ir.toString(), `Function test at undefined
 1: (%1)
-  %2 = pack tag"common.patterns/Pattern.Hole"
-  %3 = pack tag"common.patterns/Pattern.Bind", tag"y", %2
-  %4 = global tag"".Some
-  %5 = pack tag"common.patterns/Pattern.Constructor", %4, %3
-  %6 = pack tag"common.list/List", %1, %5
-  %7 = call tag"common.patterns/match", %6
-  %8 = call Method(tag"common.core/nil?"), %7
-  %9 = br 3 if %8
-  %10 = br 2
+  %2 = global tag"".Some
+  %3 = pack tag"common.patterns/Term.Const", %2
+  %4 = pack tag"common.patterns/Pattern.Trait", %3
+  %5 = pack tag"common.patterns/Pattern.Hole"
+  %6 = pack tag"common.patterns/Pattern.Bind", tag"y", %5
+  %7 = pack tag"common.patterns/Pattern.Constructor", %4, %6
+  %8 = pack tag"common.list/List", %1, %7
+  %9 = call tag"common.patterns/match", %8
+  %10 = call Method(tag"common.core/nil?"), %9
+  %11 = br 3 if %10
+  %12 = br 2
 2:
-  %11 = call Method(tag"common.core/notnil"), %7
-  %12 = pack tag"common.list/List", %11, tag"y"
-  %13 = call tag"common.record/getkey", %12
-  %14 = br 4 (%13)
+  %13 = call Method(tag"common.core/notnil"), %9
+  %14 = pack tag"common.list/List", %13, tag"y"
+  %15 = call tag"common.record/getkey", %14
+  %16 = br 4 (%15)
 3:
-  %15 = br 4 (0)
-4: (%16)
-  %17 = return %16`)
+  %17 = br 4 (0)
+4: (%18)
+  %19 = return %18`)
 })
 
 test('lower while loop', () => {

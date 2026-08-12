@@ -72,11 +72,6 @@ function bundlemacro(ex: ast.Expr): ast.Expr {
         ast.Call(tag('common.patterns/matchTrait'), T,
           ast.Operator(s('_val'), s(':'), ast.Call(tag('common.core/pack'), T, ...argNames))),
         ast.Block(ast.Call(s('Some'), s('_val')))))
-    body.push(
-      ast.Syntax(s('fn'), ast.Call(tag('common.patterns/constructorPattern'), T, ...argNames),
-        ast.Block(
-          ast.Call(tag('common.patterns/Pattern.Pack'),
-            ast.Call(tag('common.patterns/Pattern.Literal'), T), ...argNames))))
     if (hasSplat) continue
     let pat = ast.Call(tag('common.patterns/Pattern.Pack'), ast.Call(tag('common.patterns/Pattern.Literal'), T), ...args.map(patternArgExpr))
     body.push(
