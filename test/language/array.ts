@@ -7,10 +7,10 @@ test('array vectors', async () => {
     test shape(v) == [4]
     test v[1] == 1
     test v[end] == 4
-    test collect(v[2..3]) == [2, 3]
+    test v[2..3] == array[2, 3]
     v[2] = 20
     v[3..4] = array[30, 40]
-    test collect(v) == [1, 20, 30, 40]
+    test v == array[1, 20, 30, 40]
   `)
 })
 
@@ -22,13 +22,13 @@ test('array matrices', async () => {
     test length(m) == 6
     test m[end, end] == 6
 
-    test collect(m[2, ..]) == [4, 5, 6]
-    test collect(m[.., 2]) == [2, 5]
+    test m[2, ..] == array[4, 5, 6]
+    test m[.., 2] == array[2, 5]
 
     m[1, ..] = array[7, 8, 9]
     m[2, 2] = 50
-    test collect(m[1, ..]) == [7, 8, 9]
-    test collect(m[2, ..]) == [4, 50, 6]
+    test m[1, ..] == array[7, 8, 9]
+    test m[2, ..] == array[4, 50, 6]
   `)
 })
 

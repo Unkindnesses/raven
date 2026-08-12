@@ -41,6 +41,8 @@ fn elem(Array(elem, _, _)) { elem }
 
 fn shape(Array(_, dims, _)) { dims }
 
+fn data(Array(_, _, data)) { data }
+
 fn ndims(a: Array) { length(shape(a)) }
 
 fn size(a: Array, i: Int64) { shape(a)[i] }
@@ -56,6 +58,17 @@ fn fill(el: Number, dims: List) {
 
 @extend
 fn iterate(Array(_, _, data)) { IndexIterator(data) }
+
+@extend
+fn (a: Array) == (b: Array) {
+  if shape(a) != shape(b) { return false }
+  xs = data(a)
+  ys = data(b)
+  for i = (1..length(xs)) {
+    if xs[i] != ys[i] { return false }
+  }
+  return true
+}
 
 # Literals
 
