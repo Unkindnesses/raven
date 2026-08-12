@@ -29,6 +29,8 @@ test('array matrices', async () => {
     m[2, 2] = 50
     test m[1, ..] == array[7, 8, 9]
     test m[2, ..] == array[4, 50, 6]
+
+    test 2*m == m+m
   `)
 })
 

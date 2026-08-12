@@ -5,7 +5,7 @@ import { IndexIterator, Range, reduce } from "./iterate.rv"
 import { List, length } from "./list.rv"
 import { Cell, copy } from "./wasm/cell.rv"
 
-export { Array, Vector, Matrix, array, shape, ndims, fill, size }
+export { Array, Vector, Matrix, array, shape, ndims, fill, size, broadcast }
 
 bundle Array(elem: Number, dims: List, data: Cell)
 
@@ -148,9 +148,9 @@ fn requireSliceShape(a: Array, dims: List) {
   if shape(a) != dims { abort("Array shape mismatch") }
 }
 
-fn sliceElement(x, k: Int64) { x }
+fn elementAt(x, k: Int64) { x }
 
-fn sliceElement(Array(_, _, data), k: Int64) { data[k] }
+fn elementAt(Array(_, _, data), k: Int64) { data[k] }
 
 fn offset(dims: List, rs: List, k: Int64) {
   stride = 1
@@ -180,10 +180,51 @@ fn set(&a: Array(zero, dims, data), indices: List, x) {
   requireSliceShape(x, shape)
   data = copy(data)
   n = reduce(shape, 1, *)
-  for k = (1..n) { data[offset(dims, rs, k - 1)] = sliceElement(x, k) }
+  for k = (1..n) { data[offset(dims, rs, k - 1)] = elementAt(x, k) }
   a = Array(zero, dims, data)
   return
 }
+
+# Broadcast
+
+fn combineShape(dims: List, x) { dims }
+
+fn combineShape(dims: List, a: Array) {
+  if !empty?(dims) && dims != shape(a) { abort("Array shape mismatch") }
+  return shape(a)
+}
+
+fn elementsAt(xs: List, k: Int64) {
+  for x = xs { elementAt(x, k) }
+}
+
+fn broadcast(f, xs...) {
+  dims = reduce(xs, [], combineShape)
+  y = f(elementsAt(xs, 1)...)
+  if empty?(dims) { return y }
+  data = Cell(type(y), reduce(dims, 1, *))
+  data[1] = y
+  for k = (2..length(data)) { data[k] = f(elementsAt(xs, k)...) }
+  return Array(zero(y), dims, data)
+}
+
+@extend
+fn (a: Array) + (b: Array) { broadcast(+, a, b) }
+
+@extend
+fn (a: Array) - (b: Array) { broadcast(-, a, b) }
+
+@extend
+fn (-(a: Array)) { broadcast(-, a) }
+
+@extend
+fn (a: Array) * (b: Number) { broadcast(*, a, b) }
+
+@extend
+fn (a: Number) * (b: Array) { broadcast(*, a, b) }
+
+@extend
+fn (a: Array) / (b: Number) { broadcast(/, a, b) }
 
 # Printing
 
