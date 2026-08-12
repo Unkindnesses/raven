@@ -1,5 +1,4 @@
 import { ... } from "../core.rv"
-import { range } from "../iterate.rv"
 import { Int, Int32 } from "../integer.rv"
 import { Counted } from "./memory.rv"
 import { blockUnique } from "./malloc.rv"
@@ -31,7 +30,7 @@ fn length(Cell(_, Counted(ptr))) {
 fn copy(c: Cell(T, Counted(src))) {
   if blockUnique(src) { return c }
   dst = Cell(T, length(c))
-  for i = range(1, length(c)) {
+  for i = (1..length(c)) {
     dst[i] = c[i]
   }
   return dst

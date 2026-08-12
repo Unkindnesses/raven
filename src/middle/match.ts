@@ -95,6 +95,7 @@ function lookup(env: Match | undefined, name: string): types.Type | undefined {
 }
 
 function resolve(mod: Interpreter, env: Match | undefined, pat: Pattern): types.Type | undefined {
+  if (pat.kind === 'literal') return types.pack(types.tag('common.patterns/Pattern.Literal'), pat.value)
   if (pat.kind !== 'trait') return undefined
   const T = pat.trait.kind === 'const' ? pat.trait.value : lookup(env, pat.trait.name)
   if (T === undefined || pat.args.length === 0) return T

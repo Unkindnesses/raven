@@ -1,0 +1,221 @@
+import { ... } from "./core.rv"
+import { Any, Params, matchTrait, type } from "./patterns.rv"
+import { Number, zero, div, rem } from "./numbers.rv"
+import { IndexIterator, Range, reduce } from "./iterate.rv"
+import { List, length } from "./list.rv"
+import { Cell, copy } from "./wasm/cell.rv"
+
+export { Array, Vector, Matrix, array, shape, ndims, fill, size }
+
+bundle Array(elem: Number, dims: List, data: Cell)
+
+Vector = tag"/Vector"
+Matrix = tag"/Matrix"
+
+fn tag"/Array"[T] { Params(Array, T) }
+fn tag"/Array"[T, N] { Params(Array, T, N) }
+fn tag"/Vector"[T] { Params(Vector, T) }
+fn tag"/Matrix"[T] { Params(Matrix, T) }
+
+@extend
+fn matchTrait(Params($Array, T), x: Array(_: T, _, _)) { Some(x) }
+
+@extend
+fn matchTrait(Params($Array, T, N), x: Array) {
+  if let Some(_) = matchTrait(N, ndims(x)) { matchTrait(Array[T], x) }
+}
+
+@extend
+fn matchTrait(Params($Vector, T), x: Array[T, 1]) { Some(x) }
+
+@extend
+fn matchTrait(Params($Matrix, T), x: Array[T, 2]) { Some(x) }
+
+@extend
+fn matchTrait($Vector, x: Array[Any, 1]) { Some(x) }
+
+@extend
+fn matchTrait($Matrix, x: Array[Any, 2]) { Some(x) }
+
+fn elem(Array(elem, _, _)) { elem }
+
+fn shape(Array(_, dims, _)) { dims }
+
+fn ndims(a: Array) { length(shape(a)) }
+
+fn size(a: Array, i: Int64) { shape(a)[i] }
+
+@extend
+fn length(Array(_, _, data)) { length(data) }
+
+fn fill(el: Number, dims: List) {
+  data = Cell(type(el), reduce(dims, 1, *))
+  for i = (1..length(data)) { data[i] = el }
+  return Array(zero(el), dims, data)
+}
+
+@extend
+fn iterate(Array(_, _, data)) { IndexIterator(data) }
+
+# Literals
+
+fn literalShape(x) { [] }
+
+fn literalShape(xs: List) {
+  if empty?(xs) { abort("Empty array literal") }
+  dims = literalShape(xs[1])
+  for x = xs { if literalShape(x) != dims { abort("Ragged array literal") } }
+  return [length(xs), dims...]
+}
+
+fn literalElement(x) { x }
+fn literalElement(xs: List) { literalElement(xs[1]) }
+
+fn fillLiteral(&a: Array, indices: List, x) { set(&a, indices, x) }
+
+fn fillLiteral(&a: Array, indices: List, xs: List) {
+  for i = (1..length(xs)) { fillLiteral(&a, [indices..., i], xs[i]) }
+}
+
+fn array(xs: List) {
+  dims = literalShape(xs)
+  a = fill(zero(literalElement(xs)), dims)
+  fillLiteral(&a, [], xs)
+  return a
+}
+
+fn $array[xs...] { array(xs) }
+
+# Indexing
+
+fn requireArrayIndex(i: Int64, n: Int64) {
+  if i < 1 || i > n { abort("Array index out of range") }
+}
+
+fn requireArrayRange(Range(start, stop), n: Int64) {
+  requireArrayIndex(start, n)
+  requireArrayIndex(stop, n)
+}
+
+fn wholeAxis(i, n) { i }
+
+fn wholeAxis($.., n) { Range(1, n) }
+
+fn wholeAxes(dims: List, indices: List) {
+  if length(indices) != length(dims) { abort("Array rank mismatch") }
+  for i = (1..length(dims)) { wholeAxis(indices[i], dims[i]) }
+}
+
+fn indexRange(i) { Range(i, i) }
+
+fn indexRange(r: Range) { r }
+
+fn axisRanges(dims: List, indices: List) {
+  for i = (1..length(dims)) {
+    r = indexRange(indices[i])
+    requireArrayRange(r, dims[i])
+    r
+  }
+}
+
+fn sliceShape(indices: List) {
+  for i = indices {
+    if let (r: Range) = i { length(r) } else { continue }
+  }
+}
+
+fn sliceAxes(dims: List, indices: List) {
+  indices = wholeAxes(dims, indices)
+  [axisRanges(dims, indices), sliceShape(indices)]
+}
+
+fn requireSliceShape(_, _: List) {}
+
+fn requireSliceShape(a: Array, dims: List) {
+  if shape(a) != dims { abort("Array shape mismatch") }
+}
+
+fn sliceElement(x, k: Int64) { x }
+
+fn sliceElement(Array(_, _, data), k: Int64) { data[k] }
+
+fn offset(dims: List, rs: List, k: Int64) {
+  stride = 1
+  offset = 1
+  for i = (1..length(dims)) {
+    r = rs[i]
+    n = length(r)
+    offset = offset + (r[rem(k, n) + 1] - 1) * stride
+    k = div(k, n)
+    stride = stride * dims[i]
+  }
+  return offset
+}
+
+@extend
+fn get(Array(el, dims, data), indices: List) {
+  [rs, shape] = sliceAxes(dims, indices)
+  if empty?(shape) { return data[offset(dims, rs, 0)] }
+  out = Cell(type(el), reduce(shape, 1, *))
+  for k = (1..length(out)) { out[k] = data[offset(dims, rs, k - 1)] }
+  return Array(el, shape, out)
+}
+
+@extend
+fn set(&a: Array(zero, dims, data), indices: List, x) {
+  [rs, shape] = sliceAxes(dims, indices)
+  requireSliceShape(x, shape)
+  data = copy(data)
+  n = reduce(shape, 1, *)
+  for k = (1..n) { data[offset(dims, rs, k - 1)] = sliceElement(x, k) }
+  a = Array(zero, dims, data)
+  return
+}
+
+# Printing
+
+fn showArrayShape(dims: List) {
+  for i = (1..length(dims)) {
+    if i != 1 { print("×") }
+    print(dims[i])
+  }
+}
+
+@extend
+fn show(a: Array(_, dims, data)) {
+  showArrayShape(dims)
+  print(" Array:")
+  println()
+  print("[")
+  for i = (1..length(data)) {
+    if i != 1 { print(", ") }
+    show(data[i])
+  }
+  print("]")
+}
+
+@extend
+fn show(a: Vector) {
+  print(length(a))
+  print("-element Array:")
+  println()
+  for i = (1..length(a)) {
+    show(a[i])
+    if i != length(a) { println() }
+  }
+}
+
+@extend
+fn show(a: Matrix) {
+  [rows, cols] = shape(a)
+  showArrayShape([rows, cols])
+  print(" Array:")
+  println()
+  for row = (1..rows) {
+    for col = (1..cols) {
+      if col != 1 { print("  ") }
+      show(a[row, col])
+    }
+    if row != rows { println() }
+  }
+}

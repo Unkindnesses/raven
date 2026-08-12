@@ -24,7 +24,7 @@ fn matchTrait($NotNil, x) {
   if !nil?(x) { Some(notnil(x)) }
 }
 
-bundle Params(T, Ts)
+bundle Params(T, Ts...)
 
 @extend
 fn show(pack($Params, T, Ts...)) {
@@ -45,6 +45,10 @@ bundle Pattern {
   Bind(name, pat)
   Constructor(name, args...)
   And(p, q)
+}
+
+fn matchTrait(pack($Literal, pat), x) {
+  if x == pat { Some(x) }
 }
 
 fn resolve(env, pack($Const, T)) { T }

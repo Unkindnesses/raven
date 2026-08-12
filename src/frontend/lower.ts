@@ -522,7 +522,7 @@ function lowerOperator(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {
     // Index assignment: xs[i, ...] = x
     const [xs, ...idxs] = ast.asExpr(args[0]).args
     const x = args[1]
-    return lower(cx, ast.Call(tag('common/set'), ast.Swap(xs), ast.List(...idxs), x).withmeta(ex.meta))
+    return lower(cx, ast.Call(tag('common/set'), ast.Swap(xs), ast.List(...endIndices(xs, idxs)), x).withmeta(ex.meta))
   } else if (op === '=') {
     // Pattern assignment: pat = val
     const pat = args[0]
@@ -592,9 +592,23 @@ function lowerCall(cx: Lowering, ex: ast.Expr): Val<LIR> {
   return val
 }
 
+function substEnd(x: ast.Tree, size: ast.Tree): ast.Tree {
+  if (symbol('end').isEqual(x.unwrap())) return size
+  if (ast.isSyntax(x, 'fn') || ast.isExpr(x, 'Quote')) return x
+  if (ast.isExpr(x, 'Index') || ast.isExpr(x, 'Field'))
+    return x.map((arg, i) => i === 0 ? substEnd(arg, size) : arg)
+  return x.map(arg => substEnd(arg, size))
+}
+
+function endIndices(obj: ast.Tree, idxs: readonly ast.Tree[]): ast.Tree[] {
+  if (idxs.some(idx => ast.isExpr(idx, 'Splat'))) return [...idxs]
+  return idxs.map((idx, i) => substEnd(idx, ast.Call(tag('common.array/size'), obj, BigInt(i + 1))))
+}
+
 function lowerIndex(cx: Lowering, ex: ast.Expr): Val<LIR> {
   const [x, ...idxs] = ex.args
-  const callExpr = ast.Call(tag('common/get'), x, ast.List(...idxs))
+  const obj = new IRVal(lower(cx, x))
+  const callExpr = ast.Call(tag('common/get'), obj, ast.List(...endIndices(obj, idxs)))
   return lower(cx, callExpr.withmeta(ex.meta))
 }
 
