@@ -1,6 +1,6 @@
 import { ... } from "../core.rv"
 import { ... } from "../numbers.rv"
-import { matchTrait } from "../patterns.rv"
+import { matchTrait, type } from "../patterns.rv"
 import { Bool } from "../integer.rv"
 
 export {
@@ -14,6 +14,12 @@ fn matchTrait($Float32, x: pack($Float32, _)) { Some(x) }
 
 @extend
 fn matchTrait($Float64, x: pack($Float64, _)) { Some(x) }
+
+@extend
+fn type(_: Float32) { Float32 }
+
+@extend
+fn type(_: Float64) { Float64 }
 
 @extend
 fn Float32(x: Float64) {

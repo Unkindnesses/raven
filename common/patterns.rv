@@ -4,9 +4,10 @@ import { record, upsertkey, getkey, merge } from "./record.rv"
 
 export {
   Any, NotNil, Params, Pattern, Term
-  match, matchTrait, castTrait, isa?
+  type, match, matchTrait, castTrait, isa?
 }
 
+type = tag"/type"
 castTrait = tag"/castTrait"
 
 fn matchTrait($Tag, t: pack($Tag, _)) { Some(t) }

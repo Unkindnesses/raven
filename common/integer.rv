@@ -1,6 +1,6 @@
 import { ... } from "./core.rv"
 import { ... } from "./numbers.rv"
-import { Params, matchTrait } from "./patterns.rv"
+import { Params, matchTrait, type } from "./patterns.rv"
 
 export {
   Bits, Bool, Int, Int64, Int32, UInt, UInt64, UInt32, UInt16, UInt8
@@ -41,6 +41,9 @@ bundle Bool(x: bits 1)
 fn Bool(x: Bits) { pack(Bool, bitcast(bits 1, x)) }
 
 fn Bool(x: Bool) { x }
+
+@extend
+fn type(_: Bool) { Bool }
 
 fn bits(Bool(x)) { x }
 
@@ -100,6 +103,9 @@ fn $Int[T] { Params(Int, T) }
 
 @extend
 fn matchTrait(Params($Int, T), x: Int(_: T)) { Some(x) }
+
+@extend
+fn type(x: Int) { Int[bits(zero(x))] }
 
 fn bits(Int(x)) { x }
 
@@ -268,6 +274,9 @@ fn matchTrait(Params($UInt, T), x: UInt(_: T)) { Some(x) }
 
 @extend
 fn matchTrait($Integer, x: (Int | UInt)) { Some(x) }
+
+@extend
+fn type(x: UInt) { UInt[bits(zero(x))] }
 
 fn bits(UInt(x)) { x }
 
