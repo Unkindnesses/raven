@@ -1,8 +1,7 @@
 import { ... } from "./core.rv"
-import { List } from "./list.rv"
+import { List, length } from "./list.rv"
 import { Number, zero, one, sqrt, exp, log, sin, cos, tanh } from "./numbers.rv"
-import { Array, Vector, Matrix, broadcast, fill, shape, sum, replace } from "./array.rv"
-import { length } from "./list.rv"
+import { Array, Matrix, broadcast, fill, reshape, shape, size, sum, replace } from "./array.rv"
 import { match, NotNil } from "./patterns.rv"
 import { getkey } from "./record.rv"
 
@@ -43,6 +42,26 @@ fn reverse($get, a: Array, indices: List) {
     da = fill(0.0, shape(a))
     [replace(da, indices, d), tangent(indices)]
   }]
+}
+
+@extend
+fn reverse($shape, a: Array) {
+  return [shape(a), fn (_) { [tangent(a)] }]
+}
+
+@extend
+fn reverse($size, a: Array, i: Int64) {
+  return [size(a, i), fn (_) { [tangent(a), tangent(i)] }]
+}
+
+@extend
+fn reverse($fill, el: Number, dims: List) {
+  return [fill(el, dims), fn (d) { [sum(d), tangent(dims)] }]
+}
+
+@extend
+fn reverse($reshape, a: Array, dims: List) {
+  return [reshape(a, dims), fn (d) { [reshape(d, shape(a)), tangent(dims)] }]
 }
 
 @extend
