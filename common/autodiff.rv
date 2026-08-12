@@ -1,6 +1,8 @@
 import { ... } from "./core.rv"
 import { List } from "./list.rv"
-import { Number, zero, one, sqrt, exp, log, sin, cos } from "./numbers.rv"
+import { Number, zero, one, sqrt, exp, log, sin, cos, tanh } from "./numbers.rv"
+import { Array, Vector, Matrix, broadcast, fill, shape, sum, replace } from "./array.rv"
+import { length } from "./list.rv"
 import { match, NotNil } from "./patterns.rv"
 import { getkey } from "./record.rv"
 
@@ -16,6 +18,7 @@ fn grad(f, xs...) {
 fn tangent(x) { nil }
 fn tangent(x: Tag) { x }
 fn tangent(xs: List) { for x = xs { tangent(x) } }
+fn tangent(a: Array) { fill(0.0, shape(a)) }
 fn tangent(x: Number) { zero(x) }
 
 fn accum(dx, dy, dz...) { accum(dx, accum(dy, dz...)) }
@@ -30,6 +33,74 @@ fn accum(xs: List, ys: List) {
     i = i + 1
     accum(x, ys[i])
   }
+}
+
+fn accum(xs: Array, ys: Array) { broadcast(+, xs, ys) }
+
+@extend
+fn reverse($get, a: Array, indices: List) {
+  return [get(a, indices), fn (d) {
+    da = fill(0.0, shape(a))
+    [replace(da, indices, d), tangent(indices)]
+  }]
+}
+
+@extend
+fn reverse($replace, a: Array, indices: List, x) {
+  return [replace(a, indices, x), fn (d) {
+    dx = get(d, indices)
+    [replace(d, indices, tangent(dx)), tangent(indices), dx]
+  }]
+}
+
+@extend
+fn reverse($length, a: Array) {
+  return [length(a), fn (_) { [tangent(a)] }]
+}
+
+@extend
+fn reverse($sum, a: Array) {
+  return [sum(a), fn (d) { [fill(d, shape(a))] }]
+}
+
+@extend
+fn reverse($broadcast, $tanh, a: Array) {
+  y = broadcast(tanh, a)
+  return [y, fn (d) { [tangent(tanh), broadcast(*, d, broadcast(-, 1.0, broadcast(*, y, y)))] }]
+}
+
+@extend
+fn reverse($broadcast, $*, a: Number, b: Array) {
+  return [broadcast(*, a, b), fn (d) { [tangent(*), sum(broadcast(*, d, b)), broadcast(*, d, a)] }]
+}
+
+@extend
+fn reverse($broadcast, $-, a: Array, b: Array) {
+  return [broadcast(-, a, b), fn (d) { [tangent(-), d, broadcast(-, d)] }]
+}
+
+@extend
+fn reverse($broadcast, $^, a: Array, b: Number) {
+  return [broadcast(^, a, b), fn (d) {
+    [tangent(^), broadcast(*, d, broadcast(*, b, broadcast(^, a, b - 1.0))), zero(b)]
+  }]
+}
+
+fn outer(a: Array, b: Array) {
+  out = fill(0.0, [length(a), length(b)])
+  for i = (1..length(a)) {
+    for j = (1..length(b)) { out[i, j] = a[i] * b[j] }
+  }
+  out
+}
+
+fn transposeMatvec(a: Matrix, b: Array) {
+  [n, m] = shape(a)
+  out = fill(0.0, [m])
+  for j = (1..m) {
+    for i = (1..n) { out[j] = out[j] + a[i, j] * b[i] }
+  }
+  out
 }
 
 @extend
@@ -144,4 +215,14 @@ fn forward($cos, [x], [dx]) {
 @extend
 fn reverse($cos, x) {
   return [cos(x), fn (d) { [-sin(x) * d] }]
+}
+
+@extend
+fn reverse($*, a: Array, b: Array) {
+  return [a * b, fn (d) { [outer(d, b), transposeMatvec(a, d)] }]
+}
+
+@extend
+fn reverse($*, a: Number, b: Array) {
+  return [a * b, fn (d) { [sum(broadcast(*, d, b)), broadcast(*, d, a)] }]
 }

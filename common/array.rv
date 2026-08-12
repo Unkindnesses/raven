@@ -6,7 +6,7 @@ import { List, length } from "./list.rv"
 import { Cell, copy } from "./wasm/cell.rv"
 import { sum } from "./sequence.rv"
 
-export { Array, Vector, Matrix, array, shape, ndims, fill, reshape, size, broadcast, sum, prod }
+export { Array, Vector, Matrix, array, shape, ndims, fill, reshape, size, broadcast, sum, prod, replace }
 
 bundle Array(elem: Number, dims: List, data: Cell)
 
@@ -185,14 +185,18 @@ fn get(Array(el, dims, data), indices: List) {
   return Array(el, shape, out)
 }
 
-@extend
-fn set(&a: Array(zero, dims, data), indices: List, x) {
+fn replace(Array(zero, dims, data), indices: List, x) {
   [rs, shape] = sliceAxes(dims, indices)
   requireSliceShape(x, shape)
   data = copy(data)
   n = reduce(shape, 1, *)
   for k = (1..n) { data[offset(dims, rs, k - 1)] = elementAt(x, k) }
-  a = Array(zero, dims, data)
+  return Array(zero, dims, data)
+}
+
+@extend
+fn set(&a: Array, indices: List, x) {
+  a = replace(a, indices, x)
   return
 }
 

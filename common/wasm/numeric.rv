@@ -72,6 +72,9 @@ fn (a: Float64) / (b: Float64) {
 }
 
 @extend
+fn (a: Float64) ^ (b: Float64) { pow(a, b) }
+
+@extend
 fn (a: Float64) == (b: Float64) {
   Bool(wasm f64.eq(a: f64, b: f64): i32)
 }
