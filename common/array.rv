@@ -5,7 +5,7 @@ import { IndexIterator, Range, reduce } from "./iterate.rv"
 import { List, length } from "./list.rv"
 import { Cell, copy } from "./wasm/cell.rv"
 
-export { Array, Vector, Matrix, array, shape, ndims, fill, size, broadcast }
+export { Array, Vector, Matrix, array, shape, ndims, fill, reshape, size, broadcast }
 
 bundle Array(elem: Number, dims: List, data: Cell)
 
@@ -68,6 +68,11 @@ fn (a: Array) == (b: Array) {
     if xs[i] != ys[i] { return false }
   }
   return true
+}
+
+fn reshape(a: Array, dims: List) {
+  if reduce(dims, 1, *) != length(a) { abort("Array size mismatch") }
+  return Array(elem(a), dims, data(a))
 }
 
 # Literals
@@ -225,6 +230,27 @@ fn (a: Number) * (b: Array) { broadcast(*, a, b) }
 
 @extend
 fn (a: Array) / (b: Number) { broadcast(/, a, b) }
+
+@extend
+fn (a: Matrix) * (b: Matrix) {
+  [[n, k], [k, m]] = [shape(a), shape(b)]
+  zero = zero(elem(a) * elem(b))
+  c = fill(zero, [n, m])
+  for i = (1..n) {
+    for j = (1..m) {
+      total = zero
+      for l = (1..k) { total = total + a[i, l] * b[l, j] }
+      c[i, j] = total
+    }
+  }
+  return c
+}
+
+@extend
+fn (a: Matrix) * (v: Vector) {
+  [[n, k], [k]] = [shape(a), shape(v)]
+  return reshape(a * reshape(v, [k, 1]), [n])
+}
 
 # Printing
 

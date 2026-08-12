@@ -34,9 +34,13 @@ test('array matrices', async () => {
   `)
 })
 
-test('array show', async () => {
+test('matrix multiplication', async () => {
   await rv(`
-    show array[1, 2]
-    show array[[1, 2], [3, 4]]
-  `, { output: ['2-element Array:\n1\n2', '2×2 Array:\n1  2\n3  4'] })
+    a = array[[11, 12, 13], [21, 22, 23]]
+    b = array[[2, 3], [3, 4], [4, 5]]
+    v = array[1, 2, 3]
+
+    test a * b == array[[110, 146], [200, 266]]
+    test a * v == array[74, 134]
+  `)
 })
