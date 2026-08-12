@@ -103,6 +103,7 @@ class Token {
 type ExprHead =
   | 'File' | 'Group' | 'List' | 'Splat' | 'Call' | 'Index' | 'Field'
   | 'Operator' | 'Swap' | 'Block' | 'Syntax' | 'Quote' | 'Template' | 'Attribute'
+  | 'Broadcasted'
 
 class Expr {
   readonly extent: Extent
@@ -128,9 +129,17 @@ function move(loc: Cursor, [lines, columns]: Extent): Cursor {
   }
 }
 
+function dotOffset(tree: Expr, index: number): number {
+  if (index !== 1) return 0
+  if (tree.head === 'Call') return +isExpr(tree.args[0], 'Broadcasted')
+  if (tree.head === 'Operator') return +(tree.args.length === 3 && isExpr(tree.args[1], 'Broadcasted'))
+  return 0
+}
+
 function childOffset(tree: Expr, index: number): number {
-  return +(index === 0 && ['Group', 'List', 'Block', 'Swap', 'Attribute', 'Quote'].includes(tree.head)
-    || index === 1 && ['Call', 'Index', 'Field'].includes(tree.head))
+  return dotOffset(tree, index) +
+    +(index === 0 && ['Group', 'List', 'Block', 'Swap', 'Attribute', 'Quote'].includes(tree.head)
+      || index === 1 && ['Call', 'Index', 'Field'].includes(tree.head))
 }
 
 class Traverse {
@@ -193,9 +202,11 @@ function callargs(ex: Expr & { head: 'Call' | 'Operator' }): readonly Tree[] {
 
 const constructor = (head: ExprHead) => (...args: (Tree | Atom)[]) => new Expr(head, args.map(token))
 
-export const [File, Group, List, Splat, Call, Index, Field, Operator, Swap, Block, Syntax, Quote, Template, Attribute] =
-  (['File', 'Group', 'List', 'Splat', 'Call', 'Index', 'Field', 'Operator', 'Swap', 'Block', 'Syntax', 'Quote', 'Template', 'Attribute'] as const)
+export const [File, Group, List, Splat, Call, Index, Field, Operator, Swap, Block, Syntax, Quote, Template, Attribute, Broadcasted] =
+  (['File', 'Group', 'List', 'Splat', 'Call', 'Index', 'Field', 'Operator', 'Swap', 'Block', 'Syntax', 'Quote', 'Template', 'Attribute', 'Broadcasted'] as const)
     .map(constructor)
+
+const dot = (f: Tree) => isExpr(f, 'Broadcasted') ? '.' : ''
 
 function repr(item: Tree, indent: number = 0): string {
   const _repr = (item: Tree, i?: number) => repr(item, i || indent)
@@ -212,13 +223,14 @@ function repr(item: Tree, indent: number = 0): string {
       case 'File': return item.args.map(_repr).join("\n")
       case 'Group': return `(${item.args.map(_repr).join(", ")})`
       case 'List': return `[${item.args.map(_repr).join(", ")}]`
-      case 'Call': return `${_repr(item.args[0])}(${item.args.slice(1).map(_repr).join(", ")})`
+      case 'Call': return `${_repr(item.args[0])}${dot(item.args[0])}(${item.args.slice(1).map(_repr).join(", ")})`
+      case 'Broadcasted': return _repr(item.args[0])
       case 'Index': return `${_repr(item.args[0])}[${item.args.slice(1).map(_repr).join(", ")}]`
       case 'Field': return `${_repr(item.args[0])}.${_repr(item.args[1])}`
       case 'Splat': return item.args.length ? `${_repr(item.args[0])}...` : '...'
       case 'Operator': {
         if (item.args.length === 2) return `(${String(item.args[0].unwrap())}${_repr(item.args[1])})`
-        return `(${_repr(item.args[0])} ${String(item.args[1].unwrap())} ${_repr(item.args[2])})`
+        return `(${_repr(item.args[0])} ${dot(item.args[1])}${_repr(item.args[1])} ${_repr(item.args[2])})`
       }
       case 'Swap': return `&${_repr(item.args[0])}`
       case 'Quote': return `\`${String(item.args[0].unwrap())}\``
@@ -281,12 +293,13 @@ function bodySource(tree: Tree, inner: string): Source {
     case 'Group': return ['(', args, inner, ')']
     case 'List': return ['[', args, inner, ']']
     case 'Block': return ['{', args, inner, '}']
-    case 'Call': return [args[0], '(', args.slice(1), inner, ')']
+    case 'Call': return [args[0], `${dot(args[0])}(`, args.slice(1), inner, ')']
     case 'Index': return [args[0], '[', args.slice(1), inner, ']']
     case 'Field': return [args[0], '.', args[1]]
     case 'Splat': return args.length ? [args[0], '...'] : '...'
     case 'Swap': return ['&', args[0]]
-    case 'Operator':
+    case 'Operator': return args.length === 3 ? [args[0], dot(args[1]), args.slice(1)] : args
+    case 'Broadcasted':
     case 'Syntax':
     case 'Template': return args
     case 'Attribute': return ['@', args]

@@ -507,8 +507,13 @@ function lower(cx: Lowering, x: ast.Tree | readonly ast.Tree[], value = true): V
   throw new Error(`Unimplemented lowering for: ${x}`)
 }
 
+function lowerBroadcast(cx: Lowering, f: ast.Expr & { head: 'Broadcasted' }, args: readonly ast.Tree[], src?: ast.Meta): Val<LIR> {
+  return lower(cx, ast.Call(tag('common.array/broadcast'), f.args[0], ...args).withmeta(src))
+}
+
 function lowerOperator(cx: Lowering, ex: ast.Expr, value = true): Val<LIR> {
   const [operator, ...args] = ast.callargs(ast.asExpr(ex, 'Operator'))
+  if (ast.isExpr(operator, 'Broadcasted')) return lowerBroadcast(cx, operator, args, ex.meta)
   const op = asSymbol(operator.unwrap()).toString()
   if (op === '=' && args[0] instanceof ast.Token && args[0].unwrap() instanceof Symbol) {
     // Simple assignment: x = value
@@ -574,6 +579,7 @@ function argtuple(cx: Lowering, args: readonly ast.Tree[], src?: ast.Meta): [Val
 }
 
 function lowerCall(cx: Lowering, ex: ast.Expr): Val<LIR> {
+  if (ast.isExpr(ex.args[0], 'Broadcasted')) return lowerBroadcast(cx, ex.args[0], ex.args.slice(1), ex.meta)
   // Handle Field calls: obj.method(...) -> common/method(obj, tag, ...)
   if (ast.isExpr(ex.args[0], 'Field')) {
     const [obj, methodName] = ex.args[0].args

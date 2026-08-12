@@ -121,6 +121,27 @@ test('triple-quoted tagged template', () => {
   assert.equal(ast.asToken(tree.args[1]).unwrap(), 'console.log("hello")')
 })
 
+test('broadcast syntax', () => {
+  const call = ast.asExpr(first('f.(x, y)'), 'Call')
+  assert.ok(ast.isExpr(call.args[0], 'Broadcasted'))
+  assert.equal(asSymbol(ast.asExpr(call.args[0]).args[0]).toString(), 'f')
+  assert.equal(call.args.length, 3)
+
+  const operator = ast.asExpr(first('a .* b'), 'Operator')
+  assert.ok(ast.isExpr(operator.args[1], 'Broadcasted'))
+  assert.equal(asSymbol(ast.asExpr(operator.args[1]).args[0]).toString(), '*')
+
+  assert.equal(`${first('a .* b .+ c')}`, '((a .* b) .+ c)')
+  assert.equal(`${first('a .+ b .* c')}`, '(a .+ (b .* c))')
+  assert.equal(`${first('a * b .* c')}`, '((a * b) .* c)')
+  assert.equal(`${first('a .* b + c')}`, '((a .* b) + c)')
+})
+
+test('print broadcast syntax', () => {
+  for (const src of ['f.(x)\n', 'f.(x, y)\n', 'a .* b\n', 'a.*b\n', 'sq.(xs .+ 1)\n', 'f.(xs...)\n'])
+    assert.equal(ast.print(parse('test', src)), src)
+})
+
 test('precedence table transitivity', () => {
   function transitive(t: PrecTable): boolean {
     let trans = true

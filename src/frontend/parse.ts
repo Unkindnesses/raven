@@ -368,6 +368,14 @@ function token(r: Reader): ast.Tree | undefined {
   return new ast.Token(x, r.text(from))
 }
 
+// TODO remove strings, or generalise
+function fieldToken(r: Reader): ast.Tree | undefined {
+  const from = r.mark()
+  const x = r.parse<ast.Atom | undefined>(symbol, string)
+  if (x === undefined) return
+  return new ast.Token(x, r.text(from))
+}
+
 function ellipsis(r: Reader): ast.Tree | undefined {
   if (exact(r, '...') === undefined) return
   return ast.Splat()
@@ -393,31 +401,35 @@ function interpolation(r: Reader): ast.Tree | undefined {
 // The following parsers fall back to simpler ones, to avoid excessive
 // backtracking / re-parsing. So they don't need to be called in sequence.
 
+function call(r: Reader): [ast.Tree[], string, boolean] | undefined {
+  const dotted = r.parse(r => exact(r, '.')) !== undefined
+  const args = brackets(r, '(', ')')
+  if (args === undefined) return
+  return [args[0], args[1], dotted]
+}
+
 // Does calls and fields, so we can handle eg `foo.bar(a).baz`
 function postfix(r: Reader): ast.Tree | undefined {
   let ex = r.parse(interpolation, item)
   if (ex === undefined) return
   while (true) {
     const cur = r.cursor()
-    let args = r.parse(r => brackets(r, '(', ')'))
-    if (args !== undefined) {
-      ex = ast.Call(ex, ...args[0]).withmeta({ file: path(), loc: cur })
-      ex = ast.inner(ex, args[1])
+    const cargs = r.parse(call)
+    if (cargs !== undefined) {
+      if (cargs[2]) ex = ast.Broadcasted(ex)
+      ex = ast.Call(ex, ...cargs[0]).withmeta({ file: path(), loc: cur })
+      ex = ast.inner(ex, cargs[1])
       continue
     }
-    args = r.parse(r => brackets(r, '[', ']'))
-    if (args !== undefined) {
-      ex = ast.Index(ex, ...args[0]).withmeta({ file: path(), loc: cur })
-      ex = ast.inner(ex, args[1])
+    const iargs = r.parse(r => brackets(r, '[', ']'))
+    if (iargs !== undefined) {
+      ex = ast.Index(ex, ...iargs[0]).withmeta({ file: path(), loc: cur })
+      ex = ast.inner(ex, iargs[1])
       continue
     }
-    if (r.peek(r => exact(r, '..'))) { break }
-    if (r.parse(r => exact(r, '.'))) {
-      const field = r.some(r => item(r))
-      ex = ast.Field(ex, field).withmeta({ file: path(), loc: cur })
-      continue
-    }
-    break
+    const field = r.parse(r => exact(r, '.') && fieldToken(r))
+    if (field === undefined) break
+    ex = ast.Field(ex, field).withmeta({ file: path(), loc: cur })
   }
   return ex
 }
@@ -464,13 +476,16 @@ function infix(r: Reader, syn = true, prev?: ast.Symbol): [ast.Tree, boolean] {
     const mark = r.mark()
     const ws = r.skipWhitespace()
     const opcur = r.cursor()
-    const op = r.parse(opsymbol)
-    if (op === undefined) { r.reset(mark); return [left, false] }
+    let op = r.parse(opsymbol)
+    const dotted = op === undefined
+    if (dotted) op = r.parse(r => exact(r, '.') ? opsymbol(r) : undefined)
+    if (op === undefined || dotted && op.name === '..') { r.reset(mark); return [left, false] }
     const prec = prev ? precedence(prev, op) : Prec.Right
     if (prec === Prec.Left) { r.reset(mark); return [left, true] }
     if (prec === Prec.None) { throw new Error(`Operators ${prev} and ${op} are ambiguous at ${path()}:${curstring(r.cursor())}`) }
     left = ast.trail(left, ws)
-    const optok = ast.trail(new ast.Token(op, undefined, { file: path(), loc: opcur }), r.skipTrailing())
+    let optok = new ast.Token(op, undefined, { file: path(), loc: opcur }) as ast.Tree
+    optok = ast.trail(dotted ? ast.Broadcasted(optok) : optok, r.skipTrailing())
     const pending = r.skip()
     let right = ast.leading(syn ? syntax(r, op) : infix(r, syn, op)[0], pending)
     let trailing
