@@ -32,7 +32,7 @@ import { Inference, Sig, inferexpr, infercall, issubset, maybe_union } from './a
 import { some } from '../utils/map.js'
 import { options } from '../utils/options.js'
 import { part_method, isnil_method, notnil_method, string } from './primitives.js'
-import { Caching, EagerCache, pipe, reset } from '../utils/cache.js'
+import { Cache, Caching, EagerCache, pipe, reset } from '../utils/cache.js'
 import { isEqual } from '../utils/isEqual.js'
 import { repr } from '../frontend/types.js'
 import { Traced } from './tracer.js'
@@ -256,18 +256,19 @@ function matchMethods(defs: Definitions, interp: Interpreter, [f, Ts]: [Func, ty
 class MatchMethods implements Caching, Methods {
   readonly interp: Traced
   readonly cache: EagerCache<[types.Tag, types.Type], [Method, Match | undefined][]>
+  readonly meths: Cache<[Method, types.Type], [Method, Match | undefined][]>
 
-  constructor(readonly defs: Definitions, lowered: Lowered) {
+  constructor(defs: Definitions, lowered: Lowered) {
     this.interp = Traced.create(defs, lowered)
     this.cache = new EagerCache(key => matchMethods(defs, this.interp, key))
+    this.meths = new Cache(key => matchMethods(defs, this.interp, key))
   }
 
-  get subcaches(): Caching[] { return [this.interp, this.cache] }
-  reset(deps: Set<bigint>) { reset(pipe(this.interp, this.cache), deps) }
+  get subcaches(): Caching[] { return [this.interp, this.cache, this.meths] }
+  reset(deps: Set<bigint>) { reset(pipe(this.interp, this.cache, this.meths), deps) }
   get(key: [Func, types.Type]) {
-    // TODO closure deletion interacts badly with eager cache recomputes
     return key[0] instanceof Method
-      ? matchMethods(this.defs, this.interp, key)
+      ? this.meths.get([key[0], key[1]])
       : this.cache.get([key[0], key[1]])
   }
 }
