@@ -407,8 +407,11 @@ function packir(Ts: Type): MIR {
 // ===
 
 function set_pack(code: Fragment<MIR>, xs: Val<MIR>, i: Val<MIR>, x: Val<MIR>): Val<MIR> {
-  let T = asType(partial_set(asType(code.type(xs)), asType(code.type(i)), asType(code.type(x))))
+  const S = asType(code.type(xs))
+  let T = asType(partial_set(S, asType(code.type(i)), asType(code.type(x))))
   let idx = some(getIntValue(asType(code.type(i))))
+  const displaced = indexer(code, S, types.int64(idx), xs, types.int64(idx))
+  if (isreftype(asType(code.type(displaced)))) code.push(code.stmt(expr('release', displaced)))
   const parts: Val<MIR>[] = []
   for (let i = 0; i <= types.nparts(T); i++)
     parts.push(i === idx ? x : indexer(code, T, types.int64(i), xs, types.int64(i)))
