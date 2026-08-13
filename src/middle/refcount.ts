@@ -269,7 +269,7 @@ function refcountsIR(code: MIR): MIR {
           const T = code.type(x)
           if (!isreftype(T)) continue
           const occ = st.expr.body.filter(a => a === x).length
-          const ret = (isglobal(code, x) ? 1 : 0) + occ - (live.has(x) ? 0 : 1)
+          const ret = isglobal(code, x) ? occ : occ - (live.has(x) ? 0 : 1)
           for (let i = 0; i < ret; i++) retain(pr, T, x)
         }
         const v2 = pr.push(st)

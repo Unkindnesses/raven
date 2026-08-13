@@ -180,6 +180,21 @@ test('anonymous function captures by value', async () => {
   `)
 })
 
+test('closure containing a closure releases captures', async () => {
+  await rv(`
+    fn reversef(x) {
+      bx = fn (d) { [fill(d, shape(x))] }
+      state = [bx, x]
+      fn (d) { state[1](d) }
+    }
+
+    a = array[1.0, 2.0]
+    back = reversef(a)
+    result = back(1.0)
+    test true
+  `)
+})
+
 test('invoke closure object', async () => {
   await rv(`
     fn power(e) {
