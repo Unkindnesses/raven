@@ -46,3 +46,10 @@ test('matrix multiplication', async () => {
     test a * v == array[74, 134]
   `)
 })
+
+test('show arrays compactly', async () => {
+  await rv(`
+    println(array[1, 2, 3, 4])
+    println(array[[1, 2], [3, 3]])
+  `, { output: 'array[1, 2, 3, 4]\narray[[1, 2], [3, 3]]' })
+})

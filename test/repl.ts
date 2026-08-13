@@ -36,6 +36,8 @@ test('basic eval', async () => {
     assert.strictEqual((await repl.eval('xs')).trim(), '[1, 2, 3, 4]')
     assert.strictEqual((await repl.eval('x = widen(5)')).trim(), '5')
     assert.strictEqual((await repl.eval('x + 2')).trim(), '7')
+    assert.strictEqual((await repl.eval('array[1, 2, 3]')).trim(), '3-element Array:\n1\n2\n3')
+    assert.strictEqual((await repl.eval('array[[1, 2], [3, 3]]')).trim(), '2×2 Array:\n1  2\n3  3')
   } finally {
     await repl.close()
   }

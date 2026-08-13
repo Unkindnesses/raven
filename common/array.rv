@@ -271,8 +271,28 @@ fn showArrayShape(dims: List) {
   }
 }
 
+fn showArrayNested(a: Array, indices: List) {
+  if length(indices) == ndims(a) {
+    show(a[indices...])
+    return
+  }
+  print("[")
+  n = size(a, length(indices) + 1)
+  for i = (1..n) {
+    if i != 1 { print(", ") }
+    showArrayNested(a, [indices..., i])
+  }
+  print("]")
+}
+
 @extend
-fn show(a: Array(_, dims, data)) {
+fn show(a: Array) {
+  print("array")
+  showArrayNested(a, [])
+}
+
+@extend
+fn replshow(a: Array(_, dims, data)) {
   showArrayShape(dims)
   print(" Array:")
   println()
@@ -282,10 +302,11 @@ fn show(a: Array(_, dims, data)) {
     show(data[i])
   }
   print("]")
+  println()
 }
 
 @extend
-fn show(a: Vector) {
+fn replshow(a: Vector) {
   print(length(a))
   print("-element Array:")
   println()
@@ -293,10 +314,11 @@ fn show(a: Vector) {
     show(a[i])
     if i != length(a) { println() }
   }
+  println()
 }
 
 @extend
-fn show(a: Matrix) {
+fn replshow(a: Matrix) {
   [rows, cols] = shape(a)
   showArrayShape([rows, cols])
   print(" Array:")
@@ -308,4 +330,5 @@ fn show(a: Matrix) {
     }
     if row != rows { println() }
   }
+  println()
 }
